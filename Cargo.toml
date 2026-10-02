@@ -1,0 +1,21 @@
+[workspace]
+resolver = "3"
+members = ["crates/pdf-core", "crates/pdf-cli", "src-tauri"]
+exclude = ["third_party"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-or-later"
+rust-version = "1.99"
+
+[workspace.dependencies]
+# Vendored, patched copy of the mupdf crate; see third_party/mupdf-rs/FOLIO_PATCHES.md
+# and docs/decisions/0001-mupdf-binding-coverage.md.
+mupdf = { path = "third_party/mupdf-rs" }
+mupdf-sys = { git = "https://github.com/messense/mupdf-rs", rev = "537d50556ee8e4abf2435f81357dfef3c145d883", default-features = false }
+thiserror = "=2.0.21"
+
+[profile.dev.package."*"]
+# MuPDF is large; optimize dependencies even in dev so rendering timings are meaningful.
+opt-level = 2

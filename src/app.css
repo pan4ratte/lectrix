@@ -1,0 +1,75 @@
+@import 'tailwindcss';
+
+/*
+ * Design tokens. Components use only these (through Tailwind utilities such as
+ * bg-surface, text-fg, border-line); never hard-coded colors.
+ */
+:root {
+	color-scheme: light dark;
+	--folio-bg: #f3f3f3;
+	--folio-surface: #fbfbfb;
+	--folio-surface-raised: #ffffff;
+	--folio-canvas: #e6e6e6;
+	--folio-fg: #1b1b1b;
+	--folio-fg-muted: #5c5c5c;
+	--folio-line: #e0e0e0;
+	--folio-accent: #005fb8;
+	--folio-accent-fg: #ffffff;
+	--folio-focus: #005fb8;
+	--folio-page-shadow: rgb(0 0 0 / 0.14);
+}
+
+@media (prefers-color-scheme: dark) {
+	:root {
+		--folio-bg: #202020;
+		--folio-surface: #2b2b2b;
+		--folio-surface-raised: #323232;
+		--folio-canvas: #1a1a1a;
+		--folio-fg: #ffffff;
+		--folio-fg-muted: #c5c5c5;
+		--folio-line: #3a3a3a;
+		--folio-accent: #60cdff;
+		--folio-accent-fg: #000000;
+		--folio-focus: #60cdff;
+		--folio-page-shadow: rgb(0 0 0 / 0.5);
+	}
+}
+
+@theme inline {
+	--color-bg: var(--folio-bg);
+	--color-surface: var(--folio-surface);
+	--color-surface-raised: var(--folio-surface-raised);
+	--color-canvas: var(--folio-canvas);
+	--color-fg: var(--folio-fg);
+	--color-fg-muted: var(--folio-fg-muted);
+	--color-line: var(--folio-line);
+	--color-accent: var(--folio-accent);
+	--color-accent-fg: var(--folio-accent-fg);
+	--color-focus: var(--folio-focus);
+	--color-page-shadow: var(--folio-page-shadow);
+	--font-sans: 'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+	--radius-control: 6px;
+	--radius-panel: 8px;
+}
+
+html,
+body {
+	height: 100%;
+	margin: 0;
+	background: var(--folio-bg);
+	color: var(--folio-fg);
+	font-family: var(--font-sans);
+	font-size: 14px;
+}
+
+:focus-visible {
+	outline: 2px solid var(--folio-focus);
+	outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	* {
+		transition: none !important;
+		animation: none !important;
+	}
+}

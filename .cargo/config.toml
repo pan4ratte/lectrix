@@ -1,0 +1,4 @@
+[env]
+# libclang for mupdf-sys bindgen (LLVM installed via `winget install LLVM.LLVM`).
+# An explicit LIBCLANG_PATH in the environment wins.
+LIBCLANG_PATH = { value = "C:/Program Files/LLVM/bin", force = false }

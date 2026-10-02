@@ -1,0 +1,38 @@
+# Vendored copy of the `mupdf` crate from https://github.com/messense/mupdf-rs at
+# commit 537d50556ee8e4abf2435f81357dfef3c145d883, with the patches listed in
+# FOLIO_PATCHES.md. `mupdf-sys` (and the MuPDF C sources) still come from upstream
+# at the same commit. Feature list trimmed to what Folio uses.
+[package]
+name = "mupdf"
+version = "0.8.0"
+edition = "2021"
+description = "Safe Rust wrapper to MuPDF (Folio-patched vendored copy)"
+license = "AGPL-3.0"
+repository = "https://github.com/messense/mupdf-rs"
+publish = false
+
+[features]
+default = ["base14-fonts", "system-fonts", "brotli"]
+base14-fonts = ["mupdf-sys/base14-fonts"]
+system-fonts = ["dep:font-kit"]
+brotli = ["mupdf-sys/brotli"]
+# Feature names referenced by cfg() in the upstream source; never enabled by Folio.
+bundled-fonts-runtime = []
+bundled-fonts-droid = []
+bundled-fonts-noto = []
+bundled-fonts-sil = []
+serde = ["dep:serde"]
+
+[dependencies]
+mupdf-sys = { git = "https://github.com/messense/mupdf-rs", rev = "537d50556ee8e4abf2435f81357dfef3c145d883", default-features = false, features = ["zerocopy"] }
+bitflags = "2.0.2"
+percent-encoding = "2.3.1"
+serde = { version = "1.0.201", features = ["derive"], optional = true }
+zerocopy = { version = "0.8.17", features = ["derive"] }
+
+[target.'cfg(all(not(target_arch = "wasm32"), not(target_os = "android")))'.dependencies]
+font-kit = { version = "0.14.1", optional = true }
+
+[lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+unexpected_cfgs = "allow"

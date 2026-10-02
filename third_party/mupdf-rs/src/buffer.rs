@@ -1,0 +1,303 @@
+use std::convert::TryFrom;
+use std::ffi::CString;
+use std::io;
+use std::ptr;
+use std::str::FromStr;
+
+use mupdf_sys::*;
+
+use crate::{context, Error};
+
+/// A wrapper around a dynamically allocated array of bytes.
+/// Buffers have a capacity (the number of bytes storage immediately available) and a current size.
+#[derive(Debug)]
+pub struct Buffer {
+    pub(crate) inner: *mut fz_buffer,
+    offset: usize,
+}
+
+impl FromStr for Buffer {
+    type Err = Error;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let c_str = CString::new(s)?;
+        unsafe { ffi_try!(mupdf_buffer_from_str(context(), c_str.as_ptr())) }
+            .map(|inner| Self { inner, offset: 0 })
+    }
+}
+
+impl Default for Buffer {
+    fn default() -> Self {
+        Self::with_capacity(0).expect("failed to allocate empty buffer")
+    }
+}
+
+impl Buffer {
+    pub(crate) unsafe fn from_raw(ptr: *mut fz_buffer) -> Self {
+        Self {
+            inner: ptr,
+            offset: 0,
+        }
+    }
+
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn from_base64(str: &str) -> Result<Self, Error> {
+        let c_str = CString::new(str)?;
+        unsafe { ffi_try!(mupdf_buffer_from_base64(context(), c_str.as_ptr())) }
+            .map(|inner| Self { inner, offset: 0 })
+    }
+
+    /// Creates a buffer holding a copy of `bytes`.
+    pub fn from_copied_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        unsafe {
+            ffi_try!(mupdf_buffer_from_copied_bytes(
+                context(),
+                bytes.as_ptr(),
+                bytes.len()
+            ))
+        }
+        .map(|inner| Self { inner, offset: 0 })
+    }
+
+    #[deprecated(note = "renamed to `from_copied_bytes` to make the copy explicit")]
+    pub fn from_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        Self::from_copied_bytes(bytes)
+    }
+
+    /// Creates a buffer backed directly by `bytes`, without copying them.
+    ///
+    /// [`from_copied_bytes`](Self::from_copied_bytes) copies the whole slice into a new
+    /// allocation; this variant makes the returned buffer borrow the caller's
+    /// data instead, which matters when opening large documents from several
+    /// threads at once.
+    ///
+    /// # Safety
+    ///
+    /// `bytes` must outlive the returned buffer and everything that keeps a
+    /// reference to it (for instance a [`Document`](crate::Document) opened
+    /// from it, and anything derived from that document), and must not be
+    /// mutated while any of them is alive.
+    pub unsafe fn from_shared_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        // SAFETY: upheld by the caller; the shared fz_buffer never frees `bytes`.
+        unsafe {
+            ffi_try!(mupdf_buffer_from_shared_bytes(
+                context(),
+                bytes.as_ptr(),
+                bytes.len()
+            ))
+        }
+        .map(|inner| Self { inner, offset: 0 })
+    }
+
+    /// Safe variant of [`from_shared_bytes`](Self::from_shared_bytes) for
+    /// `'static` data (e.g. `include_bytes!`): the bytes are guaranteed to
+    /// outlive the buffer and shared references are never mutated.
+    pub fn from_static_bytes(bytes: &'static [u8]) -> Result<Self, Error> {
+        // SAFETY: `bytes` lives forever and cannot be mutated behind `&'static`.
+        unsafe { Self::from_shared_bytes(bytes) }
+    }
+
+    pub fn with_capacity(cap: usize) -> Result<Self, Error> {
+        unsafe { ffi_try!(mupdf_new_buffer(context(), cap)) }.map(|inner| Self { inner, offset: 0 })
+    }
+
+    pub fn len(&self) -> usize {
+        unsafe { fz_buffer_storage(context(), self.inner, ptr::null_mut()) }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.len() == 0
+    }
+
+    pub fn into_inner(mut self) -> *mut fz_buffer {
+        let inner = self.inner;
+        self.inner = ptr::null_mut();
+        inner
+    }
+
+    fn read_bytes(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
+        let len = buf.len();
+        let read_len = unsafe {
+            ffi_try!(mupdf_buffer_read_bytes(
+                context(),
+                self.inner,
+                self.offset,
+                buf.as_mut_ptr(),
+                len
+            ))
+        }?;
+        self.offset = self
+            .offset
+            .checked_add(read_len as usize)
+            .ok_or(Error::InvalidArgument(
+                "buffer read offset overflow".to_owned(),
+            ))?;
+        Ok(read_len)
+    }
+
+    fn write_bytes(&mut self, buf: &[u8]) -> Result<usize, Error> {
+        let len = buf.len();
+        unsafe {
+            ffi_try!(mupdf_buffer_write_bytes(
+                context(),
+                self.inner,
+                buf.as_ptr(),
+                len
+            ))
+        }?;
+        Ok(len)
+    }
+}
+
+impl io::Read for Buffer {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
+        self.read_bytes(buf).map_err(io::Error::other)
+    }
+}
+
+impl io::Write for Buffer {
+    fn write(&mut self, buf: &[u8]) -> io::Result<usize> {
+        self.write_bytes(buf).map_err(io::Error::other)
+    }
+
+    fn flush(&mut self) -> io::Result<()> {
+        Ok(())
+    }
+}
+
+impl Drop for Buffer {
+    fn drop(&mut self) {
+        if !self.inner.is_null() {
+            unsafe {
+                fz_drop_buffer(context(), self.inner);
+            }
+        }
+    }
+}
+
+impl TryFrom<&str> for Buffer {
+    type Error = Error;
+
+    fn try_from(s: &str) -> Result<Self, Self::Error> {
+        Buffer::from_str(s)
+    }
+}
+
+impl TryFrom<String> for Buffer {
+    type Error = Error;
+
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        Buffer::from_str(&s)
+    }
+}
+
+impl TryFrom<&[u8]> for Buffer {
+    type Error = Error;
+
+    fn try_from(bytes: &[u8]) -> Result<Self, Self::Error> {
+        Buffer::from_copied_bytes(bytes)
+    }
+}
+
+impl TryFrom<Vec<u8>> for Buffer {
+    type Error = Error;
+
+    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
+        Buffer::from_copied_bytes(&bytes)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::Buffer;
+    use std::{
+        io::{Read, Write},
+        str::FromStr,
+    };
+
+    #[test]
+    fn test_buffer_len() {
+        let buf = Buffer::new();
+        assert_eq!(buf.len(), 0);
+    }
+
+    #[test]
+    fn test_buffer_read_write() {
+        let mut buf = Buffer::new();
+        let n = buf.write("abc".as_bytes()).unwrap();
+        assert_eq!(n, 3);
+
+        let mut output = [0; 3];
+        buf.read_exact(&mut output).unwrap();
+        assert_eq!(output, [97, 98, 99]);
+    }
+
+    #[test]
+    fn test_buffer_read_to_string() {
+        let mut buf = Buffer::new();
+        let n = buf.write("abc".as_bytes()).unwrap();
+        assert_eq!(n, 3);
+
+        let mut output = String::new();
+        buf.read_to_string(&mut output).unwrap();
+        assert_eq!(output, "abc");
+    }
+
+    #[test]
+    fn test_buffer_read_to_end() {
+        let mut buf = Buffer::new();
+        let n = buf.write("abc".as_bytes()).unwrap();
+        assert_eq!(n, 3);
+
+        let mut output = Vec::new();
+        buf.read_to_end(&mut output).unwrap();
+        assert_eq!(output, [97, 98, 99]);
+    }
+
+    #[test]
+    fn test_buffer_read_exact() {
+        let mut buf = Buffer::new();
+        let n = buf.write("abc".as_bytes()).unwrap();
+        assert_eq!(n, 3);
+
+        let mut output = [0; 2];
+        buf.read_exact(&mut output).unwrap();
+        assert_eq!(output, [97, 98]);
+
+        let mut output = [0; 1];
+        buf.read_exact(&mut output).unwrap();
+        assert_eq!(output, [99]);
+
+        let mut output = [0; 1];
+        assert_eq!(buf.read(&mut output).unwrap(), 0);
+    }
+
+    #[test]
+    #[allow(clippy::unbuffered_bytes)]
+    fn test_buffer_as_bytes() {
+        let mut buf = Buffer::new();
+        let n = buf.write("abc".as_bytes()).unwrap();
+        assert_eq!(n, 3);
+
+        let bytes = buf.bytes().collect::<Result<Vec<u8>, _>>();
+        assert_eq!(bytes.unwrap(), [97, 98, 99]);
+    }
+
+    #[test]
+    fn test_buffer_from_str() {
+        let mut buf = Buffer::from_str("abc").unwrap();
+        let mut output = [0; 3];
+        buf.read_exact(&mut output).unwrap();
+        assert_eq!(output, [97, 98, 99]);
+    }
+
+    #[test]
+    fn test_buffer_from_base64() {
+        let mut buf = Buffer::from_base64("YWJj").unwrap();
+        let mut output = [0; 3];
+        buf.read_exact(&mut output).unwrap();
+        assert_eq!(output, [97, 98, 99]);
+    }
+}

@@ -1,0 +1,9 @@
+[package]
+name = "pdf-cli"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+pdf-core = { path = "../pdf-core" }
