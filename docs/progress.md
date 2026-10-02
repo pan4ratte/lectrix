@@ -101,6 +101,18 @@ and `pdf-cli bench <file> --scale 1.333`.
    supported yet) and replaces `$lib` with `#lib/*` subpath imports. Recorded in
    `docs/versions.md`.
 
+### Review decisions (2026-10-03)
+
+1. **Fonts: option (b).** Phase 1 warms the system font cache on a background thread at
+   startup, and the vendored crate sends base-14 names straight to MuPDF's built-in fonts.
+2. **Memory target: decided in ADR 0002.** 200 MB applies to `folio.exe`; the whole tree
+   including WebView2 is reported every phase, with a growth limit.
+3. **Page images: follow section 3 and switch to raw RGBA drawn into a `<canvas>`.**
+   Raw pixels are large: a page at 150% on a 2x display is about 14 MB. So Phase 1 measures
+   the end-to-end time (request to pixels on screen) for both formats on the same pages. If
+   raw RGBA turns out slower overall, that gets reported as a conflict with section 3
+   rather than quietly keeping PNG.
+
 ### Not yet done (by design, later phases)
 
 The real viewer (continuous scroll, tabs, thumbnails, search), the LRU cache and tiles,
