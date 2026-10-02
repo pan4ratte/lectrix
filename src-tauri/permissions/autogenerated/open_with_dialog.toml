@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-with-dialog"
+description = "Enables the open_with_dialog command without any pre-configured scope."
+commands.allow = ["open_with_dialog"]
+
+[[permission]]
+identifier = "deny-open-with-dialog"
+description = "Denies the open_with_dialog command without any pre-configured scope."
+commands.deny = ["open_with_dialog"]

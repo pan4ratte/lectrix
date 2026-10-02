@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-log-metric"
+description = "Enables the log_metric command without any pre-configured scope."
+commands.allow = ["log_metric"]
+
+[[permission]]
+identifier = "deny-log-metric"
+description = "Denies the log_metric command without any pre-configured scope."
+commands.deny = ["log_metric"]

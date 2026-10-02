@@ -1,0 +1,4 @@
+# Python side of the interop harness (PDFium leg and image comparison).
+pypdfium2==5.13.0
+numpy==2.5.3
+pillow==12.2.0

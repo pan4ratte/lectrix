@@ -2,3 +2,5 @@
 # libclang for mupdf-sys bindgen (LLVM installed via `winget install LLVM.LLVM`).
 # An explicit LIBCLANG_PATH in the environment wins.
 LIBCLANG_PATH = { value = "C:/Program Files/LLVM/bin", force = false }
+# ts-rs writes generated IPC types here (run `cargo test -p folio` to regenerate).
+TS_RS_EXPORT_DIR = { value = "src/lib/ipc/generated", relative = true }

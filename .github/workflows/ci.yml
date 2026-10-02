@@ -1,0 +1,85 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.99.0
+          components: rustfmt, clippy
+
+      - uses: Swatinem/rust-cache@v2
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      # LLVM (libclang for bindgen) is preinstalled on windows-latest at C:\Program Files\LLVM,
+      # which .cargo/config.toml points LIBCLANG_PATH at.
+      - name: Install qpdf
+        run: choco install qpdf --no-progress -y
+
+      - name: Install JS and Python dependencies
+        run: |
+          npm ci
+          npm ci --prefix tests/interop
+          python -m pip install -r tests/interop/requirements.txt
+
+      - name: cargo fmt
+        run: cargo fmt --all -- --check
+
+      - name: cargo clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: cargo test
+        run: cargo test --workspace
+
+      - name: Generated IPC types are up to date
+        run: git diff --exit-code -- src/lib/ipc/generated
+
+      - name: svelte-check
+        run: npm run check
+
+      - name: Vitest
+        run: npx vitest run
+
+      - name: Interop harness
+        shell: pwsh
+        run: |
+          cargo build -p pdf-cli
+          $env:PATH = "$((Get-ChildItem 'C:\Program Files\qpdf*\bin' | Select-Object -First 1).FullName);$env:PATH"
+          python tests/interop/run.py phase0
+
+      - name: Upload interop diffs on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: interop-output
+          path: target/test-output/interop
+
+      - name: Build installers
+        run: npx tauri build
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers
+          path: |
+            target/release/bundle/nsis/*.exe
+            target/release/bundle/msi/*.msi

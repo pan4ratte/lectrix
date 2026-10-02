@@ -1,7 +1,14 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "Minimal capabilities for the main window.",
+  "description": "Main window: core events/window APIs and Folio's own commands only. File access goes through Rust-side dialogs, never through paths from the webview.",
   "windows": ["main"],
-  "permissions": ["core:default", "dialog:allow-open"]
+  "permissions": [
+    "core:default",
+    "allow-open-with-dialog",
+    "allow-open-startup-document",
+    "allow-close-document",
+    "allow-app-ready",
+    "allow-log-metric"
+  ]
 }

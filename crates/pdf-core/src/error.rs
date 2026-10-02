@@ -22,6 +22,8 @@ pub enum Error {
     InvalidArgument(String),
     #[error("{} is open in another program", .0.display())]
     TargetLocked(std::path::PathBuf),
+    #[error("the document's worker thread has stopped")]
+    ActorGone,
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }

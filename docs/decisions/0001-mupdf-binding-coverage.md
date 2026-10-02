@@ -64,11 +64,23 @@ public raw access, we drop the vendored copy and depend on crates.io again.
 | Annotations: create, quads, colour, opacity, author, contents, ink, popup, `update` (appearance synthesis) | `PdfPage::create_annotation`, `PdfAnnotation::*` | crate; QuadPoints and `/Rect` written by `annot/` through one quad writer |
 | Journalling: begin/end/abandon operation | `PdfDocument::begin_operation` etc. | crate |
 | Journalling: enable, undo, redo, state, step names | none | `ffi/journal.rs` plus the shim |
-| Merge with one graft map per source | `insert_pdf` grafts page by page with no shared map, so shared resources get duplicated | `ffi` shim around `pdf_graft_mapped_page` |
+| Merge with one graft map per source | `insert_pdf` grafts page by page with no shared map, so shared resources get duplicated | `ffi/graft.rs` + shim around `pdf_graft_mapped_page` |
+| Header/library version check | none | shim `folio_mupdf_headers_match_library` (test) |
 | Save incremental / full | `PdfWriteOptions`, `save_with_options` | crate |
 | Raw object access | `PdfObject` dict and array API, `catalog`, `trailer` | crate |
 
 This table is updated as `ffi/` grows.
+
+Other findings from Phase 0:
+
+- `mupdf-sys`'s `mupdf_pdf_insert_page` wrapper rejects `-1` ("append"); pass the page
+  count instead.
+- `PdfDocument::open` keeps the file open without `FILE_SHARE_DELETE` on Windows, so an
+  atomic replace of the open file fails with a sharing violation (verified). Phase 1 must
+  open documents in a way that allows the rename (see `docs/progress.md`).
+- With the `system-fonts` feature, the first non-embedded font lookup enumerates the
+  Windows font collection through `font-kit` (about 1.6 s once per process). See
+  `docs/progress.md` for measurements and options.
 
 ## Thread safety
 

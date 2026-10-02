@@ -10,12 +10,21 @@ following third-party components. Every one has an AGPL-compatible license.
 | `mupdf`, `mupdf-sys` crates (messense/mupdf-rs) | AGPL-3.0 | Rust bindings; `mupdf` vendored with patches in `third_party/mupdf-rs/` |
 | Tauri, tauri-build, tauri-plugin-dialog | MIT OR Apache-2.0 | app shell |
 | thiserror | MIT OR Apache-2.0 | error types |
+| serde, serde_json | MIT OR Apache-2.0 | IPC serialization |
+| ts-rs | MIT | generated TypeScript IPC types (build/test time) |
+| uuid | MIT OR Apache-2.0 | annotation `/NM` identifiers |
+| png | MIT OR Apache-2.0 | page image encoding |
+| clap | MIT OR Apache-2.0 | `pdf-cli` argument parsing |
 | cc | MIT OR Apache-2.0 | build-time C compilation |
 | font-kit | MIT OR Apache-2.0 | system font lookup (via `mupdf`) |
 | Svelte, SvelteKit, Vite | MIT | frontend |
 | Tailwind CSS | MIT | styling |
 | Bits UI | MIT | headless UI primitives |
 | Lucide icons (`@lucide/svelte`) | ISC | icons |
+
+Test-only tools (not distributed): pdfjs-dist (Apache-2.0), @napi-rs/canvas (MIT),
+pypdfium2 (Apache-2.0 / BSD-3-Clause), numpy (BSD-3-Clause), Pillow (MIT-CMU), qpdf
+(Apache-2.0).
 
 Transitive Rust and npm dependencies are covered by their own license files. Before
 release, generate the full list with `cargo about` / `license-checker` (Phase 6).

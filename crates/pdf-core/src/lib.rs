@@ -10,6 +10,7 @@ pub mod objects;
 pub mod outline;
 pub mod render;
 pub mod save;
+pub mod session;
 pub mod testgen;
 
 pub use error::{Error, Result};

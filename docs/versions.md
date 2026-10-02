@@ -31,6 +31,11 @@ Recorded at project start (2026-10-02). Versions are pinned exactly in `Cargo.to
 | tauri-plugin-dialog | 2.8.1 |
 | thiserror | 2.0.21 |
 | cc (build) | 1.5.1 |
+| uuid | 1.26.1 |
+| png | 0.18.1 |
+| serde | 1.0.229 |
+| ts-rs | 12.0.1 |
+| clap (pdf-cli only) | 4.6.7 |
 
 Tauri 3 is in alpha (3.0.0-alpha.4). Section 2 fixes Tauri 2, so we use the latest stable 2.x.
 
@@ -47,10 +52,27 @@ Tauri 3 is in alpha (3.0.0-alpha.4). Section 2 fixes Tauri 2, so we use the late
 | bits-ui | 2.19.4 |
 | @lucide/svelte | 1.50.0 |
 | @tauri-apps/api, @tauri-apps/cli | 2.12.1 |
-| @tauri-apps/plugin-dialog | 2.8.1 |
 | typescript | 6.0.3 (SvelteKit 3 and svelte-check require ^6; TypeScript 7 is not supported yet) |
 | svelte-check | 4.7.6 |
 | vitest | 5.0.3 |
+
+The Open dialog runs on the Rust side (`tauri-plugin-dialog` crate), so the app needs no
+dialog JavaScript package and the webview has no dialog permission.
+
+SvelteKit 3 notes: configuration lives in `vite.config.ts` (`sveltekit({ adapter, ... })`;
+`svelte.config.js` is no longer read), `tsconfig.json` extends `$app/tsconfig`, and
+`$lib` is replaced by the subpath import `#lib/*` (package.json `imports`), used with
+explicit file extensions.
+
+## Interop harness (tests/interop, not shipped)
+
+| Package | Version | License |
+| --- | --- | --- |
+| pdfjs-dist | 6.3.289 | Apache-2.0 |
+| @napi-rs/canvas | 1.0.10 | MIT |
+| pypdfium2 (PDFium 153.0.7999.0) | 5.13.0 | Apache-2.0 / BSD-3-Clause |
+| numpy | 2.5.3 | BSD-3-Clause |
+| Pillow | 12.2.0 | MIT-CMU |
 
 `npm audit` reports 5 low-severity advisories, all in a `cookie` copy nested under
 bits-ui's own SvelteKit dependency (server-side cookie parsing). Folio ships a static
