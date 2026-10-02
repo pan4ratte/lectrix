@@ -1,0 +1,11 @@
+{
+  "name": "folio-interop-harness",
+  "private": true,
+  "license": "AGPL-3.0-or-later",
+  "type": "module",
+  "description": "pdf.js leg of the cross-renderer harness (AGENTS.md section 9). Kept out of the app's dependencies.",
+  "dependencies": {
+    "@napi-rs/canvas": "1.0.10",
+    "pdfjs-dist": "6.3.289"
+  }
+}
