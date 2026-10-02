@@ -20,6 +20,8 @@ pub enum Error {
     VersionMismatch { headers: String, library: String },
     #[error("invalid argument: {0}")]
     InvalidArgument(String),
+    #[error("{} is open in another program", .0.display())]
+    TargetLocked(std::path::PathBuf),
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }

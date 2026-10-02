@@ -3,8 +3,10 @@
 //! Each call goes through the C shim in `shim.c`, which catches MuPDF's longjmp-based
 //! errors before they can reach Rust frames.
 
+mod graft;
 mod journal;
 
+pub use graft::graft_pages;
 pub use journal::{Journal, JournalState};
 
 use std::ffi::{CStr, c_char};

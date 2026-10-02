@@ -4,6 +4,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
+description = "Headless command line over pdf-core, for tests and debugging"
 
 [dependencies]
 pdf-core = { path = "../pdf-core" }
+mupdf.workspace = true
+clap = { version = "=4.6.7", features = ["derive"] }
