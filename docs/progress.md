@@ -2,9 +2,10 @@
 
 ## Phase 0: Feasibility spike (report, 2026-10-03)
 
-**Status: every box is checked locally. CI has not run yet, because the repository has no
-GitHub remote; the workflow is in `.github/workflows/ci.yml`. Waiting for review before
-Phase 1.**
+**Status: complete.** Every box is checked, and CI passed on GitHub (run 37073273603,
+`windows-latest`, all steps green, installers uploaded as an artifact). The first run took
+79 minutes, mostly compiling MuPDF from source three times (clippy, tests, release build);
+later runs reuse the Rust cache. Reviewed by the user on 2026-10-03 (decisions below).
 
 ### Checklist
 
