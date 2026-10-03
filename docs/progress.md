@@ -475,7 +475,9 @@ Chapter Two, Chapter 3 (another file), Chapter 5; "Nouveau — 新しい" (page 
 2. **`29-slow-first-page`:** accepted as content cost; decoding large JPEG 2000 images at
    the shown resolution is on the Phase 6 checklist (AGENTS.md).
 3. **CI:** the Phase 2 commits are pushed.
-4. **Byte-for-byte:** explained to the user; waiting for an answer.
+4. **Byte-for-byte: option (a) accepted.** Bookmarks no edit needs to change keep their
+   bytes exactly; neighbours whose links change are rewritten by MuPDF with the same
+   destination and action values in MuPDF's spelling. No own serializer for outline items.
 5. **Acrobat:** checked by the user. The tree, titles and targets are correct in both
    files. "Chapter 4" shows a JavaScript alert ("1") in both: that is the fixture's own
    JavaScript action (`app.alert(1)`, standing in for another app's script bookmark),

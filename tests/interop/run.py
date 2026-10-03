@@ -433,6 +433,8 @@ def phase2(report: Report) -> None:
 
 
 def main(argv: list[str]) -> int:
+    # Titles in the checks are Unicode; Windows consoles (CI) default to a code page.
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
     report = Report()
     if argv[:1] == ["phase0"]:
         phase0(report)
