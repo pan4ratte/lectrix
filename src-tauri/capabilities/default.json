@@ -21,6 +21,7 @@
     "allow-cancel-unlock",
     "allow-close-document",
     "allow-get-document-info",
+    "allow-list-open-documents",
     "allow-get-page-text",
     "allow-search-text",
     "allow-apply-operation",

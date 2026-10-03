@@ -70,6 +70,8 @@ export const unlockDocument = (token: number, password: string) =>
 export const cancelUnlock = (token: number) => invoke<void>('cancel_unlock', { token });
 export const closeDocument = (id: number) => invoke<void>('close_document', { id });
 export const getDocumentInfo = (id: number) => invoke<DocumentInfo>('get_document_info', { id });
+/** Documents already open in Rust (the page reloaded while they were open). */
+export const listOpenDocuments = () => invoke<DocumentInfo[]>('list_open_documents');
 export const getPageText = (id: number, page: number) =>
 	invoke<PageText>('get_page_text', { id, page });
 export const searchText = (id: number, query: string, start: number, count: number) =>

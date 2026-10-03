@@ -226,6 +226,7 @@ pub fn run() {
             commands::cancel_unlock,
             commands::close_document,
             commands::get_document_info,
+            commands::list_open_documents,
             commands::get_page_text,
             commands::search_text,
             commands::apply_operation,

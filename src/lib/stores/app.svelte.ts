@@ -5,6 +5,7 @@ import {
 	applyOperation,
 	cancelUnlock,
 	closeDocument,
+	listOpenDocuments,
 	listRecentFiles,
 	openRecent,
 	openStartupDocuments,
@@ -184,6 +185,10 @@ class AppStore {
 
 	async openStartup() {
 		try {
+			// Documents Rust already has open come back first: the page may have reloaded
+			// (a renderer crash, or a test driver navigating it) after they were opened.
+			const open = await listOpenDocuments();
+			if (open.length) this.handleOpenResults(open.map((document) => ({ kind: 'opened', document })));
 			this.handleOpenResults(await openStartupDocuments());
 		} catch (e) {
 			this.showError(toAppError(e));

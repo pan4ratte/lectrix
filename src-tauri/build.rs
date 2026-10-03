@@ -10,6 +10,7 @@ const COMMANDS: &[&str] = &[
     "cancel_unlock",
     "close_document",
     "get_document_info",
+    "list_open_documents",
     "get_page_text",
     "search_text",
     "apply_operation",

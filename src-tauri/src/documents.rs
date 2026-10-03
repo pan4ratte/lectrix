@@ -174,6 +174,13 @@ impl Documents {
         }
     }
 
+    /// Ids of the open documents, in the order they were opened.
+    pub fn ids(&self) -> Result<Vec<u32>, AppError> {
+        let mut ids: Vec<u32> = lock(&self.docs)?.keys().copied().collect();
+        ids.sort_unstable();
+        Ok(ids)
+    }
+
     pub fn close(&self, id: u32) -> Option<Session> {
         let doc = self.docs.lock().ok()?.remove(&id)?;
         doc.session.close();

@@ -146,6 +146,19 @@ pub fn get_document_info(state: State<'_, AppState>, id: u32) -> Result<Document
     Ok(crate::documents::document_info(id, session.info()?, view))
 }
 
+/// Every document Rust has open, for a page that loads after they were opened (the
+/// webview reloaded after a renderer crash, or a test driver navigated it).
+#[tauri::command(async)]
+pub fn list_open_documents(state: State<'_, AppState>) -> Result<Vec<DocumentInfo>, AppError> {
+    state
+        .documents
+        .ids()?
+        .into_iter()
+        .filter_map(|id| get_document_info(state.clone(), id).ok())
+        .map(Ok)
+        .collect()
+}
+
 #[tauri::command(async)]
 pub fn get_page_text(state: State<'_, AppState>, id: u32, page: u32) -> Result<PageText, AppError> {
     let (text, revision) = state.documents.session(id)?.page_text(page as usize)?;

@@ -94,6 +94,7 @@ export async function launch(files = []) {
 				'tauri:options': { application: app }
 			}
 		});
+		await ensureAppPage(browser);
 		const stop = async () => {
 			try {
 				await browser.deleteSession();
@@ -110,6 +111,20 @@ export async function launch(files = []) {
 		killStrayApps();
 		throw e;
 	}
+}
+
+const APP_URL = 'http://tauri.localhost/';
+
+/**
+ * msedgedriver navigates the webview to about:blank when a session starts. Usually Folio's
+ * own navigation to its page comes after that, but on a slow machine (CI) it can come
+ * first and be wiped out. Then load the page again: the frontend picks up the documents
+ * Rust already has open (list_open_documents).
+ */
+async function ensureAppPage(browser) {
+	const onApp = async () => (await browser.execute(() => location.href)).startsWith(APP_URL);
+	const loaded = await browser.waitUntil(onApp, { timeout: 3000, interval: 100 }).catch(() => false);
+	if (!loaded) await browser.url(APP_URL);
 }
 
 /** Waits until the first page of the active document has an image. On failure, saves a
