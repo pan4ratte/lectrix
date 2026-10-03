@@ -5,7 +5,7 @@
 // (tests/e2e/fetch-edgedriver.ps1). FOLIO_APP, TAURI_DRIVER and MSEDGEDRIVER override
 // the default locations.
 
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
@@ -40,6 +40,14 @@ function waitForPort(port, timeoutMs) {
 }
 
 /**
+ * Ends any Folio still running. Folio is single-instance: a leftover process would take
+ * over the next launch, which then exits before WebDriver can attach.
+ */
+function killStrayApps() {
+	spawnSync('taskkill', ['/IM', 'folio.exe', '/F', '/T'], { stdio: 'ignore' });
+}
+
+/**
  * Starts Folio with `files` (PDF paths) open and returns `{ browser, stop }`. Recent
  * files and remembered views stay out of the user's app data (FOLIO_EPHEMERAL).
  *
@@ -54,6 +62,7 @@ export async function launch(files = []) {
 		if (!existsSync(path)) throw new Error(`${what} not found at ${path}`);
 	}
 	mkdirSync(OUT, { recursive: true });
+	killStrayApps();
 	const driver = spawn(tauriDriver, ['--port', String(PORT), '--native-driver', edgeDriver], {
 		env: { ...process.env, FOLIO_EPHEMERAL: '1', FOLIO_OPEN: files.join(';') },
 		stdio: ['ignore', 'inherit', 'inherit']
@@ -65,6 +74,8 @@ export async function launch(files = []) {
 			hostname: '127.0.0.1',
 			port: PORT,
 			logLevel: 'warn',
+			// Fail fast: a session that cannot start in a minute will not start on retry.
+			connectionRetryCount: 0,
 			capabilities: {
 				browserName: 'wry',
 				'tauri:options': { application: app }
@@ -76,12 +87,14 @@ export async function launch(files = []) {
 			} finally {
 				driver.kill();
 				await exited;
+				killStrayApps();
 			}
 		};
 		return { browser, stop };
 	} catch (e) {
 		driver.kill();
 		await exited;
+		killStrayApps();
 		throw e;
 	}
 }

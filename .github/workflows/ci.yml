@@ -87,6 +87,11 @@ jobs:
           npm ci --prefix tests/e2e
           npm test --prefix tests/e2e
 
+      - name: Diagnose E2E failure
+        if: failure()
+        shell: pwsh
+        run: ./tests/e2e/diagnose.ps1
+
       - name: Upload E2E output on failure
         if: failure()
         uses: actions/upload-artifact@v4
