@@ -99,12 +99,27 @@ export async function launch(files = []) {
 	}
 }
 
-/** Waits until the first page of the active document has an image. */
+/** Waits until the first page of the active document has an image. On failure, saves a
+ * screenshot and prints what the window shows (CI uploads target/test-output/e2e). */
 export async function waitForDocument(browser) {
-	await browser.waitUntil(
-		() => browser.execute(() => document.querySelector('.page canvas, .page img') !== null),
-		{ timeout: 20_000, timeoutMsg: 'the document did not show a page' }
-	);
+	try {
+		await browser.waitUntil(
+			() => browser.execute(() => document.querySelector('.page canvas, .page img') !== null),
+			{ timeout: 20_000, timeoutMsg: 'the document did not show a page' }
+		);
+	} catch (e) {
+		const shot = join(OUT, `failure-${Date.now()}.png`);
+		await browser.saveScreenshot(shot).catch(() => {});
+		const state = await browser
+			.execute(() => ({
+				text: document.body.innerText.slice(0, 600),
+				pages: document.querySelectorAll('.page').length,
+				viewport: [innerWidth, innerHeight, devicePixelRatio]
+			}))
+			.catch((err) => String(err));
+		console.error(`window state: ${JSON.stringify(state)}; screenshot ${shot}`);
+		throw e;
+	}
 }
 
 /** Presses keys with modifiers, e.g. keys(browser, ['Control', 'b']). */
