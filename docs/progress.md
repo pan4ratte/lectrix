@@ -120,3 +120,138 @@ The real viewer (continuous scroll, tabs, thumbnails, search), the LRU cache and
 the custom title bar with Mica, in-place outline editing, Phase 4 merge features (page
 selection, link and name remapping), the remaining annotation types, repair, and
 installers. CI is written but has not run.
+
+## Phase 1: Viewer (report, 2026-10-03)
+
+**Status: ready for review, not yet complete.** The viewer, saving and file handling work,
+and local checks are green. Three things stand between this and "done": CI has not run on
+these commits (they are not pushed yet), WebView2 memory breaks the growth rule in ADR 0002,
+and raw RGBA turned out slower than PNG, which conflicts with section 3. Decisions 1 and 2
+below need you.
+
+### Checklist
+
+| Item | Result |
+| --- | --- |
+| Everything in 6.1 works | Yes, with the gaps listed under "Not verified". Checked in the running app: open from the command line, a second launch adds a tab to the running window, tabs (reorder by drag, dirty dot, close prompt), continuous scroll, fit width/page, presets, Ctrl+wheel zoom at the cursor, tiles at high zoom, page box by label ("A-3") or number, thumbnails, back/forward, selection and copy (also in a rotated view), search with highlights, view rotation, Rotate pages with undo/redo, recent files, remembered view per file. |
+| 1,000-page file: no blank page visible > 200 ms while scrolling | Yes for continuous scrolling: no blank page at 2,000 px/s, worst 122 ms at 6,000 px/s. Jumping to random places (like dragging the scrollbar) is borderline: worst 200–246 ms with RGBA (1 of 31 jumps over 200 ms), 171 ms with PNG. See the performance table. |
+| Atomic save, dirty state, close prompts, external-change detection | Yes. Saving in place works while the file is open (ADR 0003), repeatedly, with qpdf-clean output. Closing a dirty tab or the window prompts. Another program replacing the file shows a banner (Reload, or Save As when there are unsaved changes). |
+| Layout, theming and shortcuts from section 8 (viewer parts) | Yes: custom title bar with menus, tabs and window buttons; Mica with a solid fallback (Windows 10); system accent color with contrast-checked text; Pages sidebar; status bar "iv (4 of 312)", zoom, save state; section 8 shortcuts. Dark mode is not visually checked (see below). |
+| CI green | Not yet: nothing pushed. |
+
+### What was built
+
+- **pdf-core.** Sessions now open files through a share-delete handle (a small C stream in
+  the FFI shim) so the open file can be replaced, and reopen after each save (ADR 0003).
+  Operations (`RotatePages` for now) are journal steps with names for the Edit menu;
+  revisions follow the journal, so undoing back to the saved state clears the dirty dot.
+  New: RGBA and 512 px tile rendering, an LRU image cache, structured text and search,
+  document flags (signed, encrypted, repaired, permissions), passwords, reload.
+- **Fonts (Phase 0 decision 1).** Done through the crate's public `set_font_loader` hook
+  instead of patching the vendored crate: base-14 names go straight to MuPDF's built-in
+  fonts, and the system font collection warms up on a background thread. First page went
+  from 1.3–1.6 s to 72–160 ms.
+- **App crate.** All IPC commands typed through ts-rs; paths never come from the webview.
+  Drag-and-drop, command line, single instance, recent files, password prompts, a file
+  watcher (stat polling every 1.5 s; no new dependency), a rotating log in
+  `%LOCALAPPDATA%\org.folio.pdf\logs`, and a `platform` module (Mica, accent color, path
+  identity).
+- **Frontend.** Svelte 5 components under `src/lib/features/viewer/` and
+  `src/lib/components/`; render requests are prioritized by distance from the viewport
+  and dropped when a page scrolls away before its request starts.
+- **New dependencies:** `tauri-plugin-single-instance` 2.5.2 (MIT OR Apache-2.0; on
+  Windows only the plugin itself is compiled) and `windows-sys` 0.61.2 (already in the
+  tree through Tauri). `docs/versions.md` and `THIRD_PARTY_NOTICES.md` are updated.
+
+### Tests
+
+- `cargo test --workspace`: 102 tests (Phase 0: 39). New: the share-delete stream
+  (replace while open), RGBA vs RGB render equality, tiles reassembling a page, the image
+  cache, text geometry and search (also on a rotated page), rotate/undo/redo with
+  revisions, repeated in-place incremental saves, Save As, encrypted files keeping their
+  encryption, a damaged file falling back to a full save, reload, labels, signature
+  detection, the document registry (duplicate open, watcher, Save As clash), the app
+  state store, the log rotation, the protocol parser.
+- Vitest: 23 tests (layout, zoom ladder and fitting, page box with labels, history,
+  selection hit-testing and copied text, page ranges, shortcuts, accent contrast).
+- `cargo clippy -D warnings`, `cargo fmt --check`, `svelte-check`: clean. Interop harness
+  (Phase 0 cases): 78 passed, 0 failed.
+- The tests found one Windows hazard worth knowing: MuPDF writes files through the C
+  runtime, whose handles are inheritable, so a child process started during a save keeps
+  the file open. Folio starts no child processes; details in ADR 0003.
+
+### Performance (section 2 targets)
+
+Machine: this development laptop, Windows 11, 1.5× display scaling, release build. File:
+the generated 1,000-page text PDF. Run: `tests/perf/measure.ps1 -Pdf big1000.pdf -Perf
+[-Format png]`.
+
+| Target | Measured | Met? |
+| --- | --- | --- |
+| Window visible < 1 s | 31–195 ms | Yes |
+| First page visible < 1 s | 72–160 ms (Phase 0: 1,300–1,607 ms) | Yes |
+| No blank page > 200 ms while scrolling (1,000 pages) | Continuous: 0 blank events at 2,000 px/s (46 pages); worst 122 ms at 6,000 px/s (139 pages). Random jumps: worst 200–246 ms (RGBA), 171 ms (PNG) | Yes for scrolling; jumps borderline |
+| folio.exe < 200 MB (ADR 0002) | 105–108 MB idle with the document open; 137–141 MB after scrolling 185 pages | Yes |
+| WebView2 growth ≤ 100 MB when opening a 1,000-page document (ADR 0002) | Empty window 507 MB (tree). With the document open and idle: 682–762 MB (+175 to +255). After the scroll tests: 1.6–2.0 GB, of which the WebView2 GPU process alone is 946 MB | **No**, decision 2 |
+
+**RGBA versus PNG, end to end** (request to pixels on a canvas, same 16 pages at the
+scale the window used, 2.485 px/pt):
+
+| Format | End to end (mean) | Server time (mean) | Bytes per page |
+| --- | --- | --- | --- |
+| Raw RGBA (section 3) | 95–103 ms | 5–6 ms | 11.7 MB |
+| PNG, fastest compression | 34–37 ms | 12–13 ms | 1.2 MB |
+
+The time goes into moving 11.7 MB through WebView2's custom-protocol bridge, not into
+rendering. Encoding is now cheap because the PNG is made from the cached RGBA render.
+
+### Decisions needed
+
+1. **Page image format: section 3 conflict (Phase 0 decision 3 asked me to report this).**
+   RGBA is about 3× slower end to end than PNG here, and does not improve scrolling. The
+   app still defaults to RGBA as section 3 says; `FOLIO_IMAGE_FORMAT=png` switches it, and
+   both paths share one cache.
+   - (a) Make PNG the default and record it in an ADR. One-line change.
+   - (b) Keep RGBA and move pixels through WebView2's shared-buffer API (no copies).
+     Probably the fastest, but Windows-only, needs new `webview2-com` code behind the
+     `platform` trait, and would be a project of its own.
+   - **Recommendation: (a) now;** revisit (b) only if large scans prove slow.
+2. **WebView2 memory breaks ADR 0002's growth rule.** Folio's own process is well under
+   target; the growth is in WebView2, mostly its GPU process, and it keeps growing during
+   long scrolls. Releasing canvases as pages leave the screen and turning off the browser
+   cache for page images did not change the picture. Options:
+   - (a) Spend part of Phase 2 investigating (fewer mounted pages, lower-resolution
+     canvases while scrolling fast, `<img>` with object URLs instead of canvases, WebView2's
+     memory target level), and report back.
+   - (b) Revise the rule in ADR 0002 if it proves to be Chromium caching that the system
+     reclaims under memory pressure.
+   - **Recommendation: (a),** before more UI piles onto the canvas.
+3. **Undo history after saving.** Saving reopens the file (ADR 0003), so undo history starts
+   again after each save, as in Acrobat. Is that acceptable?
+4. **Push to GitHub** so CI can run on these commits? I have not pushed anything.
+
+### Not verified (please check during review)
+
+- **Drag-and-drop from Explorer.** Implemented on the Rust side (paths never pass through
+  the webview); I could not simulate an OLE drag from a script.
+- **Dark mode and a touchpad pinch.** I did not change your system theme to test it; pinch
+  arrives as Ctrl+wheel, which is tested.
+- **The `.pdf` file association itself** is registered by the installer in Phase 6. Phase 1
+  handles what the association does: launching with a path, or handing it to the running
+  window.
+- **Real-world files.** `tests/corpus/` is still empty; all numbers above come from a
+  generated text PDF. Scanned and image-heavy books will render more slowly.
+- **End-to-end tests** (`tauri-driver` + WebdriverIO, section 9) are not set up yet. They
+  need msedgedriver matching the installed WebView2 and new dev dependencies. I suggest
+  adding them at the start of Phase 2 for open, save and reopen.
+
+### Behavior choices made without explicit guidance
+
+- Fit width and fit page use the current page when they are applied, and re-fit only when
+  the window width (or, for fit page, height) or the view rotation changes, not while
+  scrolling past pages of other sizes.
+- Search uses MuPDF's case-insensitive search in 32-page chunks, starts at the current
+  page and wraps. A search jump is not recorded in back/forward history; page-box and
+  thumbnail jumps are.
+- Copying respects the document's copy permission; rotating pages respects the
+  assemble/modify permission and a signed document's warning.
