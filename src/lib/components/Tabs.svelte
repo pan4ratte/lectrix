@@ -6,6 +6,8 @@
 	import { app } from '#lib/stores/app.svelte.ts';
 
 	let strip: HTMLDivElement | undefined = $state();
+	// Tracked on the window, not with pointer capture: reordering moves the tab's DOM node,
+	// and the browser drops capture when that happens, which would lose the pointerup.
 	let drag: { id: number; startX: number; moved: boolean } | null = null;
 
 	function onPointerDown(event: PointerEvent, id: number) {
@@ -18,7 +20,6 @@
 		if ((event.target as HTMLElement).closest('[data-close]')) return;
 		app.activate(id);
 		drag = { id, startX: event.clientX, moved: false };
-		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
 	}
 
 	function onPointerMove(event: PointerEvent) {
@@ -47,7 +48,7 @@
 			app.moveTab(i, i + (event.key === 'ArrowLeft' ? -1 : 1));
 			return;
 		}
-		if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
+		if ((event.key === 'ArrowLeft' || event.key === 'ArrowRight') && !event.altKey && !event.ctrlKey) {
 			event.preventDefault();
 			const next = app.tabs[(i + (event.key === 'ArrowLeft' ? -1 : 1) + app.tabs.length) % app.tabs.length];
 			if (next) {
@@ -60,6 +61,8 @@
 		}
 	}
 </script>
+
+<svelte:window onpointermove={onPointerMove} onpointerup={onPointerUp} onpointercancel={onPointerUp} />
 
 <div bind:this={strip} class="flex h-full min-w-0 items-end gap-0.5" role="tablist" aria-label="Open documents">
 	{#each app.tabs as tab (tab.id)}
@@ -74,8 +77,6 @@
 			aria-selected={active}
 			title={tab.path}
 			onpointerdown={(e) => onPointerDown(e, tab.id)}
-			onpointermove={onPointerMove}
-			onpointerup={onPointerUp}
 			onkeydown={(e) => onKeyDown(e, tab.id)}
 		>
 			<span class="truncate" class:text-fg-muted={!active}>{tab.name}</span>
