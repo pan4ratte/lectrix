@@ -346,6 +346,7 @@ Goal: prove the risky parts before building UI.
 - [ ] Untouched bookmarks keep their original destinations byte-for-byte (verified by a test).
 - [ ] End-to-end tests (`tauri-driver` with WebdriverIO, section 9) run in CI for open, save and reopen, and for adding, renaming and saving a bookmark.
 - [ ] WebView2 memory (ADR 0002 growth rule, Phase 1 report) investigated: where the growth comes from (GPU process, renderer), what reduces it (fewer mounted pages, lower-resolution images while scrolling fast, `<img>` instead of `<canvas>`, WebView2's memory target level), and either a fix that meets the rule or a proposal to revise it.
+- [ ] Fast lookup of non-embedded fonts (Phase 1 local-corpus finding): an index of installed fonts built once on the background warm-up thread (DirectWrite on Windows, behind a platform trait; family, style and PostScript name without loading font files) replaces `font-kit` and the `mupdf` crate's `system-fonts` feature, including the CJK fallback families. ADR first. Local-corpus files with non-embedded fonts show their first page in under 1 s and render the same fonts as before.
 
 ### Phase 3: Page labels
 
