@@ -15,8 +15,11 @@ use pdf_core::annot::quads::Quad;
 use pdf_core::annot::{self, MarkupKind, MarkupSpec, Rgb};
 use pdf_core::geometry::Rect;
 use pdf_core::labels::{self, LabelRule, LabelStyle};
-use pdf_core::merge::{self, BookmarkMode, LabelMode, MergeOptions, MergeSource};
-use pdf_core::ops::Operation;
+use pdf_core::merge::{
+    self, BookmarkMode, InsertLabels, InsertOptions, LabelMode, MergeOptions, MergeReport,
+    MergeSource, PagePick,
+};
+use pdf_core::ops::{InsertSource, Operation};
 use pdf_core::outline::{self, Bookmark, OutlineItem, OutlineTarget, Target, ViewDest};
 use pdf_core::render;
 use pdf_core::save::{self, SaveKind};
@@ -69,6 +72,30 @@ enum Command {
         bookmarks: BookmarksArg,
         #[arg(long, value_enum, default_value_t = LabelsArg::Keep)]
         labels: LabelsArg,
+        /// Pages of the result, in order (default: every page of every input). Items
+        /// separated by commas: FILE:PAGE or FILE:FIRST-LAST, 1-based, with an optional
+        /// `@DEGREES` rotation, e.g. `2:1-3,1:5@90,2:4`.
+        #[arg(long)]
+        pages: Option<String>,
+    },
+    /// Insert pages from another file, as the app does (one journal step through a
+    /// session, then an incremental save).
+    Insert {
+        input: PathBuf,
+        out: PathBuf,
+        /// The file to take pages from.
+        #[arg(long)]
+        from: PathBuf,
+        /// Insert before this page (1-based); the page count + 1 appends. Default: append.
+        #[arg(long)]
+        at: Option<usize>,
+        /// Pages of `--from` to insert (1-based), e.g. `1-3,7`. Default: all.
+        #[arg(long)]
+        pages: Option<String>,
+        #[arg(long, value_enum, default_value_t = BookmarksArg::Nest)]
+        bookmarks: BookmarksArg,
+        #[arg(long, value_enum, default_value_t = InsertLabelsArg::Keep)]
+        labels: InsertLabelsArg,
     },
     /// Annotations.
     Annot {
@@ -209,6 +236,24 @@ enum LabelsArg {
     None,
 }
 
+#[derive(Clone, Copy, ValueEnum)]
+enum InsertLabelsArg {
+    /// The inserted pages keep their own labels.
+    Keep,
+    /// The inserted pages continue the numbering around them.
+    Follow,
+}
+
+impl From<BookmarksArg> for BookmarkMode {
+    fn from(b: BookmarksArg) -> Self {
+        match b {
+            BookmarksArg::Nest => BookmarkMode::NestUnderSource,
+            BookmarksArg::Flat => BookmarkMode::Flat,
+            BookmarksArg::Drop => BookmarkMode::Drop,
+        }
+    }
+}
+
 fn main() -> ExitCode {
     let cli = Cli::parse();
     // The same font policy as the app, so renders and timings match what users see.
@@ -296,31 +341,76 @@ fn run(command: Command) -> Result<()> {
             inputs,
             bookmarks,
             labels,
+            pages,
         } => {
+            if inputs.iter().any(|i| same_file(i, &out)) {
+                return Err(Error::InvalidArgument(
+                    "write to a new file; pdf-cli never modifies its input".into(),
+                ));
+            }
             let sources = inputs
                 .iter()
-                .map(|p| {
-                    Ok(MergeSource {
-                        doc: open(p)?,
-                        name: source_name(p),
-                    })
-                })
+                .map(|p| MergeSource::open(p, None))
                 .collect::<Result<Vec<_>>>()?;
             let options = MergeOptions {
-                bookmarks: match bookmarks {
-                    BookmarksArg::Nest => BookmarkMode::NestUnderSource,
-                    BookmarksArg::Flat => BookmarkMode::Flat,
-                    BookmarksArg::Drop => BookmarkMode::Drop,
-                },
+                bookmarks: bookmarks.into(),
                 labels: match labels {
                     LabelsArg::Keep => LabelMode::KeepSources,
                     LabelsArg::Continuous => LabelMode::Continuous,
                     LabelsArg::None => LabelMode::None,
                 },
             };
-            let merged = merge::merge(&sources, options)?;
-            save::save_atomic(&merged, SaveKind::Optimized, None, &out)?;
+            let (merged, report) = match pages {
+                Some(spec) => {
+                    let picks = parse_picks(&spec, &sources)?;
+                    merge::merge(&sources, &picks, options, &mut |_, _| true)?
+                }
+                None => merge::merge_all(&sources, options)?,
+            };
+            save::save_atomic(&merged, SaveKind::Full, None, &out)?;
             println!("wrote {} ({} pages)", out.display(), merged.page_count()?);
+            print_report(&report);
+        }
+        Command::Insert {
+            input,
+            out,
+            from,
+            at,
+            pages,
+            bookmarks,
+            labels,
+        } => {
+            let count = usize::try_from(open(&input)?.page_count()?).unwrap_or(0);
+            let at = match at {
+                Some(n) if n >= 1 && n <= count + 1 => n - 1,
+                Some(n) => {
+                    return Err(Error::InvalidArgument(format!(
+                        "--at {n}: the document has {count} pages"
+                    )));
+                }
+                None => count,
+            };
+            let from_count = usize::try_from(open(&from)?.page_count()?).unwrap_or(0);
+            let pages = match pages {
+                Some(spec) => parse_page_list(&spec, from_count)?,
+                None => Vec::new(),
+            };
+            let op = Operation::InsertPages {
+                source: InsertSource {
+                    path: from,
+                    password: None,
+                    pages,
+                },
+                at,
+                options: InsertOptions {
+                    bookmarks: bookmarks.into(),
+                    labels: match labels {
+                        InsertLabelsArg::Keep => InsertLabels::KeepSource,
+                        InsertLabelsArg::Follow => InsertLabels::FollowDocument,
+                    },
+                },
+            };
+            edit_in_session(&input, &out, vec![op])?;
         }
         Command::Annot {
             action:
@@ -426,16 +516,84 @@ fn same_file(a: &Path, b: &Path) -> bool {
     }
 }
 
-fn source_name(path: &Path) -> String {
-    if let Ok(doc) = open(path)
-        && let Ok(title) = doc.metadata(mupdf::document::MetadataName::Title)
-        && !title.trim().is_empty()
-    {
-        return title;
+/// Parses `--pages` for `merge`: FILE:PAGE[-LAST][@DEGREES], comma separated, 1-based.
+fn parse_picks(spec: &str, sources: &[MergeSource]) -> Result<Vec<PagePick>> {
+    let bad = |item: &str| Error::InvalidArgument(format!("bad page item {item:?}"));
+    let mut picks = Vec::new();
+    for item in spec.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+        let (body, rotate) = match item.split_once('@') {
+            Some((b, r)) => (b, r.parse::<i32>().map_err(|_| bad(item))?),
+            None => (item, 0),
+        };
+        let (file, range) = body.split_once(':').ok_or_else(|| bad(item))?;
+        let file: usize = file.parse().map_err(|_| bad(item))?;
+        let source = file
+            .checked_sub(1)
+            .filter(|&s| s < sources.len())
+            .ok_or_else(|| bad(item))?;
+        let count = usize::try_from(sources[source].doc.page_count()?).unwrap_or(0);
+        for page in parse_page_list(range, count)? {
+            picks.push(PagePick {
+                source,
+                page,
+                rotate,
+            });
+        }
     }
-    path.file_stem()
-        .map(|s| s.to_string_lossy().into_owned())
-        .unwrap_or_else(|| "Document".into())
+    Ok(picks)
+}
+
+/// Parses `1-3,7` (1-based, inclusive) into 0-based page indices, in order.
+fn parse_page_list(spec: &str, count: usize) -> Result<Vec<usize>> {
+    let bad = || {
+        Error::InvalidArgument(format!(
+            "bad page list {spec:?} (the file has {count} pages)"
+        ))
+    };
+    let mut pages = Vec::new();
+    for part in spec.split(',').map(str::trim).filter(|s| !s.is_empty()) {
+        let (first, last) = match part.split_once('-') {
+            Some((a, b)) => (a.trim(), b.trim()),
+            None => (part, part),
+        };
+        let first: usize = first.parse().map_err(|_| bad())?;
+        let last: usize = last.parse().map_err(|_| bad())?;
+        if first == 0 || last < first || last > count {
+            return Err(bad());
+        }
+        pages.extend(first - 1..last);
+    }
+    Ok(pages)
+}
+
+fn print_report(report: &MergeReport) {
+    if report.renamed_destinations > 0 {
+        println!(
+            "renamed {} named destination(s) that another file already used",
+            report.renamed_destinations
+        );
+    }
+    if report.renamed_fields > 0 {
+        println!(
+            "renamed {} form field(s) that another file already used",
+            report.renamed_fields
+        );
+    }
+    if report.dropped_links > 0 {
+        println!(
+            "left out {} link(s) to pages that were not included",
+            report.dropped_links
+        );
+    }
+    if report.dropped_bookmarks > 0 {
+        println!(
+            "left out {} bookmark(s) to pages that were not included",
+            report.dropped_bookmarks
+        );
+    }
+    if report.bookmarks_skipped {
+        println!("the document's bookmarks are damaged, so none were added");
+    }
 }
 
 fn find_text(doc: &PdfDocument, index: usize, needle: &str) -> Result<Vec<Quad>> {
@@ -593,6 +751,9 @@ fn edit_in_session(input: &Path, out: &Path, ops: Vec<Operation>) -> Result<()> 
                 println!("{name}: nothing changed");
             } else {
                 println!("{name}");
+            }
+            if let Some(report) = &change.merge_report {
+                print_report(report);
             }
             revision = change.state.revision;
         }

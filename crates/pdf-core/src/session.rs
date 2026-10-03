@@ -34,6 +34,7 @@ use crate::error::{Error, Result};
 use crate::ffi::{Journal, open_pdf_shared};
 use crate::geometry::{PageGeometry, read_page_boxes};
 use crate::labels::{self, LabelRule};
+use crate::merge::MergeReport;
 use crate::ops::Operation;
 use crate::outline::{self, Outline};
 use crate::render::{self, PixelRect, RgbaImage};
@@ -94,6 +95,10 @@ pub struct DocumentChange {
     pub outline: Option<Outline>,
     /// The id of the object the operation created (the new bookmark).
     pub created: Option<u32>,
+    /// The number of pages (it changes when pages are inserted, or that is undone).
+    pub page_count: usize,
+    /// What inserting pages did (renamed names, links left out).
+    pub merge_report: Option<MergeReport>,
 }
 
 #[derive(Debug, Clone)]
@@ -533,10 +538,10 @@ impl Actor {
         }
         let before = Journal::new(&mut self.doc).state()?.current;
         self.doc.begin_operation(&op.name())?;
-        let created = match op.apply(&mut self.doc) {
-            Ok(created) => {
+        let applied = match op.apply(&mut self.doc) {
+            Ok(applied) => {
                 self.doc.end_operation()?;
-                created
+                applied
             }
             Err(e) => {
                 self.doc.abandon_operation()?;
@@ -552,7 +557,8 @@ impl Actor {
             self.position = after;
         }
         let mut change = self.changed()?;
-        change.created = created;
+        change.created = applied.created;
+        change.merge_report = applied.report;
         Ok(change)
     }
 
@@ -615,6 +621,8 @@ impl Actor {
             labels,
             outline,
             created: None,
+            page_count: self.pages.len(),
+            merge_report: None,
         })
     }
 

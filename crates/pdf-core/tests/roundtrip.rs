@@ -10,7 +10,7 @@ use pdf_core::annot::quads::{Quad, is_acrobat_order, quads_from_array};
 use pdf_core::annot::{MarkupKind, MarkupSpec, Rgb, add_text_markup};
 use pdf_core::geometry::{PageGeometry, Point, Rect, read_page_boxes};
 use pdf_core::labels::{self, LabelRule, LabelStyle};
-use pdf_core::merge::{MergeOptions, MergeSource, merge};
+use pdf_core::merge::{MergeOptions, MergeSource, merge_all};
 use pdf_core::objects;
 use pdf_core::outline::{self, OutlineItem};
 use pdf_core::testgen::{MARKER, SampleSpec};
@@ -398,7 +398,7 @@ fn merge_keeps_pages_outlines_and_labels() {
     outline::write_outline(&mut doc_b, &[OutlineItem::new("B chapter", 2)]).unwrap();
     let doc_b = save_and_reopen(&doc_b, &b, &dir.join("b2.pdf"));
 
-    let merged = merge(
+    let (merged, _) = merge_all(
         &[
             MergeSource {
                 doc: open(&a),

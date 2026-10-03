@@ -2,12 +2,46 @@
 //! [`Operation`], applied as one MuPDF journal step so that undo and redo work on whole
 //! user actions and the Edit menu can name them.
 
+use std::fmt;
+use std::path::PathBuf;
+
 use mupdf::pdf::{PdfDocument, PdfObject};
 
 use crate::error::{Error, Result};
 use crate::geometry::normalize_rotation;
 use crate::labels::{self, LabelRule};
+use crate::merge::{self, InsertOptions, MergeReport, MergeSource};
 use crate::outline::{ViewDest, edit};
+
+/// The file pages are inserted from.
+#[derive(Clone, PartialEq)]
+pub struct InsertSource {
+    pub path: PathBuf,
+    /// The password that opened it, if it is encrypted.
+    pub password: Option<String>,
+    /// Pages to insert (0-based, in this order); empty inserts every page.
+    pub pages: Vec<usize>,
+}
+
+impl fmt::Debug for InsertSource {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // Never print the password (operations end up in logs).
+        f.debug_struct("InsertSource")
+            .field("path", &self.path)
+            .field("password", &self.password.as_ref().map(|_| "(set)"))
+            .field("pages", &self.pages)
+            .finish()
+    }
+}
+
+/// What applying an operation produced.
+#[derive(Debug, Default)]
+pub(crate) struct Applied {
+    /// The id of the object it created (the new bookmark).
+    pub created: Option<u32>,
+    /// What inserting pages did.
+    pub report: Option<MergeReport>,
+}
 
 #[derive(Debug, Clone, PartialEq)]
 pub enum Operation {
@@ -49,6 +83,13 @@ pub enum Operation {
     SetPageLabels {
         rules: Vec<LabelRule>,
     },
+    /// Inserts pages of another file before page `at` (the page count appends), with
+    /// their annotations, links, named destinations and form fields (section 6.4).
+    InsertPages {
+        source: InsertSource,
+        at: usize,
+        options: InsertOptions,
+    },
 }
 
 impl Operation {
@@ -64,6 +105,10 @@ impl Operation {
             Operation::SetBookmarkDestination { .. } => "Change bookmark destination".into(),
             Operation::SetPageLabels { rules } if rules.is_empty() => "Remove page labels".into(),
             Operation::SetPageLabels { .. } => "Change page labels".into(),
+            Operation::InsertPages { source, .. } if source.pages.len() == 1 => {
+                "Insert page".into()
+            }
+            Operation::InsertPages { .. } => "Insert pages".into(),
         }
     }
 
@@ -78,7 +123,8 @@ impl Operation {
             | Operation::MoveBookmark { .. }
             | Operation::DeleteBookmark { .. }
             | Operation::SetBookmarkDestination { .. }
-            | Operation::SetPageLabels { .. } => true,
+            | Operation::SetPageLabels { .. }
+            | Operation::InsertPages { .. } => true,
         }
     }
 
@@ -110,12 +156,39 @@ impl Operation {
             Operation::SetPageLabels { rules } => {
                 labels::normalize_rules(rules.clone(), page_count).map(drop)
             }
+            Operation::InsertPages { at, .. } => {
+                if *at > page_count {
+                    return Err(Error::PageOutOfRange(*at));
+                }
+                Ok(())
+            }
         }
     }
 
-    /// Applies the operation and returns the id of the object it created, if any (the
-    /// new bookmark). The caller wraps this in a journal step.
-    pub(crate) fn apply(&self, doc: &mut PdfDocument) -> Result<Option<u32>> {
+    /// Applies the operation. The caller wraps this in a journal step.
+    pub(crate) fn apply(&self, doc: &mut PdfDocument) -> Result<Applied> {
+        if let Operation::InsertPages {
+            source,
+            at,
+            options,
+        } = self
+        {
+            let from = MergeSource::open(&source.path, source.password.as_deref())?;
+            let report = merge::insert_pages(doc, *at, &from, &source.pages, *options)?;
+            return Ok(Applied {
+                created: None,
+                report: Some(report),
+            });
+        }
+        let created = self.apply_edit(doc)?;
+        Ok(Applied {
+            created,
+            report: None,
+        })
+    }
+
+    /// Applies an edit and returns the id of the object it created, if any.
+    fn apply_edit(&self, doc: &mut PdfDocument) -> Result<Option<u32>> {
         match self {
             Operation::RotatePages { pages, degrees } => {
                 let mut pages = pages.clone();
@@ -143,6 +216,8 @@ impl Operation {
             Operation::SetPageLabels { rules } => {
                 labels::set_rules(doc, rules.clone()).map(|_| None)
             }
+            // Handled by `apply`.
+            Operation::InsertPages { .. } => Ok(None),
         }
     }
 }
@@ -196,7 +271,7 @@ mod tests {
             degrees: 90,
         };
         op.validate(3).unwrap();
-        op.apply(&mut doc).unwrap();
+        op.apply_edit(&mut doc).unwrap();
         assert_eq!(rotation(&doc, 0), 180);
         assert_eq!(rotation(&doc, 1), 90);
         assert_eq!(rotation(&doc, 2), 180);
@@ -205,7 +280,7 @@ mod tests {
             pages: vec![0],
             degrees: -270,
         }
-        .apply(&mut doc)
+        .apply_edit(&mut doc)
         .unwrap();
         assert_eq!(rotation(&doc, 0), 270);
     }

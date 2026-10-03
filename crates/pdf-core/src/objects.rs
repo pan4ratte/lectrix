@@ -2,7 +2,7 @@
 
 use mupdf::pdf::{PdfDocument, PdfObject};
 
-use crate::error::Result;
+use crate::error::{Error, Result};
 use crate::geometry::Rect;
 
 /// A PDF text string: plain ASCII as a literal string, anything else as UTF-16BE with a
@@ -13,6 +13,63 @@ pub fn text_string(doc: &PdfDocument, s: &str) -> Result<PdfObject> {
         return Ok(PdfObject::new_string(s)?);
     }
     Ok(doc.new_object_from_str(&utf16be_hex_literal(s))?)
+}
+
+/// The elements of an array, without nulls. (MuPDF's null object is a null pointer, which
+/// the crate's iterators report as an error.) Empty if `array` is not an array.
+pub fn array_items(array: &PdfObject) -> Result<Vec<PdfObject>> {
+    let mut out = Vec::new();
+    if !array.is_array()? {
+        return Ok(out);
+    }
+    for i in 0..i32::try_from(array.len()?).unwrap_or(i32::MAX) {
+        if let Some(item) = array.get_array(i)? {
+            out.push(item);
+        }
+    }
+    Ok(out)
+}
+
+/// The entries of a dictionary, without null values (which mean the same as a missing
+/// key). Empty if `dict` is not a dictionary.
+pub fn dict_entries(dict: &PdfObject) -> Result<Vec<(PdfObject, PdfObject)>> {
+    let mut out = Vec::new();
+    if !dict.is_dict()? {
+        return Ok(out);
+    }
+    for i in 0..i32::try_from(dict.dict_len()?).unwrap_or(i32::MAX) {
+        if let (Some(key), Some(value)) = (dict.get_dict_key(i)?, dict.get_dict_val(i)?) {
+            out.push((key, value));
+        }
+    }
+    Ok(out)
+}
+
+/// `dict[key]` as an array that can be changed in place, created empty if it is missing or
+/// not an array. (The crate's `try_clone` makes a deep copy, so an object put into a
+/// container must be read back from it to be changed there.)
+pub fn child_array(doc: &PdfDocument, dict: &mut PdfObject, key: &str) -> Result<PdfObject> {
+    if let Some(a) = dict.get_dict(key)?
+        && a.is_array()?
+    {
+        return Ok(a);
+    }
+    dict.dict_put(key, doc.new_array()?)?;
+    dict.get_dict(key)?
+        .ok_or_else(|| Error::InvalidArgument(format!("could not create /{key}")))
+}
+
+/// `dict[key]` as a dictionary that can be changed in place, created empty if it is missing
+/// or not a dictionary (see [`child_array`]).
+pub fn child_dict(doc: &PdfDocument, dict: &mut PdfObject, key: &str) -> Result<PdfObject> {
+    if let Some(d) = dict.get_dict(key)?
+        && d.is_dict()?
+    {
+        return Ok(d);
+    }
+    dict.dict_put(key, doc.new_dict()?)?;
+    dict.get_dict(key)?
+        .ok_or_else(|| Error::InvalidArgument(format!("could not create /{key}")))
 }
 
 /// Reads a number (integer or real).

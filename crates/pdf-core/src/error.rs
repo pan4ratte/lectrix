@@ -34,6 +34,12 @@ pub enum Error {
     /// object): it is shown, but edits are refused.
     #[error("the document's bookmarks are damaged and cannot be edited")]
     DamagedOutline,
+    /// The user stopped a long operation (combining files).
+    #[error("cancelled")]
+    Cancelled,
+    /// A file's security settings do not allow copying its pages into another document.
+    #[error("{0} does not allow copying its pages")]
+    CopyNotPermitted(String),
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }

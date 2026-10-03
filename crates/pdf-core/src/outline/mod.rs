@@ -7,8 +7,8 @@
 //! - [`write_outline`] replaces the whole outline (pdf-cli, merging).
 
 pub mod edit;
-mod names;
-mod tree;
+pub(crate) mod names;
+pub(crate) mod tree;
 
 pub use names::lookup_dest;
 pub use tree::{Bookmark, Outline, Target, read_bookmarks};

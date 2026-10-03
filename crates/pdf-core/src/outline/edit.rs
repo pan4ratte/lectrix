@@ -137,6 +137,75 @@ pub fn set_open(doc: &mut PdfDocument, states: &[(u32, bool)]) -> Result<usize> 
     Ok(changed.len())
 }
 
+/// A bookmark built by the caller (combining files): its dictionary holds the title,
+/// destination or action and style, and this module writes the links (`/Parent`,
+/// `/Prev`, `/Next`, `/First`, `/Last`, `/Count`).
+pub struct NewBookmark {
+    /// A direct dictionary in the document the bookmark is added to.
+    pub dict: PdfObject,
+    pub open: bool,
+    pub children: Vec<NewBookmark>,
+}
+
+/// Adds `items` (with their children) as children number `index`, `index + 1`... of
+/// `parent` (`None`: the top level; an index past the end appends). The outline is created
+/// if the document has none.
+pub fn insert_items(
+    doc: &mut PdfDocument,
+    parent: Option<u32>,
+    index: usize,
+    items: Vec<NewBookmark>,
+) -> Result<()> {
+    if items.is_empty() {
+        return Ok(());
+    }
+    let mut tree = editable(doc)?;
+    let parent = find_parent(&tree, parent)?;
+    ensure_root(doc, &mut tree)?;
+    let mut new_parents = Vec::new();
+    let mut nodes = Vec::with_capacity(items.len());
+    for item in items {
+        nodes.push(add_node(doc, &mut tree, parent, item, &mut new_parents)?);
+    }
+    for (k, node) in nodes.into_iter().enumerate() {
+        insert(&mut tree, parent, index.saturating_add(k), node);
+    }
+    // Children before their parents, so each count is final when it is written.
+    for &p in &new_parents {
+        relink(&tree, Some(p))?;
+        write_count(&tree, p)?;
+    }
+    relink(&tree, parent)?;
+    fix_counts(&tree, parent)
+}
+
+fn add_node(
+    doc: &mut PdfDocument,
+    tree: &mut Tree,
+    parent: Option<usize>,
+    item: NewBookmark,
+    new_parents: &mut Vec<usize>,
+) -> Result<usize> {
+    let obj = doc.add_object(&item.dict)?;
+    let num = obj.as_indirect()?;
+    let node = tree.nodes.len();
+    tree.nodes.push(super::tree::Node {
+        obj,
+        num,
+        parent,
+        children: Vec::new(),
+        open: item.open,
+    });
+    for child in item.children {
+        let c = add_node(doc, tree, Some(node), child, new_parents)?;
+        tree.nodes[node].children.push(c);
+    }
+    if !tree.nodes[node].children.is_empty() {
+        new_parents.push(node);
+    }
+    Ok(node)
+}
+
 /// Loads the tree, refusing damaged outlines.
 fn editable(doc: &PdfDocument) -> Result<Tree> {
     let tree = Tree::load(doc)?;
@@ -244,19 +313,24 @@ fn visible(tree: &Tree, parent: Option<usize>) -> i32 {
 fn fix_counts(tree: &Tree, from: Option<usize>) -> Result<()> {
     let mut current = from;
     while let Some(i) = current {
-        let node = &tree.nodes[i];
-        let count = if node.children.is_empty() {
-            None
-        } else {
-            let n = visible(tree, Some(i));
-            Some(if node.open { n } else { -n })
-        };
-        set_int(&mut node.obj.clone(), "Count", count)?;
-        current = node.parent;
+        write_count(tree, i)?;
+        current = tree.nodes[i].parent;
     }
     let mut root = parent_obj(tree, None)?;
     let count = (!tree.top.is_empty()).then(|| visible(tree, None));
     set_int(&mut root, "Count", count)
+}
+
+/// Writes one item's `/Count` (see [`fix_counts`]).
+fn write_count(tree: &Tree, i: usize) -> Result<()> {
+    let node = &tree.nodes[i];
+    let count = if node.children.is_empty() {
+        None
+    } else {
+        let n = visible(tree, Some(i));
+        Some(if node.open { n } else { -n })
+    };
+    set_int(&mut node.obj.clone(), "Count", count)
 }
 
 /// Sets `dict[key]` to a reference to `target` (or removes it), unless it already is one.

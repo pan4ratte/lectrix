@@ -42,6 +42,19 @@ pub fn save_atomic(
     original: Option<&Path>,
     target: &Path,
 ) -> Result<SaveOutcome> {
+    save_atomic_checked(doc, kind, original, target, &mut || Ok(()))
+}
+
+/// Like [`save_atomic`], but calls `before_replace` once the new file is written and
+/// flushed, just before it replaces the target. If that returns an error (the user
+/// cancelled), the new file is deleted and the target is left as it was.
+pub fn save_atomic_checked(
+    doc: &PdfDocument,
+    kind: SaveKind,
+    original: Option<&Path>,
+    target: &Path,
+    before_replace: &mut dyn FnMut() -> Result<()>,
+) -> Result<SaveOutcome> {
     let mut outcome = SaveOutcome {
         kind,
         fell_back_to_full: false,
@@ -57,6 +70,7 @@ pub fn save_atomic(
     let result = write_to(doc, outcome.kind, original, &temp).and_then(|()| {
         // FlushFileBuffers on Windows needs a handle with write access.
         OpenOptions::new().write(true).open(&temp)?.sync_all()?;
+        before_replace()?;
         fs::rename(&temp, target).map_err(|e| replace_error(e, target))
     });
     if result.is_err() {
@@ -137,6 +151,27 @@ mod tests {
         assert!(name.starts_with(".report.pdf."));
         assert!(name.ends_with(".folio-tmp"));
         assert_ne!(t, temp_path_for(Path::new("C:/docs/report.pdf")).unwrap());
+    }
+
+    #[test]
+    fn a_refused_replace_leaves_the_target_and_no_temp_file() {
+        let dir =
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/test-output/save-checked");
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let target = dir.join("out.pdf");
+        fs::write(&target, b"previous").unwrap();
+        let doc = crate::testgen::sample_document(&crate::testgen::SampleSpec::default()).unwrap();
+        let result = save_atomic_checked(&doc, SaveKind::Full, None, &target, &mut || {
+            Err(Error::Cancelled)
+        });
+        assert!(matches!(result, Err(Error::Cancelled)));
+        assert_eq!(fs::read(&target).unwrap(), b"previous");
+        assert_eq!(
+            fs::read_dir(&dir).unwrap().count(),
+            1,
+            "the temporary file is gone"
+        );
     }
 
     #[test]
