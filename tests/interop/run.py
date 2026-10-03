@@ -3,6 +3,8 @@
     python tests/interop/run.py phase0      # build the Phase 0 outputs with pdf-cli and check them
     python tests/interop/run.py phase2      # bookmarks edited as the app edits them
     python tests/interop/run.py phase3      # page labels edited as the app edits them
+    python tests/interop/run.py phase4      # files combined and pages inserted as the app does it
+    python tests/interop/run.py phase4-local  # three real files from the local corpus, combined
     python tests/interop/run.py check FILE  # render/visibility checks for one existing file
 
 For every annotation in a checked file, each annotated page is rendered by three
@@ -506,6 +508,197 @@ def phase3(report: Report) -> None:
     label_checks(removed, report, None)
 
 
+def links_fixture() -> bytes:
+    """Three text pages written by another "app", with links on page 1: an explicit
+    destination to page 3, a GoTo action to the named destination "chap2" (page 2, in a
+    name tree), and a web link."""
+    def content(n: int) -> str:
+        text = f"BT /F1 24 Tf 72 720 Td (Linked page {n}) Tj ET BT /F1 12 Tf 72 690 Td (The quick brown fox jumps over the lazy dog on page {n}.) Tj ET"
+        return f"<< /Length {len(text)} >>\nstream\n{text}\nendstream"
+
+    def link(y: int, target: str) -> str:
+        return f"<< /Type /Annot /Subtype /Link /Rect [72 {y} 300 {y + 20}] /Border [0 0 0] {target} >>"
+
+    page = "<< /Type /Page /Parent 2 0 R /Contents {} 0 R {}>>"
+    return assemble_pdf([
+        "<< /Type /Catalog /Pages 2 0 R /Names << /Dests 3 0 R >> >>",
+        "<< /Type /Pages /Kids [4 0 R 5 0 R 6 0 R] /Count 3 /MediaBox [0 0 612 792] /Resources << /Font << /F1 10 0 R >> >> >>",
+        "<< /Names [(chap2) [5 0 R /XYZ 0 792 null]] >>",
+        page.format(7, "/Annots [11 0 R 12 0 R 13 0 R] "),
+        page.format(8, ""),
+        page.format(9, ""),
+        content(1),
+        content(2),
+        content(3),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        link(600, "/Dest [6 0 R /XYZ 0 792 null]"),
+        link(570, "/A << /S /GoTo /D (chap2) >>"),
+        link(540, "/A << /S /URI /URI (https://example.org/) >>"),
+    ])
+
+
+def link_checks(pdf: Path, report: Report, expected: list) -> None:
+    """Both engines find the links of `pdf` as (page, target) pairs: `page` 1-based, the
+    target a 0-based page index or the web address."""
+    for engine, data in (("PDFium", info_pdfium(pdf)), ("pdf.js", info_pdfjs(pdf))):
+        got = sorted(((l["page"], l["uri"] if l["uri"] else l["target"]) for l in data["links"]), key=str)
+        want = sorted(expected, key=str)
+        report.check(got == want, f"{pdf.name}: {engine} links lead to the right pages" + ("" if got == want else f"\n       got      {got}\n       expected {want}"))
+
+
+def phase4(report: Report) -> None:
+    """Combining files and inserting pages the way the app does it (pdf-cli merge and
+    insert run the same engine; insert goes through the session and journal). Three
+    sources: one with an outline, one with labels, one with a highlight and links."""
+    work = OUT / "phase4"
+    shutil.rmtree(work, ignore_errors=True)
+    work.mkdir(parents=True, exist_ok=True)
+    cli = pdf_cli()
+    p = lambda name: str(work / name)
+
+    run([cli, "gen", p("outline-base.pdf"), "--pages", "6", "--title", "Outline sample"])
+    items = ["0+:1:Front", "1:2:Preface", "0:3:Chapter", "1:5:Section"]
+    run([cli, "outline", "set", p("outline-base.pdf"), p("outline.pdf")] + [a for i in items for a in ("--item", i)])
+    run([cli, "gen", p("labels-base.pdf"), "--pages", "5", "--title", "Labels sample"])
+    run([cli, "labels", "set", p("labels-base.pdf"), p("labels.pdf"), "--rule", "1:roman-lower", "--rule", "3:decimal"])
+    (work / "links.pdf").write_bytes(links_fixture())
+    run([cli, "annot", "markup", p("links.pdf"), p("annotated.pdf"), "--page", "1", "--text", "quick brown fox", "--opacity", "0.6", "--author", "Folio Harness", "--note", "Harness note"])
+    sources = [p("outline.pdf"), p("labels.pdf"), p("annotated.pdf")]
+
+    # 1. Everything, in order, with the default options.
+    merged = work / "merged.pdf"
+    run([cli, "merge", str(merged)] + sources)
+    print(merged.name)
+    qpdf_check(merged, report)
+    outline_and_label_checks(
+        merged,
+        report,
+        pages=14,
+        labels=[str(n) for n in range(1, 7)] + ["i", "ii", "1", "2", "3"] + ["1", "2", "3"],
+        outline=[
+            ("Outline sample", 0, [("Front", 0, [("Preface", 1, [])]), ("Chapter", 2, [("Section", 4, [])])]),
+            ("Labels sample", 6, []),
+            ("annotated", 11, []),
+        ],
+    )
+    link_checks(merged, report, [(12, 13), (12, 12), (12, "https://example.org/")])
+    case = work / "merged"
+    case.mkdir(exist_ok=True)
+    annotation_checks(merged, report, case)
+
+    # 2. Picked pages: the annotated page turned and first, a page its link leads to, two
+    # outline pages and one labeled page. The link to the page left out goes; a bookmark
+    # whose page is gone stays as a heading when it has children.
+    picked = work / "picked.pdf"
+    run([cli, "merge", str(picked)] + sources + ["--pages", "3:1@90,3:3,1:2-3,2:4"])
+    print(picked.name)
+    qpdf_check(picked, report)
+    outline_and_label_checks(
+        picked,
+        report,
+        pages=5,
+        labels=["1", "3", "2", "3", "2"],
+        outline=[
+            ("annotated", 0, []),
+            ("Outline sample", 2, [("Front", None, [("Preface", 2, [])]), ("Chapter", 3, [])]),
+            ("Labels sample", 4, []),
+        ],
+    )
+    link_checks(picked, report, [(1, 1), (1, "https://example.org/")])
+    case = work / "picked"
+    case.mkdir(exist_ok=True)
+    annotation_checks(picked, report, case)
+
+    # 3. Inserting the annotated file before page 3 of the labeled one: the inserted pages
+    # (no labels of their own) continue the roman numbering, and links still work.
+    inserted = work / "inserted.pdf"
+    run([cli, "insert", p("labels.pdf"), str(inserted), "--from", p("annotated.pdf"), "--at", "3"])
+    print(inserted.name)
+    qpdf_check(inserted, report)
+    outline_and_label_checks(
+        inserted,
+        report,
+        pages=8,
+        labels=["i", "ii", "iii", "iv", "v", "1", "2", "3"],
+        outline=[("annotated", 2, [])],
+    )
+    link_checks(inserted, report, [(3, 4), (3, 3), (3, "https://example.org/")])
+    case = work / "inserted"
+    case.mkdir(exist_ok=True)
+    annotation_checks(inserted, report, case)
+
+
+LOCAL_CORPUS = ROOT / "tests" / "local-corpus" / "files"
+
+
+def qpdf_status(pdf: Path) -> int:
+    """qpdf --check exit code: 0 clean, 3 warnings, 2 errors."""
+    return subprocess.run([exe("qpdf"), "--check", str(pdf)], capture_output=True).returncode
+
+
+def phase4_local(report: Report) -> None:
+    """Combines three real files from the git-ignored local corpus (tests/local-corpus):
+    one with an outline and links, one with page labels, bookmarks, many links and rotated
+    pages, one with highlights made by another app. What each engine reads in the result
+    must equal what it reads in the sources, moved to the pages' new places."""
+    names = ["08-calibre-made.pdf", "24-rotated-some.pdf", "03-annot-highlight.pdf"]
+    sources = [LOCAL_CORPUS / n for n in names]
+    if not all(f.exists() for f in sources):
+        print(f"local corpus not found in {LOCAL_CORPUS}; skipping")
+        return
+    work = OUT / "phase4-local"
+    shutil.rmtree(work, ignore_errors=True)
+    work.mkdir(parents=True, exist_ok=True)
+    out = work / "combined.pdf"
+    run([pdf_cli(), "merge", str(out)] + [str(f) for f in sources])
+    print(out.name)
+    # Not worse than the worst source (some real files already have qpdf warnings).
+    worst = max(qpdf_status(f) for f in sources)
+    got = qpdf_status(out)
+    order = {0: 0, 3: 1, 2: 2}
+    report.check(order.get(got, 2) <= order.get(worst, 2), f"{out.name}: qpdf --check exit {got} (worst source: {worst})")
+
+    def shift_tree(items, offset):
+        return [(i["title"], None if i["page"] is None else i["page"] + offset, shift_tree(i["children"], offset)) for i in items]
+
+    for engine, read in (("PDFium", info_pdfium), ("pdf.js", info_pdfjs)):
+        infos = [read(f) for f in sources]
+        result = read(out)
+        offsets = []
+        total = 0
+        for info in infos:
+            offsets.append(total)
+            total += info["pages"]
+        report.check(result["pages"] == total, f"{out.name}: {engine} counts {result['pages']} pages (expected {total})")
+
+        labels = []
+        for info in infos:
+            own = info["labels"] or []
+            # A file without labels is numbered 1, 2, 3... from its first page.
+            labels += own if any(own) else [str(n) for n in range(1, info["pages"] + 1)]
+        got_labels = result["labels"] or []
+        report.check(got_labels == labels, f"{out.name}: {engine} keeps every page's label" + ("" if got_labels == labels else f" (first difference at page {next((i for i, (a, b) in enumerate(zip(got_labels, labels)) if a != b), '?')})"))
+
+        expected_links = sorted(
+            ((l["page"] + offsets[k], l["uri"] if l["uri"] else (None if l["target"] is None else l["target"] + offsets[k])) for k, info in enumerate(infos) for l in info["links"]),
+            key=str,
+        )
+        got_links = sorted(((l["page"], l["uri"] if l["uri"] else l["target"]) for l in result["links"]), key=str)
+        internal = sum(1 for _, t in expected_links if isinstance(t, int))
+        report.check(got_links == expected_links, f"{out.name}: {engine} finds all {len(expected_links)} links ({internal} internal) leading to the same pages as before" + ("" if got_links == expected_links else f" (got {len(got_links)}; first difference {next((a, b) for a, b in zip(got_links + [None] * len(expected_links), expected_links) if a != b)})"))
+
+        # Each source's bookmarks, under a top-level bookmark for the file.
+        tops = result["outline"]
+        ok = len(tops) == len(infos)
+        for k, (top, info) in enumerate(zip(tops, infos)):
+            ok = ok and top["page"] == offsets[k] and strip_outline(top["children"]) == shift_tree(info["outline"], offsets[k])
+        report.check(ok, f"{out.name}: {engine} nests each file's bookmarks, with their targets moved along")
+
+    case = work / "annotations"
+    case.mkdir(exist_ok=True)
+    annotation_checks(out, report, case)
+
+
 def main(argv: list[str]) -> int:
     # Titles in the checks are Unicode; Windows consoles (CI) default to a code page.
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -516,6 +709,10 @@ def main(argv: list[str]) -> int:
         phase2(report)
     elif argv[:1] == ["phase3"]:
         phase3(report)
+    elif argv[:1] == ["phase4"]:
+        phase4(report)
+    elif argv[:1] == ["phase4-local"]:
+        phase4_local(report)
     elif argv[:1] == ["check"] and len(argv) == 2:
         pdf = Path(argv[1]).resolve()
         work = OUT / "check" / pdf.stem

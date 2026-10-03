@@ -66,9 +66,10 @@ function killStrayApps() {
  *
  * The files go through FOLIO_OPEN: on Windows, tauri-driver hands launch arguments to
  * WebView2 instead of the app. `dialogs` answers the app's file dialogs in order
- * (FOLIO_DIALOG): each answer is a path, a list of paths, or null for Cancel.
+ * (FOLIO_DIALOG): each answer is a path, a list of paths, or null for Cancel. `env` adds
+ * environment variables.
  */
-export async function launch(files = [], { dialogs } = {}) {
+export async function launch(files = [], { dialogs, env = {} } = {}) {
 	for (const [what, path] of [
 		['the release app', app],
 		['msedgedriver', edgeDriver]
@@ -82,7 +83,8 @@ export async function launch(files = [], { dialogs } = {}) {
 			...process.env,
 			FOLIO_EPHEMERAL: '1',
 			FOLIO_OPEN: files.join(';'),
-			...(dialogs ? { FOLIO_DIALOG: dialogs.map((a) => [a ?? []].flat().join('|')).join(';') } : {})
+			...(dialogs ? { FOLIO_DIALOG: dialogs.map((a) => [a ?? []].flat().join('|')).join(';') } : {}),
+			...env
 		},
 		stdio: ['ignore', 'inherit', 'inherit']
 	});

@@ -6,6 +6,7 @@
 `page` is 1-based. `on|off` controls whether annotation appearances are drawn.
 """
 
+import ctypes
 import json
 import sys
 
@@ -66,6 +67,32 @@ def annotations(pdf):
     return out
 
 
+def links(pdf):
+    """Every link with the page it leads to (0-based; None if it leads to no page of this
+    document) or its web address."""
+    out = []
+    for i in range(len(pdf)):
+        page = pdf[i]
+        pos = ctypes.c_long(0)
+        link = raw.FPDF_LINK()
+        while raw.FPDFLink_Enumerate(page.raw, ctypes.byref(pos), ctypes.byref(link)):
+            dest = raw.FPDFLink_GetDest(pdf.raw, link)
+            uri = None
+            if not dest:
+                action = raw.FPDFLink_GetAction(link)
+                kind = raw.FPDFAction_GetType(action) if action else None
+                if kind == raw.PDFACTION_GOTO:
+                    dest = raw.FPDFAction_GetDest(pdf.raw, action)
+                elif kind == raw.PDFACTION_URI:
+                    size = raw.FPDFAction_GetURIPath(pdf.raw, action, None, 0)
+                    buf = ctypes.create_string_buffer(size)
+                    raw.FPDFAction_GetURIPath(pdf.raw, action, buf, size)
+                    uri = buf.value.decode("utf-8", "replace")
+            target = raw.FPDFDest_GetDestPageIndex(pdf.raw, dest) if dest else -1
+            out.append({"page": i + 1, "target": target if target >= 0 else None, "uri": uri})
+    return out
+
+
 def info(path):
     pdf = pdfium.PdfDocument(path)
     result = {
@@ -73,6 +100,7 @@ def info(path):
         "labels": [pdf.get_page_label(i) for i in range(len(pdf))],
         "outline": outline(pdf),
         "annotations": annotations(pdf),
+        "links": links(pdf),
     }
     pdf.close()
     return result

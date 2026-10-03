@@ -21,10 +21,12 @@ use mupdf::pdf::{PdfDocument, PdfObject};
 use pdf_core::Error;
 use pdf_core::geometry::{PageGeometry, read_page_boxes};
 use pdf_core::labels::{LabelRule, LabelStyle, labels_for_pages, normalize_rules, read_rules};
+use pdf_core::merge::{self, MergeOptions, MergeSource};
 use pdf_core::ops::Operation;
 use pdf_core::outline;
 use pdf_core::save::SaveKind;
 use pdf_core::session::Session;
+use pdf_core::testgen::{SampleSpec, sample_document};
 use serde_json::Value;
 
 fn corpus_dir() -> PathBuf {
@@ -270,6 +272,135 @@ fn local_corpus_opens_renders_and_saves_safely() {
                     format!(": {}", notes.join("; "))
                 }
             ),
+            Err(e) => {
+                eprintln!("FAIL {name}: {e}");
+                failures.push(format!("{name}: {e}"));
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} file(s) failed:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
+/// Bookmarks in the outline as the panel reads it.
+fn bookmark_count(doc: &PdfDocument) -> usize {
+    let mut n = 0;
+    outline::read_bookmarks(doc).unwrap().for_each(|_| n += 1);
+    n
+}
+
+/// Combines a generated two-page file with `file` (every page, default options) and checks
+/// that everything came along: pages, every annotation (links and widgets included), every
+/// page's label, the whole outline nested under the file, and a structure no worse than
+/// the original's.
+fn combine_file(file: &Path, out: &Path) -> Result<Vec<String>, String> {
+    let mut notes = Vec::new();
+    let source = match MergeSource::open(file, None) {
+        Ok(source) => source,
+        Err(Error::CopyNotPermitted(_)) => return Ok(vec!["refused: copying not allowed".into()]),
+        Err(e) => return Err(format!("open: {e}")),
+    };
+    let pages = source.doc.page_count().unwrap() as usize;
+    let annots_before = annotation_counts(&source.doc);
+    // Combined, the pages of a file without labels are numbered 1, 2, 3... (MuPDF reads
+    // them as ""; an empty label stored in a file stays empty).
+    let unlabeled = read_rules(&source.doc).unwrap().is_empty();
+    let labels_before: Vec<String> = (0..pages)
+        .map(|p| {
+            if unlabeled {
+                (p + 1).to_string()
+            } else {
+                source.doc.page_label(p).unwrap()
+            }
+        })
+        .collect();
+    let bookmarks_before = bookmark_count(&source.doc);
+    let sample = MergeSource {
+        doc: sample_document(&SampleSpec {
+            pages: 2,
+            ..SampleSpec::default()
+        })
+        .unwrap(),
+        name: "Sample".into(),
+    };
+    let started = std::time::Instant::now();
+    let (merged, report) = merge::merge_all(&[sample, source], MergeOptions::default())
+        .map_err(|e| format!("merge: {e}"))?;
+    let target = out.join(format!(
+        "combined-{}",
+        file.file_name().unwrap().to_string_lossy()
+    ));
+    writing(|| pdf_core::save::save_atomic(&merged, SaveKind::Full, None, &target))
+        .map_err(|e| format!("save: {e}"))?;
+    notes.push(format!("{:.1} s", started.elapsed().as_secs_f64()));
+    drop(merged);
+
+    let after = PdfDocument::open(target.to_str().unwrap()).map_err(|e| format!("reopen: {e}"))?;
+    if after.page_count().unwrap() as usize != pages + 2 {
+        return Err("page count".into());
+    }
+    if annotation_counts(&after)[2..] != annots_before[..] {
+        return Err("annotations did not all come along".into());
+    }
+    let labels_after: Vec<String> = (2..pages + 2)
+        .map(|p| after.page_label(p).unwrap())
+        .collect();
+    if labels_after != labels_before {
+        let first = labels_after
+            .iter()
+            .zip(&labels_before)
+            .position(|(a, b)| a != b)
+            .unwrap_or(0);
+        return Err(format!(
+            "page {} label {:?}, was {:?}",
+            first + 1,
+            labels_after.get(first),
+            labels_before.get(first)
+        ));
+    }
+    // One top-level bookmark per file, the file's own below its.
+    if bookmark_count(&after) != bookmarks_before + 2 {
+        return Err(format!(
+            "{} bookmarks, expected {}",
+            bookmark_count(&after),
+            bookmarks_before + 2
+        ));
+    }
+    if report.renamed_destinations + report.renamed_fields > 0 {
+        notes.push(format!(
+            "renamed {} names, {} fields",
+            report.renamed_destinations, report.renamed_fields
+        ));
+    }
+    if let (Some(input), Some(output)) = (qpdf_severity(file), qpdf_severity(&target)) {
+        if output > input {
+            return Err(format!("qpdf --check got worse: {input} -> {output}"));
+        }
+    }
+    fs::remove_file(&target).ok();
+    Ok(notes)
+}
+
+#[test]
+#[ignore = "real-world local corpus, minutes long: run with --ignored"]
+fn local_corpus_files_combine_with_everything_they_hold() {
+    let manifest_path = corpus_dir().join("manifest.json");
+    let Ok(manifest) = fs::read_to_string(&manifest_path) else {
+        eprintln!("no local corpus at {}; skipped", manifest_path.display());
+        return;
+    };
+    let manifest: Vec<Value> = serde_json::from_str(&manifest).unwrap();
+    let out = out_dir("local-corpus-combine");
+    let mut failures = Vec::new();
+    for entry in &manifest {
+        let name = entry["file"].as_str().unwrap();
+        let file = corpus_dir().join("files").join(name);
+        match combine_file(&file, &out) {
+            Ok(notes) => eprintln!("ok   {name}: {}", notes.join("; ")),
             Err(e) => {
                 eprintln!("FAIL {name}: {e}");
                 failures.push(format!("{name}: {e}"));

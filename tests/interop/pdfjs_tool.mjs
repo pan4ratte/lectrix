@@ -54,9 +54,17 @@ async function resolveOutline(doc, items) {
 	return out;
 }
 
+/** The page (0-based) a destination leads to, or null. */
+async function destPage(doc, dest) {
+	if (typeof dest === 'string') dest = await doc.getDestination(dest);
+	if (!Array.isArray(dest) || dest[0] == null) return null;
+	return typeof dest[0] === 'object' ? doc.getPageIndex(dest[0]) : dest[0];
+}
+
 async function info(file) {
 	const doc = await open(file);
 	const annotations = [];
+	const links = [];
 	for (let i = 1; i <= doc.numPages; i++) {
 		const page = await doc.getPage(i);
 		for (const a of await page.getAnnotations({ intent: 'display' })) {
@@ -67,13 +75,17 @@ async function info(file) {
 				hasAppearance: a.hasAppearance ?? null,
 				id: a.id
 			});
+			if (a.subtype === 'Link') {
+				links.push({ page: i, target: a.dest ? await destPage(doc, a.dest) : null, uri: a.url ?? null });
+			}
 		}
 	}
 	const result = {
 		pages: doc.numPages,
 		labels: await doc.getPageLabels(),
 		outline: await resolveOutline(doc, await doc.getOutline()),
-		annotations
+		annotations,
+		links
 	};
 	await doc.close();
 	return result;

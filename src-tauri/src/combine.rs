@@ -17,6 +17,17 @@ use pdf_core::{Error, Result};
 /// Progress is reported at most this often (and always for the last page).
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(50);
 
+/// FOLIO_COMBINE_PAGE_DELAY_MS slows combining down by that much per page, so automated
+/// tests can watch the progress bar and press Stop (combining is usually too fast for
+/// that). For tests only, like FOLIO_PERF.
+fn page_delay() -> Option<Duration> {
+    std::env::var("FOLIO_COMBINE_PAGE_DELAY_MS")
+        .ok()?
+        .parse()
+        .ok()
+        .map(Duration::from_millis)
+}
+
 pub struct Job {
     /// Each source's file and password.
     pub sources: Vec<(PathBuf, Option<String>)>,
@@ -55,7 +66,11 @@ fn run_here(job: &Job, cancel: &AtomicBool, progress: &dyn Fn(Progress)) -> Resu
         .map(|(path, password)| MergeSource::open(path, password.as_deref()))
         .collect::<Result<Vec<_>>>()?;
     let mut last: Option<Instant> = None;
+    let delay = page_delay();
     let (doc, report) = merge::merge(&sources, &job.picks, job.options, &mut |done, total| {
+        if let Some(delay) = delay {
+            std::thread::sleep(delay);
+        }
         if cancel.load(Ordering::Relaxed) {
             return false;
         }
