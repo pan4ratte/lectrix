@@ -12,6 +12,10 @@ thiserror.workspace = true
 uuid = { version = "=1.26.1", features = ["v4"] }
 png = "=0.18.1"
 
+[target.'cfg(windows)'.dependencies]
+# DirectWrite for the installed-font index (ADR 0005). Already in the tree through Tauri.
+windows = { version = "=0.62.2", features = ["Win32_Graphics_DirectWrite"] }
+
 [dev-dependencies]
 # Reads tests/local-corpus/manifest.json (already in the tree through the app crate).
 serde_json = "1"

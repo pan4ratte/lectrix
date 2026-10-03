@@ -12,7 +12,8 @@ rust-version = "1.99"
 [workspace.dependencies]
 # Vendored, patched copy of the mupdf crate; see third_party/mupdf-rs/FOLIO_PATCHES.md
 # and docs/decisions/0001-mupdf-binding-coverage.md.
-mupdf = { path = "third_party/mupdf-rs" }
+# Without `system-fonts`: Folio's own font index replaces font-kit (ADR 0005).
+mupdf = { path = "third_party/mupdf-rs", default-features = false, features = ["base14-fonts", "brotli"] }
 mupdf-sys = { git = "https://github.com/messense/mupdf-rs", rev = "537d50556ee8e4abf2435f81357dfef3c145d883", default-features = false }
 thiserror = "=2.0.21"
 

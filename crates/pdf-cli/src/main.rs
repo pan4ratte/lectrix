@@ -93,6 +93,15 @@ enum Command {
         #[arg(required = true, num_args = 1..)]
         inputs: Vec<PathBuf>,
     },
+    /// Show the installed-font index (ADR 0005): size, build time, and what font names
+    /// resolve to (`--find NAME[:bold][:italic]`, or every font a document does not
+    /// embed with `--document FILE`).
+    Fonts {
+        #[arg(long = "find")]
+        find: Vec<String>,
+        #[arg(long)]
+        document: Option<PathBuf>,
+    },
     /// Measure open, render and encode times (AGENTS.md section 2 targets).
     Bench {
         input: PathBuf,
@@ -226,6 +235,13 @@ fn run(command: Command) -> Result<()> {
             println!("wrote {} ({pages} pages)", out.display());
         }
         Command::Info { input } => info(&input)?,
+        Command::Fonts { find, document } => {
+            let mut find = find;
+            if let Some(path) = document {
+                find.extend(non_embedded_fonts(&open(&path)?)?);
+            }
+            fonts(&find);
+        }
         Command::Survey { inputs } => {
             for input in inputs {
                 let line = serde_json::to_string(&survey::survey(&input))
@@ -633,6 +649,85 @@ fn print_outline(items: &[outline::ReadOutlineItem], depth: usize) {
             item.title
         );
         print_outline(&item.children, depth + 1);
+    }
+}
+
+/// Names of the fonts that page resources use without embedding them (font dictionaries
+/// directly in each page's resources; fonts inside form XObjects are not visited).
+fn non_embedded_fonts(doc: &PdfDocument) -> Result<Vec<String>> {
+    let mut names = std::collections::BTreeSet::new();
+    for p in 0..doc.page_count()? {
+        let page = doc.find_page(p)?;
+        let Some(fonts) = page
+            .get_dict_inheritable("Resources")?
+            .and_then(|r| r.get_dict("Font").ok().flatten())
+        else {
+            continue;
+        };
+        for i in 0..i32::try_from(fonts.dict_len()?).unwrap_or(0) {
+            let Some(font) = fonts.get_dict_val(i)? else {
+                continue;
+            };
+            let described = match font.get_dict("DescendantFonts")? {
+                Some(d) => d.get_array(0)?.unwrap_or(font.clone()),
+                None => font.clone(),
+            };
+            let embedded = match described.get_dict("FontDescriptor")? {
+                Some(fd) => {
+                    fd.get_dict("FontFile")?.is_some()
+                        || fd.get_dict("FontFile2")?.is_some()
+                        || fd.get_dict("FontFile3")?.is_some()
+                }
+                None => false,
+            };
+            let is_type3 = font
+                .get_dict("Subtype")?
+                .is_some_and(|s| s.as_name().unwrap_or_default() == b"Type3");
+            if embedded || is_type3 {
+                continue;
+            }
+            if let Some(name) = font.get_dict("BaseFont")? {
+                let name = String::from_utf8_lossy(&name.as_name()?).into_owned();
+                let bare = match name.split_once('+') {
+                    Some((prefix, rest)) if prefix.len() == 6 => rest.to_owned(),
+                    _ => name,
+                };
+                names.insert(bare);
+            }
+        }
+    }
+    Ok(names.into_iter().collect())
+}
+
+fn fonts(queries: &[String]) {
+    let index = pdf_core::fonts::installed_fonts();
+    let built = pdf_core::fonts::index_build_time().unwrap_or_default();
+    println!(
+        "installed faces: {} (index built in {:.1} ms)",
+        index.len(),
+        built.as_secs_f64() * 1000.0
+    );
+    for query in queries {
+        let mut parts = query.split(':');
+        let name = parts.next().unwrap_or_default();
+        let flags: Vec<&str> = parts.collect();
+        let (bold, italic) = (flags.contains(&"bold"), flags.contains(&"italic"));
+        let found = match pdf_core::fonts::builtin_for(name) {
+            Some(builtin) => format!("built-in {builtin}"),
+            None => match index.lookup(name, bold, italic) {
+                Some(f) => format!(
+                    "{} ({}, weight {}, {:?}) in {} #{}",
+                    f.postscript_name.as_deref().unwrap_or("?"),
+                    f.family_name(),
+                    f.weight,
+                    f.style,
+                    f.path.display(),
+                    f.index
+                ),
+                None => "not installed (MuPDF substitutes a font)".into(),
+            },
+        };
+        println!("{query}: {found}");
     }
 }
 

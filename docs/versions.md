@@ -20,7 +20,7 @@ Recorded at project start (2026-10-02). Versions are pinned exactly in `Cargo.to
 | --- | --- | --- |
 | MuPDF | 1.27.2 | built from source by `mupdf-sys` |
 | `mupdf-sys` | 0.8.0 @ `537d50556ee8e4abf2435f81357dfef3c145d883` | git, upstream messense/mupdf-rs |
-| `mupdf` | 0.8.0 @ same commit, Folio-patched | vendored in `third_party/mupdf-rs` (ADR 0001) |
+| `mupdf` | 0.8.0 @ same commit, Folio-patched | vendored in `third_party/mupdf-rs` (ADR 0001); built without `system-fonts` since Phase 2 (ADR 0005), so `font-kit` is no longer in the build |
 
 ## Rust crates (direct)
 
@@ -31,6 +31,7 @@ Recorded at project start (2026-10-02). Versions are pinned exactly in `Cargo.to
 | tauri-plugin-dialog | 2.8.1 |
 | tauri-plugin-single-instance | 2.5.2 (Phase 1; forwards a second launch's files to the running window) |
 | windows-sys | 0.61.2 (Phase 1; Windows `platform` module; already in the tree through Tauri) |
+| windows | 0.62.2 (Phase 2; `pdf-core` DirectWrite font index, ADR 0005; already in the tree through Tauri's webview2-com) |
 | thiserror | 2.0.21 |
 | cc (build) | 1.5.1 |
 | uuid | 1.26.1 |

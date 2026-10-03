@@ -11,6 +11,7 @@ pub mod merge;
 pub mod objects;
 pub mod ops;
 pub mod outline;
+pub mod platform;
 pub mod render;
 pub mod save;
 pub mod session;

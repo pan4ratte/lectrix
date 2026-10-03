@@ -99,12 +99,8 @@ impl Font {
 
     /// Like [`from_bytes_with_index`](Self::from_bytes_with_index) but shares
     /// `font_data` with MuPDF instead of copying it.
-    #[cfg(all(
-        feature = "system-fonts",
-        not(target_arch = "wasm32"),
-        not(target_os = "android")
-    ))]
-    pub(crate) fn from_static_bytes_with_index(
+    // Folio patch 4: public and not tied to `system-fonts`, for Folio's own font index.
+    pub fn from_static_bytes_with_index(
         name: &str,
         index: i32,
         font_data: &'static [u8],

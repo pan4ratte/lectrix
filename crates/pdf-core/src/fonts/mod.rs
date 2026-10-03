@@ -1,24 +1,29 @@
-//! Font lookup policy (Phase 0 review, decision 1).
+//! Fonts for documents that do not embed them (Phase 0 review decision 1, ADR 0005).
 //!
-//! With the `mupdf` crate's `system-fonts` feature, MuPDF asks the system font hook for
-//! every non-embedded font, base-14 names included, and the first query enumerates the
-//! Windows font collection (about 1.6 s once per process). Folio therefore:
+//! MuPDF asks Folio's font loader for every non-embedded font. Folio:
 //!
 //! - sends the 14 standard font names, and the aliases of them that no installed font can
 //!   match (such as "TimesNewRoman,Bold"), straight to MuPDF's built-in, metric-compatible
-//!   fonts, so documents that use only those never wait for the system font lookup; for
-//!   the aliases, MuPDF ends up with the same built-in font anyway, so pages render
-//!   identically (checked on real-world files); and
-//! - warms the system font collection on a background thread at startup, so documents
-//!   that name other non-embedded fonts (for example "Arial") usually find it ready.
+//!   fonts; for the aliases, MuPDF ended up with the same built-in font anyway, so pages
+//!   render identically (checked on real-world files); and
+//! - looks every other name up in an index of the installed fonts ([`index`]), built once
+//!   on a background thread at startup. Lookups that arrive while it is being built wait
+//!   for it. Matching follows the `mupdf` crate's former `font-kit` lookup, so documents
+//!   render with the same fonts.
 
-use std::sync::Once;
+pub mod index;
+
+use std::collections::HashMap;
+use std::path::PathBuf;
+use std::sync::{Mutex, Once, OnceLock};
 use std::thread;
+use std::time::{Duration, Instant};
 
 use mupdf::pdf::{PdfDocument, PdfObject};
-use mupdf::{Buffer, Font, FontHints, FontLoader, TextPageFlags};
+use mupdf::{Buffer, CjkFontOrdering, Font, FontHints, FontLoader, TextPageFlags};
 
 use crate::error::Result;
+use index::{FontFace, FontIndex, cjk_ordering};
 
 /// The 14 standard font names (PDF 32000-1:2008, 9.6.2.2), exactly as MuPDF's
 /// `fz_lookup_base14_font` accepts them.
@@ -111,12 +116,100 @@ pub fn builtin_for(name: &str) -> Option<&'static str> {
     })
 }
 
-struct Base14First;
+/// The index of installed fonts, and how long building it took.
+static INDEX: OnceLock<(FontIndex, Duration)> = OnceLock::new();
 
-impl FontLoader for Base14First {
-    fn load_font(&self, name: &str, _hints: FontHints) -> Option<Font> {
-        // `Font::new` loads the built-in font data for an exact base-14 name.
-        Font::new(builtin_for(name)?).ok()
+/// The installed-font index, built on first use. Concurrent callers wait for the one
+/// build. A platform error leaves the index empty: fonts then fall back to MuPDF's
+/// substitutes instead of failing.
+pub fn installed_fonts() -> &'static FontIndex {
+    &INDEX
+        .get_or_init(|| {
+            let start = Instant::now();
+            let faces = crate::platform::system_fonts()
+                .installed_faces()
+                .unwrap_or_default();
+            (FontIndex::new(faces), start.elapsed())
+        })
+        .0
+}
+
+/// How long building the index took (`None` before it is built).
+pub fn index_build_time() -> Option<Duration> {
+    INDEX.get().map(|(_, d)| *d)
+}
+
+/// Font files read so far, shared with MuPDF for the rest of the process (as the crate
+/// did): bounded by the distinct fonts documents ask for.
+static FONT_DATA: Mutex<Option<HashMap<PathBuf, &'static [u8]>>> = Mutex::new(None);
+
+fn font_data(face: &FontFace) -> Option<&'static [u8]> {
+    // The map stays valid if a reader panicked while holding the lock.
+    let mut guard = FONT_DATA.lock().unwrap_or_else(|e| e.into_inner());
+    let map = guard.get_or_insert_with(HashMap::new);
+    if let Some(data) = map.get(&face.path) {
+        return Some(data);
+    }
+    let data: &'static [u8] = Box::leak(std::fs::read(&face.path).ok()?.into_boxed_slice());
+    map.insert(face.path.clone(), data);
+    Some(data)
+}
+
+/// Loads an installed face for MuPDF.
+fn load_face(face: &FontFace) -> Option<Font> {
+    let data = font_data(face)?;
+    // The face index applies to collections only.
+    let index = if data.starts_with(b"ttcf") {
+        i32::try_from(face.index).ok()?
+    } else {
+        0
+    };
+    Font::from_static_bytes_with_index(face.family_name(), index, data).ok()
+}
+
+/// Folio's font loader: built-in fonts for the standard names, installed fonts for the
+/// rest.
+struct FolioFonts;
+
+impl FolioFonts {
+    fn cjk(&self, ordering: CjkFontOrdering, serif: bool) -> Option<Font> {
+        load_face(installed_fonts().cjk(ordering, serif)?)
+    }
+}
+
+impl FontLoader for FolioFonts {
+    fn load_font(&self, name: &str, hints: FontHints) -> Option<Font> {
+        if let Some(builtin) = builtin_for(name) {
+            // `Font::new` loads the built-in font data for an exact base-14 name.
+            return Font::new(builtin).ok();
+        }
+        let face = installed_fonts().lookup(name, hints.bold, hints.italic)?;
+        let font = load_face(face)?;
+        // A face without real bold or italic is refused when MuPDF needs exact metrics.
+        if hints.needs_exact_metrics
+            && ((hints.bold && !font.is_bold()) || (hints.italic && !font.is_italic()))
+        {
+            return None;
+        }
+        Some(font)
+    }
+
+    fn load_cjk_font(&self, name: &str, ordering: CjkFontOrdering, serif: bool) -> Option<Font> {
+        // The font the document names, if installed, before a generic one for the
+        // ordering (the crate's order).
+        if !name.is_empty()
+            && let Some(font) = self.load_font(name, FontHints::default())
+        {
+            return Some(font);
+        }
+        self.cjk(ordering, serif)
+    }
+
+    fn load_fallback_font(&self, script: u32, language: u32, hints: FontHints) -> Option<Font> {
+        // Only CJK scripts come from installed fonts; MuPDF covers the others. Bold and
+        // italic hints are ignored because MuPDF caches fallback fonts per script and
+        // serif flag only.
+        self.cjk(cjk_ordering(script, language)?, hints.serif)
     }
 }
 
@@ -125,23 +218,22 @@ static INSTALL: Once = Once::new();
 /// Installs Folio's font policy. Call once at startup, before opening documents; later
 /// calls do nothing.
 pub fn install() {
-    INSTALL.call_once(|| mupdf::set_font_loader(Base14First));
+    INSTALL.call_once(|| mupdf::set_font_loader(FolioFonts));
 }
 
-/// Loads the system font collection on a background thread, so the first document that
-/// needs a non-embedded, non-base-14 font does not pay for it. Returns immediately.
+/// Builds the installed-font index on a background thread, so the first document that
+/// needs a non-embedded, non-base-14 font finds it ready. Returns immediately.
 pub fn warm_up_in_background() {
     let spawned = thread::Builder::new()
         .name("font-warm-up".into())
         .spawn(|| {
-            // A failure here only means the first such document pays the cost instead.
-            let _ = warm_up();
+            installed_fonts();
         });
     drop(spawned);
 }
 
 /// Renders the text of a one-page document that uses a non-embedded "Arial", which makes
-/// MuPDF query the system font hook.
+/// MuPDF ask the font loader (tests and benchmarks).
 pub fn warm_up() -> Result<()> {
     let mut doc = PdfDocument::new();
     let mut font = doc.new_dict()?;
@@ -215,16 +307,51 @@ mod tests {
     }
 
     #[test]
-    fn base14_loader_returns_builtin_font() {
-        let font = Base14First
+    fn base14_names_load_builtin_fonts() {
+        let font = FolioFonts
             .load_font("Helvetica-Bold", FontHints::default())
             .unwrap();
         assert!(font.name().contains("Helvetica"), "{}", font.name());
+    }
+
+    #[test]
+    fn unknown_names_find_nothing() {
         assert!(
-            Base14First
-                .load_font("Arial", FontHints::default())
+            FolioFonts
+                .load_font("FolioNoSuchFont-Regular", FontHints::default())
                 .is_none()
         );
+    }
+
+    /// Stock Windows fonts, found the way the crate's font-kit lookup found them.
+    #[cfg(windows)]
+    #[test]
+    fn installed_windows_fonts_are_found() {
+        let index = installed_fonts();
+        assert!(index.len() > 50, "only {} faces", index.len());
+        let file = |name: &str, bold, italic| {
+            index
+                .lookup(name, bold, italic)
+                .and_then(|f| f.path.file_name())
+                .map(|n| n.to_string_lossy().to_lowercase())
+        };
+        assert_eq!(file("ArialMT", false, false).as_deref(), Some("arial.ttf"));
+        assert_eq!(
+            file("TimesNewRomanPSMT", false, false).as_deref(),
+            Some("times.ttf")
+        );
+        assert_eq!(
+            file("Times New Roman", true, false).as_deref(),
+            Some("timesbd.ttf")
+        );
+        assert_eq!(file("Arial", true, true).as_deref(), Some("arialbi.ttf"));
+        assert_eq!(file("Tahoma", false, false).as_deref(), Some("tahoma.ttf"));
+        let font = FolioFonts
+            .load_font("ArialMT", FontHints::default())
+            .unwrap();
+        assert_eq!(font.name(), "Arial");
+        // Japanese text: the Windows CJK families (MS Gothic or Yu Gothic) are installed.
+        assert!(FolioFonts.cjk(CjkFontOrdering::AdobeJapan, false).is_some());
     }
 
     #[test]
