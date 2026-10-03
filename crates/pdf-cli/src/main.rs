@@ -5,6 +5,8 @@ use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Instant;
 
+mod survey;
+
 use clap::{Parser, Subcommand, ValueEnum};
 use mupdf::pdf::PdfDocument;
 use mupdf::text_page::TextPageFlags;
@@ -83,6 +85,11 @@ enum Command {
         /// Draw page content only.
         #[arg(long)]
         no_annotations: bool,
+    },
+    /// Print a read-only profile of each file as one JSON line (for choosing test files).
+    Survey {
+        #[arg(required = true, num_args = 1..)]
+        inputs: Vec<PathBuf>,
     },
     /// Measure open, render and encode times (AGENTS.md section 2 targets).
     Bench {
@@ -170,6 +177,8 @@ enum LabelsArg {
 
 fn main() -> ExitCode {
     let cli = Cli::parse();
+    // The same font policy as the app, so renders and timings match what users see.
+    pdf_core::fonts::install();
     match run(cli.command) {
         Ok(()) => ExitCode::SUCCESS,
         Err(e) => {
@@ -201,6 +210,13 @@ fn run(command: Command) -> Result<()> {
             println!("wrote {} ({pages} pages)", out.display());
         }
         Command::Info { input } => info(&input)?,
+        Command::Survey { inputs } => {
+            for input in inputs {
+                let line = serde_json::to_string(&survey::survey(&input))
+                    .map_err(|e| Error::InvalidArgument(e.to_string()))?;
+                println!("{line}");
+            }
+        }
         Command::Labels { action } => match action {
             LabelsAction::Set { input, out, rules } => {
                 let rules = rules

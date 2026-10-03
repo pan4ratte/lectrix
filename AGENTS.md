@@ -293,7 +293,7 @@ Interoperability is verified by machines on every commit and by a person before 
 
 Write test outputs to `target/test-output/`, never next to corpus files.
 
-Real-world files the user owns but cannot publish (for example books from their Calibre library) form a **local corpus**: copies in `tests/corpus-local/`, which is git-ignored and listed in its `manifest.json`. Tests that use it skip when it is absent (as in CI). The source library is only ever read, never written.
+Real-world files the user owns but cannot publish (for example books from their Calibre library) form a **local corpus**: `tests/local-corpus/survey.py` profiles a library read-only, `select.py` copies one or two files per category into `tests/local-corpus/files/` and writes `manifest.json` (both git-ignored), and `crates/pdf-core/tests/local_corpus.rs` runs over them, skipping when they are absent (as in CI). The source library is only ever read, never written.
 
 **Unit tests (`pdf-core`):** coordinate transforms for every rotation and CropBox case; quad ordering; label formatting (roman, letters past z, prefixes); outline serialization including Unicode titles; atomic save failure paths.
 

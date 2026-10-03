@@ -91,3 +91,20 @@ fn qpdf_program() -> PathBuf {
     }
     PathBuf::from("qpdf")
 }
+
+/// `qpdf --check` severity for real-world files that may already have problems: 0 clean,
+/// 1 warnings, 2 errors. `None` if qpdf is not installed.
+pub fn qpdf_severity(path: &Path) -> Option<u8> {
+    let _guard = SPAWN_LOCK.write().unwrap_or_else(|e| e.into_inner());
+    let output = std::process::Command::new(qpdf_program())
+        .arg("--check")
+        .arg(path)
+        .output()
+        .ok()?;
+    // qpdf exits with 0 (clean), 3 (warnings) or 2 (errors).
+    Some(match output.status.code() {
+        Some(0) => 0,
+        Some(3) => 1,
+        _ => 2,
+    })
+}

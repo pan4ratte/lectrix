@@ -4,3 +4,5 @@ node_modules/
 /.svelte-kit
 src-tauri/target
 src-tauri/gen/schemas
+/tests/local-corpus/files/
+/tests/local-corpus/manifest.json
