@@ -70,6 +70,7 @@ jobs:
           python tests/interop/run.py phase0
           python tests/interop/run.py phase2
           python tests/interop/run.py phase3
+          python tests/interop/run.py phase4
 
       - name: Upload interop diffs on failure
         if: failure()

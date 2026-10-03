@@ -376,10 +376,10 @@ fn combine_file(file: &Path, out: &Path) -> Result<Vec<String>, String> {
             report.renamed_destinations, report.renamed_fields
         ));
     }
-    if let (Some(input), Some(output)) = (qpdf_severity(file), qpdf_severity(&target)) {
-        if output > input {
-            return Err(format!("qpdf --check got worse: {input} -> {output}"));
-        }
+    if let (Some(input), Some(output)) = (qpdf_severity(file), qpdf_severity(&target))
+        && output > input
+    {
+        return Err(format!("qpdf --check got worse: {input} -> {output}"));
     }
     fs::remove_file(&target).ok();
     Ok(notes)
