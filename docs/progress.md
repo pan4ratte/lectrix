@@ -536,9 +536,13 @@ document does not show; CI uploads these and runs `tests/e2e/diagnose.ps1` on fa
 
 ## Phase 3: Page labels (report, 2026-10-03)
 
-**Status: ready for review, not yet complete.** Labels work in the app, and every local
-check is green: the Rust tests, the end-to-end tests, all three interop suites and the
-local corpus. Two things are still open: CI has not run on these commits (they are not
+**Status: complete.** Reviewed by the user on 2026-10-03 (decisions below); Acrobat
+checked by the user; CI green on the pushed commits (run 37140827895, including the new
+E2E flow and interop `phase3`). The original report follows.
+
+*Report as written:* ready for review, not yet complete. Labels work in the app, and every
+local check is green: the Rust tests, the end-to-end tests, all three interop suites and
+the local corpus. Two things are still open: CI has not run on these commits (they are not
 pushed), and Acrobat has to be checked by you (files below).
 
 ### Checklist
