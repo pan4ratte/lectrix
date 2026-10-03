@@ -7,6 +7,8 @@ use std::path::PathBuf;
 
 use mupdf::pdf::{PdfDocument, PdfObject};
 
+use crate::annot::repair::RepairChange;
+use crate::annot::{self, AnnotationEdit, Kind, NewAnnotation};
 use crate::error::{Error, Result};
 use crate::geometry::normalize_rotation;
 use crate::labels::{self, LabelRule};
@@ -37,10 +39,12 @@ impl fmt::Debug for InsertSource {
 /// What applying an operation produced.
 #[derive(Debug, Default)]
 pub(crate) struct Applied {
-    /// The id of the object it created (the new bookmark).
+    /// The id of the object it created (the new bookmark or annotation).
     pub created: Option<u32>,
     /// What inserting pages did.
     pub report: Option<MergeReport>,
+    /// What repairing annotations changed.
+    pub repairs: Option<Vec<RepairChange>>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -90,6 +94,23 @@ pub enum Operation {
         at: usize,
         options: InsertOptions,
     },
+    /// Creates an annotation to the write profile (section 5.1).
+    AddAnnotation {
+        annotation: NewAnnotation,
+    },
+    /// Changes annotation `id` (object number) on `page`.
+    UpdateAnnotation {
+        page: usize,
+        id: u32,
+        edit: AnnotationEdit,
+    },
+    /// Deletes annotation `id` on `page` with its popup and replies.
+    DeleteAnnotation {
+        page: usize,
+        id: u32,
+    },
+    /// Fixes every problem the repair scan finds that can be fixed (section 5.3).
+    RepairAnnotations,
 }
 
 impl Operation {
@@ -109,7 +130,46 @@ impl Operation {
                 "Insert page".into()
             }
             Operation::InsertPages { .. } => "Insert pages".into(),
+            Operation::AddAnnotation { annotation } => {
+                format!("Add {}", annotation.body.kind().label())
+            }
+            Operation::UpdateAnnotation { edit, .. } => format!("{} annotation", edit.verb()),
+            Operation::DeleteAnnotation { .. } => "Delete annotation".into(),
+            Operation::RepairAnnotations => "Repair annotations".into(),
         }
+    }
+
+    /// The step name with what the document knows: "Move note" rather than "Move
+    /// annotation".
+    pub(crate) fn step_name(&self, doc: &PdfDocument) -> String {
+        let label = |page: usize, id: u32| {
+            annot::subtype_of(doc, page, id).map(|s| match Kind::from_subtype(&s) {
+                Some(k) => k.label().to_owned(),
+                None => s.to_lowercase(),
+            })
+        };
+        match self {
+            Operation::UpdateAnnotation { page, id, edit } => match label(*page, *id) {
+                Some(l) => format!("{} {l}", edit.verb()),
+                None => self.name(),
+            },
+            Operation::DeleteAnnotation { page, id } => match label(*page, *id) {
+                Some(l) => format!("Delete {l}"),
+                None => self.name(),
+            },
+            _ => self.name(),
+        }
+    }
+
+    /// True if the operation needs the "annotate" permission (bit 6).
+    pub(crate) fn needs_annotate(&self) -> bool {
+        matches!(
+            self,
+            Operation::AddAnnotation { .. }
+                | Operation::UpdateAnnotation { .. }
+                | Operation::DeleteAnnotation { .. }
+                | Operation::RepairAnnotations
+        )
     }
 
     /// True if the operation needs the "assemble" permission (bit 4 or 11), which covers
@@ -125,6 +185,10 @@ impl Operation {
             | Operation::SetBookmarkDestination { .. }
             | Operation::SetPageLabels { .. }
             | Operation::InsertPages { .. } => true,
+            Operation::AddAnnotation { .. }
+            | Operation::UpdateAnnotation { .. }
+            | Operation::DeleteAnnotation { .. }
+            | Operation::RepairAnnotations => false,
         }
     }
 
@@ -162,6 +226,25 @@ impl Operation {
                 }
                 Ok(())
             }
+            Operation::AddAnnotation { annotation } => {
+                if annotation.page >= page_count {
+                    return Err(Error::PageOutOfRange(annotation.page));
+                }
+                annotation.validate()
+            }
+            Operation::UpdateAnnotation { page, edit, .. } => {
+                if *page >= page_count {
+                    return Err(Error::PageOutOfRange(*page));
+                }
+                edit.validate()
+            }
+            Operation::DeleteAnnotation { page, .. } => {
+                if *page >= page_count {
+                    return Err(Error::PageOutOfRange(*page));
+                }
+                Ok(())
+            }
+            Operation::RepairAnnotations => Ok(()),
         }
     }
 
@@ -176,14 +259,20 @@ impl Operation {
             let from = MergeSource::open(&source.path, source.password.as_deref())?;
             let report = merge::insert_pages(doc, *at, &from, &source.pages, *options)?;
             return Ok(Applied {
-                created: None,
                 report: Some(report),
+                ..Applied::default()
+            });
+        }
+        if let Operation::RepairAnnotations = self {
+            return Ok(Applied {
+                repairs: Some(annot::repair::repair(doc)?),
+                ..Applied::default()
             });
         }
         let created = self.apply_edit(doc)?;
         Ok(Applied {
             created,
-            report: None,
+            ..Applied::default()
         })
     }
 
@@ -216,8 +305,18 @@ impl Operation {
             Operation::SetPageLabels { rules } => {
                 labels::set_rules(doc, rules.clone()).map(|_| None)
             }
+            Operation::AddAnnotation { annotation } => {
+                let created = annot::create(doc, annotation)?;
+                Ok(u32::try_from(created.xref).ok())
+            }
+            Operation::UpdateAnnotation { page, id, edit } => {
+                annot::edit(doc, *page, *id, edit).map(|()| None)
+            }
+            Operation::DeleteAnnotation { page, id } => {
+                annot::delete(doc, *page, *id).map(|()| None)
+            }
             // Handled by `apply`.
-            Operation::InsertPages { .. } => Ok(None),
+            Operation::InsertPages { .. } | Operation::RepairAnnotations => Ok(None),
         }
     }
 }

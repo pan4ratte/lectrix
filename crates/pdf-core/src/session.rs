@@ -29,6 +29,8 @@ use std::time::{Duration, Instant};
 use mupdf::DisplayList;
 use mupdf::pdf::PdfDocument;
 
+use crate::annot::read::{AnnotationInfo, read_all as read_annotations};
+use crate::annot::repair::{self, RepairChange, RepairScan};
 use crate::docinfo::{DocumentFlags, read_flags};
 use crate::error::{Error, Result};
 use crate::ffi::{Journal, open_pdf_shared};
@@ -79,6 +81,8 @@ pub struct DocumentInfo {
     pub state: DocumentState,
     /// The bookmarks, with the panel's expanded states.
     pub outline: Outline,
+    /// Every page's annotations (index = page).
+    pub annotations: Vec<Vec<AnnotationInfo>>,
     /// Time to open the file and read every page's geometry.
     pub open_time: Duration,
 }
@@ -99,6 +103,10 @@ pub struct DocumentChange {
     pub page_count: usize,
     /// What inserting pages did (renamed names, links left out).
     pub merge_report: Option<MergeReport>,
+    /// Pages whose annotations changed, with all of their annotations now.
+    pub annotations: Vec<(usize, Vec<AnnotationInfo>)>,
+    /// What repairing annotations changed (for the app log).
+    pub repairs: Option<Vec<RepairChange>>,
 }
 
 #[derive(Debug, Clone)]
@@ -107,6 +115,10 @@ pub struct SaveResult {
     pub outcome: SaveOutcome,
     /// The file the document is now associated with (the Save As target, if any).
     pub path: PathBuf,
+    /// The bookmarks, if their ids changed (an optimized save renumbers objects).
+    pub outline: Option<Outline>,
+    /// Pages whose annotations read differently after the save (renumbered objects).
+    pub annotations: Vec<(usize, Vec<AnnotationInfo>)>,
 }
 
 /// Search results for one page.
@@ -141,6 +153,9 @@ enum Command {
         id: u32,
         open: bool,
         reply: Reply<()>,
+    },
+    ScanAnnotations {
+        reply: Reply<RepairScan>,
     },
     Save {
         kind: SaveKind,
@@ -283,6 +298,11 @@ impl Session {
         self.call(|reply| Command::SetBookmarkOpen { id, open, reply })
     }
 
+    /// Counts annotation problems that "Repair annotations" would fix (section 5.3).
+    pub fn scan_annotations(&self) -> Result<RepairScan> {
+        self.call(|reply| Command::ScanAnnotations { reply })
+    }
+
     /// Saves to the document's own file (`target: None`) or to `target` (Save As). After
     /// a Save As, the session belongs to `target`.
     pub fn save(&self, kind: SaveKind, target: Option<PathBuf>) -> Result<SaveResult> {
@@ -318,6 +338,8 @@ struct Actor {
     labels: Option<PageLabels>,
     /// The outline as the document has it.
     outline: Outline,
+    /// Every page's annotations as last read (index = page).
+    annotations: Vec<Vec<AnnotationInfo>>,
     /// Bookmarks expanded or collapsed in the panel since the last save (id to open).
     open_states: HashMap<u32, bool>,
     /// Revision of the content at each journal position (index 0: as opened or saved).
@@ -370,6 +392,9 @@ fn actor(
                 actor.set_bookmark_open(id, open);
                 let _ = reply.send(Ok(()));
             }
+            Command::ScanAnnotations { reply } => {
+                let _ = reply.send(repair::scan(&actor.doc));
+            }
             Command::Save {
                 kind,
                 target,
@@ -408,6 +433,7 @@ impl Actor {
         let pages = page_sizes(&doc)?;
         let labels = page_labels(&doc, pages.len())?;
         let outline = outline::read_bookmarks(&doc)?;
+        let annotations = read_annotations(&doc)?;
         Ok(Actor {
             doc,
             path,
@@ -416,6 +442,7 @@ impl Actor {
             pages,
             labels,
             outline,
+            annotations,
             open_states: HashMap::new(),
             history: vec![0],
             position: 0,
@@ -450,6 +477,7 @@ impl Actor {
             flags: self.flags,
             state: self.state(),
             outline: self.outline_view(),
+            annotations: self.annotations.clone(),
             open_time,
         }
     }
@@ -533,11 +561,14 @@ impl Actor {
 
     fn apply(&mut self, op: &Operation) -> Result<DocumentChange> {
         op.validate(self.pages.len())?;
-        if !self.flags.can_assemble && op.needs_assemble() {
+        if (!self.flags.can_assemble && op.needs_assemble())
+            || (!self.flags.can_annotate && op.needs_annotate())
+        {
             return Err(Error::NotPermitted);
         }
         let before = Journal::new(&mut self.doc).state()?.current;
-        self.doc.begin_operation(&op.name())?;
+        let name = op.step_name(&self.doc);
+        self.doc.begin_operation(&name)?;
         let applied = match op.apply(&mut self.doc) {
             Ok(applied) => {
                 self.doc.end_operation()?;
@@ -559,6 +590,7 @@ impl Actor {
         let mut change = self.changed()?;
         change.created = applied.created;
         change.merge_report = applied.report;
+        change.repairs = applied.repairs;
         Ok(change)
     }
 
@@ -615,6 +647,7 @@ impl Actor {
         } else {
             None
         };
+        let annotations = self.reread_annotations()?;
         Ok(DocumentChange {
             state: self.state(),
             changed_pages,
@@ -623,7 +656,23 @@ impl Actor {
             created: None,
             page_count: self.pages.len(),
             merge_report: None,
+            annotations,
+            repairs: None,
         })
+    }
+
+    /// Reads every page's annotations again and returns the pages whose list differs from
+    /// the last read (including pages that are new or now empty).
+    fn reread_annotations(&mut self) -> Result<Vec<(usize, Vec<AnnotationInfo>)>> {
+        let now = read_annotations(&self.doc)?;
+        let changed = now
+            .iter()
+            .enumerate()
+            .filter(|(i, a)| self.annotations.get(*i) != Some(*a))
+            .map(|(i, a)| (i, a.clone()))
+            .collect();
+        self.annotations = now;
+        Ok(changed)
     }
 
     fn save(&mut self, kind: SaveKind, target: Option<PathBuf>) -> Result<SaveResult> {
@@ -641,6 +690,8 @@ impl Actor {
         let outcome = save_atomic(&self.doc, kind, Some(&self.path), &target)?;
         let revision = self.revision();
         self.saved_revision = revision;
+        let mut outline_changed = None;
+        let mut annotations = Vec::new();
         // The saved file is now the document's file. Reopen it so later incremental saves
         // append to the right bytes (ADR 0003).
         match load(&target, self.password.as_deref()) {
@@ -651,8 +702,13 @@ impl Actor {
                 self.lists.clear();
                 self.history = vec![revision];
                 self.position = 0;
-                self.outline = outline::read_bookmarks(&self.doc)?;
-                self.prune_open_states();
+                let outline = outline::read_bookmarks(&self.doc)?;
+                if outline != self.outline {
+                    self.outline = outline;
+                    self.prune_open_states();
+                    outline_changed = Some(self.outline_view());
+                }
+                annotations = self.reread_annotations()?;
             }
             // The file is saved; keep working on the old in-memory document.
             Err(_) => self.needs_full_save = true,
@@ -662,6 +718,8 @@ impl Actor {
             state: self.state(),
             outcome,
             path: self.path.clone(),
+            outline: outline_changed,
+            annotations,
         })
     }
 
@@ -672,9 +730,11 @@ impl Actor {
         self.pages = page_sizes(&self.doc)?;
         self.labels = page_labels(&self.doc, self.pages.len())?;
         self.outline = outline::read_bookmarks(&self.doc)?;
+        self.annotations = read_annotations(&self.doc)?;
         self.open_states.clear();
         self.lists.clear();
         self.needs_full_save = false;
+
         let revision = self.next_revision;
         self.next_revision += 1;
         self.history = vec![revision];

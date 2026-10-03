@@ -149,6 +149,20 @@ int folio_pdf_set_new_stream(fz_context *ctx, pdf_document *doc, int num, const 
 }
 
 /*
+ * Asks MuPDF to write a new appearance stream for `annot` at its next pdf_update_annot.
+ * Without this, an annotation that has no appearance only gets a local one for display,
+ * which is never saved (repair needs a saved one, AGENTS.md section 5.3).
+ */
+int folio_pdf_dirty_annot(fz_context *ctx, pdf_annot *annot, folio_error *err)
+{
+	fz_try(ctx)
+		pdf_dirty_annot(ctx, annot);
+	fz_catch(ctx)
+		return folio_caught(ctx, err);
+	return 0;
+}
+
+/*
  * A read-only fz_stream over an operating-system file handle that the caller opened.
  *
  * MuPDF's own file stream (fz_open_file) opens files without FILE_SHARE_DELETE on

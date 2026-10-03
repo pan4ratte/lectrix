@@ -3,10 +3,12 @@
 //! Each call goes through the C shim in `shim.c`, which catches MuPDF's longjmp-based
 //! errors before they can reach Rust frames.
 
+mod annot;
 mod journal;
 mod objects;
 mod stream;
 
+pub use annot::request_appearance;
 pub use journal::{Journal, JournalState};
 pub use objects::set_new_stream;
 pub use stream::{open_pdf_shared, was_repaired};
