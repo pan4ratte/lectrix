@@ -14,15 +14,19 @@
 	import StartScreen from '#lib/components/StartScreen.svelte';
 	import TitleBar from '#lib/components/TitleBar.svelte';
 	import Toasts from '#lib/components/Toasts.svelte';
+	import CombineView from '#lib/features/merge/CombineView.svelte';
+	import InsertPagesDialog from '#lib/features/merge/InsertPagesDialog.svelte';
 	import { firstPagePainted, runPerf } from '#lib/features/viewer/perfrun.ts';
 	import RotatePagesDialog from '#lib/features/viewer/RotatePagesDialog.svelte';
 	import StatusBar from '#lib/features/viewer/StatusBar.svelte';
 	import Viewer from '#lib/features/viewer/Viewer.svelte';
 	import {
 		appReady,
+		closeDocument,
 		logMetric,
 		onDocumentsOpened,
 		onFileChanged,
+		onMergeSourcesAdded,
 		setImageFormat,
 		toAppError
 	} from '#lib/ipc/index.ts';
@@ -94,6 +98,14 @@
 		void startup();
 		const unlisteners = [
 			onDocumentsOpened((results) => app.handleOpenResults(results)),
+			onMergeSourcesAdded((results) => {
+				if (app.combine) {
+					app.combine.addOpened(results);
+				} else {
+					// The Combine view closed while the files were opening.
+					for (const r of results) if (r.kind === 'opened') void closeDocument(r.document.id).catch(() => {});
+				}
+			}),
 			onFileChanged((event) => app.fileChanged(event.id, event.exists)),
 			getCurrentWindow().onCloseRequested(async (event) => {
 				if (!(await app.confirmExit())) event.preventDefault();
@@ -115,31 +127,38 @@
 <div class="flex h-full flex-col">
 	<TitleBar />
 	<div class="flex min-h-0 flex-1">
-		{#if tab && app.sidebarOpen}
-			<Sidebar {tab} />
-		{/if}
-		<main class="flex min-w-0 flex-1 flex-col bg-canvas">
-			{#if tab}
-				<FileBanner {tab} />
-				{#key tab.id}
-					<div class="relative flex min-h-0 flex-1 flex-col">
-						<Viewer {tab} />
-						<BookmarkInspector {tab} />
-					</div>
-				{/key}
-			{:else}
-				<StartScreen />
+		{#if app.combineActive && app.combine}
+			<main class="flex min-w-0 flex-1 flex-col bg-canvas">
+				<CombineView combine={app.combine} />
+			</main>
+		{:else}
+			{#if tab && app.sidebarOpen}
+				<Sidebar {tab} />
 			{/if}
-		</main>
+			<main class="flex min-w-0 flex-1 flex-col bg-canvas">
+				{#if tab}
+					<FileBanner {tab} />
+					{#key tab.id}
+						<div class="relative flex min-h-0 flex-1 flex-col">
+							<Viewer {tab} />
+							<BookmarkInspector {tab} />
+						</div>
+					{/key}
+				{:else}
+					<StartScreen />
+				{/if}
+			</main>
+		{/if}
 	</div>
 	{#if tab}
 		<StatusBar {tab} />
 		<RotatePagesDialog {tab} />
-	{:else}
+	{:else if !app.combineActive}
 		<footer class="h-8 shrink-0 border-t border-line bg-chrome"></footer>
 	{/if}
 </div>
 
+<InsertPagesDialog />
 <DialogHost />
 <PasswordDialog />
 <Toasts />
@@ -149,6 +168,6 @@
 		class="pointer-events-none fixed inset-2 z-40 flex items-center justify-center rounded-panel border-2 border-dashed border-accent bg-surface/80 text-lg"
 		aria-hidden="true"
 	>
-		Drop PDFs to open them
+		{app.combineActive ? 'Drop PDFs to add them' : 'Drop PDFs to open them'}
 	</div>
 {/if}

@@ -65,9 +65,10 @@ function killStrayApps() {
  * files and remembered views stay out of the user's app data (FOLIO_EPHEMERAL).
  *
  * The files go through FOLIO_OPEN: on Windows, tauri-driver hands launch arguments to
- * WebView2 instead of the app.
+ * WebView2 instead of the app. `dialogs` answers the app's file dialogs in order
+ * (FOLIO_DIALOG): each answer is a path, a list of paths, or null for Cancel.
  */
-export async function launch(files = []) {
+export async function launch(files = [], { dialogs } = {}) {
 	for (const [what, path] of [
 		['the release app', app],
 		['msedgedriver', edgeDriver]
@@ -77,7 +78,12 @@ export async function launch(files = []) {
 	mkdirSync(OUT, { recursive: true });
 	killStrayApps();
 	const driver = spawn(tauriDriver, ['--port', String(PORT), '--native-driver', verboseDriver()], {
-		env: { ...process.env, FOLIO_EPHEMERAL: '1', FOLIO_OPEN: files.join(';') },
+		env: {
+			...process.env,
+			FOLIO_EPHEMERAL: '1',
+			FOLIO_OPEN: files.join(';'),
+			...(dialogs ? { FOLIO_DIALOG: dialogs.map((a) => [a ?? []].flat().join('|')).join(';') } : {})
+		},
 		stdio: ['ignore', 'inherit', 'inherit']
 	});
 	const exited = new Promise((done) => driver.once('exit', done));

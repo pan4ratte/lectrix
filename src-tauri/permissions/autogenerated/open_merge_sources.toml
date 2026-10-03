@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-merge-sources"
+description = "Enables the open_merge_sources command without any pre-configured scope."
+commands.allow = ["open_merge_sources"]
+
+[[permission]]
+identifier = "deny-open-merge-sources"
+description = "Denies the open_merge_sources command without any pre-configured scope."
+commands.deny = ["open_merge_sources"]

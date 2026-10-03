@@ -239,10 +239,13 @@ export class DocTab {
 	applyChange(change: DocumentChange) {
 		const revisionChanged = change.state.revision !== this.state.revision;
 		this.state = change.state;
-		if (change.changedPages.length) {
-			const pages = [...this.pages];
+		if (change.changedPages.length || change.pageCount !== this.pages.length) {
+			// Inserted pages (or an undone insert) change the count; the pages that moved are
+			// listed with their sizes.
+			const pages = this.pages.slice(0, change.pageCount);
 			for (const p of change.changedPages) pages[p.index] = p.size;
 			this.pages = pages;
+			this.currentPage = Math.min(this.currentPage, Math.max(0, change.pageCount - 1));
 		}
 		if (change.labelsChanged) {
 			this.labels = change.labels;

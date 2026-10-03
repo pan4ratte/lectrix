@@ -5,9 +5,10 @@
 //! Commands that may block (dialogs, opening, saving, search) run off the main thread
 //! (`async`).
 
+use std::collections::VecDeque;
 use std::path::{Path, PathBuf};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
 use pdf_core::merge::{LabelMode as CoreLabelMode, MergeOptions, PagePick};
@@ -37,6 +38,84 @@ fn picked_path(picked: tauri_plugin_dialog::FilePath) -> Result<PathBuf, AppErro
     })
 }
 
+/// Answers file dialogs from the FOLIO_DIALOG environment variable instead of showing
+/// them, for automation (tests/e2e), like FOLIO_OPEN: answers separated by `;`, one per
+/// dialog in order, several files separated by `|`, an empty answer for Cancel. The paths
+/// come from the environment the app was started with, never from the webview.
+fn scripted_answer() -> Option<Option<Vec<PathBuf>>> {
+    static ANSWERS: OnceLock<Option<Mutex<VecDeque<String>>>> = OnceLock::new();
+    let answers = ANSWERS.get_or_init(|| {
+        std::env::var("FOLIO_DIALOG")
+            .ok()
+            .map(|v| Mutex::new(v.split(';').map(str::to_owned).collect()))
+    });
+    let answer = answers
+        .as_ref()?
+        .lock()
+        .ok()?
+        .pop_front()
+        .unwrap_or_default();
+    let paths: Vec<PathBuf> = answer
+        .split('|')
+        .filter(|p| !p.is_empty())
+        .map(PathBuf::from)
+        .collect();
+    Some((!paths.is_empty()).then_some(paths))
+}
+
+/// Shows the Open dialog for PDFs. Returns no paths if the user cancels.
+fn pick_pdfs(
+    app: &AppHandle,
+    title: Option<&str>,
+    multiple: bool,
+) -> Result<Vec<PathBuf>, AppError> {
+    if let Some(answer) = scripted_answer() {
+        return Ok(answer.unwrap_or_default());
+    }
+    let mut dialog = app.dialog().file().add_filter("PDF documents", &["pdf"]);
+    if let Some(title) = title {
+        dialog = dialog.set_title(title);
+    }
+    let picked = if multiple {
+        dialog.blocking_pick_files().unwrap_or_default()
+    } else {
+        dialog.blocking_pick_file().into_iter().collect()
+    };
+    picked.into_iter().map(picked_path).collect()
+}
+
+/// Shows the Save dialog for a PDF and returns the chosen path (with `.pdf` added if it
+/// has no extension), or None if the user cancels.
+fn pick_save_target(
+    app: &AppHandle,
+    title: Option<&str>,
+    file_name: Option<String>,
+    directory: Option<&Path>,
+) -> Result<Option<PathBuf>, AppError> {
+    let picked = match scripted_answer() {
+        Some(answer) => answer.and_then(|paths| paths.into_iter().next()),
+        None => {
+            let mut dialog = app.dialog().file().add_filter("PDF documents", &["pdf"]);
+            if let Some(title) = title {
+                dialog = dialog.set_title(title);
+            }
+            if let Some(name) = file_name {
+                dialog = dialog.set_file_name(name);
+            }
+            if let Some(dir) = directory {
+                dialog = dialog.set_directory(dir);
+            }
+            dialog.blocking_save_file().map(picked_path).transpose()?
+        }
+    };
+    Ok(picked.map(|mut target| {
+        if target.extension().is_none() {
+            target.set_extension("pdf");
+        }
+        target
+    }))
+}
+
 fn file_name(path: &Path) -> String {
     path.file_name()
         .map(|n| n.to_string_lossy().into_owned())
@@ -49,18 +128,10 @@ pub fn open_with_dialog(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<OpenResult>, AppError> {
-    let Some(picked) = app
-        .dialog()
-        .file()
-        .add_filter("PDF documents", &["pdf"])
-        .blocking_pick_files()
-    else {
-        return Ok(Vec::new());
-    };
-    picked
-        .into_iter()
-        .map(|p| Ok(state.open(&picked_path(p)?)))
-        .collect()
+    Ok(pick_pdfs(&app, None, true)?
+        .iter()
+        .map(|p| state.open(p))
+        .collect())
 }
 
 /// Opens the PDFs given on the command line (file association or `folio a.pdf b.pdf`),
@@ -225,19 +296,10 @@ pub fn open_merge_sources(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Vec<OpenResult>, AppError> {
-    let Some(picked) = app
-        .dialog()
-        .file()
-        .set_title("Add files to combine")
-        .add_filter("PDF documents", &["pdf"])
-        .blocking_pick_files()
-    else {
-        return Ok(Vec::new());
-    };
-    picked
-        .into_iter()
-        .map(|p| Ok(state.open_source(&picked_path(p)?)))
-        .collect()
+    Ok(pick_pdfs(&app, Some("Add files to combine"), true)?
+        .iter()
+        .map(|p| state.open_source(p))
+        .collect())
 }
 
 /// Shows the Open dialog for the file to insert pages from, and opens it as a source.
@@ -246,16 +308,9 @@ pub fn open_insert_source(
     app: AppHandle,
     state: State<'_, AppState>,
 ) -> Result<Option<OpenResult>, AppError> {
-    let Some(picked) = app
-        .dialog()
-        .file()
-        .set_title("Insert pages from")
-        .add_filter("PDF documents", &["pdf"])
-        .blocking_pick_file()
-    else {
-        return Ok(None);
-    };
-    Ok(Some(state.open_source(&picked_path(picked)?)))
+    Ok(pick_pdfs(&app, Some("Insert pages from"), false)?
+        .first()
+        .map(|p| state.open_source(p)))
 }
 
 /// Where dropped files go: to the Combine view (`true`, reported as
@@ -312,22 +367,15 @@ pub fn execute_merge(
         .iter()
         .map(|&id| state.documents.source(id))
         .collect::<Result<Vec<_>, _>>()?;
-    let mut dialog = app
-        .dialog()
-        .file()
-        .set_title("Save combined file")
-        .add_filter("PDF documents", &["pdf"])
-        .set_file_name("Combined.pdf");
-    if let Some(dir) = sources.first().and_then(|(p, _)| p.parent()) {
-        dialog = dialog.set_directory(dir);
-    }
-    let Some(picked) = dialog.blocking_save_file() else {
+    let Some(target) = pick_save_target(
+        &app,
+        Some("Save combined file"),
+        Some("Combined.pdf".into()),
+        sources.first().and_then(|(p, _)| p.parent()),
+    )?
+    else {
         return Ok(None);
     };
-    let mut target = picked_path(picked)?;
-    if target.extension().is_none() {
-        target.set_extension("pdf");
-    }
     if let Some((path, _)) = sources
         .iter()
         .find(|(p, _)| state.platform.same_file(p, &target))
@@ -475,20 +523,17 @@ pub fn save_as(
     optimized: bool,
 ) -> Result<Option<SaveResult>, AppError> {
     let current = state.documents.path(id)?;
-    let mut dialog = app.dialog().file().add_filter("PDF documents", &["pdf"]);
-    if let Some(name) = current.file_name() {
-        dialog = dialog.set_file_name(name.to_string_lossy());
-    }
-    if let Some(dir) = current.parent() {
-        dialog = dialog.set_directory(dir);
-    }
-    let Some(picked) = dialog.blocking_save_file() else {
+    let Some(target) = pick_save_target(
+        &app,
+        None,
+        current
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned()),
+        current.parent(),
+    )?
+    else {
         return Ok(None);
     };
-    let mut target = picked_path(picked)?;
-    if target.extension().is_none() {
-        target.set_extension("pdf");
-    }
     let kind = if optimized {
         SaveKind::Optimized
     } else if state.platform.same_file(&target, &current) {

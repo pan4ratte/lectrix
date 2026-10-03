@@ -182,6 +182,13 @@
 			>
 				Rotate page counter-clockwise
 			</ContextMenu.Item>
+			<ContextMenu.Item
+				class="menu-item"
+				disabled={!tab.flags.canAssemble}
+				onSelect={() => void app.insertFromFile(tab, contextPage + 1)}
+			>
+				Insert pages from file after this page…
+			</ContextMenu.Item>
 			<ContextMenu.Separator class="menu-separator" />
 			<ContextMenu.Item
 				class="menu-item"

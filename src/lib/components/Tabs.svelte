@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Document tabs: click to switch, drag (or Ctrl+Shift+Left/Right) to reorder, middle-click
 	// or the close button to close. A dot marks unsaved changes.
-	import { X } from '@lucide/svelte';
+	import { Layers, X } from '@lucide/svelte';
 
 	import { app } from '#lib/stores/app.svelte.ts';
 
@@ -9,6 +9,13 @@
 	// Tracked on the window, not with pointer capture: reordering moves the tab's DOM node,
 	// and the browser drops capture when that happens, which would lose the pointerup.
 	let drag: { id: number; startX: number; moved: boolean } | null = null;
+
+	function onCombineKeyDown(event: KeyboardEvent) {
+		if (event.key === 'Delete') {
+			event.preventDefault();
+			void app.closeCombine();
+		}
+	}
 
 	function onPointerDown(event: PointerEvent, id: number) {
 		if (event.button === 1) {
@@ -66,7 +73,7 @@
 
 <div bind:this={strip} class="flex h-full min-w-0 items-end gap-0.5" role="tablist" aria-label="Open documents">
 	{#each app.tabs as tab (tab.id)}
-		{@const active = tab.id === app.activeId}
+		{@const active = tab.id === app.activeId && !app.combineActive}
 		<div
 			data-tab={tab.id}
 			class="group relative flex h-8 max-w-56 min-w-28 shrink items-center gap-1 rounded-t-panel pr-1 pl-3"
@@ -96,4 +103,40 @@
 			</button>
 		</div>
 	{/each}
+	{#if app.combine}
+		{@const active = app.combineActive}
+		<div
+			data-combine-tab
+			class="group relative flex h-8 max-w-56 min-w-28 shrink items-center gap-2 rounded-t-panel pr-1 pl-3"
+			class:bg-surface={active}
+			class:hover:bg-hover={!active}
+			role="tab"
+			tabindex={active ? 0 : -1}
+			aria-selected={active}
+			title="Combine files"
+			onpointerdown={(e) => {
+				if (e.button === 1) {
+					e.preventDefault();
+					void app.closeCombine();
+				} else if (e.button === 0 && !(e.target as HTMLElement).closest('[data-close]')) {
+					app.openCombine();
+				}
+			}}
+			onkeydown={onCombineKeyDown}
+		>
+			<Layers size={14} aria-hidden="true" class="shrink-0" />
+			<span class="truncate" class:text-fg-muted={!active}>Combine files</span>
+			<button
+				type="button"
+				data-close
+				class="icon-button ml-auto size-6 shrink-0"
+				aria-label="Close Combine files"
+				title="Close (Ctrl+W)"
+				tabindex={active ? 0 : -1}
+				onclick={() => void app.closeCombine()}
+			>
+				<X size={14} aria-hidden="true" />
+			</button>
+		</div>
+	{/if}
 </div>

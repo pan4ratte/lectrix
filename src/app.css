@@ -34,6 +34,13 @@
 	--folio-row-selected: color-mix(in srgb, var(--folio-accent) 16%, transparent);
 	--folio-close-hover: #c42b1c;
 	--folio-close-hover-fg: #ffffff;
+	/* Marks telling files apart in the Combine view (3:1 against the chrome). */
+	--folio-source-1: #0f6cbd;
+	--folio-source-2: #c239b3;
+	--folio-source-3: #107c10;
+	--folio-source-4: #ca5010;
+	--folio-source-5: #8764b8;
+	--folio-source-6: #038387;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -56,6 +63,12 @@
 		--folio-info-bg: #1f2a35;
 		--folio-page-shadow: rgb(0 0 0 / 0.5);
 		--folio-overlay: rgb(0 0 0 / 0.5);
+		--folio-source-1: #479ef5;
+		--folio-source-2: #e370d9;
+		--folio-source-3: #54b054;
+		--folio-source-4: #f7894a;
+		--folio-source-5: #b59ae6;
+		--folio-source-6: #4fb7b9;
 	}
 }
 
@@ -371,6 +384,48 @@ button {
 .thumb-current > span:first-child {
 	outline: 2px solid var(--folio-accent);
 	outline-offset: 2px;
+}
+
+/* ----- combine view ----- */
+
+.combine-grid:focus-visible {
+	outline: 2px solid var(--folio-focus);
+	outline-offset: -2px;
+}
+.combine-cell:hover {
+	background: var(--folio-hover);
+}
+.combine-cell-selected,
+.combine-cell-selected:hover {
+	background: var(--folio-row-selected);
+}
+.combine-thumb {
+	box-shadow: 0 1px 2px var(--folio-page-shadow);
+}
+.combine-cell-selected .combine-thumb {
+	outline: 2px solid var(--folio-accent);
+	outline-offset: 2px;
+}
+.combine-grid:focus-visible .combine-cell-focus {
+	box-shadow: inset 0 0 0 2px var(--folio-focus);
+}
+.combine-drop-line {
+	position: absolute;
+	width: 3px;
+	border-radius: 2px;
+	background: var(--folio-accent);
+	pointer-events: none;
+}
+.progress-indeterminate {
+	animation: progress-slide 1.2s ease-in-out infinite;
+}
+@keyframes progress-slide {
+	from {
+		transform: translateX(-100%);
+	}
+	to {
+		transform: translateX(300%);
+	}
 }
 
 @media (prefers-reduced-motion: reduce) {

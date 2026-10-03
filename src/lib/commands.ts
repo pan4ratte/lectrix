@@ -23,11 +23,21 @@ export const commands = {
 	saveAs: withTab((t) => app.saveAs(t)),
 	saveAsOptimized: withTab((t) => app.saveAs(t, true)),
 	reload: withTab((t) => app.reload(t)),
-	closeTab: withTab((t) => app.closeTab(t.id)),
+	closeTab: () => {
+		if (app.combineActive) void app.closeCombine();
+		else if (app.active) void app.closeTab(app.active.id);
+	},
+	combineFiles: () => app.openCombine(),
 	exit: () => void getCurrentWindow().close(),
 
-	undo: withTab((t) => app.undo(t)),
-	redo: withTab((t) => app.redo(t)),
+	undo: () => {
+		if (app.combineActive) app.combine?.undo();
+		else if (app.active) void app.undo(app.active);
+	},
+	redo: () => {
+		if (app.combineActive) app.combine?.redo();
+		else if (app.active) void app.redo(app.active);
+	},
 	copy: withTab((t) => copySelection(t)),
 	find: withTab((t) => {
 		if (t.search.open) {
@@ -73,6 +83,7 @@ export const commands = {
 	rotatePages: withTab(() => {
 		app.rotateDialogOpen = true;
 	}),
+	insertPages: withTab((t) => app.insertFromFile(t)),
 	addBookmark: withTab((t) => addBookmark(t)),
 	showBookmarks: () => {
 		app.sidebarOpen = true;

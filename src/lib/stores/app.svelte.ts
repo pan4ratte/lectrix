@@ -7,6 +7,7 @@ import {
 	closeDocument,
 	listOpenDocuments,
 	listRecentFiles,
+	openInsertSource,
 	openRecent,
 	openStartupDocuments,
 	openWithDialog,
@@ -16,17 +17,23 @@ import {
 	removeRecent,
 	save as saveCommand,
 	saveAs as saveAsCommand,
+	setDropTarget,
 	toAppError,
 	undo as undoCommand,
 	unlockDocument,
 	type AppError,
+	type BookmarkMode,
 	type DocumentChange,
+	type DocumentInfo,
+	type InsertLabelMode,
 	type OpenResult,
 	type OperationInput,
 	type RecentFile,
 	type SaveResult,
 	type StartupInfo
 } from '#lib/ipc/index.ts';
+import { CombineState } from '#lib/features/merge/combine.svelte.ts';
+import { reportDetail } from '#lib/features/merge/pages.ts';
 
 import { DocTab } from './doc.svelte.ts';
 
@@ -50,6 +57,16 @@ export interface PasswordRequest {
 	token: number;
 	name: string;
 	retry: boolean;
+	/** What the file is opened for: a tab, the Combine view, or inserting its pages. */
+	purpose: 'open' | 'combine' | 'insert';
+}
+
+/** "Insert pages from file": the file chosen, waiting for the dialog's options. */
+export interface InsertRequest {
+	tabId: number;
+	source: DocumentInfo;
+	/** Suggested position: insert before this page (0-based; the page count appends). */
+	at: number;
 }
 
 export interface Toast {
@@ -78,9 +95,18 @@ class AppStore {
 	/** Shown while files are dragged over the window. */
 	dropTarget = $state(false);
 	rotateDialogOpen = $state(false);
+	/** The Combine view, while it is open (shown as a tab of its own). */
+	combine = $state<CombineState | null>(null);
+	/** The Combine view is the tab on screen. */
+	combineActive = $state(false);
+	/** "Insert pages from file" waiting for its options. */
+	insertRequest = $state<InsertRequest | null>(null);
+	/** Where pages go when the insert file is still waiting for its password. */
+	private pendingInsert: { tabId: number; at: number } | null = null;
 	private exiting = false;
 
-	active = $derived(this.tabs.find((t) => t.id === this.activeId) ?? null);
+	/** The document on screen; null while the Combine view is. */
+	active = $derived(this.combineActive ? null : (this.tabs.find((t) => t.id === this.activeId) ?? null));
 
 	// ----- notifications and dialogs -----
 
@@ -135,10 +161,7 @@ class AppStore {
 					activate = result.id;
 					break;
 				case 'needsPassword':
-					this.passwordPrompts = [
-						...this.passwordPrompts,
-						{ token: result.token, name: result.name, retry: result.retry }
-					];
+					this.askPassword(result.token, result.name, result.retry, 'open');
 					break;
 				case 'failed':
 					this.notify(
@@ -195,14 +218,23 @@ class AppStore {
 		}
 	}
 
+	askPassword(token: number, name: string, retry: boolean, purpose: PasswordRequest['purpose']) {
+		this.passwordPrompts = [...this.passwordPrompts, { token, name, retry, purpose }];
+	}
+
 	async submitPassword(token: number, password: string | null) {
+		const prompt = this.passwordPrompts.find((p) => p.token === token);
 		this.passwordPrompts = this.passwordPrompts.filter((p) => p.token !== token);
 		if (password === null) {
 			await cancelUnlock(token);
+			if (prompt?.purpose === 'insert') this.pendingInsert = null;
 			return;
 		}
 		try {
-			this.handleOpenResults([await unlockDocument(token, password)]);
+			const result = await unlockDocument(token, password);
+			if (prompt?.purpose === 'combine') this.combine?.addOpened([result]);
+			else if (prompt?.purpose === 'insert') this.insertSourceOpened(result);
+			else this.handleOpenResults([result]);
 		} catch (e) {
 			this.showError(toAppError(e));
 		}
@@ -211,10 +243,164 @@ class AppStore {
 	// ----- tabs -----
 
 	activate(id: number) {
+		if (this.combineActive) this.leaveCombine();
 		if (this.activeId === id) return;
 		const previous = this.active;
 		if (previous) this.rememberView(previous);
 		this.activeId = id;
+	}
+
+	// ----- combining files (section 6.4) -----
+
+	/** Opens (or shows) the Combine view. */
+	openCombine() {
+		const current = this.active;
+		if (current) this.rememberView(current);
+		if (!this.combine) {
+			this.combine = new CombineState({
+				notify: (toast, timeoutMs) => this.notify(toast, timeoutMs),
+				showError: (error) => this.showError(error),
+				ask: (request) => this.ask(request),
+				askPassword: (token, name, retry) => this.askPassword(token, name, retry, 'combine'),
+				saveTab: async (id) => {
+					const tab = this.tabs.find((t) => t.id === id);
+					return tab ? (await this.save(tab)) !== null : true;
+				},
+				opened: (result) => this.handleOpenResults([result])
+			});
+		}
+		this.combineActive = true;
+		void setDropTarget(true).catch(() => {});
+	}
+
+	private leaveCombine() {
+		this.combineActive = false;
+		void setDropTarget(false).catch(() => {});
+	}
+
+	/** Closes the Combine view, after asking if pages were arranged and not combined. */
+	async closeCombine() {
+		const combine = this.combine;
+		if (!combine) return;
+		if (combine.running) {
+			this.notify({ kind: 'info', message: 'Folio is combining files.', suggestion: 'Stop it first, or wait for it to finish.' });
+			return;
+		}
+		if (combine.pages.length > 0 && !combine.combinedAs) {
+			const choice = await this.ask({
+				title: 'Close Combine files?',
+				message: 'The pages you arranged will be lost.',
+				detail: 'The files themselves are not changed.',
+				buttons: [
+					{ id: 'close', label: 'Close', primary: true },
+					{ id: 'cancel', label: 'Cancel' }
+				],
+				cancel: 'cancel'
+			});
+			if (choice !== 'close') return;
+		}
+		this.leaveCombine();
+		this.combine = null;
+		await combine.dispose();
+	}
+
+	// ----- inserting pages from a file (section 6.4) -----
+
+	/** Asks for a file and then for the options; pages go before page `at` by default. */
+	async insertFromFile(tab: DocTab, at = tab.currentPage + 1) {
+		if (!tab.flags.canAssemble) {
+			this.notify({
+				kind: 'error',
+				message: 'This document’s security settings don’t allow inserting pages.',
+				suggestion: 'Combine it with the other file into a new one instead (File > Combine files).'
+			});
+			return;
+		}
+		this.pendingInsert = { tabId: tab.id, at: Math.min(at, tab.pageCount) };
+		try {
+			const result = await openInsertSource();
+			if (result) this.insertSourceOpened(result);
+			else this.pendingInsert = null;
+		} catch (e) {
+			this.pendingInsert = null;
+			this.showError(toAppError(e));
+		}
+	}
+
+	private insertSourceOpened(result: OpenResult) {
+		const pending = this.pendingInsert;
+		if (result.kind === 'needsPassword') {
+			this.askPassword(result.token, result.name, result.retry, 'insert');
+			return;
+		}
+		this.pendingInsert = null;
+		if (result.kind === 'failed') {
+			this.notify(
+				{ kind: 'error', message: `${result.name}: ${result.error.message}`, suggestion: result.error.suggestion },
+				12000
+			);
+			return;
+		}
+		if (result.kind !== 'opened' || !pending) return;
+		const source = result.document;
+		if (!source.flags.canCopy) {
+			void closeDocument(source.id).catch(() => {});
+			this.notify(
+				{
+					kind: 'error',
+					message: `${source.name} doesn’t allow copying its pages into another document.`,
+					suggestion: 'Its security settings forbid it. Ask its author for an unrestricted copy.'
+				},
+				12000
+			);
+			return;
+		}
+		this.insertRequest = { tabId: pending.tabId, source, at: pending.at };
+	}
+
+	/** Inserts the chosen pages (all if empty) before page `at`. */
+	async insertPages(
+		pages: number[],
+		at: number,
+		bookmarks: BookmarkMode,
+		labels: InsertLabelMode
+	): Promise<boolean> {
+		const request = this.insertRequest;
+		const tab = request && this.tabs.find((t) => t.id === request.tabId);
+		if (!request || !tab) {
+			this.cancelInsert();
+			return false;
+		}
+		const change = await this.apply(tab, {
+			kind: 'insertPages',
+			source: request.source.id,
+			pages,
+			at,
+			bookmarks,
+			labels
+		});
+		if (!change) return false;
+		this.cancelInsert();
+		this.activate(tab.id);
+		tab.viewer?.goTo({ page: at, offset: 0 });
+		const inserted = change.mergeReport?.pages ?? pages.length;
+		const detail = change.mergeReport ? reportDetail(change.mergeReport) : null;
+		this.notify(
+			{
+				kind: 'info',
+				message: `Inserted ${inserted === 1 ? '1 page' : `${inserted.toLocaleString()} pages`} from ${request.source.name}.`,
+				suggestion: detail
+			},
+			detail ? 15000 : 6000
+		);
+		return true;
+	}
+
+	/** Closes the insert dialog and the file it would have taken pages from. */
+	cancelInsert() {
+		const request = this.insertRequest;
+		this.insertRequest = null;
+		if (request) void closeDocument(request.source.id).catch(() => {});
 	}
 
 	cycleTab(direction: 1 | -1) {
@@ -260,6 +446,7 @@ class AppStore {
 		const tab = this.tabs.find((t) => t.id === id);
 		if (!tab) return;
 		this.activate(id);
+		if (this.insertRequest?.tabId === id) this.cancelInsert();
 		if (!(await this.confirmDiscard(tab))) return;
 		this.rememberView(tab);
 		tab.search.cancel();
@@ -268,6 +455,8 @@ class AppStore {
 		if (this.activeId === id) {
 			const next = this.tabs[Math.min(index, this.tabs.length - 1)];
 			this.activeId = next?.id ?? null;
+			// The last document closed while the Combine view is open: show it.
+			if (!next && this.combine) this.openCombine();
 		}
 		await closeDocument(id).catch(() => {});
 		void this.refreshRecent();
@@ -279,6 +468,23 @@ class AppStore {
 	 */
 	async confirmExit(): Promise<boolean> {
 		if (this.exiting) return true;
+		if (this.combine?.running) {
+			// Closing now would leave the unfinished file behind; stop the merge first.
+			const choice = await this.ask({
+				title: 'Folio is combining files',
+				message: 'Stop combining and close Folio?',
+				detail: 'No file is written when combining is stopped.',
+				buttons: [
+					{ id: 'stop', label: 'Stop and close', primary: true },
+					{ id: 'cancel', label: 'Keep combining' }
+				],
+				cancel: 'cancel'
+			});
+			if (choice !== 'stop') return false;
+			const combine = this.combine;
+			combine.stop();
+			while (combine.running) await new Promise((r) => setTimeout(r, 50));
+		}
 		const dirty = this.tabs.filter((t) => t.state.dirty);
 		if (dirty.length === 1) {
 			if (!(await this.confirmDiscard(dirty[0]!))) return false;

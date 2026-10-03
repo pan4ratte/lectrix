@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Shown when no document is open: open a file, or pick a recent one.
-	import { FileText, FolderOpen, X } from '@lucide/svelte';
+	import { FileText, FolderOpen, Layers, X } from '@lucide/svelte';
 
 	import { APP_NAME } from '#lib/config.ts';
 	import { removeRecent } from '#lib/ipc/index.ts';
@@ -16,11 +16,17 @@
 	<div class="w-full max-w-xl">
 		<h1 class="text-2xl font-semibold">{APP_NAME}</h1>
 		<p class="mt-1 text-fg-muted">Open a PDF, or drop files anywhere in this window.</p>
-		<button type="button" class="button button-primary mt-6 gap-2" onclick={() => void app.open()}>
-			<FolderOpen size={16} aria-hidden="true" />
-			Open…
-			<span class="ml-2 text-xs opacity-80">Ctrl+O</span>
-		</button>
+		<div class="mt-6 flex gap-2">
+			<button type="button" class="button button-primary gap-2" onclick={() => void app.open()}>
+				<FolderOpen size={16} aria-hidden="true" />
+				Open…
+				<span class="ml-2 text-xs opacity-80">Ctrl+O</span>
+			</button>
+			<button type="button" class="button gap-2" onclick={() => app.openCombine()}>
+				<Layers size={16} aria-hidden="true" />
+				Combine files…
+			</button>
+		</div>
 
 		{#if app.recent.length}
 			<h2 class="mt-10 mb-2 text-sm font-semibold text-fg-muted">Recent</h2>

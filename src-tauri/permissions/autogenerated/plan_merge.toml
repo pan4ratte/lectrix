@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-plan-merge"
+description = "Enables the plan_merge command without any pre-configured scope."
+commands.allow = ["plan_merge"]
+
+[[permission]]
+identifier = "deny-plan-merge"
+description = "Denies the plan_merge command without any pre-configured scope."
+commands.deny = ["plan_merge"]

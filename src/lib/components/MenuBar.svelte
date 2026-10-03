@@ -31,6 +31,7 @@
 						{/each}
 					</Menubar.SubContent>
 				</Menubar.Sub>
+				<Menubar.Item class="menu-item" onSelect={commands.combineFiles}>Combine files…</Menubar.Item>
 				<Menubar.Separator class="menu-separator" />
 				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.save}>
 					Save<span class="menu-shortcut">Ctrl+S</span>
@@ -45,7 +46,7 @@
 				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.reload}>
 					Reload from disk
 				</Menubar.Item>
-				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.closeTab}>
+				<Menubar.Item class="menu-item" disabled={!hasDoc && !app.combineActive} onSelect={commands.closeTab}>
 					Close<span class="menu-shortcut">Ctrl+W</span>
 				</Menubar.Item>
 				<Menubar.Separator class="menu-separator" />
@@ -58,14 +59,23 @@
 		<Menubar.Trigger class="menubar-trigger">Edit</Menubar.Trigger>
 		<Menubar.Portal>
 			<Menubar.Content class="menu-content" align="start" sideOffset={4}>
-				<Menubar.Item class="menu-item" disabled={!tab?.state.undoName} onSelect={commands.undo}>
-					{tab?.state.undoName ? `Undo ${tab.state.undoName.toLowerCase()}` : 'Undo'}
-					<span class="menu-shortcut">Ctrl+Z</span>
-				</Menubar.Item>
-				<Menubar.Item class="menu-item" disabled={!tab?.state.redoName} onSelect={commands.redo}>
-					{tab?.state.redoName ? `Redo ${tab.state.redoName.toLowerCase()}` : 'Redo'}
-					<span class="menu-shortcut">Ctrl+Y</span>
-				</Menubar.Item>
+				{#if app.combineActive}
+					<Menubar.Item class="menu-item" disabled={!app.combine?.canUndo} onSelect={commands.undo}>
+						Undo<span class="menu-shortcut">Ctrl+Z</span>
+					</Menubar.Item>
+					<Menubar.Item class="menu-item" disabled={!app.combine?.canRedo} onSelect={commands.redo}>
+						Redo<span class="menu-shortcut">Ctrl+Y</span>
+					</Menubar.Item>
+				{:else}
+					<Menubar.Item class="menu-item" disabled={!tab?.state.undoName} onSelect={commands.undo}>
+						{tab?.state.undoName ? `Undo ${tab.state.undoName.toLowerCase()}` : 'Undo'}
+						<span class="menu-shortcut">Ctrl+Z</span>
+					</Menubar.Item>
+					<Menubar.Item class="menu-item" disabled={!tab?.state.redoName} onSelect={commands.redo}>
+						{tab?.state.redoName ? `Redo ${tab.state.redoName.toLowerCase()}` : 'Redo'}
+						<span class="menu-shortcut">Ctrl+Y</span>
+					</Menubar.Item>
+				{/if}
 				<Menubar.Separator class="menu-separator" />
 				<Menubar.Item class="menu-item" disabled={!tab?.selection} onSelect={commands.copy}>
 					Copy<span class="menu-shortcut">Ctrl+C</span>
@@ -140,6 +150,13 @@
 					onSelect={commands.rotatePages}
 				>
 					Rotate pages…
+				</Menubar.Item>
+				<Menubar.Item
+					class="menu-item"
+					disabled={!hasDoc || !tab?.flags.canAssemble}
+					onSelect={commands.insertPages}
+				>
+					Insert pages from file…
 				</Menubar.Item>
 				<Menubar.Separator class="menu-separator" />
 				<Menubar.Item class="menu-item" disabled={!tab?.canEditBookmarks} onSelect={commands.addBookmark}>

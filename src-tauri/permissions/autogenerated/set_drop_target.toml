@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-drop-target"
+description = "Enables the set_drop_target command without any pre-configured scope."
+commands.allow = ["set_drop_target"]
+
+[[permission]]
+identifier = "deny-set-drop-target"
+description = "Denies the set_drop_target command without any pre-configured scope."
+commands.deny = ["set_drop_target"]
