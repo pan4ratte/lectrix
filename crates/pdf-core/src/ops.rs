@@ -98,6 +98,10 @@ pub enum Operation {
     AddAnnotation {
         annotation: NewAnnotation,
     },
+    /// Creates several in one undo step (text selected across pages).
+    AddAnnotations {
+        annotations: Vec<NewAnnotation>,
+    },
     /// Changes annotation `id` (object number) on `page`.
     UpdateAnnotation {
         page: usize,
@@ -133,6 +137,10 @@ impl Operation {
             Operation::AddAnnotation { annotation } => {
                 format!("Add {}", annotation.body.kind().label())
             }
+            Operation::AddAnnotations { annotations } => match annotations.first() {
+                Some(a) => format!("Add {}", a.body.kind().label()),
+                None => "Add annotations".into(),
+            },
             Operation::UpdateAnnotation { edit, .. } => format!("{} annotation", edit.verb()),
             Operation::DeleteAnnotation { .. } => "Delete annotation".into(),
             Operation::RepairAnnotations => "Repair annotations".into(),
@@ -166,6 +174,7 @@ impl Operation {
         matches!(
             self,
             Operation::AddAnnotation { .. }
+                | Operation::AddAnnotations { .. }
                 | Operation::UpdateAnnotation { .. }
                 | Operation::DeleteAnnotation { .. }
                 | Operation::RepairAnnotations
@@ -186,6 +195,7 @@ impl Operation {
             | Operation::SetPageLabels { .. }
             | Operation::InsertPages { .. } => true,
             Operation::AddAnnotation { .. }
+            | Operation::AddAnnotations { .. }
             | Operation::UpdateAnnotation { .. }
             | Operation::DeleteAnnotation { .. }
             | Operation::RepairAnnotations => false,
@@ -231,6 +241,18 @@ impl Operation {
                     return Err(Error::PageOutOfRange(annotation.page));
                 }
                 annotation.validate()
+            }
+            Operation::AddAnnotations { annotations } => {
+                if annotations.is_empty() {
+                    return Err(Error::InvalidArgument("no annotations to add".into()));
+                }
+                for a in annotations {
+                    if a.page >= page_count {
+                        return Err(Error::PageOutOfRange(a.page));
+                    }
+                    a.validate()?;
+                }
+                Ok(())
             }
             Operation::UpdateAnnotation { page, edit, .. } => {
                 if *page >= page_count {
@@ -308,6 +330,14 @@ impl Operation {
             Operation::AddAnnotation { annotation } => {
                 let created = annot::create(doc, annotation)?;
                 Ok(u32::try_from(created.xref).ok())
+            }
+            Operation::AddAnnotations { annotations } => {
+                let mut first = None;
+                for a in annotations {
+                    let created = annot::create(doc, a)?;
+                    first = first.or(u32::try_from(created.xref).ok());
+                }
+                Ok(first)
             }
             Operation::UpdateAnnotation { page, id, edit } => {
                 annot::edit(doc, *page, *id, edit).map(|()| None)

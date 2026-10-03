@@ -215,7 +215,14 @@ fn page_annotations(page: usize, list: Vec<AnnotationInfo>) -> PageAnnotations {
 )]
 #[ts(export)]
 pub enum AnnotationBody {
-    /// Highlight, underline, strikeout or squiggly: `quads` 8 numbers each.
+    /// Highlight, underline, strikeout or squiggly over selected text: character ranges
+    /// of the page's text lines, as `get_page_text` numbers them. Rust makes the quads.
+    TextMarkup {
+        kind: AnnotationKind,
+        ranges: Vec<TextRangeInput>,
+        note: Option<String>,
+    },
+    /// Highlight, underline, strikeout or squiggly over an area: `quads` 8 numbers each.
     Markup {
         kind: AnnotationKind,
         quads: Vec<f32>,
@@ -231,6 +238,16 @@ pub enum AnnotationBody {
         text: String,
         font_size: f32,
     },
+}
+
+/// Characters `start..end` (code points) of text line `line`.
+#[derive(Debug, Clone, Copy, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TextRangeInput {
+    pub line: u32,
+    pub start: u32,
+    pub end: u32,
 }
 
 #[derive(Debug, Clone, Deserialize, TS)]
@@ -289,15 +306,28 @@ impl NewAnnotationInput {
     /// The annotation, written by `author` (the name from Settings).
     pub fn into_core(self, author: &str) -> Result<core::NewAnnotation, AppError> {
         let bad = || AppError::new("That annotation can't be made.", None);
+        let markup_kind = |kind| match kind {
+            AnnotationKind::Highlight => Ok(MarkupKind::Highlight),
+            AnnotationKind::Underline => Ok(MarkupKind::Underline),
+            AnnotationKind::StrikeOut => Ok(MarkupKind::StrikeOut),
+            AnnotationKind::Squiggly => Ok(MarkupKind::Squiggly),
+            _ => Err(bad()),
+        };
         let body = match self.body {
+            AnnotationBody::TextMarkup { kind, ranges, note } => core::Body::TextMarkup {
+                kind: markup_kind(kind)?,
+                ranges: ranges
+                    .iter()
+                    .map(|r| pdf_core::text::TextRange {
+                        line: r.line as usize,
+                        start: r.start as usize,
+                        end: r.end as usize,
+                    })
+                    .collect(),
+                note: note.filter(|n| !n.is_empty()),
+            },
             AnnotationBody::Markup { kind, quads, note } => {
-                let kind = match kind {
-                    AnnotationKind::Highlight => MarkupKind::Highlight,
-                    AnnotationKind::Underline => MarkupKind::Underline,
-                    AnnotationKind::StrikeOut => MarkupKind::StrikeOut,
-                    AnnotationKind::Squiggly => MarkupKind::Squiggly,
-                    _ => return Err(bad()),
-                };
+                let kind = markup_kind(kind)?;
                 let quads = core::quads::quads_from_array(
                     &quads.iter().map(|v| f64::from(*v)).collect::<Vec<_>>(),
                 )

@@ -262,6 +262,13 @@ pub enum Body {
         /// Note text. A note also gets a linked `/Popup` (rule 6).
         note: Option<String>,
     },
+    /// Text selected in the viewer: characters of the page's structured text, turned into
+    /// quads in the text's own direction (AGENTS.md section 3).
+    TextMarkup {
+        kind: MarkupKind,
+        ranges: Vec<crate::text::TextRange>,
+        note: Option<String>,
+    },
     /// A sticky note whose icon's top-left corner is at `at`.
     Note { at: Point, text: String },
     /// Freehand strokes, simplified before writing (rule 9).
@@ -280,7 +287,7 @@ pub enum Body {
 impl Body {
     pub fn kind(&self) -> Kind {
         match self {
-            Body::Markup { kind, .. } => kind.kind(),
+            Body::Markup { kind, .. } | Body::TextMarkup { kind, .. } => kind.kind(),
             Body::Note { .. } => Kind::Note,
             Body::Ink { .. } => Kind::Ink,
             Body::FreeText { .. } => Kind::FreeText,
@@ -314,6 +321,11 @@ impl NewAnnotation {
             Body::Markup { quads, .. } => {
                 if quads.is_empty() || !quads.iter().all(Quad::is_valid) {
                     return bad("a text markup needs at least one non-empty quad");
+                }
+            }
+            Body::TextMarkup { ranges, .. } => {
+                if ranges.is_empty() || ranges.iter().any(|r| r.start >= r.end) {
+                    return bad("no text is selected");
                 }
             }
             Body::Note { at, .. } => {
@@ -478,6 +490,20 @@ pub fn subtype_of(doc: &PdfDocument, page: usize, id: u32) -> Option<String> {
 /// operation.
 pub fn create(doc: &mut PdfDocument, new: &NewAnnotation) -> Result<AnnotationRef> {
     new.validate()?;
+    if let Body::TextMarkup { kind, ranges, note } = &new.body {
+        // The same text the viewer selected: structured text of the page as displayed.
+        let list = crate::render::display_list(doc, new.page)?;
+        let quads = crate::text::range_quads(&list, ranges)?;
+        let resolved = NewAnnotation {
+            body: Body::Markup {
+                kind: *kind,
+                quads,
+                note: note.clone(),
+            },
+            ..new.clone()
+        };
+        return create(doc, &resolved);
+    }
     let mut page = load_page(doc, new.page)?;
     let geometry = page_geometry(&page)?;
     let kind = new.body.kind();
@@ -485,6 +511,10 @@ pub fn create(doc: &mut PdfDocument, new: &NewAnnotation) -> Result<AnnotationRe
     let mut obj = annot.object();
 
     match &new.body {
+        // Resolved to quads above.
+        Body::TextMarkup { .. } => {
+            return Err(Error::InvalidArgument("unresolved text markup".into()));
+        }
         Body::Markup { quads, .. } => {
             let user: Vec<Quad> = quads.iter().map(|q| q.view_to_user(&geometry)).collect();
             // Rule 3: QuadPoints in Acrobat order, PDF user space.
@@ -540,6 +570,9 @@ pub fn create(doc: &mut PdfDocument, new: &NewAnnotation) -> Result<AnnotationRe
     write::write_metadata(doc, &mut annot, &new.author)?;
     match &new.body {
         Body::Markup {
+            note: Some(note), ..
+        }
+        | Body::TextMarkup {
             note: Some(note), ..
         } if !note.is_empty() => {
             annot.set_contents(note)?;

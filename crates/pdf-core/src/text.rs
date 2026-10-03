@@ -61,6 +61,56 @@ pub fn page_text(list: &DisplayList) -> Result<PageText> {
     Ok(collect(&page))
 }
 
+/// Characters `start..end` of line `line`, counted as in [`page_text`] (the frontend's
+/// selection sends these).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct TextRange {
+    pub line: usize,
+    pub start: usize,
+    pub end: usize,
+}
+
+/// One quad per range, in the text's own direction (view space): the first character's
+/// left edge and the last character's right edge, from MuPDF's character quads. Ranges
+/// outside the page's text are an error.
+pub fn range_quads(
+    list: &DisplayList,
+    ranges: &[TextRange],
+) -> Result<Vec<crate::annot::quads::Quad>> {
+    let page = list.to_text_page(flags())?;
+    let mut lines: Vec<Vec<Quad>> = Vec::new();
+    for block in page.blocks() {
+        if block.r#type() != TextBlockType::Text {
+            continue;
+        }
+        for line in block.lines() {
+            let quads: Vec<Quad> = line.chars().map(|ch| ch.quad()).collect();
+            if !quads.is_empty() {
+                lines.push(quads);
+            }
+        }
+    }
+    let point = |p: mupdf::Point| Point::new(f64::from(p.x), f64::from(p.y));
+    ranges
+        .iter()
+        .map(|r| {
+            let chars = lines
+                .get(r.line)
+                .filter(|l| r.start < r.end && r.end <= l.len())
+                .ok_or_else(|| {
+                    crate::Error::InvalidArgument("the selected text is not on the page".into())
+                })?;
+            let (first, last) = (&chars[r.start], &chars[r.end - 1]);
+            Ok(crate::annot::quads::Quad {
+                ul: point(first.ul),
+                ll: point(first.ll),
+                ur: point(last.ur),
+                lr: point(last.lr),
+            })
+        })
+        .collect()
+}
+
 fn collect(page: &TextPage) -> PageText {
     let mut lines = Vec::new();
     for (block_index, block) in page.blocks().enumerate() {

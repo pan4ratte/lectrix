@@ -242,6 +242,7 @@ fn every_type_has_every_profile_key_on_every_page_geometry() {
                     }
                     assert_eq!(multiply, *kind == MarkupKind::Highlight, "{name}: blend");
                 }
+                Body::TextMarkup { .. } => unreachable!("every_kind makes no text ranges"),
                 Body::Note { at, .. } => {
                     check_popup(&obj, &name);
                     assert_eq!(get(&obj, "Contents").as_string().unwrap(), "Sticky note");
@@ -975,4 +976,114 @@ fn repair_is_one_undo_step() {
     assert_eq!(needing(&undone.annotations[0].1), 5);
 
     assert_eq!(session.scan_annotations().unwrap(), found);
+}
+
+#[test]
+fn selected_text_becomes_quads_in_the_text_direction() {
+    use pdf_core::text::{TextRange, page_text};
+    let dir = out_dir("annotations-text-ranges");
+    for (case, spec) in geometry_cases() {
+        let src = sample_file(&dir, &format!("{case}-src.pdf"), spec);
+        let mut doc = open(&src);
+        // What the viewer gets: the page's structured text, line by line.
+        let list = pdf_core::render::display_list(&doc, 0).unwrap();
+        let text = page_text(&list).unwrap();
+        let (line, at) = text
+            .lines
+            .iter()
+            .enumerate()
+            .find_map(|(i, l)| {
+                l.text
+                    .find("quick brown fox")
+                    .map(|b| (i, l.text[..b].chars().count()))
+            })
+            .unwrap();
+        let ranges = vec![TextRange {
+            line,
+            start: at,
+            end: at + "quick brown fox".chars().count(),
+        }];
+        let created = annot::create(
+            &mut doc,
+            &NewAnnotation {
+                page: 0,
+                body: Body::TextMarkup {
+                    kind: MarkupKind::Underline,
+                    ranges,
+                    note: None,
+                },
+                color: BLUE,
+                opacity: 1.0,
+                author: "Tëster".into(),
+            },
+        )
+        .unwrap();
+        // The same quad MuPDF's search finds for those words, in Acrobat order.
+        let found = marker_quads(&doc, 0);
+        let obj = doc.new_indirect(created.xref, 0).unwrap();
+        let qp = objects::numbers(&get(&obj, "QuadPoints")).unwrap().unwrap();
+        let written = quads_from_array(&qp).unwrap();
+        assert_eq!(written.len(), 1, "{case}");
+        assert!(is_acrobat_order(&written[0]), "{case}");
+        let g = PageGeometry::new(&read_page_boxes(&doc.find_page(0).unwrap()).unwrap());
+        let expected = found[0].view_to_user(&g);
+        for (a, b) in [
+            (written[0].ul, expected.ul),
+            (written[0].ur, expected.ur),
+            (written[0].ll, expected.ll),
+            (written[0].lr, expected.lr),
+        ] {
+            assert!(
+                (a.x - b.x).abs() < 0.05 && (a.y - b.y).abs() < 0.05,
+                "{case}: {a:?} {b:?}"
+            );
+        }
+        // A range off the page's text is refused.
+        let bad = annot::create(
+            &mut doc,
+            &NewAnnotation {
+                page: 0,
+                body: Body::TextMarkup {
+                    kind: MarkupKind::Highlight,
+                    ranges: vec![TextRange {
+                        line: 9999,
+                        start: 0,
+                        end: 1,
+                    }],
+                    note: None,
+                },
+                color: BLUE,
+                opacity: 1.0,
+                author: "x".into(),
+            },
+        );
+        assert!(bad.is_err(), "{case}");
+    }
+}
+
+#[test]
+fn text_selected_across_pages_is_one_undo_step() {
+    let dir = out_dir("annotations-multi");
+    let src = sample_file(&dir, "src.pdf", SampleSpec::default());
+    let probe = sample_file(&dir, "probe.pdf", SampleSpec::default());
+    let probe = open(&probe);
+    let mut specs = every_kind(&probe, 0);
+    specs.truncate(1);
+    let mut second = every_kind(&probe, 1);
+    specs.push(second.remove(0));
+    let (session, _) = Session::open(&src, None).unwrap();
+    let change = session
+        .apply(Operation::AddAnnotations { annotations: specs })
+        .unwrap();
+    assert_eq!(change.state.undo_name.as_deref(), Some("Add highlight"));
+    assert_eq!(change.annotations.len(), 2);
+    let undone = session.undo().unwrap();
+    assert!(undone.annotations.iter().all(|(_, l)| l.is_empty()));
+    assert!(
+        session
+            .apply(Operation::AddAnnotations {
+                annotations: Vec::new()
+            })
+            .is_err()
+    );
 }

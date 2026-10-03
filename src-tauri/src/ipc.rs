@@ -660,9 +660,10 @@ pub enum OperationInput {
         bookmarks: BookmarkMode,
         labels: InsertLabelMode,
     },
-    /// Create an annotation; its author is the name from Settings.
+    /// Create annotations (several: text selected across pages) as one undo step; their
+    /// author is the name from Settings.
     AddAnnotation {
-        annotation: NewAnnotationInput,
+        annotations: Vec<NewAnnotationInput>,
     },
     /// Change annotation `id` on `page`.
     UpdateAnnotation {
@@ -713,9 +714,18 @@ impl OperationInput {
                     },
                 }
             }
-            OperationInput::AddAnnotation { annotation } => Op::AddAnnotation {
-                annotation: annotation.into_core(author)?,
-            },
+            OperationInput::AddAnnotation { annotations } => {
+                let mut all = annotations
+                    .into_iter()
+                    .map(|a| a.into_core(author))
+                    .collect::<Result<Vec<_>, _>>()?;
+                match all.len() {
+                    1 => Op::AddAnnotation {
+                        annotation: all.remove(0),
+                    },
+                    _ => Op::AddAnnotations { annotations: all },
+                }
+            }
             other => other.into_edit()?,
         })
     }
