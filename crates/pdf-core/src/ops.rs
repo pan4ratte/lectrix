@@ -6,6 +6,7 @@ use mupdf::pdf::{PdfDocument, PdfObject};
 
 use crate::error::{Error, Result};
 use crate::geometry::normalize_rotation;
+use crate::labels::{self, LabelRule};
 use crate::outline::{ViewDest, edit};
 
 #[derive(Debug, Clone, PartialEq)]
@@ -43,6 +44,11 @@ pub enum Operation {
         id: u32,
         dest: ViewDest,
     },
+    /// Replaces the page labels with `rules` (a rule at the first page is added if
+    /// missing); an empty list removes them. Rules already stored that way change nothing.
+    SetPageLabels {
+        rules: Vec<LabelRule>,
+    },
 }
 
 impl Operation {
@@ -56,11 +62,14 @@ impl Operation {
             Operation::MoveBookmark { .. } => "Move bookmark".into(),
             Operation::DeleteBookmark { .. } => "Delete bookmark".into(),
             Operation::SetBookmarkDestination { .. } => "Change bookmark destination".into(),
+            Operation::SetPageLabels { rules } if rules.is_empty() => "Remove page labels".into(),
+            Operation::SetPageLabels { .. } => "Change page labels".into(),
         }
     }
 
     /// True if the operation needs the "assemble" permission (bit 4 or 11), which covers
-    /// rotating pages and creating outline items.
+    /// rotating pages, creating outline items and other document-level changes such as
+    /// page labels.
     pub(crate) fn needs_assemble(&self) -> bool {
         match self {
             Operation::RotatePages { .. }
@@ -68,7 +77,8 @@ impl Operation {
             | Operation::RenameBookmark { .. }
             | Operation::MoveBookmark { .. }
             | Operation::DeleteBookmark { .. }
-            | Operation::SetBookmarkDestination { .. } => true,
+            | Operation::SetBookmarkDestination { .. }
+            | Operation::SetPageLabels { .. } => true,
         }
     }
 
@@ -96,6 +106,10 @@ impl Operation {
             Operation::RenameBookmark { title, .. } => edit::clean_title(title).map(drop),
             Operation::SetBookmarkDestination { dest, .. } => check_dest(dest, page_count),
             Operation::MoveBookmark { .. } | Operation::DeleteBookmark { .. } => Ok(()),
+            Operation::SetPageLabels { rules } if rules.is_empty() => Ok(()),
+            Operation::SetPageLabels { rules } => {
+                labels::normalize_rules(rules.clone(), page_count).map(drop)
+            }
         }
     }
 
@@ -125,6 +139,9 @@ impl Operation {
             Operation::DeleteBookmark { id } => edit::delete(doc, *id).map(|()| None),
             Operation::SetBookmarkDestination { id, dest } => {
                 edit::set_destination(doc, *id, dest).map(|()| None)
+            }
+            Operation::SetPageLabels { rules } => {
+                labels::set_rules(doc, rules.clone()).map(|_| None)
             }
         }
     }

@@ -33,7 +33,7 @@ use crate::docinfo::{DocumentFlags, read_flags};
 use crate::error::{Error, Result};
 use crate::ffi::{Journal, open_pdf_shared};
 use crate::geometry::{PageGeometry, read_page_boxes};
-use crate::labels;
+use crate::labels::{self, LabelRule};
 use crate::ops::Operation;
 use crate::outline::{self, Outline};
 use crate::render::{self, PixelRect, RgbaImage};
@@ -58,12 +58,22 @@ pub struct DocumentState {
     pub redo_name: Option<String>,
 }
 
+/// The document's page labels: the rules as stored, and the label they give each page.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PageLabels {
+    /// Sorted by start page; may lack a rule at the first page, or have rules past the
+    /// last page, in files other apps wrote.
+    pub rules: Vec<LabelRule>,
+    /// One label per page.
+    pub labels: Vec<String>,
+}
+
 #[derive(Debug, Clone)]
 pub struct DocumentInfo {
     pub path: PathBuf,
     pub pages: Vec<PageSize>,
-    /// One label per page, or `None` when the document has no `/PageLabels`.
-    pub labels: Option<Vec<String>>,
+    /// `None` when the document has no `/PageLabels`.
+    pub labels: Option<PageLabels>,
     pub flags: DocumentFlags,
     pub state: DocumentState,
     /// The bookmarks, with the panel's expanded states.
@@ -79,7 +89,7 @@ pub struct DocumentChange {
     /// Pages whose size (or rotation) changed, with their new size.
     pub changed_pages: Vec<(usize, PageSize)>,
     /// The new labels, if they changed (`Some(None)`: the labels were removed).
-    pub labels: Option<Option<Vec<String>>>,
+    pub labels: Option<Option<PageLabels>>,
     /// The new bookmarks, if they changed (targets move when pages rotate, too).
     pub outline: Option<Outline>,
     /// The id of the object the operation created (the new bookmark).
@@ -300,7 +310,7 @@ struct Actor {
     password: Option<String>,
     flags: DocumentFlags,
     pages: Vec<PageSize>,
-    labels: Option<Vec<String>>,
+    labels: Option<PageLabels>,
     /// The outline as the document has it.
     outline: Outline,
     /// Bookmarks expanded or collapsed in the panel since the last save (id to open).
@@ -681,15 +691,12 @@ fn page_sizes(doc: &PdfDocument) -> Result<Vec<PageSize>> {
     Ok(pages)
 }
 
-/// Every page's label, or `None` if the document has no labels.
-fn page_labels(doc: &PdfDocument, page_count: usize) -> Result<Option<Vec<String>>> {
+/// The stored label rules and every page's label, or `None` if the document has no labels.
+fn page_labels(doc: &PdfDocument, page_count: usize) -> Result<Option<PageLabels>> {
     let rules = labels::read_rules(doc)?;
     if rules.is_empty() {
         return Ok(None);
     }
-    Ok(Some(
-        (0..page_count)
-            .map(|p| labels::label_for_page(&rules, p))
-            .collect(),
-    ))
+    let labels = labels::labels_for_pages(&rules, page_count);
+    Ok(Some(PageLabels { rules, labels }))
 }

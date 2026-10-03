@@ -301,7 +301,7 @@ fn reports_labels_per_page() {
     writing(|| pdf_core::save::save_atomic(&doc, SaveKind::Full, None, &path)).unwrap();
     let (_, info) = Session::open(&path, None).unwrap();
     assert_eq!(
-        info.labels.unwrap(),
+        info.labels.unwrap().labels,
         vec!["i", "ii", "1", "2", "3"]
             .into_iter()
             .map(String::from)
@@ -345,4 +345,125 @@ fn text_render_and_search_through_the_session() {
     session.apply(rotate(vec![0], 90)).unwrap();
     let (image, revision) = session.render_rgba(0, 1.0, None).unwrap();
     assert_eq!((image.width, image.height, revision), (792, 612, 1));
+}
+
+fn labels_of(info: &Option<pdf_core::session::PageLabels>) -> Option<Vec<String>> {
+    info.as_ref().map(|l| l.labels.clone())
+}
+
+#[test]
+fn page_labels_are_one_undo_step_each_and_survive_saving() {
+    let dir = out_dir("session-set-labels");
+    let path = sample_file(
+        &dir,
+        "doc.pdf",
+        SampleSpec {
+            pages: 6,
+            ..SampleSpec::default()
+        },
+    );
+    let (session, info) = Session::open(&path, None).unwrap();
+    assert!(info.labels.is_none());
+
+    // "Roman front matter, then arabic from page 3."
+    let rules = vec![
+        LabelRule {
+            style: LabelStyle::LowerRoman,
+            ..LabelRule::decimal_from_one(0)
+        },
+        LabelRule::decimal_from_one(2),
+    ];
+    let change = session
+        .apply(Operation::SetPageLabels {
+            rules: rules.clone(),
+        })
+        .unwrap();
+    let labels = change.labels.clone().expect("labels changed");
+    assert_eq!(labels.as_ref().unwrap().rules, rules);
+    assert_eq!(labels_of(&labels).unwrap(), ["i", "ii", "1", "2", "3", "4"]);
+    assert_eq!(
+        change.state.undo_name.as_deref(),
+        Some("Change page labels")
+    );
+    assert!(change.state.dirty);
+
+    // Committing the same rules again (in any order) is not a step.
+    let same = session
+        .apply(Operation::SetPageLabels {
+            rules: rules.iter().rev().cloned().collect(),
+        })
+        .unwrap();
+    assert_eq!(same.state.revision, change.state.revision);
+    assert_eq!(same.labels, None);
+
+    // A prefixed appendix, then undo and redo it.
+    let mut with_appendix = rules.clone();
+    with_appendix.push(LabelRule {
+        start_page: 4,
+        style: LabelStyle::UpperLetters,
+        prefix: "Anhang ".into(),
+        first_number: 1,
+    });
+    let appendix = session
+        .apply(Operation::SetPageLabels {
+            rules: with_appendix.clone(),
+        })
+        .unwrap();
+    assert_eq!(
+        labels_of(&appendix.labels.unwrap()).unwrap(),
+        ["i", "ii", "1", "2", "Anhang A", "Anhang B"]
+    );
+    let undone = session.undo().unwrap();
+    assert_eq!(undone.state.revision, change.state.revision);
+    assert_eq!(undone.labels.unwrap().unwrap().rules, rules);
+    let redone = session.redo().unwrap();
+    assert_eq!(redone.labels.unwrap().unwrap().rules, with_appendix);
+
+    // Saved and reopened: the rules exactly as written.
+    writing(|| session.save(SaveKind::Incremental, None)).unwrap();
+    session.close();
+    qpdf_check(&path);
+    let (session, info) = Session::open(&path, None).unwrap();
+    assert_eq!(info.labels.as_ref().unwrap().rules, with_appendix);
+
+    // "Remove all labels" is its own named step.
+    let removed = session
+        .apply(Operation::SetPageLabels { rules: Vec::new() })
+        .unwrap();
+    assert_eq!(removed.labels, Some(None));
+    assert_eq!(
+        removed.state.undo_name.as_deref(),
+        Some("Remove page labels")
+    );
+    writing(|| session.save(SaveKind::Incremental, None)).unwrap();
+    session.close();
+    let (_, info) = Session::open(&path, None).unwrap();
+    assert!(info.labels.is_none());
+}
+
+#[test]
+fn invalid_label_rules_change_nothing() {
+    let dir = out_dir("session-invalid-labels");
+    let path = sample_file(&dir, "doc.pdf", SampleSpec::default());
+    let (session, _) = Session::open(&path, None).unwrap();
+    let invalid = [
+        vec![LabelRule::decimal_from_one(3)],
+        vec![
+            LabelRule::decimal_from_one(1),
+            LabelRule::decimal_from_one(1),
+        ],
+        vec![LabelRule {
+            first_number: 0,
+            ..LabelRule::decimal_from_one(0)
+        }],
+    ];
+    for rules in invalid {
+        assert!(matches!(
+            session.apply(Operation::SetPageLabels { rules }),
+            Err(Error::InvalidArgument(_))
+        ));
+    }
+    let state = session.info().unwrap().state;
+    assert_eq!(state.revision, 0);
+    assert_eq!(state.undo_name, None);
 }

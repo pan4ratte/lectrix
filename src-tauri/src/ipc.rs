@@ -114,6 +114,8 @@ pub struct DocumentInfo {
     pub pages: Vec<PageSize>,
     /// One label per page, or null when the document has no page labels.
     pub labels: Option<Vec<String>>,
+    /// The label rules exactly as stored (empty when there are no labels).
+    pub label_rules: Vec<LabelRule>,
     pub flags: DocumentFlags,
     pub state: DocumentState,
     pub outline: Outline,
@@ -167,9 +169,11 @@ pub struct ChangedPage {
 pub struct DocumentChange {
     pub state: DocumentState,
     pub changed_pages: Vec<ChangedPage>,
-    /// True when `labels` holds new labels (which may be null: labels removed).
+    /// True when `labels` and `label_rules` hold new labels (`labels` may be null:
+    /// labels removed).
     pub labels_changed: bool,
     pub labels: Option<Vec<String>>,
+    pub label_rules: Vec<LabelRule>,
     /// The new bookmarks, when they changed.
     pub outline: Option<Outline>,
     /// The id of what the operation created (the new bookmark).
@@ -182,6 +186,7 @@ impl From<core::DocumentChange> for DocumentChange {
             Some(labels) => (true, labels),
             None => (false, None),
         };
+        let (labels, label_rules) = split_labels(labels);
         let outline = c.outline.map(Outline::from);
         let created = c.created;
         DocumentChange {
@@ -196,9 +201,94 @@ impl From<core::DocumentChange> for DocumentChange {
                 .collect(),
             labels_changed,
             labels,
+            label_rules,
             outline,
             created,
         }
+    }
+}
+
+/// How a page's label is numbered (AGENTS.md section 6.3).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum LabelStyle {
+    /// The prefix only.
+    None,
+    /// 1, 2, 3
+    Decimal,
+    /// i, ii, iii
+    LowerRoman,
+    /// I, II, III
+    UpperRoman,
+    /// a, b, c … z, aa, bb
+    LowerLetters,
+    /// A, B, C … Z, AA, BB
+    UpperLetters,
+}
+
+/// A page label rule: from `start_page` until the next rule, pages are labeled `prefix`
+/// followed by `first_number`, `first_number + 1`… in `style`.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct LabelRule {
+    /// Physical page index (0-based).
+    pub start_page: u32,
+    pub style: LabelStyle,
+    pub prefix: String,
+    /// 1 or higher.
+    pub first_number: u32,
+}
+
+impl From<pdf_core::labels::LabelRule> for LabelRule {
+    fn from(r: pdf_core::labels::LabelRule) -> Self {
+        use pdf_core::labels::LabelStyle as S;
+        LabelRule {
+            start_page: u32::try_from(r.start_page).unwrap_or(u32::MAX),
+            style: match r.style {
+                S::None => LabelStyle::None,
+                S::Decimal => LabelStyle::Decimal,
+                S::LowerRoman => LabelStyle::LowerRoman,
+                S::UpperRoman => LabelStyle::UpperRoman,
+                S::LowerLetters => LabelStyle::LowerLetters,
+                S::UpperLetters => LabelStyle::UpperLetters,
+            },
+            prefix: r.prefix,
+            first_number: r.first_number,
+        }
+    }
+}
+
+impl From<LabelRule> for pdf_core::labels::LabelRule {
+    fn from(r: LabelRule) -> Self {
+        use pdf_core::labels::LabelStyle as S;
+        pdf_core::labels::LabelRule {
+            start_page: r.start_page as usize,
+            style: match r.style {
+                LabelStyle::None => S::None,
+                LabelStyle::Decimal => S::Decimal,
+                LabelStyle::LowerRoman => S::LowerRoman,
+                LabelStyle::UpperRoman => S::UpperRoman,
+                LabelStyle::LowerLetters => S::LowerLetters,
+                LabelStyle::UpperLetters => S::UpperLetters,
+            },
+            prefix: r.prefix,
+            first_number: r.first_number,
+        }
+    }
+}
+
+/// The per-page labels and the rules, as sent to the frontend.
+pub fn split_labels(
+    labels: Option<pdf_core::session::PageLabels>,
+) -> (Option<Vec<String>>, Vec<LabelRule>) {
+    match labels {
+        Some(l) => (
+            Some(l.labels),
+            l.rules.into_iter().map(LabelRule::from).collect(),
+        ),
+        None => (None, Vec::new()),
     }
 }
 
@@ -376,6 +466,11 @@ pub enum OperationInput {
         id: u32,
         dest: ViewDest,
     },
+    /// Replace the page labels (a rule at the first page is added if missing); an empty
+    /// list removes them.
+    SetPageLabels {
+        rules: Vec<LabelRule>,
+    },
 }
 
 impl From<OperationInput> for pdf_core::ops::Operation {
@@ -407,6 +502,9 @@ impl From<OperationInput> for pdf_core::ops::Operation {
             OperationInput::SetBookmarkDestination { id, dest } => Op::SetBookmarkDestination {
                 id,
                 dest: dest.into(),
+            },
+            OperationInput::SetPageLabels { rules } => Op::SetPageLabels {
+                rules: rules.into_iter().map(Into::into).collect(),
             },
         }
     }

@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use std::collections::BTreeSet;
 use std::path::{Path, PathBuf};
 use std::sync::RwLock;
 
@@ -107,4 +108,51 @@ pub fn qpdf_severity(path: &Path) -> Option<u8> {
         Some(3) => 1,
         _ => 2,
     })
+}
+
+/// Writes objects 1..=n with a classic cross-reference table.
+pub fn assemble(objects: &[String]) -> Vec<u8> {
+    let mut out = b"%PDF-1.7\n%\xE2\xE3\xCF\xD3\n".to_vec();
+    let mut offsets = Vec::new();
+    for (i, body) in objects.iter().enumerate() {
+        offsets.push(out.len());
+        out.extend_from_slice(format!("{} 0 obj\n{body}\nendobj\n", i + 1).as_bytes());
+    }
+    let xref = out.len();
+    out.extend_from_slice(
+        format!("xref\n0 {}\n0000000000 65535 f \n", objects.len() + 1).as_bytes(),
+    );
+    for o in offsets {
+        out.extend_from_slice(format!("{o:010} 00000 n \n").as_bytes());
+    }
+    out.extend_from_slice(
+        format!(
+            "trailer\n<< /Size {} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n",
+            objects.len() + 1
+        )
+        .as_bytes(),
+    );
+    out
+}
+
+/// Object numbers written after `from` (the objects an incremental save rewrote or added).
+pub fn objects_written_after(bytes: &[u8], from: usize) -> BTreeSet<u32> {
+    let tail = String::from_utf8_lossy(&bytes[from..]);
+    let words: Vec<&str> = tail.split_whitespace().collect();
+    words
+        .windows(3)
+        .filter(|w| w[1] == "0" && w[2] == "obj")
+        .filter_map(|w| w[0].parse().ok())
+        .collect()
+}
+
+/// The `n 0 obj ... endobj` text of the last version of object `num` in `bytes`.
+pub fn raw_object(bytes: &[u8], num: u32) -> String {
+    let text = String::from_utf8_lossy(bytes);
+    let header = format!("\n{num} 0 obj");
+    let start = text
+        .rfind(&header)
+        .unwrap_or_else(|| panic!("object {num}"));
+    let end = start + text[start..].find("endobj").unwrap();
+    text[start..end].to_string()
 }

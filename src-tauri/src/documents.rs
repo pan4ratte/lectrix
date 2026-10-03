@@ -302,12 +302,14 @@ impl Documents {
 pub const WATCH_INTERVAL: Duration = Duration::from_millis(1500);
 
 pub fn document_info(id: u32, info: CoreInfo, view: Option<ViewState>) -> DocumentInfo {
+    let (labels, label_rules) = crate::ipc::split_labels(info.labels);
     DocumentInfo {
         id,
         name: file_name(&info.path),
         path: info.path.display().to_string(),
         pages: info.pages.into_iter().map(Into::into).collect(),
-        labels: info.labels,
+        labels,
+        label_rules,
         flags: info.flags.into(),
         state: info.state.into(),
         outline: info.outline.into(),
