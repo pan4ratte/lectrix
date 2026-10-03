@@ -125,6 +125,15 @@ enum LabelsAction {
     },
     /// Remove all labels.
     Clear { input: PathBuf, out: PathBuf },
+    /// Set the labels as the app does (one journal step through a session, then an
+    /// incremental save). Rules as for `set`; no rules removes the labels. Rules equal to
+    /// the stored ones change nothing.
+    Edit {
+        input: PathBuf,
+        out: PathBuf,
+        #[arg(long = "rule")]
+        rules: Vec<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -259,6 +268,13 @@ fn run(command: Command) -> Result<()> {
             }
             LabelsAction::Clear { input, out } => {
                 edit(&input, &out, |doc| labels::write_rules(doc, Vec::new()))?;
+            }
+            LabelsAction::Edit { input, out, rules } => {
+                let rules = rules
+                    .iter()
+                    .map(|r| parse_label_rule(r))
+                    .collect::<Result<Vec<_>>>()?;
+                edit_in_session(&input, &out, vec![Operation::SetPageLabels { rules }])?;
             }
         },
         Command::Outline { action } => match action {
@@ -558,6 +574,37 @@ fn parse_outline_step(spec: &str) -> Result<OutlineStep> {
         "close" => OutlineStep::Open(id(rest)?, false),
         _ => return Err(bad()),
     })
+}
+
+/// Applies `ops` through a session, as the app does, and saves to `out`.
+fn edit_in_session(input: &Path, out: &Path, ops: Vec<Operation>) -> Result<()> {
+    if same_file(input, out) {
+        return Err(Error::InvalidArgument(
+            "write to a new file; pdf-cli never modifies its input".into(),
+        ));
+    }
+    let (session, info) = Session::open(input, None)?;
+    let mut revision = info.state.revision;
+    let result = (|| {
+        for op in ops {
+            let name = op.name();
+            let change = session.apply(op)?;
+            if change.state.revision == revision {
+                println!("{name}: nothing changed");
+            } else {
+                println!("{name}");
+            }
+            revision = change.state.revision;
+        }
+        session.save(SaveKind::Incremental, Some(out.to_path_buf()))
+    })();
+    session.close();
+    let saved = result?;
+    if saved.outcome.fell_back_to_full {
+        println!("note: the input cannot be saved incrementally; wrote a full file instead");
+    }
+    println!("wrote {}", out.display());
+    Ok(())
 }
 
 fn edit_outline(input: &Path, out: &Path, specs: &[String]) -> Result<()> {

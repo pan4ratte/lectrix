@@ -2,6 +2,7 @@
 
     python tests/interop/run.py phase0      # build the Phase 0 outputs with pdf-cli and check them
     python tests/interop/run.py phase2      # bookmarks edited as the app edits them
+    python tests/interop/run.py phase3      # page labels edited as the app edits them
     python tests/interop/run.py check FILE  # render/visibility checks for one existing file
 
 For every annotation in a checked file, each annotated page is rendered by three
@@ -432,6 +433,79 @@ def phase2(report: Report) -> None:
             report.check(ok, f"{edited.name}: {engine} puts '{title}' at {left},{top} (got {view[:2]})")
 
 
+def labels_fixture() -> bytes:
+    """Twelve pages with labels written by another "app": a number tree with /Kids and
+    /Limits, a /Type key and a UTF-16BE prefix ("Äh-"). Same fixture as
+    crates/pdf-core/tests/labels.rs."""
+    page = "<< /Type /Page /Parent 2 0 R /Resources << >> >>"
+    kids = " ".join(f"{6 + i} 0 R" for i in range(12))
+    return assemble_pdf([
+        "<< /Type /Catalog /Pages 2 0 R /PageLabels 3 0 R >>",
+        f"<< /Type /Pages /Kids [{kids}] /Count 12 /MediaBox [0 0 612.000 792] >>",
+        "<< /Kids [4 0 R 5 0 R] >>",
+        "<< /Limits [0 4] /Nums [0 << /Type /PageLabel /P (Cover) >> 1 << /S /r >>  4 << /S /D /St 1 >>] >>",
+        "<< /Limits [9 11] /Nums [9 << /S /A /P <FEFF00C40068002D> /St 3 >> 11 << /S /D /P (Index ) /St 120 >>] >>",
+    ] + [page] * 12)
+
+
+def label_checks(pdf: Path, report: Report, expected: list[str] | None) -> None:
+    """Both engines read `expected` (None: the file has no labels)."""
+    for engine, data in (("PDFium", info_pdfium(pdf)), ("pdf.js", info_pdfjs(pdf))):
+        got = data["labels"]
+        if expected is None:
+            # pdf.js reports no labels as null, PDFium as an empty label per page.
+            ok = got is None or all(label == "" for label in got)
+            report.check(ok, f"{pdf.name}: {engine} finds no page labels" + ("" if ok else f" (got {got[:12]})"))
+        else:
+            detail = "" if got == expected else f"\n       got      {got}\n       expected {expected}"
+            report.check(got == expected, f"{pdf.name}: {engine} page labels match{detail}")
+
+
+def phase3(report: Report) -> None:
+    """Page labels set the way the app sets them (pdf-cli labels edit goes through the same
+    session and journal), read back by PDFium (Edge, Chrome) and pdf.js (Firefox). The
+    expected labels are written out here, not computed with Folio's code."""
+    work = OUT / "phase3"
+    shutil.rmtree(work, ignore_errors=True)
+    work.mkdir(parents=True, exist_ok=True)
+    cli = pdf_cli()
+
+    # 1. A document without labels: roman front matter, arabic body, an appendix lettered
+    # from Y past Z, and an index labeled with a non-ASCII prefix only.
+    base, made = work / "base.pdf", work / "app-labels.pdf"
+    run([cli, "gen", str(base), "--pages", "30"])
+    rules = ["1:roman-lower", "5:decimal", "20:letters-upper:Anhang :25", "28:none:Índice"]
+    run([cli, "labels", "edit", str(base), str(made)] + [a for r in rules for a in ("--rule", r)])
+    expected = (
+        ["i", "ii", "iii", "iv"]
+        + [str(n) for n in range(1, 16)]
+        + ["Anhang " + x for x in ("Y", "Z", "AA", "BB", "CC", "DD", "EE", "FF")]
+        + ["Índice"] * 3
+    )
+    print(made.name)
+    qpdf_check(made, report)
+    label_checks(made, report, expected)
+
+    # 2. Labels another app wrote, as they are, and after the app moves one range.
+    source, edited = work / "other-app-labels.pdf", work / "other-app-labels-edited.pdf"
+    source.write_bytes(labels_fixture())
+    print(source.name)
+    label_checks(source, report, ["Cover", "i", "ii", "iii", "1", "2", "3", "4", "5", "Äh-C", "Äh-D", "Index 120"])
+    # The panel sends every rule; the decimal range now starts at page 6.
+    rules = ["1:none:Cover", "2:roman-lower", "6:decimal", "10:letters-upper:Äh-:3", "12:decimal:Index :120"]
+    run([cli, "labels", "edit", str(source), str(edited)] + [a for r in rules for a in ("--rule", r)])
+    print(edited.name)
+    qpdf_check(edited, report)
+    label_checks(edited, report, ["Cover", "i", "ii", "iii", "iv", "1", "2", "3", "4", "Äh-C", "Äh-D", "Index 120"])
+
+    # 3. "Remove all labels."
+    removed = work / "labels-removed.pdf"
+    run([cli, "labels", "edit", str(source), str(removed)])
+    print(removed.name)
+    qpdf_check(removed, report)
+    label_checks(removed, report, None)
+
+
 def main(argv: list[str]) -> int:
     # Titles in the checks are Unicode; Windows consoles (CI) default to a code page.
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -440,6 +514,8 @@ def main(argv: list[str]) -> int:
         phase0(report)
     elif argv[:1] == ["phase2"]:
         phase2(report)
+    elif argv[:1] == ["phase3"]:
+        phase3(report)
     elif argv[:1] == ["check"] and len(argv) == 2:
         pdf = Path(argv[1]).resolve()
         work = OUT / "check" / pdf.stem
