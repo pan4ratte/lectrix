@@ -675,6 +675,9 @@ The two "other app" files have blank pages; only their labels matter.
 
 ## Phase 4: Stitching (report, 2026-10-03)
 
+**Status: reviewed, waiting for CI.** Reviewed by the user on 2026-10-03 (decisions below);
+Acrobat checked by the user. The original report follows.
+
 *Report as written:* ready for review, not yet complete. Combining files and inserting
 pages work in the app, and every local check is green: the Rust tests, the end-to-end
 tests (now 7 flows), all interop suites and the local corpus. Two things are still open:
@@ -853,3 +856,13 @@ annotations and form fields.
 - Acrobat (above). Dark mode (Phase 5). A screen-reader pass: the grid is an ARIA listbox
   with multi-select, and every page reads like "3 of 12: report.pdf, page iv, turned 90°";
   the full accessibility pass is in Phase 6.
+
+### Review decisions (2026-10-03)
+
+1. **CI:** the Phase 4 commits are pushed.
+2. **Signed source files: option (b).** Before combining files that are signed, or
+   inserting pages from one, Folio asks: "The signature in X will not be valid in the
+   combined file" (or "in this document"), with "Combine anyway" / "Insert anyway" and
+   Cancel. The signature fields are still copied as they are. Covered by Vitest and by an
+   E2E flow with a signed file (Cancel writes nothing; "Combine anyway" combines).
+3. **Acrobat:** checked by the user; the combined and inserted files show correctly.

@@ -140,6 +140,25 @@ export function summary(pageCount: number, fileCount: number): string {
 	return `${count(pageCount, 'page', 'pages')} from ${count(fileCount, 'file', 'files')}`;
 }
 
+/**
+ * The question asked before pages of signed files are copied (Phase 4 review): a
+ * signature is valid only in the file it signed, so it shows as invalid where its pages
+ * go. The fields are copied as they are; nothing is removed.
+ */
+export function signedWarning(names: string[], inserting: boolean) {
+	const one = names.length === 1;
+	return {
+		title: one ? 'This file is signed' : 'These files are signed',
+		message: `The ${one ? 'signature' : 'signatures'} in ${list(names)} will not be valid in ${inserting ? 'this document' : 'the combined file'}.`,
+		detail: `A signature is valid only in the file that was signed. The signature ${one ? 'field is' : 'fields are'} copied as ${one ? 'it is' : 'they are'}, and readers will show ${one ? 'it' : 'them'} as invalid. The original ${one ? 'file is' : 'files are'} not changed.`,
+		buttons: [
+			{ id: 'go', label: inserting ? 'Insert anyway' : 'Combine anyway', primary: true },
+			{ id: 'cancel', label: 'Cancel' }
+		],
+		cancel: 'cancel'
+	};
+}
+
 /** What the user should know about a combine or insert beyond "it worked", or null. */
 export function reportDetail(report: MergeReport): string | null {
 	const parts: string[] = [];

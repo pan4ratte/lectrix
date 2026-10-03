@@ -10,6 +10,7 @@ import {
 	removePages,
 	reportDetail,
 	rotatePages,
+	signedWarning,
 	summary,
 	type CombinePage
 } from './pages.ts';
@@ -94,6 +95,16 @@ describe('history', () => {
 });
 
 describe('messages', () => {
+	it('warns that signatures will not be valid where the pages go', () => {
+		const one = signedWarning(['contract.pdf'], false);
+		expect(one.message).toBe('The signature in contract.pdf will not be valid in the combined file.');
+		expect(one.buttons[0]!.label).toBe('Combine anyway');
+		const two = signedWarning(['a.pdf', 'b.pdf'], true);
+		expect(two.title).toBe('These files are signed');
+		expect(two.message).toBe('The signatures in a.pdf and b.pdf will not be valid in this document.');
+		expect(two.buttons[0]!.label).toBe('Insert anyway');
+	});
+
 	it('summarizes pages and files', () => {
 		expect(summary(1, 1)).toBe('1 page from 1 file');
 		expect(summary(1200, 3)).toBe(`${(1200).toLocaleString()} pages from 3 files`);

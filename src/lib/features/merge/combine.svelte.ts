@@ -28,6 +28,7 @@ import {
 	removePages,
 	reportDetail,
 	rotatePages,
+	signedWarning,
 	summary,
 	type CombinePage
 } from './pages.ts';
@@ -44,6 +45,8 @@ export interface CombineSource {
 	/** One label per page, or null without labels. */
 	labels: string[] | null;
 	revision: number;
+	/** Holds a signature, which will not be valid in the combined file. */
+	signed: boolean;
 	/** Which `--folio-source-N` color marks its pages (1-based). */
 	color: number;
 }
@@ -153,6 +156,7 @@ export class CombineState {
 							pages: doc.pages,
 							labels: doc.labels,
 							revision: doc.state.revision,
+							signed: doc.flags.signed,
 							color: (this.colorCount++ % SOURCE_COLORS) + 1
 						}
 					];
@@ -277,6 +281,8 @@ export class CombineState {
 		if (this.running || this.pages.length === 0) return;
 		const used = this.usedSources.map((s) => s.id);
 		const index = new Map(used.map((id, i) => [id, i]));
+		const signed = this.usedSources.filter((s) => s.signed).map((s) => s.name);
+		if (signed.length && (await this.host.ask(signedWarning(signed, false))) !== 'go') return;
 		try {
 			const plan = await planMerge(used);
 			if (plan.missing.length) {

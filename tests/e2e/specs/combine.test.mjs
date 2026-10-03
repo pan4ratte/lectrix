@@ -3,7 +3,7 @@
 // then insert pages from a file into an open document, undo and redo it, and save.
 
 import assert from 'node:assert/strict';
-import { rmSync } from 'node:fs';
+import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
@@ -166,4 +166,62 @@ test('insert pages from a file, undo, redo and save', async () => {
 	const report = info(doc);
 	assert.match(report, /^pages: 5$/m);
 	assert.deepEqual(bookmarks(doc), ['Folio sample -> page 2']);
+});
+
+/** A one-page PDF with a signed signature field (a /Sig field with a value), written by
+ * hand: enough for Folio to see the document as signed. */
+function signedPdf(path) {
+	const text = 'BT /F1 24 Tf 72 700 Td (Signed page) Tj ET';
+	const objects = [
+		'<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [4 0 R] /SigFlags 3 >> >>',
+		'<< /Type /Pages /Kids [3 0 R] /Count 1 /MediaBox [0 0 612 792] >>',
+		'<< /Type /Page /Parent 2 0 R /Contents 6 0 R /Annots [4 0 R] /Resources << /Font << /F1 7 0 R >> >> >>',
+		'<< /Type /Annot /Subtype /Widget /FT /Sig /T (Signature1) /Rect [0 0 0 0] /P 3 0 R /V 5 0 R /F 132 >>',
+		'<< /Type /Sig /Filter /Adobe.PPKLite /SubFilter /adbe.pkcs7.detached /ByteRange [0 0 0 0] /Contents <00> >>',
+		`<< /Length ${text.length} >>\nstream\n${text}\nendstream`,
+		'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>'
+	];
+	let out = '%PDF-1.7\n';
+	const offsets = [];
+	objects.forEach((body, i) => {
+		offsets.push(out.length);
+		out += `${i + 1} 0 obj\n${body}\nendobj\n`;
+	});
+	const xref = out.length;
+	out += `xref\n0 ${objects.length + 1}\n0000000000 65535 f \n`;
+	for (const o of offsets) out += `${String(o).padStart(10, '0')} 00000 n \n`;
+	out += `trailer\n<< /Size ${objects.length + 1} /Root 1 0 R >>\nstartxref\n${xref}\n%%EOF\n`;
+	writeFileSync(path, out, 'latin1');
+}
+
+test('combining a signed file warns first', async () => {
+	const signed = join(OUT, 'signed.pdf');
+	signedPdf(signed);
+	const plain = sample('combine-plain.pdf', 2);
+	const out = join(OUT, 'combined-signed.pdf');
+	rmSync(out, { force: true });
+
+	const { browser, stop } = await launch([], { dialogs: [[signed, plain], out] });
+	try {
+		await (await browser.$('button*=Combine files')).click();
+		await (await browser.$('button*=Add files')).click();
+		await waitForCells(browser, ['signed.pdf, page 1', 'combine-plain.pdf, page 1', 'combine-plain.pdf, page 2'], 'files added');
+
+		// Cancel: nothing is written.
+		await (await browser.$('button=Combine…')).click();
+		const dialog = await browser.$('[role=alertdialog]');
+		await dialog.waitForDisplayed();
+		assert.match(await dialog.getText(), /The signature in signed\.pdf will not be valid in the combined file/);
+		await (await browser.$('button=Cancel')).click();
+		await dialog.waitForDisplayed({ reverse: true });
+		assert.equal(existsSync(out), false);
+
+		// Combine anyway.
+		await (await browser.$('button=Combine…')).click();
+		await (await browser.$('button=Combine anyway')).click();
+		await waitForDocument(browser);
+	} finally {
+		await stop();
+	}
+	assert.match(info(out), /^pages: 3$/m);
 });

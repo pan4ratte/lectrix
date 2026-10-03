@@ -33,7 +33,7 @@ import {
 	type StartupInfo
 } from '#lib/ipc/index.ts';
 import { CombineState } from '#lib/features/merge/combine.svelte.ts';
-import { reportDetail } from '#lib/features/merge/pages.ts';
+import { reportDetail, signedWarning } from '#lib/features/merge/pages.ts';
 
 import { DocTab } from './doc.svelte.ts';
 
@@ -373,6 +373,9 @@ class AppStore {
 		const tab = request && this.tabs.find((t) => t.id === request.tabId);
 		if (!request || !tab) {
 			this.cancelInsert();
+			return false;
+		}
+		if (request.source.flags.signed && (await this.ask(signedWarning([request.source.name], true))) !== 'go') {
 			return false;
 		}
 		const change = await this.apply(tab, {
