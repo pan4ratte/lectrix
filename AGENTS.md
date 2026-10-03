@@ -374,6 +374,7 @@ Goal: prove the risky parts before building UI.
 - [ ] Crash recovery, recent files and per-file view memory work.
 - [ ] NSIS and MSI installers build in CI; `.pdf` file association can be chosen at install.
 - [ ] Performance targets from section 2 met, or gaps documented with a plan.
+- [ ] Large JPEG 2000 pages (Phase 2 finding): a page holding a 33-megapixel JPEG 2000 scan takes about 1.8 s to appear, almost all of it decoding the full image. Look into decoding such images at the resolution shown, and report the result.
 - [ ] Accessibility pass done (keyboard-only walkthrough, contrast check).
 - [ ] macOS and Linux build-only CI jobs added; platform gaps listed in `docs/progress.md`.
 

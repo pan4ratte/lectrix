@@ -467,6 +467,20 @@ the app by the E2E test). Expected for `outline-edited.pdf`, shown by
 Chapter Two, Chapter 3 (another file), Chapter 5; "Nouveau — 新しい" (page 4); Part II
 (open) > Chapter 4; "Приложение" (page 5).
 
+### Review decisions (2026-10-03)
+
+1. **WebView2 growth rule revised** (ADR 0002): at most 30 MB more for the 1,000-page
+   sample than for a one-page document, and memory after three rounds of scrolling within
+   10% of one round. Both hold.
+2. **`29-slow-first-page`:** accepted as content cost; decoding large JPEG 2000 images at
+   the shown resolution is on the Phase 6 checklist (AGENTS.md).
+3. **CI:** the Phase 2 commits are pushed.
+4. **Byte-for-byte:** explained to the user; waiting for an answer.
+5. **Acrobat:** checked by the user. The tree, titles and targets are correct in both
+   files. "Chapter 4" shows a JavaScript alert ("1") in both: that is the fixture's own
+   JavaScript action (`app.alert(1)`, standing in for another app's script bookmark),
+   kept unchanged by the edit, as it should be.
+
 ### Behavior choices made without explicit guidance
 
 - A click selects a bookmark and follows it; arrow keys only move the selection; Enter

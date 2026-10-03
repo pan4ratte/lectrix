@@ -1,6 +1,6 @@
 # 0002: Scope of the idle-memory target
 
-- Status: accepted (after Phase 0 review)
+- Status: accepted (after Phase 0 review); growth rule revised after Phase 2 review
 - Date: 2026-10-03
 
 ## Context
@@ -18,10 +18,17 @@ embedding a Chromium webview at all, and it barely changes with the document.
   it is the number our design choices control.
 - **The whole process tree (including WebView2) is measured and reported every phase** by
   `tests/perf/measure.ps1`, with two rules:
-  - Opening a 1,000-page document must not grow the WebView2 processes by more than 100 MB
-    over an empty window. The frontend must not hold rendered pages it does not show.
+  - ~~Opening a 1,000-page document must not grow the WebView2 processes by more than
+    100 MB over an empty window.~~ Replaced after the Phase 2 review (2026-10-03), because
+    most of that growth is the cost of showing any page at all:
+    - **Document size:** with the 1,000-page sample open and idle, the WebView2 processes
+      may use at most 30 MB more than with a one-page document open.
+    - **No unbounded growth:** after three rounds of the scroll tests, the whole tree may
+      use at most 10% more than after one round.
+    The frontend must not hold rendered pages it does not show.
   - In Phase 6, use WebView2's memory-reduction settings (for example lowering the memory
-    target level while the window is minimized) and report the result.
+    target level while the window is minimized) and report the result. (Minimized: done
+    in Phase 2.)
 
 ## Alternatives considered
 
@@ -52,5 +59,7 @@ Measured on the generated 1,000-page file, Windows 11, 1.5x display scaling
   minimized (planned for Phase 6, done now): the renderer drops from about 126 MB to
   8 MB; the GPU process keeps most of its pool.
 
-The growth rule (+100 MB) is still not met (+120 MB). A revision is proposed in
-`docs/progress.md` (Phase 2 report) and waits for the user's decision.
+The original growth rule (+100 MB) was not met (+120 MB). The user accepted the revised
+rules above on 2026-10-03; both hold (one-page and 1,000-page documents grow WebView2 by
+about the same 120 MB; one and three rounds of scrolling end at 1,052 to 1,105 and
+1,059 MB).
