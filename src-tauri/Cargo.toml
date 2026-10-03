@@ -17,7 +17,17 @@ tauri-build = { version = "=2.7.1", features = [] }
 pdf-core = { path = "../crates/pdf-core" }
 tauri = { version = "=2.12.1", features = [] }
 tauri-plugin-dialog = "=2.8.1"
+tauri-plugin-single-instance = "=2.5.2"
+mupdf.workspace = true
 serde = { version = "=1.0.229", features = ["derive"] }
 serde_json = "1"
 thiserror.workspace = true
 ts-rs = "=12.0.1"
+
+[target.'cfg(windows)'.dependencies]
+# Already in the dependency tree through Tauri; used directly by src/platform/windows.rs.
+windows-sys = { version = "=0.61.2", features = [
+    "Wdk_System_SystemServices",
+    "Win32_System_Registry",
+    "Win32_System_SystemInformation",
+] }

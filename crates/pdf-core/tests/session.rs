@@ -334,6 +334,9 @@ fn text_render_and_search_through_the_session() {
         hits.iter().map(|h| h.page).collect::<Vec<_>>(),
         vec![0, 1, 2, 3, 4]
     );
+    // A range running past the last page stops at the last page.
+    let (hits, _) = session.search(MARKER, 3..64).unwrap();
+    assert_eq!(hits.iter().map(|h| h.page).collect::<Vec<_>>(), vec![3, 4]);
     let (hits, _) = session.search("on page 4.", 0..5).unwrap();
     assert_eq!(hits.len(), 1);
     assert_eq!(hits[0].page, 3);

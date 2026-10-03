@@ -207,18 +207,24 @@ impl Session {
         Ok((text::page_text(&list)?, revision))
     }
 
-    /// Searches `pages` for `needle`. Pages are visited one by one, so callers search
-    /// large documents in chunks and can stop between them. Display lists built for the
+    /// Searches `pages` for `needle` (a range past the last page stops at the last page).
+    /// Pages are visited one by one, so callers search large documents in chunks and can
+    /// stop between them. Display lists built for the
     /// search are not cached, so a search does not evict the pages on screen.
     pub fn search(&self, needle: &str, pages: Range<usize>) -> Result<(Vec<PageHits>, u64)> {
         let mut out = Vec::new();
         let mut revision = 0;
         for page in pages {
-            let (list, rev) = self.call(|reply| Command::DisplayList {
+            let (list, rev) = match self.call(|reply| Command::DisplayList {
                 page,
                 cache: false,
                 reply,
-            })?;
+            }) {
+                Ok(found) => found,
+                // The range may run past the last page; stop there.
+                Err(Error::PageOutOfRange(_)) => break,
+                Err(e) => return Err(e),
+            };
             revision = rev;
             let hits = text::search_page(&list, needle)?;
             if !hits.is_empty() {

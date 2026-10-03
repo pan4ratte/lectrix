@@ -1,0 +1,111 @@
+//! Windows 10 (1809+) and Windows 11.
+
+use std::path::Path;
+
+use windows_sys::Wdk::System::SystemServices::RtlGetVersion;
+use windows_sys::Win32::System::Registry::{HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RegGetValueW};
+use windows_sys::Win32::System::SystemInformation::OSVERSIONINFOW;
+
+use super::{Backdrop, Platform};
+
+pub struct Windows;
+
+/// First Windows 11 build; Mica exists from here on.
+const WINDOWS_11_BUILD: u32 = 22000;
+
+fn build_number() -> u32 {
+    let mut info = OSVERSIONINFOW {
+        dwOSVersionInfoSize: std::mem::size_of::<OSVERSIONINFOW>() as u32,
+        ..OSVERSIONINFOW::default()
+    };
+    // SAFETY: `info` is a properly sized, writable OSVERSIONINFOW with its size field set,
+    // as RtlGetVersion requires. It always succeeds for this structure.
+    let status = unsafe { RtlGetVersion(&mut info) };
+    if status == 0 { info.dwBuildNumber } else { 0 }
+}
+
+fn wide(s: &str) -> Vec<u16> {
+    s.encode_utf16().chain(std::iter::once(0)).collect()
+}
+
+/// Reads a DWORD from HKEY_CURRENT_USER.
+fn read_user_dword(subkey: &str, value: &str) -> Option<u32> {
+    let (subkey, value) = (wide(subkey), wide(value));
+    let mut data: u32 = 0;
+    let mut size = std::mem::size_of::<u32>() as u32;
+    // SAFETY: the key and value names are NUL-terminated UTF-16 buffers that outlive the
+    // call; `data` and `size` describe a writable 4-byte buffer, and RRF_RT_REG_DWORD
+    // limits the result to a DWORD.
+    let status = unsafe {
+        RegGetValueW(
+            HKEY_CURRENT_USER,
+            subkey.as_ptr(),
+            value.as_ptr(),
+            RRF_RT_REG_DWORD,
+            std::ptr::null_mut(),
+            (&mut data as *mut u32).cast(),
+            &mut size,
+        )
+    };
+    (status == 0).then_some(data)
+}
+
+impl Platform for Windows {
+    fn backdrop(&self) -> Backdrop {
+        if build_number() >= WINDOWS_11_BUILD {
+            Backdrop::Mica
+        } else {
+            Backdrop::Solid
+        }
+    }
+
+    fn accent_color(&self) -> Option<String> {
+        // The accent color chosen in Settings > Personalization > Colors, as 0xAABBGGRR.
+        let abgr = read_user_dword(
+            r"Software\Microsoft\Windows\CurrentVersion\Explorer\Accent",
+            "AccentColorMenu",
+        )?;
+        let [r, g, b, _] = abgr.to_le_bytes();
+        Some(format!("#{r:02x}{g:02x}{b:02x}"))
+    }
+
+    fn same_file(&self, a: &Path, b: &Path) -> bool {
+        // canonicalize resolves links and gives the on-disk spelling; NTFS is
+        // case-insensitive, so compare case-insensitively as well.
+        match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
+            (Ok(a), Ok(b)) => {
+                a.to_string_lossy().to_lowercase() == b.to_string_lossy().to_lowercase()
+            }
+            _ => a.to_string_lossy().to_lowercase() == b.to_string_lossy().to_lowercase(),
+        }
+    }
+
+    fn file_key(&self, path: &Path) -> String {
+        std::fs::canonicalize(path)
+            .unwrap_or_else(|_| path.to_path_buf())
+            .to_string_lossy()
+            .to_lowercase()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn reads_a_plausible_build_number() {
+        // Windows 10 1809 is build 17763, the oldest supported version.
+        assert!(build_number() >= 17763);
+    }
+
+    #[test]
+    fn compares_paths_case_insensitively() {
+        let dir = std::env::temp_dir();
+        let upper = dir.join("FOLIO-SAME-FILE-TEST.tmp");
+        std::fs::write(&upper, b"x").unwrap();
+        let lower = dir.join("folio-same-file-test.tmp");
+        assert!(Windows.same_file(&upper, &lower));
+        assert_eq!(Windows.file_key(&upper), Windows.file_key(&lower));
+        let _ = std::fs::remove_file(&upper);
+    }
+}

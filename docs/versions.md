@@ -29,6 +29,8 @@ Recorded at project start (2026-10-02). Versions are pinned exactly in `Cargo.to
 | tauri | 2.12.1 |
 | tauri-build | 2.7.1 |
 | tauri-plugin-dialog | 2.8.1 |
+| tauri-plugin-single-instance | 2.5.2 (Phase 1; forwards a second launch's files to the running window) |
+| windows-sys | 0.61.2 (Phase 1; Windows `platform` module; already in the tree through Tauri) |
 | thiserror | 2.0.21 |
 | cc (build) | 1.5.1 |
 | uuid | 1.26.1 |

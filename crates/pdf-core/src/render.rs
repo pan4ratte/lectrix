@@ -123,6 +123,27 @@ pub fn render_rgba(list: &DisplayList, scale: f32, region: Option<PixelRect>) ->
     })
 }
 
+/// Encodes opaque RGBA pixels as an RGB PNG at the fastest compression level (the alpha
+/// channel is always 255, so it is dropped).
+pub fn encode_rgba_png(image: &RgbaImage) -> Result<Vec<u8>> {
+    let rgb: Vec<u8> = image
+        .data
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .flat_map(|[r, g, b, _]| [*r, *g, *b])
+        .collect();
+    let mut out = Vec::with_capacity(rgb.len() / 4);
+    let mut encoder = png::Encoder::new(&mut out, image.width, image.height);
+    encoder.set_color(png::ColorType::Rgb);
+    encoder.set_depth(png::BitDepth::Eight);
+    encoder.set_compression(png::Compression::Fastest);
+    let mut writer = encoder.write_header().map_err(png_error)?;
+    writer.write_image_data(&rgb).map_err(png_error)?;
+    writer.finish().map_err(png_error)?;
+    Ok(out)
+}
+
 /// The pixmap's samples with row padding removed.
 fn packed_samples(pixmap: &Pixmap, n: usize) -> Result<Vec<u8>> {
     let (width, height) = (pixmap.width() as usize, pixmap.height() as usize);
@@ -395,6 +416,25 @@ mod tests {
             assert_eq!(&px4[..3], px3);
             assert_eq!(px4[3], 255);
         }
+    }
+
+    #[test]
+    fn png_of_rgba_decodes_to_the_same_pixels() {
+        let doc = sample_document(&SampleSpec::default()).unwrap();
+        let list = display_list(&doc, 0).unwrap();
+        let rgba = render_rgba(&list, 0.5, None).unwrap();
+        let png = encode_rgba_png(&rgba).unwrap();
+        let decoder = png::Decoder::new(std::io::Cursor::new(png));
+        let mut reader = decoder.read_info().unwrap();
+        let mut buf = vec![0; reader.output_buffer_size().unwrap()];
+        let info = reader.next_frame(&mut buf).unwrap();
+        assert_eq!((info.width, info.height), (rgba.width, rgba.height));
+        let rgb: Vec<u8> = rgba
+            .data
+            .chunks(4)
+            .flat_map(|p| [p[0], p[1], p[2]])
+            .collect();
+        assert_eq!(&buf[..info.buffer_size()], &rgb[..]);
     }
 
     #[test]

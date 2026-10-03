@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-remember-view"
+description = "Enables the remember_view command without any pre-configured scope."
+commands.allow = ["remember_view"]
+
+[[permission]]
+identifier = "deny-remember-view"
+description = "Denies the remember_view command without any pre-configured scope."
+commands.deny = ["remember_view"]

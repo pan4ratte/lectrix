@@ -1,146 +1,179 @@
-//! Folio app crate: a thin layer of IPC commands, the page-image protocol and windowing
-//! over `pdf-core`.
+//! Folio app crate: a thin layer of IPC commands, the page-image protocol, windowing and
+//! file handling over `pdf-core`.
 
+mod applog;
+mod commands;
+mod documents;
 mod ipc;
+mod platform;
 mod protocol;
+mod store;
 
-use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
-use pdf_core::session::Session;
-use tauri::{AppHandle, Manager, State};
-use tauri_plugin_dialog::DialogExt;
+use pdf_core::render::ImageCache;
+use tauri::{AppHandle, DragDropEvent, Emitter, Manager, WindowEvent};
 
-use ipc::{AppError, DocumentInfo, PageSize, StartupTimings};
+use documents::Documents;
+use ipc::OpenResult;
+use platform::Platform;
+use protocol::RenderGate;
+use store::Store;
 
 /// Working product name. Change it here, in `src/lib/config.ts` and in tauri.conf.json.
 pub const APP_NAME: &str = "Folio";
 
-static MAIN_START: OnceLock<Instant> = OnceLock::new();
+/// Memory for rendered page images kept for reuse (AGENTS.md section 3). Override with
+/// the FOLIO_IMAGE_CACHE_MB environment variable.
+const IMAGE_CACHE_MB: usize = 64;
 
-#[derive(Default)]
+/// MuPDF's own resource store (decoded images, fonts). Its default is 256 MB, more than
+/// the whole idle-memory target (ADR 0002).
+const MUPDF_STORE_MB: usize = 96;
+
+pub(crate) static MAIN_START: OnceLock<Instant> = OnceLock::new();
+
+/// Event carrying `Vec<OpenResult>` for files opened outside a command (drag-and-drop,
+/// a second launch with a file).
+const DOCUMENTS_OPENED: &str = "documents-opened";
+/// Event carrying `FileChangedEvent`.
+const FILE_CHANGED: &str = "file-changed";
+
 pub struct AppState {
-    documents: Mutex<HashMap<u32, Session>>,
-    next_id: AtomicU32,
-    /// A PDF passed on the command line (file association or `folio file.pdf`).
-    startup_path: Mutex<Option<PathBuf>>,
+    documents: Documents,
+    store: Mutex<Store>,
+    image_cache: ImageCache,
+    render_gate: RenderGate,
+    /// PDFs passed on the command line, opened once the frontend is ready.
+    startup_paths: Mutex<Vec<PathBuf>>,
+    platform: &'static dyn Platform,
 }
 
 impl AppState {
-    fn session(&self, id: u32) -> Option<Session> {
-        self.documents.lock().ok()?.get(&id).cloned()
-    }
-
-    /// Opens a path that came from the dialog, drag-and-drop or the command line. The
-    /// webview never supplies paths itself (section 2, security).
-    fn open(&self, path: &Path) -> Result<DocumentInfo, AppError> {
-        let (session, info) = Session::open(path, None)?;
-        let id = self.next_id.fetch_add(1, Ordering::Relaxed) + 1;
-        self.documents
-            .lock()
-            .map_err(|_| AppError::new("The app is in a bad state.", Some("Restart Folio.")))?
-            .insert(id, session);
-        Ok(DocumentInfo {
-            id,
-            name: path
-                .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_else(|| "Document".into()),
-            page_count: u32::try_from(info.pages.len()).unwrap_or(u32::MAX),
-            pages: info
-                .pages
-                .iter()
-                .map(|p| PageSize {
-                    width: p.width,
-                    height: p.height,
-                })
-                .collect(),
-            open_ms: info.open_time.as_secs_f64() * 1000.0,
-        })
+    /// Opens a path that came from the dialog, drag-and-drop, the command line or the
+    /// recent list. The webview never supplies paths itself (section 2, security).
+    fn open(&self, path: &Path) -> OpenResult {
+        self.documents.open(path, None, self.platform, &self.store)
     }
 }
 
-/// Shows the Open dialog and opens the chosen PDF. Runs off the main thread (`async`) so
-/// the blocking dialog call cannot stall the event loop.
-#[tauri::command(async)]
-fn open_with_dialog(
-    app: AppHandle,
-    state: State<'_, AppState>,
-) -> Result<Option<DocumentInfo>, AppError> {
-    let picked = app
-        .dialog()
-        .file()
-        .add_filter("PDF documents", &["pdf"])
-        .blocking_pick_file();
-    let Some(picked) = picked else {
-        return Ok(None);
-    };
-    let path = picked.into_path().map_err(|_| {
-        AppError::new(
-            "That location can't be opened.",
-            Some("Pick a file on a local or network drive."),
-        )
-    })?;
-    state.open(&path).map(Some)
+fn is_pdf(path: &Path) -> bool {
+    path.extension()
+        .is_some_and(|e| e.eq_ignore_ascii_case("pdf"))
 }
 
-/// Opens the PDF given on the command line, once.
-#[tauri::command(async)]
-fn open_startup_document(state: State<'_, AppState>) -> Result<Option<DocumentInfo>, AppError> {
-    let path = state.startup_path.lock().ok().and_then(|mut p| p.take());
-    match path {
-        Some(path) => state.open(&path).map(Some),
-        None => Ok(None),
-    }
-}
-
-#[tauri::command]
-fn close_document(state: State<'_, AppState>, id: u32) {
-    if let Some(session) = state.documents.lock().ok().and_then(|mut d| d.remove(&id)) {
-        session.close();
-    }
-}
-
-/// Called by the frontend on first mount; reports startup time.
-#[tauri::command]
-fn app_ready() -> StartupTimings {
-    let elapsed = MAIN_START.get().map(Instant::elapsed).unwrap_or_default();
-    StartupTimings {
-        main_to_ready_ms: elapsed.as_secs_f64() * 1000.0,
-    }
-}
-
-/// Prints a frontend timing to stdout as `[folio-metric] name=value`, for scripted
-/// performance measurements (section 2 targets).
-#[tauri::command]
-fn log_metric(name: String, ms: f64) {
-    let name: String = name
-        .chars()
-        .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
-        .take(64)
-        .collect();
-    println!("[folio-metric] {name}={ms:.1}");
-}
-
-fn startup_path_from_args() -> Option<PathBuf> {
-    std::env::args_os()
-        .skip(1)
+/// PDF paths among command-line arguments, made absolute against `cwd`.
+fn pdf_args(args: impl IntoIterator<Item = String>, cwd: &Path) -> Vec<PathBuf> {
+    args.into_iter()
         .map(PathBuf::from)
-        .find(|p| p.extension().is_some_and(|e| e.eq_ignore_ascii_case("pdf")) && p.is_file())
+        .map(|p| if p.is_absolute() { p } else { cwd.join(p) })
+        .filter(|p| is_pdf(p) && p.is_file())
+        .collect()
+}
+
+/// Opens paths off the main thread and tells the frontend.
+fn open_in_background(app: &AppHandle, paths: Vec<PathBuf>) {
+    let paths: Vec<PathBuf> = paths.into_iter().filter(|p| is_pdf(p)).collect();
+    if paths.is_empty() {
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        let state = app.state::<AppState>();
+        let results: Vec<OpenResult> = paths.iter().map(|p| state.open(p)).collect();
+        if let Err(e) = app.emit(DOCUMENTS_OPENED, results) {
+            applog::warn(format!("could not notify the window of opened files: {e}"));
+        }
+    });
+}
+
+fn focus_main_window(app: &AppHandle) {
+    if let Some(window) = app.get_webview_window("main") {
+        let _ = window.unminimize();
+        let _ = window.set_focus();
+    }
+}
+
+/// Polls open files for changes made by other programs (section 7).
+fn watch_files(app: AppHandle) {
+    std::thread::Builder::new()
+        .name("file-watch".into())
+        .spawn(move || {
+            loop {
+                std::thread::sleep(documents::WATCH_INTERVAL);
+                let state = app.state::<AppState>();
+                for event in state.documents.poll_changes() {
+                    if let Err(e) = app.emit(FILE_CHANGED, event) {
+                        applog::warn(format!("could not report a file change: {e}"));
+                    }
+                }
+            }
+        })
+        .map(drop)
+        .unwrap_or_else(|e| applog::error(format!("file watching is off: {e}")));
+}
+
+fn env_mb(name: &str, default: usize) -> usize {
+    std::env::var(name)
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(default)
 }
 
 pub fn run() {
     MAIN_START.get_or_init(Instant::now);
-    let state = AppState {
-        startup_path: Mutex::new(startup_path_from_args()),
-        ..AppState::default()
-    };
+    if let Err(e) = mupdf::set_store_max_size(env_mb("FOLIO_MUPDF_STORE_MB", MUPDF_STORE_MB) << 20)
+    {
+        eprintln!("could not limit MuPDF's store: {e}");
+    }
+    pdf_core::fonts::install();
+    pdf_core::fonts::warm_up_in_background();
+
+    let cwd = std::env::current_dir().unwrap_or_default();
+    let startup_paths = pdf_args(std::env::args().skip(1), &cwd);
+
     let result = tauri::Builder::default()
+        // Must be the first plugin: a second launch (for example double-clicking another
+        // PDF) hands its arguments to this instance and exits.
+        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+            let paths = pdf_args(args.into_iter().skip(1), Path::new(&cwd));
+            open_in_background(app, paths);
+            focus_main_window(app);
+        }))
         .plugin(tauri_plugin_dialog::init())
-        .manage(state)
+        .setup(move |app| {
+            if let Ok(dir) = app.path().app_log_dir() {
+                applog::init(&dir);
+            }
+            applog::info(format!("{APP_NAME} {} starting", env!("CARGO_PKG_VERSION")));
+            // FOLIO_EPHEMERAL (used by tests/perf/measure.ps1) keeps measurement runs out
+            // of the user's recent files and remembered views.
+            let store_file = if std::env::var_os("FOLIO_EPHEMERAL").is_some() {
+                None
+            } else {
+                app.path()
+                    .app_local_data_dir()
+                    .ok()
+                    .map(|d| d.join("state.json"))
+            };
+            app.manage(AppState {
+                documents: Documents::default(),
+                store: Mutex::new(Store::load(store_file)),
+                image_cache: ImageCache::new(env_mb("FOLIO_IMAGE_CACHE_MB", IMAGE_CACHE_MB) << 20),
+                render_gate: RenderGate::new(),
+                startup_paths: Mutex::new(startup_paths.clone()),
+                platform: platform::current(),
+            });
+            watch_files(app.handle().clone());
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if let WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) = event {
+                open_in_background(window.app_handle(), paths.clone());
+            }
+        })
         .register_asynchronous_uri_scheme_protocol("folio", |ctx, request, responder| {
             let app = ctx.app_handle().clone();
             // Rendering is CPU-bound: keep it off the webview's thread.
@@ -150,15 +183,52 @@ pub fn run() {
             });
         })
         .invoke_handler(tauri::generate_handler![
-            open_with_dialog,
-            open_startup_document,
-            close_document,
-            app_ready,
-            log_metric
+            commands::open_with_dialog,
+            commands::open_startup_documents,
+            commands::open_recent,
+            commands::remove_recent,
+            commands::list_recent_files,
+            commands::unlock_document,
+            commands::cancel_unlock,
+            commands::close_document,
+            commands::get_document_info,
+            commands::get_page_text,
+            commands::search_text,
+            commands::apply_operation,
+            commands::undo,
+            commands::redo,
+            commands::save,
+            commands::save_as,
+            commands::reload_document,
+            commands::remember_view,
+            commands::app_ready,
+            commands::log_metric,
+            commands::log_error,
         ])
         .run(tauri::generate_context!());
     if let Err(e) = result {
+        applog::error(format!("{APP_NAME} could not start: {e}"));
         eprintln!("{APP_NAME} could not start: {e}");
         std::process::exit(1);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn command_line_keeps_existing_pdfs_only() {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../target/test-output/args");
+        std::fs::create_dir_all(&dir).unwrap();
+        std::fs::write(dir.join("a.PDF"), b"%PDF").unwrap();
+        std::fs::write(dir.join("notes.txt"), b"x").unwrap();
+        let args = vec![
+            "a.PDF".to_string(),
+            "notes.txt".to_string(),
+            "missing.pdf".to_string(),
+            "--flag".to_string(),
+        ];
+        assert_eq!(pdf_args(args, &dir), vec![dir.join("a.PDF")]);
     }
 }

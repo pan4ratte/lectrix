@@ -2,50 +2,84 @@
 
 /*
  * Design tokens. Components use only these (through Tailwind utilities such as
- * bg-surface, text-fg, border-line); never hard-coded colors.
+ * bg-surface, text-fg, border-line, or the component classes below); never hard-coded
+ * colors. Spacing follows an 8 px grid (4 px for tight spots); radii 6 to 8 px.
+ *
+ * The system accent color arrives at startup as --folio-system-accent (set by
+ * src/lib/theme.ts); --folio-accent-fg is chosen there for contrast.
  */
 :root {
 	color-scheme: light dark;
 	--folio-bg: #f3f3f3;
+	--folio-chrome: #f3f3f3;
 	--folio-surface: #fbfbfb;
 	--folio-surface-raised: #ffffff;
 	--folio-canvas: #e6e6e6;
+	--folio-hover: rgb(0 0 0 / 0.05);
+	--folio-pressed: rgb(0 0 0 / 0.08);
 	--folio-fg: #1b1b1b;
 	--folio-fg-muted: #5c5c5c;
 	--folio-line: #e0e0e0;
-	--folio-accent: #005fb8;
-	--folio-accent-fg: #ffffff;
-	--folio-focus: #005fb8;
+	--folio-accent: var(--folio-system-accent, #005fb8);
+	--folio-accent-fg: var(--folio-system-accent-fg, #ffffff);
+	--folio-focus: var(--folio-accent);
+	--folio-danger: #c42b1c;
+	--folio-danger-bg: #fde7e9;
+	--folio-info-bg: #f0f6fc;
 	--folio-page-shadow: rgb(0 0 0 / 0.14);
+	--folio-overlay: rgb(0 0 0 / 0.3);
+	--folio-selection: color-mix(in srgb, var(--folio-accent) 32%, transparent);
+	--folio-search-hit: rgb(255 196 0 / 0.38);
+	--folio-search-current: rgb(255 120 0 / 0.5);
+	--folio-close-hover: #c42b1c;
+	--folio-close-hover-fg: #ffffff;
 }
 
 @media (prefers-color-scheme: dark) {
 	:root {
 		--folio-bg: #202020;
+		--folio-chrome: #202020;
 		--folio-surface: #2b2b2b;
-		--folio-surface-raised: #323232;
+		--folio-surface-raised: #2c2c2c;
 		--folio-canvas: #1a1a1a;
+		--folio-hover: rgb(255 255 255 / 0.06);
+		--folio-pressed: rgb(255 255 255 / 0.09);
 		--folio-fg: #ffffff;
 		--folio-fg-muted: #c5c5c5;
 		--folio-line: #3a3a3a;
-		--folio-accent: #60cdff;
+		/* Windows uses a lighter shade of the accent on dark backgrounds. */
+		--folio-accent: color-mix(in srgb, var(--folio-system-accent, #0078d4) 55%, white);
 		--folio-accent-fg: #000000;
-		--folio-focus: #60cdff;
+		--folio-danger: #ff99a4;
+		--folio-danger-bg: #442726;
+		--folio-info-bg: #1f2a35;
 		--folio-page-shadow: rgb(0 0 0 / 0.5);
+		--folio-overlay: rgb(0 0 0 / 0.5);
 	}
+}
+
+/* With Mica, the chrome is transparent and the system material shows through. */
+:root[data-backdrop='mica'] {
+	--folio-bg: transparent;
+	--folio-chrome: transparent;
 }
 
 @theme inline {
 	--color-bg: var(--folio-bg);
+	--color-chrome: var(--folio-chrome);
 	--color-surface: var(--folio-surface);
 	--color-surface-raised: var(--folio-surface-raised);
 	--color-canvas: var(--folio-canvas);
+	--color-hover: var(--folio-hover);
 	--color-fg: var(--folio-fg);
 	--color-fg-muted: var(--folio-fg-muted);
 	--color-line: var(--folio-line);
 	--color-accent: var(--folio-accent);
 	--color-accent-fg: var(--folio-accent-fg);
 	--color-focus: var(--folio-focus);
+	--color-danger: var(--folio-danger);
+	--color-danger-bg: var(--folio-danger-bg);
+	--color-info-bg: var(--folio-info-bg);
 	--color-page-shadow: var(--folio-page-shadow);
 	--font-sans: 'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
 	--radius-control: 6px;
@@ -60,10 +94,174 @@ body {
 	color: var(--folio-fg);
 	font-family: var(--font-sans);
 	font-size: 14px;
+	overflow: hidden;
+	user-select: none;
+	-webkit-user-select: none;
+}
+
+input,
+textarea {
+	user-select: text;
+	-webkit-user-select: text;
+	font: inherit;
+	color: inherit;
+}
+
+button {
+	font: inherit;
+	color: inherit;
+	cursor: default;
 }
 
 :focus-visible {
 	outline: 2px solid var(--folio-focus);
+	outline-offset: 2px;
+}
+
+/* SVG overlays on pages. */
+.fill-selection {
+	fill: var(--folio-selection);
+}
+.fill-search-hit {
+	fill: var(--folio-search-hit);
+}
+.fill-search-current {
+	fill: var(--folio-search-current);
+}
+
+.viewer-scroll:focus-visible {
+	outline: 2px solid var(--folio-focus);
+	outline-offset: -2px;
+}
+
+/* ----- controls ----- */
+
+.icon-button {
+	display: inline-flex;
+	width: 32px;
+	height: 32px;
+	align-items: center;
+	justify-content: center;
+	border: 0;
+	border-radius: var(--radius-control);
+	background: transparent;
+}
+.icon-button:hover:not(:disabled) {
+	background: var(--folio-hover);
+}
+.icon-button:active:not(:disabled) {
+	background: var(--folio-pressed);
+}
+.icon-button:disabled {
+	opacity: 0.4;
+}
+
+.button {
+	display: inline-flex;
+	height: 32px;
+	min-width: 80px;
+	align-items: center;
+	justify-content: center;
+	padding: 0 12px;
+	border: 1px solid var(--folio-line);
+	border-radius: var(--radius-control);
+	background: var(--folio-surface-raised);
+}
+.button:hover {
+	background: color-mix(in srgb, var(--folio-surface-raised), var(--folio-fg) 4%);
+}
+.button-primary {
+	border-color: transparent;
+	background: var(--folio-accent);
+	color: var(--folio-accent-fg);
+}
+.button-primary:hover {
+	background: color-mix(in srgb, var(--folio-accent), var(--folio-bg) 10%);
+}
+
+/* ----- menus (bits-ui) ----- */
+
+.menu-content {
+	z-index: 50;
+	min-width: 220px;
+	padding: 4px;
+	border: 1px solid var(--folio-line);
+	border-radius: var(--radius-panel);
+	background: var(--folio-surface-raised);
+	box-shadow: 0 8px 16px var(--folio-page-shadow);
+	outline: none;
+}
+.menu-item {
+	display: flex;
+	height: 32px;
+	align-items: center;
+	gap: 8px;
+	padding: 0 12px;
+	border-radius: 4px;
+	outline: none;
+}
+.menu-item[data-highlighted] {
+	background: var(--folio-hover);
+}
+.menu-item[data-disabled] {
+	opacity: 0.45;
+}
+.menu-shortcut {
+	margin-left: auto;
+	padding-left: 24px;
+	color: var(--folio-fg-muted);
+	font-size: 12px;
+}
+.menu-separator {
+	height: 1px;
+	margin: 4px 0;
+	background: var(--folio-line);
+}
+.menubar-trigger {
+	height: 28px;
+	padding: 0 8px;
+	border: 0;
+	border-radius: var(--radius-control);
+	background: transparent;
+}
+.menubar-trigger:hover,
+.menubar-trigger[data-state='open'] {
+	background: var(--folio-hover);
+}
+
+/* ----- dialogs ----- */
+
+.dialog-overlay {
+	position: fixed;
+	inset: 0;
+	z-index: 40;
+	background: var(--folio-overlay);
+}
+.dialog-content {
+	position: fixed;
+	top: 50%;
+	left: 50%;
+	z-index: 50;
+	max-width: calc(100vw - 32px);
+	transform: translate(-50%, -50%);
+	padding: 24px;
+	border: 1px solid var(--folio-line);
+	border-radius: var(--radius-panel);
+	background: var(--folio-surface-raised);
+	box-shadow: 0 16px 32px var(--folio-page-shadow);
+}
+
+/* ----- thumbnails ----- */
+
+.thumb {
+	border: 0;
+	background: transparent;
+}
+.thumb:hover > span:first-child {
+	outline: 2px solid var(--folio-line);
+}
+.thumb-current > span:first-child {
+	outline: 2px solid var(--folio-accent);
 	outline-offset: 2px;
 }
 
@@ -72,4 +270,10 @@ body {
 		transition: none !important;
 		animation: none !important;
 	}
+}
+
+/* Thin, quiet scrollbars, as in Windows 11 apps. */
+* {
+	scrollbar-width: thin;
+	scrollbar-color: color-mix(in srgb, var(--folio-fg) 35%, transparent) transparent;
 }
