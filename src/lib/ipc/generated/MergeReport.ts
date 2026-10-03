@@ -13,6 +13,10 @@ renamedDestinations: number,
  */
 renamedFields: number, 
 /**
+ * Attached files renamed for the same reason.
+ */
+renamedAttachments: number, 
+/**
  * Links left out because the page they lead to was not included.
  */
 droppedLinks: number, 

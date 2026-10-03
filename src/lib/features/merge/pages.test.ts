@@ -104,6 +104,7 @@ describe('messages', () => {
 			pages: 4,
 			renamedDestinations: 0,
 			renamedFields: 0,
+			renamedAttachments: 0,
 			droppedLinks: 0,
 			droppedBookmarks: 0,
 			bookmarksSkipped: false
@@ -114,6 +115,9 @@ describe('messages', () => {
 		);
 		expect(reportDetail({ ...none, renamedFields: 1 })).toBe(
 			'1 form field was renamed because another file used the same name.'
+		);
+		expect(reportDetail({ ...none, renamedFields: 1, renamedAttachments: 2 })).toBe(
+			'1 form field and 2 attached files were renamed because another file used the same name.'
 		);
 	});
 });

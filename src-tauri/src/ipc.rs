@@ -230,6 +230,8 @@ pub struct MergeReport {
     pub renamed_destinations: u32,
     /// Form fields renamed for the same reason.
     pub renamed_fields: u32,
+    /// Attached files renamed for the same reason.
+    pub renamed_attachments: u32,
     /// Links left out because the page they lead to was not included.
     pub dropped_links: u32,
     /// Bookmarks left out for the same reason.
@@ -245,6 +247,7 @@ impl From<pdf_core::merge::MergeReport> for MergeReport {
             pages: n(r.pages),
             renamed_destinations: n(r.renamed_destinations),
             renamed_fields: n(r.renamed_fields),
+            renamed_attachments: n(r.renamed_attachments),
             dropped_links: n(r.dropped_links),
             dropped_bookmarks: n(r.dropped_bookmarks),
             bookmarks_skipped: r.bookmarks_skipped,

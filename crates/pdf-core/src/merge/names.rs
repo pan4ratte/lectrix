@@ -50,12 +50,13 @@ pub(crate) fn collect(doc: &PdfDocument) -> Result<Vec<(Vec<u8>, PdfObject)>> {
     Ok(out)
 }
 
-/// The names in the `/Dests` name tree only (not the PDF 1.1 dictionary).
-fn tree_entries(doc: &PdfDocument) -> Result<Vec<(Vec<u8>, PdfObject)>> {
+/// The entries of one of the name trees under the catalog's `/Names` (`Dests`,
+/// `EmbeddedFiles`), in tree order; a name defined twice keeps its first value.
+pub(crate) fn tree_entries(doc: &PdfDocument, tree: &str) -> Result<Vec<(Vec<u8>, PdfObject)>> {
     let mut out = Vec::new();
     let mut seen = HashSet::new();
     if let Some(names) = doc.catalog()?.get_dict("Names")?
-        && let Some(tree) = names.get_dict("Dests")?
+        && let Some(tree) = names.get_dict(tree)?
     {
         let mut visited = HashSet::new();
         walk_tree(&tree, 0, &mut visited, &mut |name, value| {
@@ -278,14 +279,18 @@ impl DestFixer<'_> {
     }
 }
 
-/// Adds `entries` (name, destination value in `doc`) to the document's `/Dests` name
-/// tree, which is rewritten as one sorted leaf. Names already in the tree keep their
-/// values; the caller has made the new names unique.
-pub(crate) fn add_to_tree(doc: &mut PdfDocument, entries: Vec<(Vec<u8>, PdfObject)>) -> Result<()> {
+/// Adds `entries` (name, value in `doc`) to the name tree `tree` under the catalog's
+/// `/Names` (`Dests`, `EmbeddedFiles`), which is rewritten as one sorted leaf. Names
+/// already in the tree keep their values; the caller has made the new names unique.
+pub(crate) fn add_to_tree(
+    doc: &mut PdfDocument,
+    tree: &str,
+    entries: Vec<(Vec<u8>, PdfObject)>,
+) -> Result<()> {
     if entries.is_empty() {
         return Ok(());
     }
-    let mut all = tree_entries(doc)?;
+    let mut all = tree_entries(doc, tree)?;
     all.extend(entries);
     all.sort_by(|a, b| a.0.cmp(&b.0));
     all.dedup_by(|b, a| a.0 == b.0);
@@ -302,10 +307,10 @@ pub(crate) fn add_to_tree(doc: &mut PdfDocument, entries: Vec<(Vec<u8>, PdfObjec
 
     let mut catalog = doc.catalog()?;
     match catalog.get_dict("Names")? {
-        Some(mut names) if names.is_dict()? => names.dict_put("Dests", leaf)?,
+        Some(mut names) if names.is_dict()? => names.dict_put(tree, leaf)?,
         _ => {
             let mut names = doc.new_dict()?;
-            names.dict_put("Dests", leaf)?;
+            names.dict_put(tree, leaf)?;
             let names = doc.add_object(&names)?;
             catalog.dict_put("Names", names)?;
         }

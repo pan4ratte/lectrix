@@ -528,6 +528,34 @@ fn links_to_pages_left_out_are_dropped_and_options_are_honored() {
 }
 
 #[test]
+fn attached_files_come_along_and_colliding_names_are_renamed() {
+    use mupdf::pdf::EmbeddedFileOptions;
+    let dir = out_dir("merge-attachments");
+    let (a, b) = sources(&dir);
+    let mut srcs = [
+        MergeSource::open(&a, None).unwrap(),
+        MergeSource::open(&b, None).unwrap(),
+    ];
+    for (source, text) in srcs.iter_mut().zip([&b"from alpha"[..], b"from beta"]) {
+        source
+            .doc
+            .add_embedded_file("notes.txt", text, EmbeddedFileOptions::new("notes.txt"))
+            .unwrap();
+    }
+    let (merged, report) = merge::merge_all(&srcs, MergeOptions::default()).unwrap();
+    assert_eq!(report.renamed_attachments, 1);
+    let out = save(&merged, &dir.join("attachments.pdf"));
+    assert_eq!(
+        out.load_embedded_file("notes.txt").unwrap().unwrap(),
+        b"from alpha"
+    );
+    assert_eq!(
+        out.load_embedded_file("src2_notes.txt").unwrap().unwrap(),
+        b"from beta"
+    );
+}
+
+#[test]
 fn stopping_reports_cancelled() {
     let dir = out_dir("merge-cancel");
     let (a, b) = sources(&dir);

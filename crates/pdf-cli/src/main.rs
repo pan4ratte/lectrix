@@ -573,6 +573,12 @@ fn print_report(report: &MergeReport) {
             report.renamed_destinations
         );
     }
+    if report.renamed_attachments > 0 {
+        println!(
+            "renamed {} attached file(s) that another file already used",
+            report.renamed_attachments
+        );
+    }
     if report.renamed_fields > 0 {
         println!(
             "renamed {} form field(s) that another file already used",

@@ -126,6 +126,11 @@ export class History<T> {
 	}
 }
 
+/** "a", "a and b", "a, b and c". */
+function list(items: string[]): string {
+	return items.length <= 2 ? items.join(' and ') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
+}
+
 function count(n: number, one: string, many: string) {
 	return `${n.toLocaleString()} ${n === 1 ? one : many}`;
 }
@@ -141,10 +146,13 @@ export function reportDetail(report: MergeReport): string | null {
 	const renamed: string[] = [];
 	if (report.renamedDestinations) renamed.push(count(report.renamedDestinations, 'link target', 'link targets'));
 	if (report.renamedFields) renamed.push(count(report.renamedFields, 'form field', 'form fields'));
+	if (report.renamedAttachments) {
+		renamed.push(count(report.renamedAttachments, 'attached file', 'attached files'));
+	}
 	if (renamed.length) {
-		const total = report.renamedDestinations + report.renamedFields;
+		const total = report.renamedDestinations + report.renamedFields + report.renamedAttachments;
 		parts.push(
-			`${renamed.join(' and ')} ${total === 1 ? 'was' : 'were'} renamed because another file used the same name.`
+			`${list(renamed)} ${total === 1 ? 'was' : 'were'} renamed because another file used the same name.`
 		);
 	}
 	const dropped = report.droppedLinks + report.droppedBookmarks;
@@ -152,7 +160,7 @@ export function reportDetail(report: MergeReport): string | null {
 		const what: string[] = [];
 		if (report.droppedLinks) what.push(count(report.droppedLinks, 'link', 'links'));
 		if (report.droppedBookmarks) what.push(count(report.droppedBookmarks, 'bookmark', 'bookmarks'));
-		parts.push(`${what.join(' and ')} to pages you left out ${dropped === 1 ? 'was' : 'were'} removed.`);
+		parts.push(`${list(what)} to pages you left out ${dropped === 1 ? 'was' : 'were'} removed.`);
 	}
 	if (report.bookmarksSkipped) {
 		parts.push('The document’s bookmarks are damaged, so the inserted file’s bookmarks were not added.');

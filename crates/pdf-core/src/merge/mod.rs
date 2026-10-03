@@ -11,7 +11,8 @@
 //! 3. Named destinations come along; a name already taken is renamed with the source's
 //!    prefix, and copied links, bookmarks and actions follow the new name.
 //! 4. Form fields of copied widgets join the form (renamed the same way when their name is
-//!    taken), and optional content groups join the document's layer list.
+//!    taken), optional content groups join the document's layer list, and the document's
+//!    attached files (`/EmbeddedFiles`) come along, renamed the same way.
 //! 5. Bookmarks and page labels are combined as the options say.
 //!
 //! Nothing here touches the sources; they are only read.
@@ -107,6 +108,8 @@ pub struct MergeReport {
     pub renamed_destinations: usize,
     /// Form fields renamed for the same reason.
     pub renamed_fields: usize,
+    /// Attached files renamed for the same reason.
+    pub renamed_attachments: usize,
     /// Links left out because the page they lead to was not included.
     pub dropped_links: usize,
     /// Bookmarks left out for the same reason (bookmarks with children stay as headings).
@@ -419,6 +422,7 @@ struct Engine<'a> {
     states: Vec<SourceState>,
     taken_names: HashSet<Vec<u8>>,
     taken_fields: HashSet<String>,
+    taken_files: HashSet<Vec<u8>>,
     report: MergeReport,
 }
 
@@ -430,12 +434,17 @@ impl<'a> Engine<'a> {
     ) -> Result<Engine<'a>> {
         let taken_names = names::collect(dst)?.into_iter().map(|(n, _)| n).collect();
         let taken_fields = forms::top_level_names(dst)?;
+        let taken_files = names::tree_entries(dst, "EmbeddedFiles")?
+            .into_iter()
+            .map(|(n, _)| n)
+            .collect();
         Ok(Engine {
             sources,
             prefixes,
             states: Vec::new(),
             taken_names,
             taken_fields,
+            taken_files,
             report: MergeReport::default(),
         })
     }
@@ -495,6 +504,7 @@ impl<'a> Engine<'a> {
 
         // 3. Named destinations, form fields, layers and bookmarks of each source.
         let mut new_names = Vec::new();
+        let mut new_files = Vec::new();
         let mut copied_bookmarks = Vec::new();
         for (s, source) in self.sources.iter().enumerate() {
             let state = &mut self.states[s];
@@ -517,6 +527,19 @@ impl<'a> Engine<'a> {
                 &mut self.taken_fields,
             )?;
             merge_layers(dst, &source.doc, &mut state.copier)?;
+            for (name, file) in names::tree_entries(&source.doc, "EmbeddedFiles")? {
+                let Some(copied) = state.copier.copy(dst, &file)? else {
+                    continue;
+                };
+                let name = if self.taken_files.contains(&name) {
+                    self.report.renamed_attachments += 1;
+                    names::unique_name(&name, &self.prefixes[s], &self.taken_files)
+                } else {
+                    name
+                };
+                self.taken_files.insert(name.clone());
+                new_files.push((name, copied));
+            }
             let mut items = Vec::new();
             if bookmarks != BookmarkMode::Drop {
                 let copied = bookmarks::copy(dst, &source.doc, &mut state.copier, &state.pages)?;
@@ -543,7 +566,8 @@ impl<'a> Engine<'a> {
             new_names.extend(source_names);
             copied_bookmarks.push(items);
         }
-        names::add_to_tree(dst, new_names)?;
+        names::add_to_tree(dst, "Dests", new_names)?;
+        names::add_to_tree(dst, "EmbeddedFiles", new_files)?;
         self.report.pages += picks.len();
         Ok(copied_bookmarks)
     }
