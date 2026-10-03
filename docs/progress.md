@@ -660,3 +660,11 @@ The two "other app" files have blank pages; only their labels matter.
 
 - Acrobat (above). Dark mode (Phase 5). A keyboard-only and screen-reader pass: the list
   is an ARIA listbox and every field has a label; the full accessibility pass is in Phase 6.
+
+### Review decisions (2026-10-03)
+
+1. **CI:** the Phase 3 commits are pushed.
+2. **Thumbnail captions during typing:** kept as it is for now (captions change when an
+   edit is applied). The panel will probably be redesigned later.
+3. **Sidebar tabs:** icon-only tabs with tooltips when Phase 5 adds the Annotations tab.
+4. **Acrobat:** checked by the user; the labels show correctly.
