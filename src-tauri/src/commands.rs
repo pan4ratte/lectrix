@@ -5,16 +5,22 @@
 //! Commands that may block (dialogs, opening, saving, search) run off the main thread
 //! (`async`).
 
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Instant;
 
+use pdf_core::merge::{LabelMode as CoreLabelMode, MergeOptions, PagePick};
 use pdf_core::save::SaveKind;
+use tauri::ipc::Channel;
 use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
 
+use crate::combine::{self, Progress};
 use crate::ipc::{
-    AppError, Backdrop, DocumentChange, DocumentInfo, ImageFormat, OpenResult, OperationInput,
-    PageHits, PageText, RecentFile, SaveResult, SearchChunk, StartupInfo, ViewState,
+    AppError, Backdrop, DocumentChange, DocumentInfo, ImageFormat, LabelMode, MergeOutcome,
+    MergePlan, MergeProgress, MergeRequest, MergeStage, OpenResult, OperationInput, PageHits,
+    PageText, RecentFile, SaveResult, SearchChunk, StartupInfo, UnsavedSource, ViewState,
 };
 use crate::{AppState, MAIN_START, platform};
 
@@ -29,6 +35,12 @@ fn picked_path(picked: tauri_plugin_dialog::FilePath) -> Result<PathBuf, AppErro
             Some("Pick a file on a local or network drive."),
         )
     })
+}
+
+fn file_name(path: &Path) -> String {
+    path.file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default()
 }
 
 /// Shows the Open dialog (several files may be picked) and opens the chosen PDFs.
@@ -200,8 +212,220 @@ pub fn apply_operation(
     id: u32,
     operation: OperationInput,
 ) -> Result<DocumentChange, AppError> {
-    let change = state.documents.session(id)?.apply(operation.into())?;
+    let operation = operation.into_operation(&state.documents)?;
+    let change = state.documents.session(id)?.apply(operation)?;
     Ok(change.into())
+}
+
+// ----- combining files and inserting pages (section 6.4) -----
+
+/// Shows the Open dialog for files to combine and opens them as sources (not tabs).
+#[tauri::command(async)]
+pub fn open_merge_sources(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Vec<OpenResult>, AppError> {
+    let Some(picked) = app
+        .dialog()
+        .file()
+        .set_title("Add files to combine")
+        .add_filter("PDF documents", &["pdf"])
+        .blocking_pick_files()
+    else {
+        return Ok(Vec::new());
+    };
+    picked
+        .into_iter()
+        .map(|p| Ok(state.open_source(&picked_path(p)?)))
+        .collect()
+}
+
+/// Shows the Open dialog for the file to insert pages from, and opens it as a source.
+#[tauri::command(async)]
+pub fn open_insert_source(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<Option<OpenResult>, AppError> {
+    let Some(picked) = app
+        .dialog()
+        .file()
+        .set_title("Insert pages from")
+        .add_filter("PDF documents", &["pdf"])
+        .blocking_pick_file()
+    else {
+        return Ok(None);
+    };
+    Ok(Some(state.open_source(&picked_path(picked)?)))
+}
+
+/// Where dropped files go: to the Combine view (`true`, reported as
+/// `merge-sources-added`) or into tabs.
+#[tauri::command]
+pub fn set_drop_target(state: State<'_, AppState>, combine: bool) {
+    state.drop_to_combine.store(combine, Ordering::Relaxed);
+}
+
+/// Checks the sources before combining: files moved or deleted, and files open in a tab
+/// with unsaved changes (combining reads files as saved).
+#[tauri::command(async)]
+pub fn plan_merge(state: State<'_, AppState>, sources: Vec<u32>) -> Result<MergePlan, AppError> {
+    let mut plan = MergePlan {
+        unsaved: Vec::new(),
+        missing: Vec::new(),
+    };
+    for id in sources {
+        let (path, _) = state.documents.source(id)?;
+        if !path.is_file() {
+            plan.missing.push(file_name(&path));
+            continue;
+        }
+        for (tab, session) in state.documents.tabs_showing(&path, state.platform) {
+            if session.info()?.state.dirty && !plan.unsaved.iter().any(|u| u.tab == tab) {
+                plan.unsaved.push(UnsavedSource {
+                    tab,
+                    name: file_name(&path),
+                });
+            }
+        }
+    }
+    Ok(plan)
+}
+
+/// Shows the Save dialog and combines the pages into the chosen file, reporting progress
+/// on `on_progress`, then opens the result in a tab. Returns null if the user cancels the
+/// dialog; a cancelled merge fails with the `cancelled` code and writes nothing.
+#[tauri::command(async)]
+pub fn execute_merge(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    request: MergeRequest,
+    on_progress: Channel<MergeProgress>,
+) -> Result<Option<MergeOutcome>, AppError> {
+    if request.pages.is_empty() {
+        return Err(AppError::new(
+            "There are no pages to combine.",
+            Some("Add files, or put back pages you removed."),
+        ));
+    }
+    let sources = request
+        .sources
+        .iter()
+        .map(|&id| state.documents.source(id))
+        .collect::<Result<Vec<_>, _>>()?;
+    let mut dialog = app
+        .dialog()
+        .file()
+        .set_title("Save combined file")
+        .add_filter("PDF documents", &["pdf"])
+        .set_file_name("Combined.pdf");
+    if let Some(dir) = sources.first().and_then(|(p, _)| p.parent()) {
+        dialog = dialog.set_directory(dir);
+    }
+    let Some(picked) = dialog.blocking_save_file() else {
+        return Ok(None);
+    };
+    let mut target = picked_path(picked)?;
+    if target.extension().is_none() {
+        target.set_extension("pdf");
+    }
+    if let Some((path, _)) = sources
+        .iter()
+        .find(|(p, _)| state.platform.same_file(p, &target))
+    {
+        return Err(AppError::new(
+            format!("{} is one of the files being combined.", file_name(path)),
+            Some("Choose a new name: combining never changes the files it reads."),
+        ));
+    }
+    if !state
+        .documents
+        .tabs_showing(&target, state.platform)
+        .is_empty()
+    {
+        return Err(AppError::new(
+            "That file is open in a tab.",
+            Some("Close it there first, or choose a different name."),
+        ));
+    }
+
+    let cancel = Arc::new(AtomicBool::new(false));
+    {
+        let mut current = state
+            .merge_cancel
+            .lock()
+            .map_err(|_| AppError::bad_state())?;
+        if current.is_some() {
+            return Err(AppError::new(
+                "Folio is already combining files.",
+                Some("Wait for it to finish, or stop it."),
+            ));
+        }
+        *current = Some(cancel.clone());
+    }
+    let job = combine::Job {
+        sources,
+        picks: request
+            .pages
+            .iter()
+            .map(|p| PagePick {
+                source: p.source as usize,
+                page: p.page as usize,
+                rotate: p.rotation,
+            })
+            .collect(),
+        options: MergeOptions {
+            bookmarks: request.bookmarks.into(),
+            labels: match request.labels {
+                LabelMode::Keep => CoreLabelMode::KeepSources,
+                LabelMode::Continuous => CoreLabelMode::Continuous,
+                LabelMode::None => CoreLabelMode::None,
+            },
+        },
+        target: target.clone(),
+    };
+    let started = Instant::now();
+    let result = combine::run(job, cancel, move |p| {
+        let n = |v: usize| u32::try_from(v).unwrap_or(u32::MAX);
+        let message = match p {
+            Progress::Copying { done, total } => MergeProgress {
+                stage: MergeStage::Copying,
+                done: n(done),
+                total: n(total),
+            },
+            Progress::Writing => MergeProgress {
+                stage: MergeStage::Writing,
+                done: 0,
+                total: 0,
+            },
+        };
+        // The webview may have gone away; the merge finishes regardless.
+        let _ = on_progress.send(message);
+    });
+    if let Ok(mut current) = state.merge_cancel.lock() {
+        *current = None;
+    }
+    let report = result?;
+    crate::applog::info(format!(
+        "combined {} pages into {} in {:.0} ms",
+        report.pages,
+        target.display(),
+        started.elapsed().as_secs_f64() * 1000.0
+    ));
+    Ok(Some(MergeOutcome {
+        opened: state.open(&target),
+        report: report.into(),
+        name: file_name(&target),
+    }))
+}
+
+/// Stops the merge in progress, if any.
+#[tauri::command]
+pub fn cancel_merge(state: State<'_, AppState>) {
+    if let Ok(current) = state.merge_cancel.lock()
+        && let Some(cancel) = current.as_ref()
+    {
+        cancel.store(true, Ordering::Relaxed);
+    }
 }
 
 /// Records that a bookmark was expanded or collapsed in the panel. Not an edit: the state

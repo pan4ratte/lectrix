@@ -2,6 +2,7 @@
 import type { ChangedPage } from "./ChangedPage";
 import type { DocumentState } from "./DocumentState";
 import type { LabelRule } from "./LabelRule";
+import type { MergeReport } from "./MergeReport";
 import type { Outline } from "./Outline";
 
 /**
@@ -20,4 +21,13 @@ outline: Outline | null,
 /**
  * The id of what the operation created (the new bookmark).
  */
-created: number | null, };
+created: number | null, 
+/**
+ * The number of pages: when it differs from before, pages were inserted (or that was
+ * undone), and `changed_pages` lists every page from the first that moved.
+ */
+pageCount: number, 
+/**
+ * What inserting pages did (renamed names, links left out).
+ */
+mergeReport: MergeReport | null, };

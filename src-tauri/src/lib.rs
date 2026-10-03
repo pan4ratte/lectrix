@@ -2,6 +2,7 @@
 //! file handling over `pdf-core`.
 
 mod applog;
+mod combine;
 mod commands;
 mod documents;
 mod ipc;
@@ -11,7 +12,7 @@ mod store;
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::{Mutex, OnceLock};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
 use pdf_core::render::ImageCache;
@@ -44,6 +45,9 @@ static MINIMIZED: AtomicBool = AtomicBool::new(false);
 const DOCUMENTS_OPENED: &str = "documents-opened";
 /// Event carrying `FileChangedEvent`.
 const FILE_CHANGED: &str = "file-changed";
+/// Event carrying `Vec<OpenResult>` for files dropped on the Combine view (opened as
+/// sources, not tabs).
+const MERGE_SOURCES_ADDED: &str = "merge-sources-added";
 
 pub struct AppState {
     documents: Documents,
@@ -53,6 +57,10 @@ pub struct AppState {
     /// PDFs passed on the command line, opened once the frontend is ready.
     startup_paths: Mutex<Vec<PathBuf>>,
     platform: &'static dyn Platform,
+    /// Dropped files go to the Combine view instead of tabs.
+    drop_to_combine: AtomicBool,
+    /// Set while combining; storing `true` in it stops the merge.
+    merge_cancel: Mutex<Option<Arc<AtomicBool>>>,
 }
 
 impl AppState {
@@ -60,6 +68,12 @@ impl AppState {
     /// recent list. The webview never supplies paths itself (section 2, security).
     fn open(&self, path: &Path) -> OpenResult {
         self.documents.open(path, None, self.platform, &self.store)
+    }
+
+    /// Opens a path from the same places as a source for combining or inserting pages.
+    fn open_source(&self, path: &Path) -> OpenResult {
+        self.documents
+            .open_source(path, None, self.platform, &self.store)
     }
 }
 
@@ -77,8 +91,9 @@ fn pdf_args(args: impl IntoIterator<Item = String>, cwd: &Path) -> Vec<PathBuf> 
         .collect()
 }
 
-/// Opens paths off the main thread and tells the frontend.
-fn open_in_background(app: &AppHandle, paths: Vec<PathBuf>) {
+/// Opens paths off the main thread and tells the frontend: as tabs, or as sources when
+/// they were dropped on the Combine view (`as_sources`).
+fn open_in_background(app: &AppHandle, paths: Vec<PathBuf>, as_sources: bool) {
     let paths: Vec<PathBuf> = paths.into_iter().filter(|p| is_pdf(p)).collect();
     if paths.is_empty() {
         return;
@@ -86,8 +101,18 @@ fn open_in_background(app: &AppHandle, paths: Vec<PathBuf>) {
     let app = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<AppState>();
-        let results: Vec<OpenResult> = paths.iter().map(|p| state.open(p)).collect();
-        if let Err(e) = app.emit(DOCUMENTS_OPENED, results) {
+        let (event, results): (&str, Vec<OpenResult>) = if as_sources {
+            (
+                MERGE_SOURCES_ADDED,
+                paths.iter().map(|p| state.open_source(p)).collect(),
+            )
+        } else {
+            (
+                DOCUMENTS_OPENED,
+                paths.iter().map(|p| state.open(p)).collect(),
+            )
+        };
+        if let Err(e) = app.emit(event, results) {
             applog::warn(format!("could not notify the window of opened files: {e}"));
         }
     });
@@ -153,7 +178,7 @@ pub fn run() {
         // PDF) hands its arguments to this instance and exits.
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             let paths = pdf_args(args.into_iter().skip(1), Path::new(&cwd));
-            open_in_background(app, paths);
+            open_in_background(app, paths, false);
             focus_main_window(app);
         }))
         .plugin(tauri_plugin_dialog::init())
@@ -179,6 +204,8 @@ pub fn run() {
                 render_gate: RenderGate::new(),
                 startup_paths: Mutex::new(startup_paths.clone()),
                 platform: platform::current(),
+                drop_to_combine: AtomicBool::new(false),
+                merge_cancel: Mutex::new(None),
             });
             watch_files(app.handle().clone());
             // The main window is made here, not from tauri.conf.json, so it can get browser
@@ -194,7 +221,12 @@ pub fn run() {
         })
         .on_window_event(|window, event| match event {
             WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) => {
-                open_in_background(window.app_handle(), paths.clone());
+                let app = window.app_handle();
+                let to_combine = app
+                    .state::<AppState>()
+                    .drop_to_combine
+                    .load(Ordering::Relaxed);
+                open_in_background(app, paths.clone(), to_combine);
             }
             // A minimized window asks WebView2 to use less memory (ADR 0002).
             WindowEvent::Resized(_) => {
@@ -230,6 +262,12 @@ pub fn run() {
             commands::get_page_text,
             commands::search_text,
             commands::apply_operation,
+            commands::open_merge_sources,
+            commands::open_insert_source,
+            commands::set_drop_target,
+            commands::plan_merge,
+            commands::execute_merge,
+            commands::cancel_merge,
             commands::set_bookmark_open,
             commands::undo,
             commands::redo,

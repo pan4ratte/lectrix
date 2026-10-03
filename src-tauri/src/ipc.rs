@@ -6,6 +6,8 @@ use ts_rs::TS;
 
 use pdf_core::session as core;
 
+use crate::documents::Documents;
+
 #[derive(Debug, Clone, Copy, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -178,6 +180,11 @@ pub struct DocumentChange {
     pub outline: Option<Outline>,
     /// The id of what the operation created (the new bookmark).
     pub created: Option<u32>,
+    /// The number of pages: when it differs from before, pages were inserted (or that was
+    /// undone), and `changed_pages` lists every page from the first that moved.
+    pub page_count: u32,
+    /// What inserting pages did (renamed names, links left out).
+    pub merge_report: Option<MergeReport>,
 }
 
 impl From<core::DocumentChange> for DocumentChange {
@@ -189,6 +196,8 @@ impl From<core::DocumentChange> for DocumentChange {
         let (labels, label_rules) = split_labels(labels);
         let outline = c.outline.map(Outline::from);
         let created = c.created;
+        let page_count = u32::try_from(c.page_count).unwrap_or(u32::MAX);
+        let merge_report = c.merge_report.map(MergeReport::from);
         DocumentChange {
             state: c.state.into(),
             changed_pages: c
@@ -204,8 +213,164 @@ impl From<core::DocumentChange> for DocumentChange {
             label_rules,
             outline,
             created,
+            page_count,
+            merge_report,
         }
     }
+}
+
+/// What combining files or inserting pages did, for telling the user (section 6.4).
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct MergeReport {
+    pub pages: u32,
+    /// Named destinations renamed because another file already used the name.
+    pub renamed_destinations: u32,
+    /// Form fields renamed for the same reason.
+    pub renamed_fields: u32,
+    /// Links left out because the page they lead to was not included.
+    pub dropped_links: u32,
+    /// Bookmarks left out for the same reason.
+    pub dropped_bookmarks: u32,
+    /// The document's bookmarks are damaged, so the inserted file's were not added.
+    pub bookmarks_skipped: bool,
+}
+
+impl From<pdf_core::merge::MergeReport> for MergeReport {
+    fn from(r: pdf_core::merge::MergeReport) -> Self {
+        let n = |v: usize| u32::try_from(v).unwrap_or(u32::MAX);
+        MergeReport {
+            pages: n(r.pages),
+            renamed_destinations: n(r.renamed_destinations),
+            renamed_fields: n(r.renamed_fields),
+            dropped_links: n(r.dropped_links),
+            dropped_bookmarks: n(r.dropped_bookmarks),
+            bookmarks_skipped: r.bookmarks_skipped,
+        }
+    }
+}
+
+/// What happens to the sources' bookmarks when combining or inserting.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum BookmarkMode {
+    /// Each file's bookmarks under a new bookmark named after the file.
+    Nest,
+    /// All bookmarks at the top level.
+    Flat,
+    /// No bookmarks.
+    Drop,
+}
+
+impl From<BookmarkMode> for pdf_core::merge::BookmarkMode {
+    fn from(m: BookmarkMode) -> Self {
+        use pdf_core::merge::BookmarkMode as M;
+        match m {
+            BookmarkMode::Nest => M::NestUnderSource,
+            BookmarkMode::Flat => M::Flat,
+            BookmarkMode::Drop => M::Drop,
+        }
+    }
+}
+
+/// Page labels of a combined file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum LabelMode {
+    /// Every page keeps the label it had in its file.
+    Keep,
+    /// 1, 2, 3… over the whole result.
+    Continuous,
+    /// No page labels.
+    None,
+}
+
+/// Page labels of inserted pages.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum InsertLabelMode {
+    /// The inserted pages keep their own labels (if their file has labels).
+    Keep,
+    /// The inserted pages continue the numbering around them.
+    Follow,
+}
+
+/// One page of a combined file: page `page` of source number `source` (an index into
+/// `MergeRequest.sources`), turned by `rotation` degrees (a multiple of 90).
+#[derive(Debug, Clone, Copy, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct MergePage {
+    pub source: u32,
+    pub page: u32,
+    pub rotation: i32,
+}
+
+/// "Combine": the sources (ids of documents opened with `open_merge_sources`), the pages
+/// of the result in order, and the options.
+#[derive(Debug, Clone, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct MergeRequest {
+    pub sources: Vec<u32>,
+    pub pages: Vec<MergePage>,
+    pub bookmarks: BookmarkMode,
+    pub labels: LabelMode,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum MergeStage {
+    Copying,
+    Writing,
+}
+
+/// Sent on `execute_merge`'s channel while combining.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct MergeProgress {
+    pub stage: MergeStage,
+    /// Pages copied so far, of `total`.
+    pub done: u32,
+    pub total: u32,
+}
+
+/// A combined file, written and opened in a tab.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct MergeOutcome {
+    pub opened: OpenResult,
+    pub report: MergeReport,
+    /// The new file's name.
+    pub name: String,
+}
+
+/// A source that is also open in a tab with unsaved changes: combining reads the file as
+/// saved, without them.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct UnsavedSource {
+    /// The tab's document id.
+    pub tab: u32,
+    pub name: String,
+}
+
+/// Checks before combining (`plan_merge`).
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct MergePlan {
+    pub unsaved: Vec<UnsavedSource>,
+    /// Sources whose files were moved or deleted since they were added.
+    pub missing: Vec<String>,
 }
 
 /// How a page's label is numbered (AGENTS.md section 6.3).
@@ -471,12 +636,58 @@ pub enum OperationInput {
     SetPageLabels {
         rules: Vec<LabelRule>,
     },
+    /// Insert pages of a file opened with `open_insert_source` (its document id) before
+    /// page `at` (the page count appends). `pages` (0-based) empty inserts all of them.
+    InsertPages {
+        source: u32,
+        pages: Vec<u32>,
+        at: u32,
+        bookmarks: BookmarkMode,
+        labels: InsertLabelMode,
+    },
 }
 
-impl From<OperationInput> for pdf_core::ops::Operation {
-    fn from(op: OperationInput) -> Self {
+impl OperationInput {
+    /// The operation, with document ids resolved to files.
+    pub fn into_operation(
+        self,
+        documents: &Documents,
+    ) -> Result<pdf_core::ops::Operation, AppError> {
         use pdf_core::ops::Operation as Op;
-        match op {
+        Ok(match self {
+            OperationInput::InsertPages {
+                source,
+                pages,
+                at,
+                bookmarks,
+                labels,
+            } => {
+                let (path, password) = documents.source(source)?;
+                Op::InsertPages {
+                    source: pdf_core::ops::InsertSource {
+                        path,
+                        password,
+                        pages: pages.into_iter().map(|p| p as usize).collect(),
+                    },
+                    at: at as usize,
+                    options: pdf_core::merge::InsertOptions {
+                        bookmarks: bookmarks.into(),
+                        labels: match labels {
+                            InsertLabelMode::Keep => pdf_core::merge::InsertLabels::KeepSource,
+                            InsertLabelMode::Follow => {
+                                pdf_core::merge::InsertLabels::FollowDocument
+                            }
+                        },
+                    },
+                }
+            }
+            other => other.into_edit()?,
+        })
+    }
+
+    fn into_edit(self) -> Result<pdf_core::ops::Operation, AppError> {
+        use pdf_core::ops::Operation as Op;
+        Ok(match self {
             OperationInput::RotatePages { pages, degrees } => Op::RotatePages {
                 pages: pages.into_iter().map(|p| p as usize).collect(),
                 degrees,
@@ -506,7 +717,9 @@ impl From<OperationInput> for pdf_core::ops::Operation {
             OperationInput::SetPageLabels { rules } => Op::SetPageLabels {
                 rules: rules.into_iter().map(Into::into).collect(),
             },
-        }
+            // Resolved by `into_operation`.
+            OperationInput::InsertPages { .. } => return Err(AppError::bad_state()),
+        })
     }
 }
 
@@ -655,6 +868,8 @@ pub enum ErrorCode {
     NothingToUndo,
     NothingToRedo,
     DocumentClosed,
+    /// The user stopped a long operation; nothing to show.
+    Cancelled,
 }
 
 impl AppError {
@@ -726,6 +941,13 @@ impl From<pdf_core::Error> for AppError {
                 Some("Open it again and enter the password."),
             ),
             E::ActorGone => AppError::document_closed(),
+            E::Cancelled => AppError::new("Combining was stopped. No file was written.", None)
+                .with_code(ErrorCode::Cancelled),
+            E::CopyNotPermitted(name) => AppError::new(
+                format!("{name} doesn’t allow copying its pages into another document."),
+                Some("Its security settings forbid it. Ask its author for an unrestricted copy."),
+            )
+            .with_code(ErrorCode::NotPermitted),
             E::DamagedOutline => AppError::new(
                 "This document’s bookmarks are damaged, so Folio can show them but not change them.",
                 Some(

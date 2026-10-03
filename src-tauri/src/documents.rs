@@ -1,6 +1,11 @@
 //! Open documents: the registry of sessions, opening (with duplicate detection and
 //! passwords), saving, and watching files for changes made by other programs
 //! (AGENTS.md sections 6.1 and 7).
+//!
+//! Besides tabs, the registry holds *sources*: files opened to combine them or to insert
+//! their pages (section 6.4). A source has its own session (so its thumbnails render
+//! through the page protocol), is never a tab, is not matched against tabs showing the same
+//! file, and is not watched.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -41,6 +46,16 @@ struct OpenDoc {
     reported: Option<Option<FileStamp>>,
     /// A save is in progress: the file changing now is Folio's own doing.
     saving: bool,
+    /// The password that opened the file, kept to copy its pages from it.
+    password: Option<String>,
+    /// Opened as a source for combining or inserting pages, not as a tab.
+    source: bool,
+}
+
+/// An encrypted file waiting for its password.
+struct Pending {
+    path: PathBuf,
+    source: bool,
 }
 
 #[derive(Default)]
@@ -48,7 +63,7 @@ pub struct Documents {
     docs: Mutex<HashMap<u32, OpenDoc>>,
     next_id: AtomicU32,
     /// Encrypted files waiting for a password, by token.
-    pending: Mutex<HashMap<u32, PathBuf>>,
+    pending: Mutex<HashMap<u32, Pending>>,
     next_token: AtomicU32,
 }
 
@@ -80,7 +95,7 @@ impl Documents {
     fn find_open(&self, path: &Path, platform: &dyn Platform) -> Option<u32> {
         let docs = self.docs.lock().ok()?;
         docs.iter()
-            .find(|(_, d)| platform.same_file(&d.path, path))
+            .find(|(_, d)| !d.source && platform.same_file(&d.path, path))
             .map(|(id, _)| *id)
     }
 
@@ -92,8 +107,30 @@ impl Documents {
         platform: &dyn Platform,
         store: &Mutex<Store>,
     ) -> OpenResult {
+        self.open_as(path, password, false, platform, store)
+    }
+
+    /// Opens a file to combine it or insert its pages from it (a source, not a tab).
+    pub fn open_source(
+        &self,
+        path: &Path,
+        password: Option<&str>,
+        platform: &dyn Platform,
+        store: &Mutex<Store>,
+    ) -> OpenResult {
+        self.open_as(path, password, true, platform, store)
+    }
+
+    fn open_as(
+        &self,
+        path: &Path,
+        password: Option<&str>,
+        source: bool,
+        platform: &dyn Platform,
+        store: &Mutex<Store>,
+    ) -> OpenResult {
         let name = file_name(path);
-        if let Some(id) = self.find_open(path, platform) {
+        if !source && let Some(id) = self.find_open(path, platform) {
             return OpenResult::AlreadyOpen { id };
         }
         match Session::open(path, password) {
@@ -105,6 +142,8 @@ impl Documents {
                     stamp: FileStamp::of(path),
                     reported: None,
                     saving: false,
+                    password: password.map(str::to_owned),
+                    source,
                 };
                 match self.docs.lock() {
                     Ok(mut docs) => {
@@ -117,12 +156,19 @@ impl Documents {
                         };
                     }
                 }
-                let view = store.lock().ok().and_then(|mut s| {
-                    s.add_recent(path, |a, b| platform.same_file(a, b));
-                    s.view(&platform.file_key(path))
-                });
+                // Sources are not documents the user opened to read: no recent-files entry,
+                // no remembered view.
+                let view = if source {
+                    None
+                } else {
+                    store.lock().ok().and_then(|mut s| {
+                        s.add_recent(path, |a, b| platform.same_file(a, b));
+                        s.view(&platform.file_key(path))
+                    })
+                };
                 crate::applog::info(format!(
-                    "opened document {id}: {} pages in {:.0} ms",
+                    "opened {} {id}: {} pages in {:.0} ms",
+                    if source { "source" } else { "document" },
                     info.pages.len(),
                     info.open_time.as_secs_f64() * 1000.0
                 ));
@@ -133,7 +179,13 @@ impl Documents {
             Err(e @ (pdf_core::Error::PasswordRequired | pdf_core::Error::WrongPassword)) => {
                 let token = self.next_token.fetch_add(1, Ordering::Relaxed) + 1;
                 if let Ok(mut pending) = self.pending.lock() {
-                    pending.insert(token, path.to_path_buf());
+                    pending.insert(
+                        token,
+                        Pending {
+                            path: path.to_path_buf(),
+                            source,
+                        },
+                    );
                 }
                 OpenResult::NeedsPassword {
                     token,
@@ -159,13 +211,19 @@ impl Documents {
         platform: &dyn Platform,
         store: &Mutex<Store>,
     ) -> Result<OpenResult, AppError> {
-        let path = lock(&self.pending)?.remove(&token).ok_or_else(|| {
+        let pending = lock(&self.pending)?.remove(&token).ok_or_else(|| {
             AppError::new(
                 "That file is no longer waiting to open.",
                 Some("Open it again."),
             )
         })?;
-        Ok(self.open(&path, Some(password), platform, store))
+        Ok(self.open_as(
+            &pending.path,
+            Some(password),
+            pending.source,
+            platform,
+            store,
+        ))
     }
 
     pub fn cancel_unlock(&self, token: u32) {
@@ -174,11 +232,34 @@ impl Documents {
         }
     }
 
-    /// Ids of the open documents, in the order they were opened.
+    /// Ids of the documents open in tabs (not sources), in the order they were opened.
     pub fn ids(&self) -> Result<Vec<u32>, AppError> {
-        let mut ids: Vec<u32> = lock(&self.docs)?.keys().copied().collect();
+        let mut ids: Vec<u32> = lock(&self.docs)?
+            .iter()
+            .filter(|(_, d)| !d.source)
+            .map(|(id, _)| *id)
+            .collect();
         ids.sort_unstable();
         Ok(ids)
+    }
+
+    /// The file and password of an open document, to copy pages from it.
+    pub fn source(&self, id: u32) -> Result<(PathBuf, Option<String>), AppError> {
+        lock(&self.docs)?
+            .get(&id)
+            .map(|d| (d.path.clone(), d.password.clone()))
+            .ok_or_else(AppError::document_closed)
+    }
+
+    /// Tabs showing the same file as `path` (not sources), with their sessions.
+    pub fn tabs_showing(&self, path: &Path, platform: &dyn Platform) -> Vec<(u32, Session)> {
+        let Ok(docs) = self.docs.lock() else {
+            return Vec::new();
+        };
+        docs.iter()
+            .filter(|(_, d)| !d.source && platform.same_file(&d.path, path))
+            .map(|(id, d)| (*id, d.session.clone()))
+            .collect()
     }
 
     pub fn close(&self, id: u32) -> Option<Session> {
@@ -199,9 +280,9 @@ impl Documents {
         let session = {
             let mut docs = lock(&self.docs)?;
             if let Some(target) = &target {
-                let other = docs
-                    .iter()
-                    .any(|(other, d)| *other != id && platform.same_file(&d.path, target));
+                let other = docs.iter().any(|(other, d)| {
+                    *other != id && !d.source && platform.same_file(&d.path, target)
+                });
                 if other {
                     return Err(AppError::new(
                         "That file is open in another tab.",
@@ -267,7 +348,7 @@ impl Documents {
         let snapshot: Vec<(u32, PathBuf)> = match self.docs.lock() {
             Ok(docs) => docs
                 .iter()
-                .filter(|(_, d)| !d.saving)
+                .filter(|(_, d)| !d.saving && !d.source)
                 .map(|(id, d)| (*id, d.path.clone()))
                 .collect(),
             Err(_) => return Vec::new(),
@@ -411,6 +492,34 @@ mod tests {
         let events = docs.poll_changes();
         assert_eq!(events.len(), 1);
         assert!(!events[0].exists);
+    }
+
+    #[test]
+    fn sources_are_separate_from_tabs_and_keep_their_password() {
+        let (dir, docs, store) = setup("sources");
+        let path = sample(&dir, "s.pdf");
+        let platform = crate::platform::current();
+        let OpenResult::Opened { document: tab } = docs.open(&path, None, platform, &store) else {
+            panic!("expected Opened");
+        };
+        // The same file opens again as a source, with its own session.
+        let OpenResult::Opened { document: source } =
+            docs.open_source(&path, Some("pw"), platform, &store)
+        else {
+            panic!("expected Opened");
+        };
+        assert_ne!(tab.id, source.id);
+        assert_eq!(docs.ids().unwrap(), vec![tab.id]);
+        assert_eq!(
+            docs.source(source.id).unwrap(),
+            (path.clone(), Some("pw".into()))
+        );
+        assert_eq!(docs.tabs_showing(&path, platform).len(), 1);
+        // Sources are not recent files and are not watched.
+        assert_eq!(store.lock().unwrap().recent().len(), 1);
+        std::fs::remove_file(&path).ok();
+        let events = docs.poll_changes();
+        assert!(events.iter().all(|e| e.id != source.id));
     }
 
     #[test]
