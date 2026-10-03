@@ -154,7 +154,7 @@
 	});
 
 	const hits = $derived(tab.search.byPage.get(index) ?? []);
-	const label = $derived(tab.labels?.[index]);
+	const label = $derived(tab.displayLabels?.[index]);
 </script>
 
 <div

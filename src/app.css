@@ -168,8 +168,11 @@ button {
 	border-radius: var(--radius-control);
 	background: var(--folio-surface-raised);
 }
-.button:hover {
+.button:hover:not(:disabled) {
 	background: color-mix(in srgb, var(--folio-surface-raised), var(--folio-fg) 4%);
+}
+.button:disabled {
+	opacity: 0.45;
 }
 .button-primary {
 	border-color: transparent;

@@ -36,6 +36,8 @@ export type { DocumentFlags } from './generated/DocumentFlags';
 export type { DocumentState } from './generated/DocumentState';
 export type { ErrorCode } from './generated/ErrorCode';
 export type { ImageFormat } from './generated/ImageFormat';
+export type { LabelRule } from './generated/LabelRule';
+export type { LabelStyle } from './generated/LabelStyle';
 export type { Outline } from './generated/Outline';
 import type { ImageFormat } from './generated/ImageFormat';
 export type { PageSize } from './generated/PageSize';

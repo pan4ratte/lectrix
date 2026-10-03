@@ -22,13 +22,13 @@
 
 	function onFocus() {
 		editing = true;
-		draft = pageBoxText(tab.currentPage, tab.labels);
+		draft = pageBoxText(tab.currentPage, tab.displayLabels);
 		invalid = false;
 		queueMicrotask(() => input?.select());
 	}
 
 	function commit() {
-		const index = resolvePageInput(draft, tab.labels, tab.pageCount);
+		const index = resolvePageInput(draft, tab.displayLabels, tab.pageCount);
 		if (index === null) {
 			invalid = true;
 			return;
@@ -70,7 +70,7 @@
 			class="h-6 w-16 rounded-control border bg-surface px-1.5 text-center text-fg tabular-nums outline-none focus:border-accent"
 			class:border-line={!invalid}
 			class:border-danger={invalid}
-			value={editing ? draft : pageBoxText(tab.currentPage, tab.labels)}
+			value={editing ? draft : pageBoxText(tab.currentPage, tab.displayLabels)}
 			oninput={(e) => (draft = e.currentTarget.value)}
 			onfocus={onFocus}
 			onblur={() => {
@@ -83,7 +83,7 @@
 			data-page-box
 		/>
 		<span class="tabular-nums" aria-live="polite">
-			{pagePosition(tab.currentPage, tab.pageCount, tab.labels)}
+			{pagePosition(tab.currentPage, tab.pageCount, tab.displayLabels)}
 		</span>
 		{#if invalid}
 			<span class="text-danger" role="alert">No such page</span>

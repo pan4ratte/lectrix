@@ -69,7 +69,7 @@ class AppStore {
 	recent = $state<RecentFile[]>([]);
 	sidebarOpen = $state(true);
 	/** The panel shown in the sidebar. */
-	sidebarPanel = $state<'pages' | 'bookmarks'>('pages');
+	sidebarPanel = $state<'pages' | 'bookmarks' | 'labels'>('pages');
 	/** The inspector (properties of the selected bookmark) is open. */
 	inspectorOpen = $state(false);
 	dialog = $state<DialogRequest | null>(null);

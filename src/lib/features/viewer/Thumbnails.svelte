@@ -5,6 +5,7 @@
 	import { onMount, tick } from 'svelte';
 
 	import { chain } from '#lib/components/chain.ts';
+	import { startRangeAt } from '#lib/features/labels/actions.ts';
 	import { pageUrl } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -135,7 +136,7 @@
 							style:top="{item.top}px"
 							role="option"
 							aria-selected={current}
-							aria-label="Page {pageBoxText(index, tab.labels)}"
+							aria-label="Page {pageBoxText(index, tab.displayLabels)}"
 							tabindex={index === focused ? 0 : -1}
 							onclick={() => {
 								focused = index;
@@ -158,7 +159,7 @@
 									height={item.imageH}
 								/>
 							</span>
-							<span class="text-xs text-fg-muted tabular-nums">{pageBoxText(index, tab.labels)}</span>
+							<span class="text-xs text-fg-muted tabular-nums">{pageBoxText(index, tab.displayLabels)}</span>
 						</button>
 					{/each}
 				</div>
@@ -180,6 +181,14 @@
 				onSelect={() => void app.rotatePages(tab, [contextPage], -90)}
 			>
 				Rotate page counter-clockwise
+			</ContextMenu.Item>
+			<ContextMenu.Separator class="menu-separator" />
+			<ContextMenu.Item
+				class="menu-item"
+				disabled={!tab.canEditLabels}
+				onSelect={() => void startRangeAt(tab, contextPage)}
+			>
+				New label range from this page
 			</ContextMenu.Item>
 		</ContextMenu.Content>
 	</ContextMenu.Portal>

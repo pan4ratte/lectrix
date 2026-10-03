@@ -93,6 +93,9 @@
 				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.showBookmarks}>
 					Bookmarks
 				</Menubar.Item>
+				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.showLabels}>
+					Page labels
+				</Menubar.Item>
 				<Menubar.Separator class="menu-separator" />
 				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.zoomIn}>
 					Zoom in<span class="menu-shortcut">Ctrl+=</span>
@@ -141,6 +144,10 @@
 				<Menubar.Separator class="menu-separator" />
 				<Menubar.Item class="menu-item" disabled={!tab?.canEditBookmarks} onSelect={commands.addBookmark}>
 					Add bookmark<span class="menu-shortcut">Ctrl+B</span>
+				</Menubar.Item>
+				<Menubar.Separator class="menu-separator" />
+				<Menubar.Item class="menu-item" disabled={!tab?.canEditLabels} onSelect={commands.startLabelRange}>
+					New label range from this page
 				</Menubar.Item>
 			</Menubar.Content>
 		</Menubar.Portal>

@@ -3,6 +3,7 @@
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
 import { addBookmark } from '#lib/features/bookmarks/actions.ts';
+import { showLabels, startRangeAt } from '#lib/features/labels/actions.ts';
 import { copySelection } from '#lib/features/viewer/actions.ts';
 import { normalizeRotation } from '#lib/features/viewer/layout.ts';
 import { stepZoom } from '#lib/features/viewer/zoom.ts';
@@ -76,7 +77,9 @@ export const commands = {
 	showBookmarks: () => {
 		app.sidebarOpen = true;
 		app.sidebarPanel = 'bookmarks';
-	}
+	},
+	showLabels: () => showLabels(),
+	startLabelRange: withTab((t) => startRangeAt(t, t.currentPage))
 };
 
 export type CommandName = keyof typeof commands;

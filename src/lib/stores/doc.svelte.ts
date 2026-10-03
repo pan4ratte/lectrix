@@ -9,6 +9,7 @@ import {
 	type DocumentFlags,
 	type DocumentInfo,
 	type DocumentState,
+	type LabelRule,
 	type Outline,
 	type PageSize,
 	type ViewState
@@ -156,7 +157,16 @@ export class DocTab {
 	name = $state('');
 	path = $state('');
 	pages = $state<PageSize[]>([]);
+	/** One label per page as stored, or null when the document has no labels. */
 	labels = $state<string[] | null>(null);
+	/** The label rules exactly as stored (empty without labels). */
+	labelRules = $state<LabelRule[]>([]);
+	/** Labels of a rule being edited, before it is applied (live preview, section 6.3). */
+	previewLabels = $state<string[] | null>(null);
+	/** What thumbnails, the page box and the status bar show. */
+	displayLabels = $derived(this.previewLabels ?? this.labels);
+	/** Start page of the label rule selected in the Page labels panel. */
+	selectedLabelRule = $state<number | null>(null);
 	flags = $state<DocumentFlags>({
 		encrypted: false,
 		signed: false,
@@ -214,6 +224,8 @@ export class DocTab {
 		this.path = info.path;
 		this.pages = info.pages;
 		this.labels = info.labels;
+		this.labelRules = info.labelRules;
+		this.previewLabels = null;
 		this.flags = info.flags;
 		this.state = info.state;
 		this.setOutline(info.outline);
@@ -232,7 +244,11 @@ export class DocTab {
 			for (const p of change.changedPages) pages[p.index] = p.size;
 			this.pages = pages;
 		}
-		if (change.labelsChanged) this.labels = change.labels;
+		if (change.labelsChanged) {
+			this.labels = change.labels;
+			this.labelRules = change.labelRules;
+			this.previewLabels = null;
+		}
 		if (change.outline) this.setOutline(change.outline);
 		if (revisionChanged) {
 			this.selection = null;
@@ -242,6 +258,11 @@ export class DocTab {
 
 	get pageCount() {
 		return this.pages.length;
+	}
+
+	/** Page labels can be changed (permissions allow document changes). */
+	get canEditLabels() {
+		return this.flags.canAssemble;
 	}
 
 	/** Bookmarks can be changed: the outline is intact and permissions allow it. */
