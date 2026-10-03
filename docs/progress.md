@@ -325,12 +325,16 @@ first page (13 over 2 s).
 
 ## Phase 2: Bookmarks (report, 2026-10-03)
 
-**Status: ready for review, not yet complete.** Bookmarks work in the app and every local
-check is green, including the new end-to-end tests. Four things stand between this and
-"done": CI has not run on these commits (not pushed), Acrobat has to be checked by you,
-the WebView2 growth rule is still not met (a revision is proposed), and one real-world file
-still takes 1.8 s to show its first page for a reason unrelated to fonts. Decisions 1 to 4
-below need you.
+**Status: complete.** Reviewed by the user on 2026-10-03 (decisions below); Acrobat
+checked by the user; CI green, including the end-to-end tests, twice on the same commit
+(run 37135881818 and its re-run). Getting the end-to-end tests to run on CI took three
+fixes, described under "CI" at the end of this report. The original report follows.
+
+*Report as written:* ready for review, not yet complete. Bookmarks work in the app and
+every local check is green, including the new end-to-end tests. Four things stood between
+this and "done": CI had not run on these commits (not pushed), Acrobat had to be checked by
+you, the WebView2 growth rule was still not met (a revision is proposed), and one
+real-world file still takes 1.8 s to show its first page for a reason unrelated to fonts.
 
 ### Checklist
 
@@ -507,3 +511,25 @@ Chapter Two, Chapter 3 (another file), Chapter 5; "Nouveau — 新しい" (page 
 - Acrobat (above). A keyboard-only and screen-reader pass of the tree: ARIA roles and
   levels are in place; the full accessibility pass is in Phase 6.
 - Dark mode (Phase 5). Fonts on macOS and Linux: no font source yet (ADR 0005, Phase 6).
+
+### CI (after the review)
+
+The first CI runs on these commits failed; each fix is its own commit:
+
+1. **Interop harness:** it printed a CJK bookmark title to CI's cp1252 console and
+   crashed. It now writes UTF-8 itself.
+2. **No WebDriver session on CI:** the runner's WebView2 (153, Windows Server 2025)
+   ignored `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` because Tauri passes its own default
+   arguments through the API, so msedgedriver's `--remote-debugging-port` never arrived.
+   Folio now creates its main window in code and, when the variable is set, passes both
+   argument lists merged. Without the variable nothing changes.
+3. **Intermittent empty window:** msedgedriver navigates the webview to `about:blank`
+   when a session starts. On the slower runner, Folio's page sometimes loaded first and was
+   wiped. The harness now reloads the app page in that case, and the frontend asks Rust for
+   documents it already has open (`list_open_documents`) before opening startup files. That
+   also helps users: if the webview reloads (a renderer crash), open documents reappear
+   instead of an empty window. A third end-to-end test covers it.
+
+The harness also kills stray `folio.exe` (Folio is single-instance), fails fast instead of
+retrying, logs every msedgedriver session verbosely, and saves a screenshot when a
+document does not show; CI uploads these and runs `tests/e2e/diagnose.ps1` on failure.
