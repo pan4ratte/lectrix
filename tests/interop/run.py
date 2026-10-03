@@ -1,6 +1,7 @@
 """Cross-renderer interop harness (AGENTS.md section 9).
 
     python tests/interop/run.py phase0      # build the Phase 0 outputs with pdf-cli and check them
+    python tests/interop/run.py phase2      # bookmarks edited as the app edits them
     python tests/interop/run.py check FILE  # render/visibility checks for one existing file
 
 For every annotation in a checked file, each annotated page is rendered by three
@@ -321,10 +322,122 @@ def phase0(report: Report) -> None:
         annotation_checks(dst, report, case)
 
 
+def assemble_pdf(objects: list[str]) -> bytes:
+    """A PDF written by hand (objects 1..n, classic xref), not by MuPDF."""
+    out = bytearray(b"%PDF-1.7\n%\xe2\xe3\xcf\xd3\n")
+    offsets = []
+    for i, body in enumerate(objects, start=1):
+        offsets.append(len(out))
+        out += f"{i} 0 obj\n{body}\nendobj\n".encode("latin-1")
+    xref = len(out)
+    out += f"xref\n0 {len(objects) + 1}\n0000000000 65535 f \n".encode()
+    for o in offsets:
+        out += f"{o:010} 00000 n \n".encode()
+    out += f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\nstartxref\n{xref}\n%%EOF\n".encode()
+    return bytes(out)
+
+
+def outline_fixture() -> bytes:
+    """Six pages and a three-level outline written by another "app": explicit, named (via a
+    name tree) and action targets, a UTF-16 title. Same fixture as
+    crates/pdf-core/tests/outline.rs; outline items are objects 11 to 21."""
+    page = "<< /Type /Page /Parent 2 0 R /Resources << >> >>"
+    return assemble_pdf([
+        "<< /Type /Catalog /Pages 2 0 R /Outlines 3 0 R /Names << /Dests 4 0 R >> >>",
+        "<< /Type /Pages /Kids [5 0 R 6 0 R 7 0 R 8 0 R 9 0 R 10 0 R] /Count 6 /MediaBox [0 0 612.000 792] >>",
+        "<< /Type /Outlines /First 11 0 R /Last 21 0 R /Count 7 >>",
+        "<< /Names [(chap2) [6 0 R /FitH 700.50] (intro) << /D [5 0 R /XYZ 72.000 720 0] >>] >>",
+        page, page, page, page, page, page,
+        "<< /Title (Part I) /Parent 3 0 R /First 12 0 R /Last 16 0 R /Next 17 0 R /Count 3 /Dest [5 0 R /XYZ 72.000 720.0 null] >>",
+        "<< /Title (Chapter 1) /Parent 11 0 R /First 13 0 R /Last 14 0 R /Next 15 0 R /Count -2 /Dest (intro) >>",
+        "<< /Title (Section 1.1) /Parent 12 0 R /Next 14 0 R /A << /S /GoTo /D (chap2) >> >>",
+        "<< /Title (Section 1.2) /Parent 12 0 R /Prev 13 0 R /A << /S /URI /URI (https://example.org/a%20b) >> >>",
+        "<< /Title (Chapter 2) /Parent 11 0 R /Prev 12 0 R /Next 16 0 R /Dest [6 0 R /Fit] /C [0.000 0 1] /F 3 /Foo /Bar >>",
+        "<< /Title (Chapter 3) /Parent 11 0 R /Prev 15 0 R /A << /S /GoToR /F (other.pdf) /D [0 /Fit] >> >>",
+        "<< /Title (Part II) /Parent 3 0 R /Prev 11 0 R /Next 20 0 R /First 18 0 R /Last 19 0 R /Count -2 /Dest [7 0 R /XYZ null 500.25 null] >>",
+        "<< /Title (Chapter 4) /Parent 17 0 R /Next 19 0 R /A << /S /JavaScript /JS (app.alert\\(1\\)) >> >>",
+        "<< /Title (Chapter 5) /Parent 17 0 R /Prev 18 0 R /Dest [8 0 R /FitR 10 20 300.5 400] >>",
+        "<< /Title <FEFF041F04400438043B043E04360435043D04380435> /Parent 3 0 R /Prev 17 0 R /Next 21 0 R /Dest [9 0 R /XYZ 0 792 0] >>",
+        "<< /Title (Index) /Parent 3 0 R /Prev 20 0 R /Dest [10 0 R /XYZ 0 792 null] >>",
+    ])
+
+
+ANY = object()  # an expected value every engine may read its own way
+
+
+def matches(got, expected) -> bool:
+    if expected is ANY:
+        return True
+    if isinstance(expected, (list, tuple)):
+        return isinstance(got, (list, tuple)) and len(got) == len(expected) and all(matches(g, e) for g, e in zip(got, expected))
+    return got == expected
+
+
+def find_item(items, title):
+    for item in items:
+        if item["title"] == title:
+            return item
+        found = find_item(item["children"], title)
+        if found:
+            return found
+    return None
+
+
+def phase2(report: Report) -> None:
+    """Bookmarks edited the way the app edits them (pdf-cli outline edit goes through the
+    same session and journal), read back by PDFium (Edge, Chrome) and pdf.js (Firefox)."""
+    work = OUT / "phase2"
+    shutil.rmtree(work, ignore_errors=True)
+    work.mkdir(parents=True, exist_ok=True)
+    cli = pdf_cli()
+    source, edited = work / "outline-source.pdf", work / "outline-edited.pdf"
+    source.write_bytes(outline_fixture())
+    ops = [
+        "rename:15:Chapter Two",
+        "move:19:11:3",
+        "delete:21",
+        "add:-:1:4:0:100:Nouveau — 新しい",
+        "retarget:14:2:36:50",
+        "add:12:2:2:0:0:Section 1.3",
+        "open:17",
+        "open:12",
+    ]
+    run([cli, "outline", "edit", str(source), str(edited)] + [a for op in ops for a in ("--op", op)])
+    print(edited.name)
+    qpdf_check(edited, report)
+    expected = [
+        ("Part I", 0, [
+            ("Chapter 1", 0, [("Section 1.1", 1, []), ("Section 1.2", 1, []), ("Section 1.3", 1, [])]),
+            ("Chapter Two", 1, []),
+            # A GoToR action: PDFium reports the remote file's page index, pdf.js none.
+            ("Chapter 3", ANY, []),
+            ("Chapter 5", 3, []),
+        ]),
+        ("Nouveau — 新しい", 3, []),
+        ("Part II", 2, [("Chapter 4", None, [])]),
+        ("Приложение", 4, []),
+    ]
+    for engine, data in (("PDFium", info_pdfium(edited)), ("pdf.js", info_pdfjs(edited))):
+        items = data["outline"]
+        got = strip_outline(items)
+        report.check(matches(got, expected), f"{edited.name}: {engine} tree, titles and target pages match" + ("" if matches(got, expected) else f"\n       got {got}\n       expected {expected}"))
+        for title, want in (("Part I", True), ("Chapter 1", True), ("Part II", True)):
+            item = find_item(items, title)
+            report.check(item is not None and item["open"] == want, f"{edited.name}: {engine} shows '{title}' {'expanded' if want else 'collapsed'}")
+        # New and retargeted bookmarks: /XYZ left top in user space, null zoom.
+        for title, left, top in (("Nouveau — 新しい", 0, 692), ("Section 1.2", 36, 742), ("Section 1.3", 0, 792)):
+            item = find_item(items, title)
+            view = (item or {}).get("view") or []
+            ok = len(view) >= 2 and abs(view[0] - left) < 0.01 and abs(view[1] - top) < 0.01
+            report.check(ok, f"{edited.name}: {engine} puts '{title}' at {left},{top} (got {view[:2]})")
+
+
 def main(argv: list[str]) -> int:
     report = Report()
     if argv[:1] == ["phase0"]:
         phase0(report)
+    elif argv[:1] == ["phase2"]:
+        phase2(report)
     elif argv[:1] == ["check"] and len(argv) == 2:
         pdf = Path(argv[1]).resolve()
         work = OUT / "check" / pdf.stem

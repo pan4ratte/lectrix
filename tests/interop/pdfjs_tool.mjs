@@ -44,6 +44,10 @@ async function resolveOutline(doc, items) {
 		out.push({
 			title: item.title,
 			page,
+			// Expanded state: the sign of /Count (absent for an item without children).
+			open: item.count ? item.count > 0 : null,
+			// View coordinates of the destination ([left, top, zoom] for /XYZ).
+			view: Array.isArray(dest) ? dest.slice(2) : null,
 			children: await resolveOutline(doc, item.items)
 		});
 	}

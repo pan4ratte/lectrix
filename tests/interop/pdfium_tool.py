@@ -18,9 +18,15 @@ def outline(pdf):
     root = {"children": []}
     stack = [(-1, root)]
     for item in pdf.get_toc(max_depth=64):
+        dest = item.get_dest()
+        count = item.get_count()
         node = {
             "title": item.get_title(),
-            "page": item.get_dest().get_index() if item.get_dest() else None,
+            "page": dest.get_index() if dest else None,
+            # Expanded state: the sign of /Count (0 for an item without children).
+            "open": None if count == 0 else count > 0,
+            # View coordinates of the destination ([left, top, zoom] for /XYZ).
+            "view": list(dest.get_view()[1]) if dest else None,
             "children": [],
         }
         while stack[-1][0] >= item.level:
