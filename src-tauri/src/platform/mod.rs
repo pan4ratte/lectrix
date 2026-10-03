@@ -35,6 +35,11 @@ pub trait Platform: Send + Sync {
     /// control.
     fn set_low_memory(&self, _window: &tauri::WebviewWindow, _low: bool) {}
 
+    /// Browser arguments for the webview, when they must differ from Tauri's defaults.
+    fn webview_browser_args(&self) -> Option<String> {
+        None
+    }
+
     /// A stable key for remembering things about a file (recent files, view position).
     fn file_key(&self, path: &Path) -> String {
         std::fs::canonicalize(path)

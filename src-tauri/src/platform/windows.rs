@@ -112,6 +112,15 @@ impl Platform for Windows {
         }
     }
 
+    /// Tauri always hands WebView2 its default arguments through the API. Some WebView2
+    /// runtimes then ignore `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`, which is how
+    /// msedgedriver turns on remote debugging (tests/e2e; seen on WebView2 153). When the
+    /// variable is set, pass both, merged.
+    fn webview_browser_args(&self) -> Option<String> {
+        let extra = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").ok()?;
+        Some(merge_browser_args(TAURI_DEFAULT_ARGS, &extra))
+    }
+
     fn file_key(&self, path: &Path) -> String {
         std::fs::canonicalize(path)
             .unwrap_or_else(|_| path.to_path_buf())
@@ -120,9 +129,49 @@ impl Platform for Windows {
     }
 }
 
+/// What Tauri (wry 0.57) passes when no arguments are given: no mini menu, no SmartScreen,
+/// autoplay allowed.
+const TAURI_DEFAULT_ARGS: &str = "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection --autoplay-policy=no-user-gesture-required";
+
+/// Joins two argument lists. Chromium honours only one `--disable-features` switch, so
+/// their feature lists are combined; other arguments are kept once, in order.
+fn merge_browser_args(first: &str, second: &str) -> String {
+    let mut features: Vec<&str> = Vec::new();
+    let mut rest: Vec<&str> = Vec::new();
+    for arg in first.split_whitespace().chain(second.split_whitespace()) {
+        if let Some(list) = arg.strip_prefix("--disable-features=") {
+            for feature in list.split(',').filter(|f| !f.is_empty()) {
+                if !features.contains(&feature) {
+                    features.push(feature);
+                }
+            }
+        } else if !rest.contains(&arg) {
+            rest.push(arg);
+        }
+    }
+    let mut out = Vec::new();
+    if !features.is_empty() {
+        out.push(format!("--disable-features={}", features.join(",")));
+    }
+    out.extend(rest.into_iter().map(str::to_owned));
+    out.join(" ")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn browser_args_merge_feature_lists() {
+        let merged = merge_browser_args(
+            TAURI_DEFAULT_ARGS,
+            "--disable-features=IgnoreDuplicateNavs,msWebOOUI --remote-debugging-port=0 --autoplay-policy=no-user-gesture-required",
+        );
+        assert_eq!(
+            merged,
+            "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,IgnoreDuplicateNavs --autoplay-policy=no-user-gesture-required --remote-debugging-port=0"
+        );
+    }
 
     #[test]
     fn reads_a_plausible_build_number() {

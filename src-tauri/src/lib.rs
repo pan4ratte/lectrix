@@ -181,6 +181,15 @@ pub fn run() {
                 platform: platform::current(),
             });
             watch_files(app.handle().clone());
+            // The main window is made here, not from tauri.conf.json, so it can get browser
+            // arguments the platform needs (`create: false` in the config).
+            if let Some(config) = app.config().app.windows.iter().find(|w| w.label == "main") {
+                let mut window = tauri::WebviewWindowBuilder::from_config(app.handle(), config)?;
+                if let Some(args) = platform::current().webview_browser_args() {
+                    window = window.additional_browser_args(&args);
+                }
+                window.build()?;
+            }
             Ok(())
         })
         .on_window_event(|window, event| match event {

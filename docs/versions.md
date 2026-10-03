@@ -98,3 +98,9 @@ local driver and downloads nothing, so the code is never reached.
 On Windows, tauri-driver passes `tauri:options.args` to WebView2 rather than to the app,
 so the tests open files through the `FOLIO_OPEN` environment variable (paths separated by
 `;`), which the app treats like command-line arguments.
+
+msedgedriver turns on remote debugging through `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`.
+Tauri always passes its own default arguments through the WebView2 API, and some runtimes
+(153, on CI's Windows Server 2025) then ignore the variable, so no session could start.
+Folio creates its main window in code and, when the variable is set, passes Tauri's
+defaults and the variable's arguments merged (`platform/windows.rs`).
