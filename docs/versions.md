@@ -79,3 +79,19 @@ explicit file extensions.
 `npm audit` reports 5 low-severity advisories, all in a `cookie` copy nested under
 bits-ui's own SvelteKit dependency (server-side cookie parsing). Folio ships a static
 SPA with no server, so the code is never reached. We will re-check when bits-ui updates.
+
+## End-to-end tests (tests/e2e, not shipped; Phase 2)
+
+| Tool | Version | License |
+| --- | --- | --- |
+| webdriverio (standalone, with Node's built-in test runner) | 9.32.0 | MIT |
+| tauri-driver | 2.1.0 (`cargo install tauri-driver --locked`) | Apache-2.0 / MIT |
+| msedgedriver | matches the installed WebView2 runtime (154.0.4258.53 here); fetched by `tests/e2e/fetch-edgedriver.ps1` | Microsoft |
+
+`npm audit` in `tests/e2e` reports advisories in `basic-ftp` (through webdriverio's
+proxy-agent chain, used only to download browsers through a proxy). The suite talks to a
+local driver and downloads nothing, so the code is never reached.
+
+On Windows, tauri-driver passes `tauri:options.args` to WebView2 rather than to the app,
+so the tests open files through the `FOLIO_OPEN` environment variable (paths separated by
+`;`), which the app treats like command-line arguments.

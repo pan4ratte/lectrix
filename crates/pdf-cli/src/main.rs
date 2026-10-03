@@ -420,6 +420,19 @@ fn info(path: &Path) -> Result<()> {
     let doc = open(path)?;
     let count = usize::try_from(doc.page_count()?).unwrap_or(0);
     println!("pages: {count}");
+    let mut rotated = Vec::new();
+    for p in 0..count {
+        let obj = doc.find_page(i32::try_from(p).unwrap_or(i32::MAX))?;
+        let rotation =
+            pdf_core::geometry::PageGeometry::new(&pdf_core::geometry::read_page_boxes(&obj)?)
+                .rotation;
+        if rotation != 0 {
+            rotated.push(format!("{}:{rotation}", p + 1));
+        }
+    }
+    if !rotated.is_empty() {
+        println!("rotated pages (page:degrees): {}", rotated.join(" "));
+    }
     let rules = labels::read_rules(&doc)?;
     if rules.is_empty() {
         println!("labels: none");

@@ -77,6 +77,22 @@ jobs:
       - name: Build installers
         run: npx tauri build
 
+      # End-to-end tests (section 9) against the release app built above.
+      - name: E2E tests
+        shell: pwsh
+        run: |
+          cargo install tauri-driver --version 2.1.0 --locked
+          ./tests/e2e/fetch-edgedriver.ps1
+          npm ci --prefix tests/e2e
+          npm test --prefix tests/e2e
+
+      - name: Upload E2E output on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-output
+          path: target/test-output/e2e
+
       - uses: actions/upload-artifact@v4
         with:
           name: installers

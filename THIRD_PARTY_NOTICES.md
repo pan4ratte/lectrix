@@ -25,7 +25,8 @@ following third-party components. Every one has an AGPL-compatible license.
 
 Test-only tools (not distributed): pdfjs-dist (Apache-2.0), @napi-rs/canvas (MIT),
 pypdfium2 (Apache-2.0 / BSD-3-Clause), numpy (BSD-3-Clause), Pillow (MIT-CMU), qpdf
-(Apache-2.0).
+(Apache-2.0), webdriverio (MIT), tauri-driver (Apache-2.0 / MIT), Microsoft Edge WebDriver
+(downloaded at test time, Microsoft license).
 
 Transitive Rust and npm dependencies are covered by their own license files. Before
 release, generate the full list with `cargo about` / `license-checker` (Phase 6).
