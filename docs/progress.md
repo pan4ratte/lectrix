@@ -267,3 +267,54 @@ rendering. Encoding is now cheap because the PNG is made from the cached RGBA re
 6. **Real-world test files:** selected from the user's Calibre library into a git-ignored
    local corpus (see "Local corpus" below); the library itself is never touched.
 7. **End-to-end tests:** added to the Phase 2 checklist.
+
+### Local corpus (real-world files, 2026-10-03)
+
+`pdf-cli survey` profiled all 554 PDFs in the user's Calibre library (5 GB) read-only in
+54 s, with no failures. `tests/local-corpus/select.py` picked 30 files (705 MB), one or two
+per category, copied into the git-ignored `tests/local-corpus/files/` (SHA-256 checked;
+the library was only read). Covered: repaired (2 large scans), encrypted with permission
+restrictions (2), forms (2), right-to-left text, pages rotated 90/180/270 (some and all),
+offset CropBox, scanned (small, 1,020 pages, with ink), 2,881 pages, 5,023 bookmarks, deep
+outline with labels, 1,311 sticky notes, and annotations made by other apps (Highlight,
+Underline, StrikeOut, Text, Ink, FreeText, Stamp, Square, Caret). **Not in the library:**
+CJK text, signed files, UserUnit pages, Squiggly, Circle and file attachments. These
+still need files from elsewhere.
+
+**Round trip** (`cargo test --release -p pdf-core --test local_corpus -- --ignored`): all
+30 files open, render, extract text and find a word from page 1. A copy of each gets
+page 1 rotated and is saved in place. Reopened, page count, labels, bookmarks and every
+annotation are unchanged, and `qpdf --check` is never worse than for the original (12 of
+the originals already have qpdf warnings). Both repaired files fell back to a full save, as
+designed.
+
+**Performance on real files** (app, PNG):
+
+| File | First page visible | folio.exe |
+| --- | --- | --- |
+| 2,881-page dictionary | 107 ms; scrolling: no blank page at either speed, worst jump 173 ms | 108 MB (157 after scrolling) |
+| 173 MB repaired scan | 315 ms | 120 MB |
+| 1,020-page scan | 88–113 ms | 107 MB |
+| Files with non-embedded fonts (before the fix below) | **4.9–6.0 s** | up to 203 MB |
+
+**Finding: non-embedded fonts make first pages slow.** For a non-embedded font, MuPDF asks
+the system font lookup (the `mupdf` crate's `system-fonts` feature, through `font-kit`).
+On Windows, `font-kit` has no index: for each new font name it loads installed fonts one
+after another and compares names, about 1.3 s per name, and it remembers the answer only
+for that name. Before any fix, 21 of the 554 library files took over 1 s to show their
+first page (13 over 2 s).
+
+- Fixed now (commit "perf(fonts)"): aliases of the base-14 fonts that no installed font
+  can match ("TimesNewRoman,Bold", "CourierNew", "Arial,Italic") go straight to MuPDF's
+  built-in fonts, which MuPDF used for them anyway. Pages render pixel-identically (10
+  real-world pages compared). Library files over 1 s: 21 → 18; over 2 s: 13 → 9.
+- Still slow: real names of installed fonts (TimesNewRomanPSMT in 21 of the 40 files over
+  500 ms, ArialMT, "Times New Roman", Tahoma, Segoe UI, Palatino...). These do resolve,
+  but only after the slow scan. 6 of those 40 files make no font lookup at all; their
+  first pages are simply heavy.
+- Proposed fix (decision needed): build our own index of installed fonts once, on the
+  background warm-up thread, through DirectWrite (family, style and PostScript name
+  without loading font files), and use it instead of `font-kit`. That means turning off
+  the crate's `system-fonts` feature, which also drops `font-kit` from the build. It
+  needs a `FontIndex` behind the `platform` idea (DirectWrite on Windows; fontconfig and
+  Core Text later), the CJK fallback families the crate handled, and an ADR.
