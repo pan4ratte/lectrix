@@ -23,8 +23,9 @@ outline: Outline | null,
  */
 created: number | null, 
 /**
- * The number of pages: when it differs from before, pages were inserted (or that was
- * undone), and `changed_pages` lists every page from the first that moved.
+ * The number of pages: it changes when pages are inserted (or that is undone). Then
+ * `changed_pages` lists every index whose size differs from the page that was there
+ * before, including every new index.
  */
 pageCount: number, 
 /**

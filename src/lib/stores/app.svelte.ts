@@ -232,7 +232,11 @@ class AppStore {
 		}
 		try {
 			const result = await unlockDocument(token, password);
-			if (prompt?.purpose === 'combine') this.combine?.addOpened([result]);
+			if (prompt?.purpose === 'combine') {
+				if (this.combine) this.combine.addOpened([result]);
+				// The Combine view closed while the password was asked for.
+				else if (result.kind === 'opened') void closeDocument(result.document.id).catch(() => {});
+			}
 			else if (prompt?.purpose === 'insert') this.insertSourceOpened(result);
 			else this.handleOpenResults([result]);
 		} catch (e) {

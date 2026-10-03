@@ -523,6 +523,39 @@ mod tests {
     }
 
     #[test]
+    fn an_encrypted_source_asks_for_its_password_and_stays_a_source() {
+        use mupdf::pdf::{Encryption, PdfWriteOptions};
+        let (dir, docs, store) = setup("encrypted-source");
+        let path = dir.join("locked.pdf");
+        let doc = sample_document(&SampleSpec::default()).unwrap();
+        let mut options = PdfWriteOptions::default();
+        options
+            .set_encryption(Encryption::Aes256)
+            .set_user_password("open sesame")
+            .set_owner_password("owner");
+        doc.save_with_options(path.to_str().unwrap(), options)
+            .unwrap();
+        let platform = crate::platform::current();
+        let OpenResult::NeedsPassword { token, .. } =
+            docs.open_source(&path, None, platform, &store)
+        else {
+            panic!("expected NeedsPassword");
+        };
+        let OpenResult::Opened { document } =
+            docs.unlock(token, "open sesame", platform, &store).unwrap()
+        else {
+            panic!("expected Opened");
+        };
+        // Unlocked, it is still a source: not a tab, not a recent file, password kept.
+        assert!(docs.ids().unwrap().is_empty());
+        assert!(store.lock().unwrap().recent().is_empty());
+        assert_eq!(
+            docs.source(document.id).unwrap(),
+            (path.clone(), Some("open sesame".into()))
+        );
+    }
+
+    #[test]
     fn save_as_onto_another_open_document_is_refused() {
         let (dir, docs, store) = setup("save-as-clash");
         let a = sample(&dir, "a.pdf");
