@@ -1,6 +1,7 @@
 # Measures the AGENTS.md section 2 performance targets for a release build.
 #
 #   powershell -ExecutionPolicy Bypass -File tests/perf/measure.ps1 -Pdf <file.pdf> [-Runs 3] [-Perf]
+#   powershell -ExecutionPolicy Bypass -File tests/perf/measure.ps1 -Empty [-Runs 3]
 #
 # Each run starts Folio with the file and reports: time from launch to a visible main
 # window, the app's own metrics (main_to_ready_ms, first_page_visible_ms), and idle memory
@@ -10,9 +11,13 @@
 # scrolls the whole document at two steady speeds measuring how long pages stay blank
 # (section 2: no blank page for more than 200 ms), and reports memory after scrolling.
 #
+# -Empty measures the window with no document instead (the baseline of ADR 0002's growth
+# rule): memory $IdleSeconds after the window appears.
+#
 # FOLIO_EPHEMERAL keeps these runs out of the user's recent files and remembered views.
 param(
-    [Parameter(Mandatory = $true)][string]$Pdf,
+    [string]$Pdf = '',
+    [switch]$Empty,
     [string]$Exe = '',
     [int]$Runs = 3,
     [int]$IdleSeconds = 5,
@@ -25,7 +30,10 @@ $ErrorActionPreference = 'Stop'
 # $PSScriptRoot is not available in parameter defaults on Windows PowerShell 5.1.
 if (-not $Exe) { $Exe = Join-Path $PSScriptRoot '..\..\target\release\folio.exe' }
 $Exe = (Resolve-Path $Exe).Path
-$Pdf = (Resolve-Path $Pdf).Path
+if (-not $Empty) {
+    if (-not $Pdf) { throw 'Give -Pdf <file>, or -Empty.' }
+    $Pdf = (Resolve-Path $Pdf).Path
+}
 $out = Join-Path $PSScriptRoot '..\..\target\test-output\perf'
 New-Item -ItemType Directory -Force $out | Out-Null
 
@@ -63,12 +71,15 @@ function Measure-Memory($Process) {
 
 function Start-Folio([string]$Log, [int]$Run) {
     # A fresh copy per run: the file name is the same, but nothing is cached anywhere.
+    $env:FOLIO_EPHEMERAL = '1'
+    $env:FOLIO_IMAGE_FORMAT = $Format
+    if ($Empty) {
+        return Start-Process -FilePath $Exe -PassThru -RedirectStandardOutput $Log
+    }
     $dir = Join-Path $out "run-$Run"
     New-Item -ItemType Directory -Force $dir | Out-Null
     $copy = Join-Path $dir (Split-Path $Pdf -Leaf)
     Copy-Item $Pdf $copy -Force
-    $env:FOLIO_EPHEMERAL = '1'
-    $env:FOLIO_IMAGE_FORMAT = $Format
     Start-Process -FilePath $Exe -ArgumentList "`"$copy`"" -PassThru -RedirectStandardOutput $Log
 }
 
@@ -93,7 +104,7 @@ for ($i = 1; $i -le $Runs; $i++) {
         Start-Sleep -Milliseconds 5
     }
     $windowMs = $sw.Elapsed.TotalMilliseconds
-    Wait-For $log 'first_page_visible_ms' 60 $sw
+    if (-not $Empty) { Wait-For $log 'first_page_visible_ms' 60 $sw }
     Start-Sleep -Seconds $IdleSeconds
     $mem = Measure-Memory $p
     Stop-Process -Id $p.Id -Force
@@ -111,7 +122,7 @@ for ($i = 1; $i -le $Runs; $i++) {
         WebView2ByTypeMB         = $mem.ByType
     }
 }
-$results | Format-Table -AutoSize
+$results | Format-Table -AutoSize | Out-String -Width 400
 
 if ($Perf) {
     $log = Join-Path $out 'perf.log'

@@ -517,6 +517,9 @@ pub struct StartupInfo {
     /// Set by the FOLIO_PERF environment variable: the frontend runs its scripted
     /// performance measurements (tests/perf/measure.ps1).
     pub perf_mode: bool,
+    /// FOLIO_PERF=scroll: only the scrolling measurements, without the image format
+    /// comparison (which pushes large images through a canvas first).
+    pub perf_scroll_only: bool,
     /// Page image format: PNG (ADR 0004); FOLIO_IMAGE_FORMAT=rgba switches to raw RGBA.
     pub image_format: ImageFormat,
 }

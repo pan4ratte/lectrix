@@ -35,8 +35,10 @@
 
 	const layout = $derived(computeLayout(tab.pages, tab.zoom, tab.rotation));
 	const contentW = $derived(contentWidth(layout, viewportW));
-	/** Pages mounted: the viewport plus one screen above and below. */
-	const mounted = $derived(pagesInRange(layout, scrollTop - viewportH, scrollTop + 2 * viewportH));
+	/** Pages mounted: the viewport plus a quarter screen above and below. Each mounted page
+	 * holds its pixels in the webview, and rendering is fast enough that a wider margin
+	 * only cost memory (Phase 2 WebView2 memory investigation). */
+	const mounted = $derived(pagesInRange(layout, scrollTop - viewportH * 0.25, scrollTop + viewportH * 1.25));
 	const mountedPages = $derived.by(() => {
 		const [first, last] = mounted;
 		const out: number[] = [];

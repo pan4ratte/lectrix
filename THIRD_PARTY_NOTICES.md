@@ -11,6 +11,7 @@ following third-party components. Every one has an AGPL-compatible license.
 | Tauri, tauri-build, tauri-plugin-dialog, tauri-plugin-single-instance | MIT OR Apache-2.0 | app shell |
 | windows-sys | MIT OR Apache-2.0 | Windows API bindings (`platform` module) |
 | windows | MIT OR Apache-2.0 | DirectWrite installed-font index (`pdf-core` `platform` module, ADR 0005) |
+| webview2-com, windows-core | MIT OR Apache-2.0 | WebView2 memory target level while minimized (app `platform` module, ADR 0002) |
 | thiserror | MIT OR Apache-2.0 | error types |
 | serde, serde_json | MIT OR Apache-2.0 | IPC serialization |
 | ts-rs | MIT | generated TypeScript IPC types (build/test time) |

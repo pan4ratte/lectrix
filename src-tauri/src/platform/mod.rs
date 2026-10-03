@@ -30,6 +30,11 @@ pub trait Platform: Send + Sync {
         }
     }
 
+    /// Asks the webview to use less memory (while the window is minimized) or to go back
+    /// to normal (ADR 0002). Best effort: does nothing where the platform has no such
+    /// control.
+    fn set_low_memory(&self, _window: &tauri::WebviewWindow, _low: bool) {}
+
     /// A stable key for remembering things about a file (recent files, view position).
     fn file_key(&self, path: &Path) -> String {
         std::fs::canonicalize(path)

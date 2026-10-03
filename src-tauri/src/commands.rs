@@ -298,6 +298,7 @@ pub fn app_ready() -> StartupInfo {
         },
         accent_color: platform.accent_color(),
         perf_mode: std::env::var_os("FOLIO_PERF").is_some(),
+        perf_scroll_only: std::env::var("FOLIO_PERF").as_deref() == Ok("scroll"),
         image_format: match std::env::var("FOLIO_IMAGE_FORMAT").as_deref() {
             Ok("rgba") => ImageFormat::Rgba,
             _ => ImageFormat::Png,

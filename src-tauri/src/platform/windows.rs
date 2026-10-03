@@ -80,6 +80,38 @@ impl Platform for Windows {
         }
     }
 
+    fn set_low_memory(&self, window: &tauri::WebviewWindow, low: bool) {
+        use webview2_com::Microsoft::Web::WebView2::Win32::{
+            COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW,
+            COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL, ICoreWebView2_19,
+        };
+        use windows_core::Interface;
+        let level = if low {
+            COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_LOW
+        } else {
+            COREWEBVIEW2_MEMORY_USAGE_TARGET_LEVEL_NORMAL
+        };
+        let result = window.with_webview(move |webview| {
+            // SAFETY: the controller is live for the duration of this callback, which
+            // Tauri runs on the thread that owns the webview. ICoreWebView2_19 exists in
+            // WebView2 runtimes from 1.0.1774; on older ones `cast` fails and nothing
+            // happens.
+            let outcome = unsafe {
+                webview
+                    .controller()
+                    .CoreWebView2()
+                    .and_then(|core| core.cast::<ICoreWebView2_19>())
+                    .and_then(|core| core.SetMemoryUsageTargetLevel(level))
+            };
+            if let Err(e) = outcome {
+                crate::applog::warn(format!("could not set the webview's memory target: {e}"));
+            }
+        });
+        if let Err(e) = result {
+            crate::applog::warn(format!("could not reach the webview: {e}"));
+        }
+    }
+
     fn file_key(&self, path: &Path) -> String {
         std::fs::canonicalize(path)
             .unwrap_or_else(|_| path.to_path_buf())

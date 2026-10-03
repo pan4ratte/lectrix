@@ -144,12 +144,23 @@ async function jumpTest(jumps: number) {
 	await report('scroll_jump', { jumps });
 }
 
-export async function runPerf(tab: DocTab) {
+/** The renderer's JavaScript heap and page surfaces, for memory investigations. */
+async function memoryMetrics(name: string) {
+	const memory = (performance as Performance & { memory?: { usedJSHeapSize: number } }).memory;
+	if (memory) await logMetric(`${name}_js_heap_mb`, memory.usedJSHeapSize / 2 ** 20);
+	await logMetric(`${name}_canvases`, document.querySelectorAll('canvas').length);
+	await logMetric(`${name}_images`, document.querySelectorAll('img').length);
+}
+
+export async function runPerf(tab: DocTab, scrollOnly = false) {
 	await sleep(1000);
+	await memoryMetrics('before_scroll');
 	await logMetric('image_format_png', pageUrl(0, 0, 1, 0).includes('fmt=png') ? 1 : 0);
-	await compareFormats(tab);
+	if (!scrollOnly) await compareFormats(tab);
 	await scrollTest('scroll_steady', 2000, 30_000);
 	await scrollTest('scroll_fast', 6000, 30_000);
 	await jumpTest(20);
+	await sleep(1000);
+	await memoryMetrics('after_scroll');
 	await logMetric('perf_done', 1);
 }

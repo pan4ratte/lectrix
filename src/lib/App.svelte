@@ -45,7 +45,7 @@
 			if (app.tabs.length > 0) {
 				await firstPagePainted();
 				void logMetric('first_page_visible_ms', performance.now() - openStartedAt);
-				if (info.perfMode && app.active) await runPerf(app.active);
+				if (info.perfMode && app.active) await runPerf(app.active, info.perfScrollOnly);
 			}
 		} catch (e) {
 			app.showError(toAppError(e));

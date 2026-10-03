@@ -17,6 +17,11 @@ accentColor: string | null,
  */
 perfMode: boolean, 
 /**
+ * FOLIO_PERF=scroll: only the scrolling measurements, without the image format
+ * comparison (which pushes large images through a canvas first).
+ */
+perfScrollOnly: boolean, 
+/**
  * Page image format: PNG (ADR 0004); FOLIO_IMAGE_FORMAT=rgba switches to raw RGBA.
  */
 imageFormat: ImageFormat, };

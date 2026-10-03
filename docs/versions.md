@@ -32,6 +32,8 @@ Recorded at project start (2026-10-02). Versions are pinned exactly in `Cargo.to
 | tauri-plugin-single-instance | 2.5.2 (Phase 1; forwards a second launch's files to the running window) |
 | windows-sys | 0.61.2 (Phase 1; Windows `platform` module; already in the tree through Tauri) |
 | windows | 0.62.2 (Phase 2; `pdf-core` DirectWrite font index, ADR 0005; already in the tree through Tauri's webview2-com) |
+| webview2-com | 0.39.1 (Phase 2; WebView2 memory target level while minimized; already in the tree through Tauri) |
+| windows-core | 0.62.2 (Phase 2; COM interface casts for the above; already in the tree) |
 | thiserror | 2.0.21 |
 | cc (build) | 1.5.1 |
 | uuid | 1.26.1 |

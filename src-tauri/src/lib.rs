@@ -10,6 +10,7 @@ mod protocol;
 mod store;
 
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Mutex, OnceLock};
 use std::time::Instant;
 
@@ -34,6 +35,9 @@ const IMAGE_CACHE_MB: usize = 64;
 const MUPDF_STORE_MB: usize = 96;
 
 pub(crate) static MAIN_START: OnceLock<Instant> = OnceLock::new();
+
+/// Whether the main window is minimized (its webview then uses less memory).
+static MINIMIZED: AtomicBool = AtomicBool::new(false);
 
 /// Event carrying `Vec<OpenResult>` for files opened outside a command (drag-and-drop,
 /// a second launch with a file).
@@ -179,10 +183,21 @@ pub fn run() {
             watch_files(app.handle().clone());
             Ok(())
         })
-        .on_window_event(|window, event| {
-            if let WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) = event {
+        .on_window_event(|window, event| match event {
+            WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) => {
                 open_in_background(window.app_handle(), paths.clone());
             }
+            // A minimized window asks WebView2 to use less memory (ADR 0002).
+            WindowEvent::Resized(_) => {
+                if let (Ok(minimized), Some(webview)) = (
+                    window.is_minimized(),
+                    window.app_handle().get_webview_window(window.label()),
+                ) && MINIMIZED.swap(minimized, Ordering::Relaxed) != minimized
+                {
+                    platform::current().set_low_memory(&webview, minimized);
+                }
+            }
+            _ => {}
         })
         .register_asynchronous_uri_scheme_protocol("folio", |ctx, request, responder| {
             let app = ctx.app_handle().clone();
