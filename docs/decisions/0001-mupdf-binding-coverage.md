@@ -69,7 +69,7 @@ public raw access, we drop the vendored copy and depend on crates.io again.
 | Header/library version check | none | shim `folio_mupdf_headers_match_library` (test) |
 | Open from a share-delete OS handle (ADR 0003) | `PdfDocument::open` only takes a path | `ffi/stream.rs` + shim `folio_pdf_open_os_handle`; crate patch 3 (`from_raw_owned`) |
 | Was the file repaired on open | none | `ffi::was_repaired` (shim around `pdf_was_repaired`) |
-| Font lookup hook | `set_font_loader` | crate (`fonts.rs`: base-14 names go to MuPDF's built-in fonts) |
+| Font lookup hook | `set_font_loader` | crate (`fonts/`: base-14 names go to MuPDF's built-in fonts, other names to Folio's installed-font index; the `system-fonts` feature is off since Phase 2, ADR 0005) |
 | Render into a pixmap with an origin (tiles) | `Pixmap::new`, `Device::from_pixmap_with_clip`, `DisplayList::run` | crate |
 | Text geometry, search | `DisplayList::to_text_page`, `TextPage::search_cb` | crate |
 | Signature detection | `pdf_count_signatures` counts unsigned fields too | own walk of `/AcroForm /Fields` in `docinfo.rs` |

@@ -123,11 +123,15 @@ installers. CI is written but has not run.
 
 ## Phase 1: Viewer (report, 2026-10-03)
 
-**Status: ready for review, not yet complete.** The viewer, saving and file handling work,
-and local checks are green. Three things stand between this and "done": CI has not run on
-these commits (they are not pushed yet), WebView2 memory breaks the growth rule in ADR 0002,
-and raw RGBA turned out slower than PNG, which conflicts with section 3. Decisions 1 and 2
-below need you.
+**Status: complete.** Reviewed by the user on 2026-10-03 (decisions below); CI passed on
+the pushed commits (runs 37089408733 and 37092016269). The WebView2 memory rule moved to
+the Phase 2 checklist. The original report follows.
+
+*Report as written:* ready for review, not yet complete. The viewer, saving and file
+handling work, and local checks are green. Three things stand between this and "done": CI
+has not run on these commits (they are not pushed yet), WebView2 memory breaks the growth
+rule in ADR 0002, and raw RGBA turned out slower than PNG, which conflicts with section 3.
+Decisions 1 and 2 below need you.
 
 ### Checklist
 
@@ -318,3 +322,172 @@ first page (13 over 2 s).
   the crate's `system-fonts` feature, which also drops `font-kit` from the build. It
   needs a `FontIndex` behind the `platform` idea (DirectWrite on Windows; fontconfig and
   Core Text later), the CJK fallback families the crate handled, and an ADR.
+
+## Phase 2: Bookmarks (report, 2026-10-03)
+
+**Status: ready for review, not yet complete.** Bookmarks work in the app and every local
+check is green, including the new end-to-end tests. Four things stand between this and
+"done": CI has not run on these commits (not pushed), Acrobat has to be checked by you,
+the WebView2 growth rule is still not met (a revision is proposed), and one real-world file
+still takes 1.8 s to show its first page for a reason unrelated to fonts. Decisions 1 to 4
+below need you.
+
+### Checklist
+
+| Item | Result |
+| --- | --- |
+| Everything in 6.2 works, with undo/redo for each action | Yes. Bookmarks panel (tree read from the outline, expanded state read and written), Ctrl+B at the current view with selected text as the title, inline rename (F2, double-click), drag to reorder and nest, Alt+Shift+arrows, delete (confirmation when it has children), "Set destination to current view". Add, rename, move, delete and retarget are each one undo step ("Undo move bookmark"). New and retargeted bookmarks get `[page /XYZ left top null]`; non-ASCII titles are UTF-16BE with a BOM. |
+| A 3-level outline edited in the app opens correctly in Acrobat, Edge and Firefox | Edge (PDFium) and Firefox (pdf.js): yes, `python tests/interop/run.py phase2`, 15 checks: tree, titles, target pages, expanded states and `/XYZ` positions. **Acrobat: needs you** (files below). |
+| Untouched bookmarks keep their destinations byte-for-byte (test) | Yes, with one precision (decision 4). Test `edits_touch_only_what_they_must_and_untouched_destinations_survive` on a hand-written file: an incremental save rewrites exactly the edited items, the neighbours whose links changed, the parents whose counts changed and the outline root; every other item keeps its original bytes. Neighbours that MuPDF rewrites keep the same destination and action values, but MuPDF writes the dictionary in its own spelling (`72.000` becomes `72`, spaces go). |
+| E2E tests (tauri-driver + WebdriverIO) in CI | Written and passing locally (two flows, 5 s). Added to the CI workflow, which has not run yet. |
+| WebView2 memory investigated | Yes: growth on opening halved, its sources found, the post-scroll figure explained. The rule is still not met: decision 1. Details in ADR 0002. |
+| Font index replaces `font-kit` (ADR first) | Yes: ADR 0005, then DirectWrite index; `font-kit` and `dwrote` are gone from `Cargo.lock`. Same fonts as before: 70 first pages pixel-identical. First page under 1 s for 4 of the 5 corpus files with non-embedded fonts; the fifth is decision 2. |
+
+### What was built
+
+- **pdf-core.** `outline/` reads the outline as a tree with stable ids (object numbers) and
+  targets resolved to a page and a point: explicit destinations, named destinations
+  (`/Dests` and the name tree), GoTo, URI, GoToR and other actions, styles. Damaged
+  outlines (cycles, shared or direct items) are shown but not edited. Edits write only the
+  keys whose values change. Expanded states from the panel are kept by the session and
+  written at the next save through an implicit journal operation (new shim call), so
+  expanding neither dirties the tab nor adds an undo step.
+- **Fonts.** `fonts/index.rs` (portable matching, CSS Fonts 3 like `font-kit`) and
+  `platform/windows.rs` (DirectWrite system font set: 868 faces in 4 to 6 ms, no font file
+  opened). Vendored crate patch 4 shares font data with MuPDF instead of copying it.
+- **App.** Sidebar tabs (Pages, Bookmarks), the bookmarks panel (virtualized ARIA tree,
+  pointer drag-and-drop; HTML5 drag events do not reach the webview while Tauri's file
+  drop is on), the inspector, Document > Add bookmark, View > Bookmarks. Five bookmark
+  operations and `set_bookmark_open` over IPC, types generated by ts-rs. `FOLIO_OPEN`
+  opens files like command-line arguments (tauri-driver hands launch arguments to WebView2
+  on Windows). Page canvases are CPU-backed and fewer pages are mounted (memory); a
+  minimized window sets WebView2's memory target to Low.
+- **pdf-cli.** `outline show`, `outline edit --op ...` (through the same session path as
+  the app), `fonts` (index, name resolution, a document's non-embedded fonts), rotated
+  pages in `info`.
+- **Tests and tools.** `tests/e2e/` (standalone webdriverio 9.32.0, Node's test runner,
+  `fetch-edgedriver.ps1`), interop `phase2`, `measure.ps1 -Empty`, `FOLIO_PERF=scroll`,
+  `tests/perf/memory-over-time.ps1`.
+- **New dependencies** (all MIT OR Apache-2.0 and already in the tree through Tauri):
+  `windows` 0.62.2 in `pdf-core` (DirectWrite), `webview2-com` 0.39.1 and `windows-core`
+  0.62.2 in the app. Test-only: webdriverio (MIT), tauri-driver (Apache-2.0 / MIT).
+  Removed: `font-kit`, `dwrote` and their dependencies.
+
+### Tests
+
+- `cargo test --workspace`: 124 (Phase 1: 102), plus the ignored local-corpus round trip,
+  which passes on all 30 files. New: named-destination lookup, reading every target kind,
+  surgical edits with the exact set of rewritten objects, optimized save keeping values,
+  undo/redo of bookmark edits, invalid moves, the first bookmark creating the outline,
+  damaged outlines refused, font matching (PostScript, suffixes, CSS fallbacks, CJK) and
+  installed Windows fonts.
+- Vitest: 35 (Phase 1: 23): bookmark rows, insertion point, moves, drop zones, keyboard
+  moves, selection after delete, titles and target descriptions.
+- E2E: open, rotate, save, reopen; add (Ctrl+B), rename (inline, F2), nest by dragging,
+  undo/redo, collapse, save, reopen, follow a bookmark; checked on disk with pdf-cli.
+- Interop: phase0 78 passed, phase2 15 passed. `cargo clippy -D warnings`, `cargo fmt`,
+  `svelte-check`: clean.
+- Real files: `outline show` reads all 30 corpus outlines (the largest has 5,023 items, in
+  0.2 s for the whole process) with no damaged outline and no unresolved destination; an
+  edit round trip on that file passes `qpdf --check`.
+
+### Font index results
+
+The same 70 first pages (the 40 library files whose first page took over 500 ms, plus the
+30 corpus files) were rendered before the change and after it. All 70 are pixel-identical.
+Time for `pdf-cli render` of page 1 (process start to PNG written):
+
+| | Before (font-kit) | After (index) |
+| --- | --- | --- |
+| Files over 1 s | 14 | 1 (no font lookups; a heavy page) |
+| Files over 500 ms | 30 | 6 |
+| Worst | 3,425 ms | 2,446 ms (the same heavy page: 2,348 ms before) |
+
+In the app (first page visible, 3 cold starts each), corpus files with non-embedded fonts:
+`11-forms` 77 to 82 ms, `22-rotated-270` 67 to 68 ms, `30-slow-first-page` 72 to 76 ms,
+`01-annot-caret` 644 to 648 ms, `29-slow-first-page` 1,819 to 1,840 ms (decision 2).
+
+### WebView2 memory (ADR 0002 rule)
+
+Generated 1,000-page file; WebView2 = whole tree minus `folio.exe`.
+
+| | Phase 1 | Phase 2 |
+| --- | --- | --- |
+| Empty window | 507 MB tree | ~418 MB WebView2 |
+| Document open, idle: growth over empty | +175 to +255 MB | about +120 MB (one-page document: about +120 MB too) |
+| After the scroll tests | 1.6 to 2.0 GB tree | ~1.0 GB tree (plateau; ~1.7 GB if the format comparison runs first) |
+| Minimized after scrolling | not measured | ~0.84 GB tree |
+
+Where it comes from, what helped and what did not: ADR 0002, "Phase 2 findings".
+
+### Performance (section 2 targets)
+
+Same machine and file as Phase 1 (`measure.ps1 -Pdf big1000.pdf -Perf`).
+
+| Target | Measured | Met? |
+| --- | --- | --- |
+| Window visible < 1 s | 71 to 221 ms | Yes |
+| First page visible < 1 s | 77 to 143 ms | Yes |
+| No blank page > 200 ms while scrolling | Steady: none; fast: worst 56 ms; random jumps: worst 127 ms (Phase 1: 171 to 246 ms) | Yes |
+| folio.exe < 200 MB | 63 MB idle (Phase 1: 105 to 108); 104 MB after scrolling | Yes |
+| WebView2 growth ≤ 100 MB | about +120 MB | **No**, decision 1 |
+
+### Decisions needed
+
+1. **WebView2 growth rule.** What remains (+120 MB) is the cost of showing one page, and no
+   longer depends on the document. Options:
+   - (a) Revise ADR 0002's rule to what Folio controls: opening a large document may not
+     cost more than 30 MB over opening a one-page document, and memory after scrolling
+     must plateau (three rounds of the scroll tests within 10% of one round). Both hold
+     today.
+   - (b) Keep +100 MB and push further: render pages at a lower resolution than the screen
+     (visibly softer text), or keep WebView2's memory target Low while visible (Microsoft
+     warns this costs speed).
+   - **Recommendation: (a).**
+2. **`29-slow-first-page` takes 1.8 s.** Its fonts now cost 5 ms; page 1 is a 33-megapixel
+   JPEG 2000 scan, and decoding it is the time (larger than MuPDF's 96 MB store, so it is
+   not kept either). Making background work wait for the visible page made it slower
+   (2.2 s), so I reverted that. Options: (a) accept it as content cost and list it under
+   Phase 6 performance gaps; (b) look into decoding large JPEG 2000 images at the
+   resolution shown, in Phase 6. **Recommendation: (a) now, (b) in Phase 6.**
+3. **Push to GitHub** so CI runs (it now also runs the E2E tests and interop `phase2`)?
+4. **Byte-for-byte.** Bookmarks the user did not touch keep their bytes exactly unless an
+   edit changes their `/Prev`, `/Next` or `/Count`. In that case MuPDF rewrites the
+   dictionary in its own spelling, with the same values. Is that what you meant, or should
+   rewritten neighbours keep their original spelling too? That would mean serializing
+   outline dictionaries ourselves instead of through MuPDF, which is a larger change.
+
+### Please check in Acrobat
+
+`target/test-output/manual/phase2/`: `outline-source.pdf` (as another app wrote it),
+`outline-edited.pdf` (edited through the app's code: renamed, moved across parents,
+deleted, added at levels 1 and 3, retargeted, expanded) and `app-bookmarks.pdf` (made in
+the app by the E2E test). Expected for `outline-edited.pdf`, shown by
+`pdf-cli outline show`: Part I (open) > Chapter 1 (open) > Sections 1.1, 1.2, 1.3, then
+Chapter Two, Chapter 3 (another file), Chapter 5; "Nouveau — 新しい" (page 4); Part II
+(open) > Chapter 4; "Приложение" (page 5).
+
+### Behavior choices made without explicit guidance
+
+- A click selects a bookmark and follows it; arrow keys only move the selection; Enter
+  follows. The selection stays when you click the page, so repeated Ctrl+B builds a list
+  in order.
+- The inspector opens from the context menu (Properties) and then follows the selection
+  until closed. It floats over the page, so it never changes the zoom of a fit-width view.
+- Ctrl+B without selected text titles the bookmark "Page <label>" and opens it for
+  renaming. Selected text is used only if the document allows copying.
+- A new or retargeted bookmark points at the top-left of what is visible on the page at
+  the top of the view (in the page's own orientation), rounded to whole points.
+- Deleting a bookmark without children needs no confirmation (it can be undone).
+- Expanded states are not written for a signed document without other changes, or when
+  permissions forbid outline changes.
+- Web links, other files and actions are described in a notice when clicked, never opened
+  or run. A bookmark's own color is shown as a dot, not as text color, to keep contrast.
+- The sidebar is now 240 px wide (was 192) with Pages and Bookmarks tabs; Pages is the
+  default.
+
+### Not verified
+
+- Acrobat (above). A keyboard-only and screen-reader pass of the tree: ARIA roles and
+  levels are in place; the full accessibility pass is in Phase 6.
+- Dark mode (Phase 5). Fonts on macOS and Linux: no font source yet (ADR 0005, Phase 6).

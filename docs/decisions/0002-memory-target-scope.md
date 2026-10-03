@@ -29,3 +29,28 @@ embedding a Chromium webview at all, and it barely changes with the document.
   already above it, so the target could never pass and would stop guiding decisions.
 - **No target for WebView2:** this would let frontend leaks (images kept after scrolling
   away) go unnoticed, so the growth rule stays.
+
+## Phase 2 findings (2026-10-03)
+
+Measured on the generated 1,000-page file, Windows 11, 1.5x display scaling
+(`tests/perf/measure.ps1 -Empty`, `-Pdf`, and `tests/perf/memory-over-time.ps1`):
+
+- **Where the growth is.** Mostly the WebView2 GPU process. An accelerated 2D canvas keeps
+  each page's pixels there as well as in the renderer.
+- **What reduced it.** CPU-backed page canvases (`willReadFrequently`) and mounting a
+  quarter screen of pages around the viewport instead of a full screen: growth on opening
+  went from about +230 MB to about +120 MB. A one-page document costs the same +120 MB,
+  so what remains is the price of showing a page at all, not of the document's size.
+- **What did not.** `<img>` elements instead of canvases (similar totals), Chromium's GPU
+  memory flags (`--force-gpu-mem-available-mb`, `--force-gpu-mem-discardable-limit-mb`),
+  and `--disable-gpu` (the same memory moves into the renderer).
+- **Scrolling.** Memory after scrolling plateaus at about 1.0 GB for the whole tree,
+  the same after one or three rounds of the scroll tests: a bounded pool, not a leak.
+  The Phase 1 figure of 1.6 to 2.0 GB included about 800 MB from the image-format
+  comparison that ran first; `FOLIO_PERF=scroll` now leaves it out.
+- **Minimized.** Folio sets WebView2's memory target level to Low while the window is
+  minimized (planned for Phase 6, done now): the renderer drops from about 126 MB to
+  8 MB; the GPU process keeps most of its pool.
+
+The growth rule (+100 MB) is still not met (+120 MB). A revision is proposed in
+`docs/progress.md` (Phase 2 report) and waits for the user's decision.
