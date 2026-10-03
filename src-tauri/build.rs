@@ -13,6 +13,7 @@ const COMMANDS: &[&str] = &[
     "get_page_text",
     "search_text",
     "apply_operation",
+    "set_bookmark_open",
     "undo",
     "redo",
     "save",

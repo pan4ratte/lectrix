@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-bookmark-open"
+description = "Enables the set_bookmark_open command without any pre-configured scope."
+commands.allow = ["set_bookmark_open"]
+
+[[permission]]
+identifier = "deny-set-bookmark-open"
+description = "Denies the set_bookmark_open command without any pre-configured scope."
+commands.deny = ["set_bookmark_open"]

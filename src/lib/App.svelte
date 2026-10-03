@@ -6,6 +6,7 @@
 	import { onMount } from 'svelte';
 
 	import { commands } from '#lib/commands.ts';
+	import BookmarkInspector from '#lib/features/bookmarks/BookmarkInspector.svelte';
 	import DialogHost from '#lib/components/DialogHost.svelte';
 	import FileBanner from '#lib/components/FileBanner.svelte';
 	import PasswordDialog from '#lib/components/PasswordDialog.svelte';
@@ -121,7 +122,10 @@
 			{#if tab}
 				<FileBanner {tab} />
 				{#key tab.id}
-					<Viewer {tab} />
+					<div class="relative flex min-h-0 flex-1 flex-col">
+						<Viewer {tab} />
+						<BookmarkInspector {tab} />
+					</div>
 				{/key}
 			{:else}
 				<StartScreen />

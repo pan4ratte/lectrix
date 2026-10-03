@@ -31,6 +31,7 @@
 	--folio-selection: color-mix(in srgb, var(--folio-accent) 32%, transparent);
 	--folio-search-hit: rgb(255 196 0 / 0.38);
 	--folio-search-current: rgb(255 120 0 / 0.5);
+	--folio-row-selected: color-mix(in srgb, var(--folio-accent) 16%, transparent);
 	--folio-close-hover: #c42b1c;
 	--folio-close-hover-fg: #ffffff;
 }
@@ -249,6 +250,110 @@ button {
 	border-radius: var(--radius-panel);
 	background: var(--folio-surface-raised);
 	box-shadow: 0 16px 32px var(--folio-page-shadow);
+}
+
+/* ----- sidebar ----- */
+
+.sidebar-tab {
+	display: inline-flex;
+	height: 28px;
+	align-items: center;
+	gap: 6px;
+	padding: 0 8px;
+	border: 0;
+	border-radius: var(--radius-control);
+	background: transparent;
+	color: var(--folio-fg-muted);
+}
+.sidebar-tab:hover {
+	background: var(--folio-hover);
+}
+.sidebar-tab[data-state='active'] {
+	background: var(--folio-row-selected);
+	color: var(--folio-fg);
+}
+
+/* ----- bookmarks tree ----- */
+
+.tree:focus-visible {
+	outline: none;
+}
+.tree-row {
+	position: absolute;
+	right: 4px;
+	left: 4px;
+	display: flex;
+	height: 28px;
+	align-items: center;
+	gap: 2px;
+	padding-right: 8px;
+	border-radius: 4px;
+}
+.tree-row:hover {
+	background: var(--folio-hover);
+}
+.tree-row[aria-selected='true'] {
+	background: var(--folio-row-selected);
+}
+.tree:focus-visible .tree-row[aria-selected='true'] {
+	outline: 2px solid var(--folio-focus);
+	outline-offset: -2px;
+}
+.tree-toggle {
+	display: inline-flex;
+	width: 20px;
+	height: 20px;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	border-radius: 4px;
+	color: var(--folio-fg-muted);
+	transition: transform 100ms;
+}
+.tree-toggle:hover {
+	background: var(--folio-pressed);
+}
+.tree-rename {
+	min-width: 0;
+	height: 24px;
+	flex: 1;
+	padding: 0 4px;
+	border: 1px solid var(--folio-accent);
+	border-radius: 4px;
+	background: var(--folio-surface);
+	outline: none;
+}
+.bookmark-color {
+	width: 8px;
+	height: 8px;
+	flex-shrink: 0;
+	margin-right: 4px;
+	border-radius: 50%;
+}
+.tree-drop-inside {
+	box-shadow: inset 0 0 0 2px var(--folio-accent);
+}
+.tree-drop-line {
+	position: absolute;
+	right: 8px;
+	height: 2px;
+	border-radius: 1px;
+	background: var(--folio-accent);
+	pointer-events: none;
+}
+.drag-ghost {
+	position: fixed;
+	z-index: 60;
+	max-width: 240px;
+	padding: 4px 8px;
+	overflow: hidden;
+	border: 1px solid var(--folio-line);
+	border-radius: var(--radius-control);
+	background: var(--folio-surface-raised);
+	box-shadow: 0 4px 12px var(--folio-page-shadow);
+	pointer-events: none;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 /* ----- thumbnails ----- */

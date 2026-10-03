@@ -30,13 +30,17 @@ export type {
 	StartupInfo,
 	ViewState
 };
+export type { Bookmark } from './generated/Bookmark';
+export type { BookmarkTarget } from './generated/BookmarkTarget';
 export type { DocumentFlags } from './generated/DocumentFlags';
 export type { DocumentState } from './generated/DocumentState';
 export type { ErrorCode } from './generated/ErrorCode';
 export type { ImageFormat } from './generated/ImageFormat';
+export type { Outline } from './generated/Outline';
 import type { ImageFormat } from './generated/ImageFormat';
 export type { PageSize } from './generated/PageSize';
 export type { TextLine } from './generated/TextLine';
+export type { ViewDest } from './generated/ViewDest';
 export type { ZoomMode } from './generated/ZoomMode';
 
 export function isAppError(value: unknown): value is AppError {
@@ -72,6 +76,9 @@ export const searchText = (id: number, query: string, start: number, count: numb
 	invoke<SearchChunk>('search_text', { id, query, start, count });
 export const applyOperation = (id: number, operation: OperationInput) =>
 	invoke<DocumentChange>('apply_operation', { id, operation });
+/** A bookmark was expanded or collapsed in the panel (saved with the document, not an edit). */
+export const setBookmarkOpen = (id: number, bookmark: number, open: boolean) =>
+	invoke<void>('set_bookmark_open', { id, bookmark, open });
 export const undo = (id: number) => invoke<DocumentChange>('undo', { id });
 export const redo = (id: number) => invoke<DocumentChange>('redo', { id });
 export const save = (id: number) => invoke<SaveResult>('save', { id });

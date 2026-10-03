@@ -128,8 +128,11 @@
 	function toPage(index: number, clientX: number, clientY: number): [number, number] {
 		const rect = scroller!.getBoundingClientRect();
 		const b = pageBox(index);
-		const dx = clientX - rect.left + scrollLeft - b.left;
-		const dy = clientY - rect.top + scrollTop - b.top;
+		return boxToPage(index, clientX - rect.left + scrollLeft - b.left, clientY - rect.top + scrollTop - b.top);
+	}
+
+	/** Maps CSS pixels in the rotated page box to page points (unrotated): the inverse of toBox. */
+	function boxToPage(index: number, dx: number, dy: number): [number, number] {
 		const k = tab.zoom * CSS_PX_PER_PT;
 		const s = tab.pages[index]!;
 		const [W, H] = [s.width, s.height];
@@ -143,6 +146,62 @@
 			default:
 				return [dx / k, dy / k];
 		}
+	}
+
+	function topLeft(): { page: number; x: number; y: number } {
+		if (!scroller || layout.pages.length === 0) return { page: 0, x: 0, y: 0 };
+		let page = Math.max(0, pageAtY(layout, scrollTop + 1));
+		// In the gap below a page, the next page is the one coming into view.
+		const below = layout.pages[page]!;
+		if (scrollTop >= below.top + below.height - 1 && page + 1 < layout.pages.length) page++;
+		const b = pageBox(page);
+		const clampX = (v: number) => Math.min(b.width, Math.max(0, v));
+		const clampY = (v: number) => Math.min(b.height, Math.max(0, v));
+		const x0 = clampX(scrollLeft - b.left);
+		const x1 = clampX(scrollLeft + viewportW - b.left);
+		const y0 = clampY(scrollTop - b.top);
+		const y1 = clampY(scrollTop + viewportH - b.top);
+		// The visible part's top-left corner in the page's own orientation (the view may be
+		// rotated).
+		const corners = [boxToPage(page, x0, y0), boxToPage(page, x1, y0), boxToPage(page, x0, y1), boxToPage(page, x1, y1)];
+		return {
+			page,
+			x: Math.min(...corners.map((c) => c[0])),
+			y: Math.min(...corners.map((c) => c[1]))
+		};
+	}
+
+	function goToPoint(index: number, x: number | null, y: number | null) {
+		if (!scroller) return;
+		const page = Math.min(Math.max(0, index), layout.pages.length - 1);
+		if (!layout.pages[page]) return;
+		tab.history.push(position());
+		const b = pageBox(page);
+		const [bx, by] = toBox(page, x ?? 0, y ?? 0);
+		// Place the point at the top-left corner of the page's content as it appears on
+		// screen: with a rotated view, that corner is elsewhere in the box.
+		let top: number;
+		let left: number | null;
+		switch (tab.rotation) {
+			case 90:
+				top = b.top + by;
+				left = y === null ? null : b.left + bx - viewportW;
+				break;
+			case 180:
+				top = b.top + by - viewportH;
+				left = x === null ? null : b.left + bx - viewportW;
+				break;
+			case 270:
+				top = b.top + by - viewportH;
+				left = y === null ? null : b.left + bx;
+				break;
+			default:
+				top = y === null ? b.top - 8 : b.top + by;
+				left = x === null ? null : b.left + bx;
+		}
+		scroller.scrollTop = top;
+		if (left !== null) scroller.scrollLeft = left;
+		onScroll();
 	}
 
 	function reveal(index: number, rect: [number, number, number, number]) {
@@ -364,6 +423,8 @@
 		tab.viewer = {
 			position,
 			goTo,
+			topLeft,
+			goToPoint,
 			reveal,
 			setZoom,
 			fit,

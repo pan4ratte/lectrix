@@ -17,14 +17,7 @@ export async function copySelection(tab: DocTab): Promise<void> {
 		});
 		return;
 	}
-	const [start, end] = ordered(sel.anchor, sel.focus);
-	// Pages between the ends of a long selection may not have their text loaded yet.
-	const loads: Promise<unknown>[] = [];
-	for (let page = start.page; page <= end.page; page++) {
-		if (!tab.text(page)) loads.push(tab.loadText(page));
-	}
-	await Promise.all(loads);
-	const text = selectionText(tab.textMap(), start, end);
+	const text = await selectedText(tab);
 	if (!text) return;
 	try {
 		await navigator.clipboard.writeText(text);
@@ -35,4 +28,18 @@ export async function copySelection(tab: DocTab): Promise<void> {
 			suggestion: 'Try again.'
 		});
 	}
+}
+
+/** The selected text ('' without a selection). Does not check the copy permission. */
+export async function selectedText(tab: DocTab): Promise<string> {
+	const sel = tab.selection;
+	if (!sel) return '';
+	const [start, end] = ordered(sel.anchor, sel.focus);
+	// Pages between the ends of a long selection may not have their text loaded yet.
+	const loads: Promise<unknown>[] = [];
+	for (let page = start.page; page <= end.page; page++) {
+		if (!tab.text(page)) loads.push(tab.loadText(page));
+	}
+	await Promise.all(loads);
+	return selectionText(tab.textMap(), start, end);
 }

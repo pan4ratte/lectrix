@@ -26,6 +26,7 @@ const BINDINGS: Binding[] = [
 	{ key: 'F3', command: 'findNext', inInputs: true },
 	{ key: 'F3', shift: true, command: 'findPrevious', inInputs: true },
 	{ key: 'g', ctrl: true, command: 'goToPage', inInputs: true },
+	{ key: 'b', ctrl: true, command: 'addBookmark' },
 	{ key: '=', ctrl: true, command: 'zoomIn', inInputs: true },
 	{ key: '+', ctrl: true, command: 'zoomIn', inInputs: true },
 	{ key: '+', ctrl: true, shift: true, command: 'zoomIn', inInputs: true },

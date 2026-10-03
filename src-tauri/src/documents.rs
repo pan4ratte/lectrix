@@ -303,6 +303,7 @@ pub fn document_info(id: u32, info: CoreInfo, view: Option<ViewState>) -> Docume
         labels: info.labels,
         flags: info.flags.into(),
         state: info.state.into(),
+        outline: info.outline.into(),
         view,
         open_ms: info.open_time.as_secs_f64() * 1000.0,
     }

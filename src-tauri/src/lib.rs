@@ -132,7 +132,17 @@ pub fn run() {
     pdf_core::fonts::warm_up_in_background();
 
     let cwd = std::env::current_dir().unwrap_or_default();
-    let startup_paths = pdf_args(std::env::args().skip(1), &cwd);
+    let mut startup_paths = pdf_args(std::env::args().skip(1), &cwd);
+    // FOLIO_OPEN (paths separated by ';') opens files like command-line arguments. For
+    // automation: under tauri-driver on Windows, launch arguments go to WebView2, not to
+    // the app (tests/e2e).
+    if let Some(list) = std::env::var_os("FOLIO_OPEN") {
+        let list = list.to_string_lossy().into_owned();
+        startup_paths.extend(pdf_args(
+            list.split(';').filter(|s| !s.is_empty()).map(str::to_owned),
+            &cwd,
+        ));
+    }
 
     let result = tauri::Builder::default()
         // Must be the first plugin: a second launch (for example double-clicking another
@@ -195,6 +205,7 @@ pub fn run() {
             commands::get_page_text,
             commands::search_text,
             commands::apply_operation,
+            commands::set_bookmark_open,
             commands::undo,
             commands::redo,
             commands::save,

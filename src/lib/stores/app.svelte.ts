@@ -19,6 +19,7 @@ import {
 	undo as undoCommand,
 	unlockDocument,
 	type AppError,
+	type DocumentChange,
 	type OpenResult,
 	type OperationInput,
 	type RecentFile,
@@ -66,6 +67,10 @@ class AppStore {
 	startup = $state<StartupInfo | null>(null);
 	recent = $state<RecentFile[]>([]);
 	sidebarOpen = $state(true);
+	/** The panel shown in the sidebar. */
+	sidebarPanel = $state<'pages' | 'bookmarks'>('pages');
+	/** The inspector (properties of the selected bookmark) is open. */
+	inspectorOpen = $state(false);
 	dialog = $state<DialogRequest | null>(null);
 	passwordPrompts = $state<PasswordRequest[]>([]);
 	toasts = $state<Toast[]>([]);
@@ -317,12 +322,16 @@ class AppStore {
 		return tab.signedWarningAccepted;
 	}
 
-	async apply(tab: DocTab, operation: OperationInput) {
-		if (!(await this.allowEdit(tab))) return;
+	/** Applies an operation. Returns what changed, or null if it was cancelled or failed. */
+	async apply(tab: DocTab, operation: OperationInput): Promise<DocumentChange | null> {
+		if (!(await this.allowEdit(tab))) return null;
 		try {
-			tab.applyChange(await applyOperation(tab.id, operation));
+			const change = await applyOperation(tab.id, operation);
+			tab.applyChange(change);
+			return change;
 		} catch (e) {
 			this.showError(toAppError(e));
+			return null;
 		}
 	}
 

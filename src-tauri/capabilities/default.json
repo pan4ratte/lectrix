@@ -24,6 +24,7 @@
     "allow-get-page-text",
     "allow-search-text",
     "allow-apply-operation",
+    "allow-set-bookmark-open",
     "allow-undo",
     "allow-redo",
     "allow-save",

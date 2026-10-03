@@ -90,6 +90,9 @@
 						<span class="w-4" aria-hidden="true">{checked ? '✓' : ''}</span>Sidebar
 					{/snippet}
 				</Menubar.CheckboxItem>
+				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.showBookmarks}>
+					Bookmarks
+				</Menubar.Item>
 				<Menubar.Separator class="menu-separator" />
 				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.zoomIn}>
 					Zoom in<span class="menu-shortcut">Ctrl+=</span>
@@ -134,6 +137,10 @@
 					onSelect={commands.rotatePages}
 				>
 					Rotate pages…
+				</Menubar.Item>
+				<Menubar.Separator class="menu-separator" />
+				<Menubar.Item class="menu-item" disabled={!tab?.canEditBookmarks} onSelect={commands.addBookmark}>
+					Add bookmark<span class="menu-shortcut">Ctrl+B</span>
 				</Menubar.Item>
 			</Menubar.Content>
 		</Menubar.Portal>

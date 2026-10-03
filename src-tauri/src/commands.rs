@@ -191,6 +191,21 @@ pub fn apply_operation(
     Ok(change.into())
 }
 
+/// Records that a bookmark was expanded or collapsed in the panel. Not an edit: the state
+/// is written into the outline at the next save.
+#[tauri::command(async)]
+pub fn set_bookmark_open(
+    state: State<'_, AppState>,
+    id: u32,
+    bookmark: u32,
+    open: bool,
+) -> Result<(), AppError> {
+    Ok(state
+        .documents
+        .session(id)?
+        .set_bookmark_open(bookmark, open)?)
+}
+
 #[tauri::command(async)]
 pub fn undo(state: State<'_, AppState>, id: u32) -> Result<DocumentChange, AppError> {
     Ok(state.documents.session(id)?.undo()?.into())

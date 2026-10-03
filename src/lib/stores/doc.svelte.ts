@@ -9,6 +9,7 @@ import {
 	type DocumentFlags,
 	type DocumentInfo,
 	type DocumentState,
+	type Outline,
 	type PageSize,
 	type ViewState
 } from '#lib/ipc/index.ts';
@@ -23,6 +24,17 @@ export interface ViewerApi {
 	goTo(position: ViewPosition, options?: { recordHistory?: boolean }): void;
 	/** Scrolls so that `rect` (page points, view space) is visible. */
 	reveal(page: number, rect: [number, number, number, number]): void;
+	/**
+	 * The page and point (page points, view space) at the top-left of what is visible:
+	 * where a bookmark made now should lead.
+	 */
+	topLeft(): { page: number; x: number; y: number };
+	/**
+	 * Scrolls so that a point of a page (page points; null keeps the current position on
+	 * that axis, or the page's top edge) is at the top-left of the view. Recorded in
+	 * back/forward history.
+	 */
+	goToPoint(page: number, x: number | null, y: number | null): void;
 	/** Zooms keeping the point at the center of the viewport in place. */
 	setZoom(zoom: number, mode: ZoomMode): void;
 	fit(mode: 'fitWidth' | 'fitPage'): void;
@@ -154,6 +166,11 @@ export class DocTab {
 		canCopy: true
 	});
 	state = $state<DocumentState>({ revision: 0, dirty: false, undoName: null, redoName: null });
+	outline = $state<Outline>({ items: [], damaged: false });
+	/** The bookmark selected in the panel. */
+	selectedBookmark = $state<number | null>(null);
+	/** The bookmark whose title is being edited in the panel. */
+	renamingBookmark = $state<number | null>(null);
 
 	zoom = $state(1);
 	zoomMode = $state<ZoomMode>('fitWidth');
@@ -199,6 +216,7 @@ export class DocTab {
 		this.labels = info.labels;
 		this.flags = info.flags;
 		this.state = info.state;
+		this.setOutline(info.outline);
 		this.texts.clear();
 		this.textRequests.clear();
 		this.selection = null;
@@ -215,6 +233,7 @@ export class DocTab {
 			this.pages = pages;
 		}
 		if (change.labelsChanged) this.labels = change.labels;
+		if (change.outline) this.setOutline(change.outline);
 		if (revisionChanged) {
 			this.selection = null;
 			if (this.search.query) void this.search.start(this.search.query, this.currentPage);
@@ -223,6 +242,25 @@ export class DocTab {
 
 	get pageCount() {
 		return this.pages.length;
+	}
+
+	/** Bookmarks can be changed: the outline is intact and permissions allow it. */
+	get canEditBookmarks() {
+		return !this.outline.damaged && this.flags.canAssemble;
+	}
+
+	private setOutline(outline: Outline) {
+		this.outline = outline;
+		const ids = new Set<number>();
+		const walk = (items: Outline['items']) => {
+			for (const b of items) {
+				ids.add(b.id);
+				walk(b.children);
+			}
+		};
+		walk(outline.items);
+		if (this.selectedBookmark !== null && !ids.has(this.selectedBookmark)) this.selectedBookmark = null;
+		if (this.renamingBookmark !== null && !ids.has(this.renamingBookmark)) this.renamingBookmark = null;
 	}
 
 	/** Cached text geometry for the current revision, if loaded. */

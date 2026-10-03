@@ -2,6 +2,7 @@
 
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
+import { addBookmark } from '#lib/features/bookmarks/actions.ts';
 import { copySelection } from '#lib/features/viewer/actions.ts';
 import { normalizeRotation } from '#lib/features/viewer/layout.ts';
 import { stepZoom } from '#lib/features/viewer/zoom.ts';
@@ -70,7 +71,12 @@ export const commands = {
 
 	rotatePages: withTab(() => {
 		app.rotateDialogOpen = true;
-	})
+	}),
+	addBookmark: withTab((t) => addBookmark(t)),
+	showBookmarks: () => {
+		app.sidebarOpen = true;
+		app.sidebarPanel = 'bookmarks';
+	}
 };
 
 export type CommandName = keyof typeof commands;

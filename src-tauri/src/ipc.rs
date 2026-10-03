@@ -116,6 +116,7 @@ pub struct DocumentInfo {
     pub labels: Option<Vec<String>>,
     pub flags: DocumentFlags,
     pub state: DocumentState,
+    pub outline: Outline,
     /// Where the user left off last time, if this file was opened before.
     pub view: Option<ViewState>,
     /// Time to open the file and read page geometry, in milliseconds.
@@ -169,6 +170,10 @@ pub struct DocumentChange {
     /// True when `labels` holds new labels (which may be null: labels removed).
     pub labels_changed: bool,
     pub labels: Option<Vec<String>>,
+    /// The new bookmarks, when they changed.
+    pub outline: Option<Outline>,
+    /// The id of what the operation created (the new bookmark).
+    pub created: Option<u32>,
 }
 
 impl From<core::DocumentChange> for DocumentChange {
@@ -177,6 +182,8 @@ impl From<core::DocumentChange> for DocumentChange {
             Some(labels) => (true, labels),
             None => (false, None),
         };
+        let outline = c.outline.map(Outline::from);
+        let created = c.created;
         DocumentChange {
             state: c.state.into(),
             changed_pages: c
@@ -189,6 +196,128 @@ impl From<core::DocumentChange> for DocumentChange {
                 .collect(),
             labels_changed,
             labels,
+            outline,
+            created,
+        }
+    }
+}
+
+/// The document's bookmarks.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Outline {
+    pub items: Vec<Bookmark>,
+    /// The outline is malformed: shown as far as it can be read, but not editable.
+    pub damaged: bool,
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Bookmark {
+    /// Stable while the document is open; 0 only in damaged outlines.
+    pub id: u32,
+    pub title: String,
+    /// Expanded in the panel.
+    pub open: bool,
+    pub target: BookmarkTarget,
+    pub bold: bool,
+    pub italic: bool,
+    /// The bookmark's own color as #rrggbb, if it has one.
+    pub color: Option<String>,
+    pub children: Vec<Bookmark>,
+}
+
+/// What a bookmark does when clicked.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[ts(export)]
+pub enum BookmarkTarget {
+    /// A heading without a destination.
+    None,
+    /// A place in this document: the point to show at the top-left of the view, in page
+    /// points (view space at zoom 1); null keeps the current position on that axis.
+    Page {
+        page: u32,
+        x: Option<f32>,
+        y: Option<f32>,
+        /// The named destination it goes through, if any.
+        named: Option<String>,
+    },
+    /// The destination does not lead to a page of this document.
+    Broken { named: Option<String> },
+    /// A web link. Folio shows it and offers to copy it; it never opens it.
+    Uri { uri: String },
+    /// A link to another file.
+    File { file: String },
+    /// An action Folio does not run (JavaScript, named actions...).
+    Action { action: String },
+}
+
+impl From<pdf_core::outline::Outline> for Outline {
+    fn from(o: pdf_core::outline::Outline) -> Self {
+        Outline {
+            items: o.items.into_iter().map(Bookmark::from).collect(),
+            damaged: o.damaged,
+        }
+    }
+}
+
+impl From<pdf_core::outline::Bookmark> for Bookmark {
+    fn from(b: pdf_core::outline::Bookmark) -> Self {
+        use pdf_core::outline::Target as T;
+        let target = match b.target {
+            T::None => BookmarkTarget::None,
+            T::Page { page, x, y, named } => BookmarkTarget::Page {
+                page: u32::try_from(page).unwrap_or(u32::MAX),
+                x,
+                y,
+                named,
+            },
+            T::Broken { named } => BookmarkTarget::Broken { named },
+            T::Uri(uri) => BookmarkTarget::Uri { uri },
+            T::File(file) => BookmarkTarget::File { file },
+            T::Action(action) => BookmarkTarget::Action { action },
+        };
+        let color = b.color.map(|[r, g, b]| {
+            let c = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
+            format!("#{:02x}{:02x}{:02x}", c(r), c(g), c(b))
+        });
+        Bookmark {
+            id: b.id,
+            title: b.title,
+            open: b.open,
+            target,
+            bold: b.bold,
+            italic: b.italic,
+            color,
+            children: b.children.into_iter().map(Bookmark::from).collect(),
+        }
+    }
+}
+
+/// A place to point a bookmark at: the point at the top-left of the view, in page points
+/// (view space at zoom 1).
+#[derive(Debug, Clone, Copy, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ViewDest {
+    pub page: u32,
+    pub x: f64,
+    pub y: f64,
+}
+
+impl From<ViewDest> for pdf_core::outline::ViewDest {
+    fn from(d: ViewDest) -> Self {
+        pdf_core::outline::ViewDest {
+            page: d.page as usize,
+            x: d.x,
+            y: d.y,
         }
     }
 }
@@ -216,18 +345,69 @@ pub struct SaveResult {
 #[ts(export)]
 pub enum OperationInput {
     /// Turn pages by `degrees` (multiple of 90, positive is clockwise).
-    RotatePages { pages: Vec<u32>, degrees: i32 },
+    RotatePages {
+        pages: Vec<u32>,
+        degrees: i32,
+    },
+    /// Add a bookmark as child number `index` of `parent` (null: top level).
+    AddBookmark {
+        parent: Option<u32>,
+        index: u32,
+        title: String,
+        dest: ViewDest,
+    },
+    RenameBookmark {
+        id: u32,
+        title: String,
+    },
+    /// Move a bookmark to child number `index` of `parent`, counted after it has left its
+    /// old place.
+    MoveBookmark {
+        id: u32,
+        parent: Option<u32>,
+        index: u32,
+    },
+    /// Delete a bookmark with its children.
+    DeleteBookmark {
+        id: u32,
+    },
+    /// Point a bookmark at a new place ("Set destination to current view").
+    SetBookmarkDestination {
+        id: u32,
+        dest: ViewDest,
+    },
 }
 
 impl From<OperationInput> for pdf_core::ops::Operation {
     fn from(op: OperationInput) -> Self {
+        use pdf_core::ops::Operation as Op;
         match op {
-            OperationInput::RotatePages { pages, degrees } => {
-                pdf_core::ops::Operation::RotatePages {
-                    pages: pages.into_iter().map(|p| p as usize).collect(),
-                    degrees,
-                }
-            }
+            OperationInput::RotatePages { pages, degrees } => Op::RotatePages {
+                pages: pages.into_iter().map(|p| p as usize).collect(),
+                degrees,
+            },
+            OperationInput::AddBookmark {
+                parent,
+                index,
+                title,
+                dest,
+            } => Op::AddBookmark {
+                parent,
+                index: index as usize,
+                title,
+                dest: dest.into(),
+            },
+            OperationInput::RenameBookmark { id, title } => Op::RenameBookmark { id, title },
+            OperationInput::MoveBookmark { id, parent, index } => Op::MoveBookmark {
+                id,
+                parent,
+                index: index as usize,
+            },
+            OperationInput::DeleteBookmark { id } => Op::DeleteBookmark { id },
+            OperationInput::SetBookmarkDestination { id, dest } => Op::SetBookmarkDestination {
+                id,
+                dest: dest.into(),
+            },
         }
     }
 }
@@ -445,6 +625,12 @@ impl From<pdf_core::Error> for AppError {
                 Some("Open it again and enter the password."),
             ),
             E::ActorGone => AppError::document_closed(),
+            E::DamagedOutline => AppError::new(
+                "This document’s bookmarks are damaged, so Folio can show them but not change them.",
+                Some(
+                    "Save a copy with File > Save as (optimized) in another app that can repair it, or leave the bookmarks as they are.",
+                ),
+            ),
             _ => AppError::new(
                 "Something went wrong while working with this document.",
                 Some("Try again. If it keeps happening, the app log has details."),
