@@ -3,11 +3,9 @@
 //! Each call goes through the C shim in `shim.c`, which catches MuPDF's longjmp-based
 //! errors before they can reach Rust frames.
 
-mod graft;
 mod journal;
 mod stream;
 
-pub use graft::graft_pages;
 pub use journal::{Journal, JournalState};
 pub use stream::{open_pdf_shared, was_repaired};
 

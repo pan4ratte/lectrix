@@ -113,29 +113,6 @@ int folio_pdf_undoredo_step(fz_context *ctx, pdf_document *doc, int step, char *
 }
 
 /*
- * Copies `count` pages of `src` (indices in `pages`) into `dst`, inserting them at
- * `insert_at` (or appending when negative). One graft map is shared by all pages, so
- * resources the pages share (fonts, images) are copied once.
- */
-int folio_pdf_graft_pages(fz_context *ctx, pdf_document *dst, int insert_at, pdf_document *src, const int *pages, int count, folio_error *err)
-{
-	pdf_graft_map *map = NULL;
-	int i;
-	fz_var(map);
-	fz_try(ctx)
-	{
-		map = pdf_new_graft_map(ctx, dst);
-		for (i = 0; i < count; i++)
-			pdf_graft_mapped_page(ctx, map, insert_at < 0 ? -1 : insert_at + i, src, pages[i]);
-	}
-	fz_always(ctx)
-		pdf_drop_graft_map(ctx, map);
-	fz_catch(ctx)
-		return folio_caught(ctx, err);
-	return 0;
-}
-
-/*
  * A read-only fz_stream over an operating-system file handle that the caller opened.
  *
  * MuPDF's own file stream (fz_open_file) opens files without FILE_SHARE_DELETE on

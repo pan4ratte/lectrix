@@ -65,7 +65,7 @@ public raw access, we drop the vendored copy and depend on crates.io again.
 | Annotations: create, quads, colour, opacity, author, contents, ink, popup, `update` (appearance synthesis) | `PdfPage::create_annotation`, `PdfAnnotation::*` | crate; QuadPoints and `/Rect` written by `annot/` through one quad writer |
 | Journalling: begin/end/abandon operation | `PdfDocument::begin_operation` etc. | crate |
 | Journalling: enable, undo, redo, state, step names, implicit operations | none | `ffi/journal.rs` plus the shim (implicit operations write expanded bookmark states at save without an undo step, Phase 2) |
-| Merge with one graft map per source | `insert_pdf` grafts page by page with no shared map, so shared resources get duplicated | `ffi/graft.rs` + shim around `pdf_graft_mapped_page` |
+| Copy pages between documents (combine, insert) | `insert_pdf` / `pdf_graft_mapped_page` copy contents, resources and boxes only: annotations (and links, widgets) are left out, and `/Group` too | own copier in `merge/copy.rs` on the crate's `PdfObject` API (Phase 4, below); the Phase 0 graft wrapper is gone |
 | Header/library version check | none | shim `folio_mupdf_headers_match_library` (test) |
 | Open from a share-delete OS handle (ADR 0003) | `PdfDocument::open` only takes a path | `ffi/stream.rs` + shim `folio_pdf_open_os_handle`; crate patch 3 (`from_raw_owned`) |
 | Was the file repaired on open | none | `ffi::was_repaired` (shim around `pdf_was_repaired`) |
@@ -88,6 +88,20 @@ Other findings from Phase 0:
 - With the `system-fonts` feature, the first non-embedded font lookup enumerates the
   Windows font collection through `font-kit` (about 1.6 s once per process). See
   `docs/progress.md` for measurements and options.
+
+Phase 4 (combining files, inserting pages): `pdf_graft_mapped_page` copies only a page's
+contents, resources, boxes, `/Rotate` and `/UserUnit`, so annotations, links and form
+widgets would be lost, and grafting an annotation directly would copy the whole source
+document (its `/P` leads to the page, whose `/Parent` leads to the page tree). Folio's
+copier keeps its own map: picked pages are mapped to their new pages first, and the
+catalog, page tree nodes and unpicked pages are marked never to be copied. It copies
+through a queue rather than by recursion, and raw stream data (decrypted, still encoded)
+as MuPDF's graft does. Two crate behaviours to know (also in the code): `PdfObject`'s
+`try_clone`/`clone` deep-copies (`pdf_deep_copy_obj`), so an object must be read back from
+its container to change it there; and MuPDF's null object is a null pointer, which the
+crate's `array_iter`/`dict_iter` report as an error (`objects::array_items` and
+`dict_entries` skip it). MuPDF 1.27's `pdf_create_document` also puts `/Info` inside the
+catalog; combined files move it to the trailer.
 
 ## Thread safety
 

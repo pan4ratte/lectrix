@@ -427,7 +427,7 @@ fn merge_keeps_pages_outlines_and_labels() {
     assert_eq!(tree[1].page, Some(3));
     assert_eq!(tree[1].children[0].title, "B chapter");
     assert_eq!(tree[1].children[0].page, Some(5));
-    // Text survived on a grafted page.
+    // Text survived on a copied page.
     let text = merged
         .load_page(5)
         .unwrap()
