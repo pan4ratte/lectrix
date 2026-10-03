@@ -672,3 +672,184 @@ The two "other app" files have blank pages; only their labels matter.
    edit is applied). The panel will probably be redesigned later.
 3. **Sidebar tabs:** icon-only tabs with tooltips when Phase 5 adds the Annotations tab.
 4. **Acrobat:** checked by the user; the labels show correctly.
+
+## Phase 4: Stitching (report, 2026-10-03)
+
+*Report as written:* ready for review, not yet complete. Combining files and inserting
+pages work in the app, and every local check is green: the Rust tests, the end-to-end
+tests (now 7 flows), all interop suites and the local corpus. Two things are still open:
+CI has not run on these commits (they are not pushed), and Acrobat has to be checked by
+you (files below). One question about signed files is under "Decisions needed".
+
+### Checklist
+
+| Item | Result |
+| --- | --- |
+| Everything in 6.4 works | Yes. **Combine files** (File menu or the start screen) opens as a tab of its own: the files on the left, every page of every file in one grid. Add files with the dialog or by dropping them on the view. Select pages (click, Ctrl, Shift, arrow keys), reorder them by dragging or with Alt+Shift+arrows, turn them (R, Shift+R) or remove them (Delete), with undo and redo. Bookmarks: one bookmark per file with its bookmarks inside (default), as they are, or none. Labels: each page keeps its label (default), 1, 2, 3 throughout, or none. Combine asks for a new file name (never one of the sources), shows progress with a Stop button, opens the result, and says how many link targets, form fields and attached files were renamed ("src2_…") and which links or bookmarks to left-out pages were removed. Annotations, links, named destinations, form fields, layers and attached files come along with their pages. **Insert pages from file** (Document menu, thumbnails' context menu) uses the same engine: which pages, before or after which page, bookmarks and labels. It is one undo step ("Insert pages"). |
+| Three corpus files (with an outline, with labels, with annotations): `qpdf --check` passes, annotations visible in all three engines, internal links work | Yes, for generated files in CI and for real files locally. **CI** (`run.py phase4`, 51 checks): a file with a 3-level outline, a file with labels, and a file with a highlight and links (explicit, named, web), combined whole, combined picked (reordered, turned, a link target left out) and inserted. qpdf is clean; PDFium and pdf.js read the expected pages, labels, bookmarks and link targets; the highlight is visible in MuPDF, PDFium and pdf.js and the engines agree. **Local corpus** (`run.py phase4-local`, 206 checks): `08-calibre-made` (outline, links), `24-rotated-some` (labels, 64 bookmarks, 575 internal links, rotated pages) and `03-annot-highlight` (28 highlights made by another app). qpdf is clean, although one source has qpdf warnings. In PDFium and pdf.js every page keeps its label, each file's bookmarks are nested with their targets moved along, and all 775 links (582 internal) lead where they led in the sources. All 28 highlights are visible in the three engines. |
+| Two 500-page files: progress bar, can be cancelled without partial files | Yes, end-to-end test `combine-progress`: two generated 500-page files combine into one 1,000-page file while the progress bar moves (70 values, then "Writing the file…"). A second combine, stopped halfway, writes nothing, and an existing file with the target's name keeps its contents. No temporary file is left. Rust tests cover stopping while copying and while writing. Unslowed, these two files combine in well under a second, too fast to press Stop, so the test slows copying by 3 ms per page (`FOLIO_COMBINE_PAGE_DELAY_MS`). |
+
+### What was built
+
+- **pdf-core.** A new engine in `merge/`. MuPDF's page graft (used in Phase 0) copies a
+  page's contents and resources but leaves out its annotations, so links, notes and form
+  widgets were lost. Folio now copies pages with its own copier (`merge/copy.rs`), which
+  maps every picked page to its new page first and never copies the catalog, the page
+  tree or pages that were not picked. Annotations keep their `/P`, `/Popup` and `/IRT`
+  links. Links and bookmarks to pages left out are removed (a bookmark with children stays
+  as a heading). Named destinations come along; a name already taken is renamed with the
+  source's prefix, and the links, bookmarks and actions that use it follow. Top-level
+  form fields are renamed the same way, widgets left behind are pruned, and `/DR` and
+  `/DA` are merged. Layers (`/OCProperties`) and attached files (`/EmbeddedFiles`) come
+  along. Labels: every page keeps the label it had, written as the fewest rules.
+  `Operation::InsertPages` runs the same engine inside one undo step. Details, and two
+  pitfalls of the `mupdf` crate found on the way, are in ADR 0001.
+- **App.** Sources are opened in the registry next to tabs (own sessions, so their
+  thumbnails render through the page protocol), but they are never tabs, never recent
+  files and not watched. `execute_merge` runs on its own thread with progress on a Tauri
+  channel and a cancel flag checked before every page and just before the new file
+  replaces anything. `plan_merge` checks the sources first (moved files, tabs with unsaved
+  changes). Drops go to the Combine view while it is open.
+- **Frontend** (`src/lib/features/merge/`). The Combine view (virtualized grid, keyboard
+  and pointer handling, its own undo history), the progress dialog, and the Insert pages
+  dialog. A document's page count can now change, so the doc store handles that.
+- **pdf-cli.** `merge --pages 2:1-3,1:5@90` (pick, reorder, turn) prints what was renamed or
+  left out. `insert` inserts pages through a session, as the app does.
+- **Automation.** `FOLIO_DIALOG` answers the app's file dialogs from the environment (like
+  `FOLIO_OPEN`; paths never come from the webview), and `FOLIO_COMBINE_PAGE_DELAY_MS` slows
+  combining for the progress test. Both are for tests only.
+- No new dependencies.
+
+### Finding: big undo steps were slow, now fixed
+
+Inserting a whole 2,881-page book into an open document first took **197 seconds**
+(combining the same book into a new file took half a second). The cause is in MuPDF's
+undo journal: it records the first change to each object in an undo step by scanning
+everything the step has already recorded, and `pdf_insert_page` adds a nested step per
+page whose merge is quadratic as well. Now the new pages join the page tree as one new
+`/Pages` node (the existing tree changes in two places), the data of objects created in
+the step is written with the journal set aside (undo removes those objects whole, so
+nothing is lost; a small FFI wrapper with a test), and new bookmarks are written whole.
+Folio's own name-tree lookup also searched leaves one name at a time, which made reading
+a combined file's bookmarks slow; it now searches by halves.
+
+| `pdf-cli insert` into a 3-page document: open, insert as one undo step, save | Before | After |
+| --- | --- | --- |
+| `18-most-pages` (2,881 pages) | 197 s | 0.4 s (undo 1 ms, redo 9 ms) |
+| `16-most-bookmarks` (2,597 pages, 5,023 bookmarks, 18,290 links) | not measured | 2.2 s (redo 58 ms) |
+| `12-forms-many-widgets` (343 pages) | not measured | 0.5 s |
+
+### Tests
+
+- `cargo test --workspace`: 164 (Phase 3: 134), plus 2 ignored local-corpus tests. New:
+  the copier (shared objects copied once, dropped objects skipped); whole-file combining
+  with every reference checked (`/P`, popups, replies, explicit, named and renamed link
+  targets, form fields, layers, nested bookmarks); picked pages (reordered, turned,
+  inherited boxes and resources written out, nothing of the pages left behind copied);
+  options; cancelling and invalid picks; attached files; inserting with undo, redo, save
+  and labels; inserting into a nested page tree whose upper nodes turn and crop pages;
+  label planning; the journal-free stream wrapper with undo and redo; the checked save;
+  sources in the registry (also encrypted ones); the merge runner's progress and
+  cancelling.
+- Local corpus (`--ignored`): the Phase 1–3 round trip still passes on all 30 files.
+  New: each file, combined with a generated file, keeps every page, annotation, label and
+  bookmark, and qpdf finds nothing new. All 30 pass.
+- Vitest: 54 (Phase 3: 45): moving, nudging, turning and removing pages, range selection,
+  drop gaps in the grid, undo history, messages.
+- E2E: 7 flows (Phase 3: 4). New: combine three files after removing, turning and moving
+  pages, with undo and redo, checked on disk with pdf-cli; insert pages, undo, redo and
+  save; the 500-page progress and Stop flow above.
+- Interop: phase0 78, phase2 15, phase3 11, phase4 51, phase4-local 206, all passed. The
+  PDFium and pdf.js tools now report links and their targets. `cargo clippy -D warnings`,
+  `cargo fmt`, `svelte-check`: clean.
+
+### Performance
+
+Section 2 targets (`measure.ps1 -Pdf big1000.pdf`, 3 runs): window visible 60 to 140 ms,
+first page visible 104 to 105 ms, `folio.exe` 63 to 64 MB idle, whole tree 627 to 647 MB.
+No change from Phase 3.
+
+Combining (`pdf-cli merge`, release build; time from start to the file written):
+
+| Files | Result | Time | Peak memory |
+| --- | --- | --- | --- |
+| Two generated 500-page files | 1,000 pages, 5 MB | 0.16 s | 16 MB |
+| `21-rotated-180` + `27-scanned-annotated` | 1,394 pages, 49 MB | 0.36 s | 67 MB |
+| `18-most-pages` + `28-scanned-large` | 3,901 pages, 39 MB | 0.42 s | 64 MB |
+| `16-most-bookmarks` + `03-annot-highlight` (5,023 bookmarks, 18,290 links) | 2,599 pages, 37 MB | 2.0 s | 144 MB |
+| `15-largest-file` + `20-repaired` (two scans, 338 MB) | 684 pages, 323 MB | 1.0 s | 337 MB |
+
+Peak memory is about the size of the result: copied page data stays in memory until the
+file is written. Combining two very large scans therefore briefly raises `folio.exe` by
+that much.
+
+### Please check in Acrobat
+
+`target/test-output/manual/phase4/`. In each file: open the Bookmarks panel and click a
+few bookmarks, click the links, type a label into the page box, and look at the
+annotations and form fields.
+
+| File | What to see |
+| --- | --- |
+| `app-combined.pdf` (8 pages, made in the app by the E2E test) | Page 1 has a yellow highlight; page 2 is turned 90°. Labels 1, 1, 2, 3, ii, iii, iv, 2. Bookmarks: three "Folio sample" items (pages 1, 2, 5), the second with "Chapter A" (page 3). |
+| `merged.pdf` (14 pages) | Labels 1–6, i, ii, 1–3, 1–3. Bookmarks "Outline sample" (Front > Preface, Chapter > Section), "Labels sample", "annotated". On page 12: a highlight with a note, and three links: to page 14, to page 13 (through the named destination "chap2"), and a web link. |
+| `picked.pdf` (5 pages) | Page 1 is turned and keeps its highlight. Its link to the left-out page was removed; its other page link leads to page 2. "Front" is a heading without a target, with "Preface" below it. |
+| `inserted.pdf` (8 pages) | Pages 3–5 were inserted from the annotated file: labels i–v, then 1–3; its links lead to pages 4 and 5. |
+| `names-and-fields.pdf` (7 pages) | Text fields "Name" (value "Ada"), "src2_Name" and "Shared" (two widgets, one value: typing in one fills the other). The link on page 5 leads to page 6 through the renamed target "src2_chap2". The sticky note on page 2 opens its popup; the note on page 4 is a reply to it. The layer "Layer A" is listed and hidden. |
+| `attachments.pdf` | Two attached files: "notes.txt" ("from alpha") and "src2_notes.txt" ("from beta"). |
+| `local-corpus-combined.pdf` (96 pages, from your library) | Three nested bookmark trees, links inside the second file, the 28 highlights on pages 95–96. |
+
+### Decisions needed
+
+1. **Push to GitHub** so CI runs on these commits (it now also runs interop `phase4` and the
+   new E2E flows)?
+2. **Signed source files.** A signature is only valid in the file it signed. Combining a
+   signed file copies its signature fields with their signatures, and readers will report
+   those signatures as invalid in the combined file. Options:
+   - (a) Keep it as it is.
+   - (b) Warn before combining (or inserting from) a signed file: "The signature in X
+     will not be valid in the combined file."
+   - (c) Copy signature fields without their signatures, so they show as empty
+     signature fields.
+   - **Recommendation: (b)**, keeping the fields as they are. You learn why the result
+     shows a broken signature, and nothing is silently removed.
+
+### Behavior choices made without explicit guidance
+
+- The Combine view is a tab of its own next to the documents. Closing it asks first if
+  pages were arranged but not combined. After combining, the result opens in a new tab and
+  the Combine tab stays open for another try.
+- Combining reads files as they are saved on disk. If one is open in a tab with unsaved
+  changes, Folio offers "Save and combine", "Use saved version" or "Cancel".
+- Files whose security settings forbid copying content are not added (Acrobat also
+  refuses page extraction from them), with a plain message. Encrypted files that allow it
+  ask for their password; the combined file is not encrypted.
+- The same file can be added twice; the second copy's names get its own prefix.
+- Renamed names get a prefix by source position when combining ("src2_chap2") and
+  "inserted_" when inserting; if that is taken too, a number is added ("src2_2_chap2").
+- Top-level bookmarks follow the order of each file's first page in the result. They are
+  named after the document title, or the file name without ".pdf" when there is no
+  title.
+- "Each page keeps its label": pages of a file without labels are numbered 1, 2, 3… from
+  that file's first page. When the result would just be 1, 2, 3… throughout, no
+  `/PageLabels` is written.
+- Insert pages: the default position is after the current page. "Keep their labels"
+  only applies when the inserted file has labels; otherwise the inserted pages continue
+  the numbering around them. The file's bookmark goes among the top-level bookmarks,
+  before the first one that leads past the insertion point. Afterwards the view goes to
+  the first inserted page. Inserting shows no progress bar (see the timings above); the
+  dialog's button shows "Inserting…" meanwhile.
+- Not carried over from sources: the structure tree (tagged PDF; the result is not
+  tagged), article threads, and document-level JavaScript, open actions, viewer
+  preferences and XMP metadata.
+- The combined file is written with a plain full save: copied streams keep their
+  compression, and nothing unreferenced is written. "Save As (optimized)" can still
+  recompress it.
+
+### Not verified
+
+- Dropping files from Explorer onto the Combine view: Rust routes drops there while the
+  view is open, but an OLE drag can't be scripted (as in Phase 1).
+- Acrobat (above). Dark mode (Phase 5). A screen-reader pass: the grid is an ARIA listbox
+  with multi-select, and every page reads like "3 of 12: report.pdf, page iv, turned 90°";
+  the full accessibility pass is in Phase 6.

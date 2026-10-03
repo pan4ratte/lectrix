@@ -66,6 +66,7 @@ public raw access, we drop the vendored copy and depend on crates.io again.
 | Journalling: begin/end/abandon operation | `PdfDocument::begin_operation` etc. | crate |
 | Journalling: enable, undo, redo, state, step names, implicit operations | none | `ffi/journal.rs` plus the shim (implicit operations write expanded bookmark states at save without an undo step, Phase 2) |
 | Copy pages between documents (combine, insert) | `insert_pdf` / `pdf_graft_mapped_page` copy contents, resources and boxes only: annotations (and links, widgets) are left out, and `/Group` too | own copier in `merge/copy.rs` on the crate's `PdfObject` API (Phase 4, below); the Phase 0 graft wrapper is gone |
+| Write the stream of an object created in the current undo step, at a cost that does not grow with the step | `write_raw_stream_buffer` (MuPDF scans the step's records on every change) | `ffi::set_new_stream`: shim sets the journal aside for that one write (Phase 4, below) |
 | Header/library version check | none | shim `folio_mupdf_headers_match_library` (test) |
 | Open from a share-delete OS handle (ADR 0003) | `PdfDocument::open` only takes a path | `ffi/stream.rs` + shim `folio_pdf_open_os_handle`; crate patch 3 (`from_raw_owned`) |
 | Was the file repaired on open | none | `ffi::was_repaired` (shim around `pdf_was_repaired`) |
@@ -102,6 +103,14 @@ its container to change it there; and MuPDF's null object is a null pointer, whi
 crate's `array_iter`/`dict_iter` report as an error (`objects::array_items` and
 `dict_entries` skip it). MuPDF 1.27's `pdf_create_document` also puts `/Info` inside the
 catalog; combined files move it to the trailer.
+
+Big undo steps: MuPDF records the first change to each object in an undo step by scanning
+everything the step has already recorded, and `pdf_insert_page` runs a nested step per
+page whose merge (`resolve_undo`) is quadratic too. Inserting a 2,881-page book in one
+step took 197 s. Inserted pages therefore join the tree as one new `/Pages` node, written
+with their `/Parent` already set, and the stream data of objects created in the step is
+written with the journal set aside (`ffi::set_new_stream`); undo removes such objects
+whole, with their streams, so nothing needs recording. The same insert now takes 0.2 s.
 
 ## Thread safety
 
