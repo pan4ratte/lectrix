@@ -675,8 +675,9 @@ The two "other app" files have blank pages; only their labels matter.
 
 ## Phase 4: Stitching (report, 2026-10-03)
 
-**Status: reviewed, waiting for CI.** Reviewed by the user on 2026-10-03 (decisions below);
-Acrobat checked by the user. The original report follows.
+**Status: complete.** Reviewed by the user on 2026-10-03 (decisions below); Acrobat
+checked by the user; CI green on the pushed commits (runs 37154785458 and 37154974372,
+including interop `phase4` and the new E2E flows). The original report follows.
 
 *Report as written:* ready for review, not yet complete. Combining files and inserting
 pages work in the app, and every local check is green: the Rust tests, the end-to-end
