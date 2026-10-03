@@ -6,6 +6,7 @@ use ts_rs::TS;
 
 use pdf_core::session as core;
 
+use crate::annotations::{AnnotationEditInput, NewAnnotationInput, PageAnnotations};
 use crate::documents::Documents;
 
 #[derive(Debug, Clone, Copy, Serialize, TS)]
@@ -121,6 +122,8 @@ pub struct DocumentInfo {
     pub flags: DocumentFlags,
     pub state: DocumentState,
     pub outline: Outline,
+    /// The annotations of every page that has any.
+    pub annotations: Vec<PageAnnotations>,
     /// Where the user left off last time, if this file was opened before.
     pub view: Option<ViewState>,
     /// Time to open the file and read page geometry, in milliseconds.
@@ -186,6 +189,9 @@ pub struct DocumentChange {
     pub page_count: u32,
     /// What inserting pages did (renamed names, links left out).
     pub merge_report: Option<MergeReport>,
+    /// Pages whose annotations changed, with all of their annotations now (a page with
+    /// none left has an empty list).
+    pub annotations: Vec<PageAnnotations>,
 }
 
 impl From<core::DocumentChange> for DocumentChange {
@@ -216,6 +222,7 @@ impl From<core::DocumentChange> for DocumentChange {
             created,
             page_count,
             merge_report,
+            annotations: crate::annotations::changed(c.annotations),
         }
     }
 }
@@ -592,6 +599,10 @@ pub struct SaveResult {
     /// An incremental save was not possible (the file had been repaired), so the whole
     /// file was rewritten.
     pub fell_back_to_full: bool,
+    /// The bookmarks, when their ids changed (Save As (optimized) renumbers objects).
+    pub outline: Option<Outline>,
+    /// Pages whose annotations read differently after saving (renumbered objects).
+    pub annotations: Vec<PageAnnotations>,
 }
 
 /// A change to a document, sent from the frontend.
@@ -649,13 +660,30 @@ pub enum OperationInput {
         bookmarks: BookmarkMode,
         labels: InsertLabelMode,
     },
+    /// Create an annotation; its author is the name from Settings.
+    AddAnnotation {
+        annotation: NewAnnotationInput,
+    },
+    /// Change annotation `id` on `page`.
+    UpdateAnnotation {
+        page: u32,
+        id: u32,
+        edit: AnnotationEditInput,
+    },
+    /// Delete annotation `id` on `page`, with its popup and replies.
+    DeleteAnnotation {
+        page: u32,
+        id: u32,
+    },
 }
 
 impl OperationInput {
-    /// The operation, with document ids resolved to files.
+    /// The operation, with document ids resolved to files and new annotations signed by
+    /// `author`.
     pub fn into_operation(
         self,
         documents: &Documents,
+        author: &str,
     ) -> Result<pdf_core::ops::Operation, AppError> {
         use pdf_core::ops::Operation as Op;
         Ok(match self {
@@ -685,6 +713,9 @@ impl OperationInput {
                     },
                 }
             }
+            OperationInput::AddAnnotation { annotation } => Op::AddAnnotation {
+                annotation: annotation.into_core(author)?,
+            },
             other => other.into_edit()?,
         })
     }
@@ -721,8 +752,19 @@ impl OperationInput {
             OperationInput::SetPageLabels { rules } => Op::SetPageLabels {
                 rules: rules.into_iter().map(Into::into).collect(),
             },
+            OperationInput::UpdateAnnotation { page, id, edit } => Op::UpdateAnnotation {
+                page: page as usize,
+                id,
+                edit: edit.into_core()?,
+            },
+            OperationInput::DeleteAnnotation { page, id } => Op::DeleteAnnotation {
+                page: page as usize,
+                id,
+            },
             // Resolved by `into_operation`.
-            OperationInput::InsertPages { .. } => return Err(AppError::bad_state()),
+            OperationInput::InsertPages { .. } | OperationInput::AddAnnotation { .. } => {
+                return Err(AppError::bad_state());
+            }
         })
     }
 }
@@ -839,7 +881,40 @@ pub struct StartupInfo {
     pub image_format: ImageFormat,
 }
 
+/// Light or dark: following the system, or forced (Settings, section 8).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum Appearance {
+    #[default]
+    System,
+    Light,
+    Dark,
+}
+
+/// The Settings dialog's values.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Settings {
+    /// The author name new annotations get.
+    pub author: String,
+    /// What `author` is when the user has not set one (the Windows user name).
+    pub default_author: String,
+    pub appearance: Appearance,
+}
+
+#[derive(Debug, Clone, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SettingsInput {
+    /// Empty: use the default (the Windows user name).
+    pub author: String,
+    pub appearance: Appearance,
+}
+
 /// Emitted as `file-changed` when an open document's file changes on disk.
+
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]

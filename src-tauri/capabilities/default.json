@@ -38,6 +38,10 @@
     "allow-save-as",
     "allow-reload-document",
     "allow-remember-view",
+    "allow-scan-annotations-for-repair",
+    "allow-repair-annotations",
+    "allow-get-settings",
+    "allow-set-settings",
     "allow-app-ready",
     "allow-log-metric",
     "allow-log-error"

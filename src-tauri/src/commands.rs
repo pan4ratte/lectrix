@@ -17,12 +17,16 @@ use tauri::ipc::Channel;
 use tauri::{AppHandle, State};
 use tauri_plugin_dialog::DialogExt;
 
+use crate::annotations::RepairSummary;
 use crate::combine::{self, Progress};
 use crate::ipc::{
     AppError, Backdrop, DocumentChange, DocumentInfo, ImageFormat, LabelMode, MergeOutcome,
     MergePlan, MergeProgress, MergeRequest, MergeStage, OpenResult, OperationInput, PageHits,
-    PageText, RecentFile, SaveResult, SearchChunk, StartupInfo, UnsavedSource, ViewState,
+    PageText, RecentFile, SaveResult, SearchChunk, Settings, SettingsInput, StartupInfo,
+    UnsavedSource, ViewState,
 };
+use crate::platform::Platform;
+use crate::store::StoredSettings;
 use crate::{AppState, MAIN_START, platform};
 
 /// The most pages one `search_text` call visits; the frontend searches in chunks so it
@@ -283,9 +287,97 @@ pub fn apply_operation(
     id: u32,
     operation: OperationInput,
 ) -> Result<DocumentChange, AppError> {
-    let operation = operation.into_operation(&state.documents)?;
+    let author = author(&state)?;
+    let operation = operation.into_operation(&state.documents, &author)?;
     let change = state.documents.session(id)?.apply(operation)?;
     Ok(change.into())
+}
+
+// ----- annotations (sections 5 and 6.5) -----
+
+/// The author name new annotations get: from Settings, else the Windows user name.
+fn author(state: &AppState) -> Result<String, AppError> {
+    let stored = state
+        .store
+        .lock()
+        .map_err(|_| AppError::bad_state())?
+        .settings()
+        .author
+        .clone();
+    Ok(stored.unwrap_or_else(|| default_author(state.platform)))
+}
+
+fn default_author(platform: &dyn Platform) -> String {
+    platform
+        .user_name()
+        .unwrap_or_else(|| "Folio user".to_owned())
+}
+
+/// Counts the problems "Repair annotations" would fix (section 5.3).
+#[tauri::command(async)]
+pub fn scan_annotations_for_repair(
+    state: State<'_, AppState>,
+    id: u32,
+) -> Result<RepairSummary, AppError> {
+    Ok(state.documents.session(id)?.scan_annotations()?.into())
+}
+
+/// Fixes them, as one undo step, and logs every change with the annotation's object
+/// number (section 5.3).
+#[tauri::command(async)]
+pub fn repair_annotations(state: State<'_, AppState>, id: u32) -> Result<DocumentChange, AppError> {
+    let session = state.documents.session(id)?;
+    let change = session.apply(pdf_core::ops::Operation::RepairAnnotations)?;
+    let name = state
+        .documents
+        .path(id)
+        .map(|p| file_name(&p))
+        .unwrap_or_default();
+    for c in change.repairs.iter().flatten() {
+        crate::applog::info(format!("repair {name}: {c}"));
+    }
+    Ok(change.into())
+}
+
+// ----- settings -----
+
+fn settings_of(stored: &StoredSettings, platform: &dyn Platform) -> Settings {
+    let default_author = default_author(platform);
+    Settings {
+        author: stored
+            .author
+            .clone()
+            .unwrap_or_else(|| default_author.clone()),
+        default_author,
+        appearance: stored.appearance,
+    }
+}
+
+#[tauri::command]
+pub fn get_settings(state: State<'_, AppState>) -> Result<Settings, AppError> {
+    let store = state.store.lock().map_err(|_| AppError::bad_state())?;
+    Ok(settings_of(store.settings(), state.platform))
+}
+
+/// Stores the settings and applies the appearance to the window at once.
+#[tauri::command]
+pub fn set_settings(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    settings: SettingsInput,
+) -> Result<Settings, AppError> {
+    let author = settings.author.trim();
+    let stored = StoredSettings {
+        // The default name is not stored, so it follows the Windows account.
+        author: (!author.is_empty() && author != default_author(state.platform))
+            .then(|| author.chars().take(200).collect()),
+        appearance: settings.appearance,
+    };
+    let mut store = state.store.lock().map_err(|_| AppError::bad_state())?;
+    store.set_settings(stored.clone());
+    drop(store);
+    crate::apply_appearance(&app, stored.appearance);
+    Ok(settings_of(&stored, state.platform))
 }
 
 // ----- combining files and inserting pages (section 6.4) -----

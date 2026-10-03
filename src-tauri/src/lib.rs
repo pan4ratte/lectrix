@@ -1,6 +1,7 @@
 //! Folio app crate: a thin layer of IPC commands, the page-image protocol, windowing and
 //! file handling over `pdf-core`.
 
+mod annotations;
 mod applog;
 mod combine;
 mod commands;
@@ -144,6 +145,24 @@ fn watch_files(app: AppHandle) {
         .unwrap_or_else(|e| applog::error(format!("file watching is off: {e}")));
 }
 
+fn theme_for(appearance: ipc::Appearance) -> Option<tauri::Theme> {
+    match appearance {
+        ipc::Appearance::System => None,
+        ipc::Appearance::Light => Some(tauri::Theme::Light),
+        ipc::Appearance::Dark => Some(tauri::Theme::Dark),
+    }
+}
+
+/// Applies the Settings appearance to the main window: its frame and the webview's
+/// `prefers-color-scheme`, which the design tokens follow.
+pub(crate) fn apply_appearance(app: &AppHandle, appearance: ipc::Appearance) {
+    if let Some(window) = app.get_webview_window("main")
+        && let Err(e) = window.set_theme(theme_for(appearance))
+    {
+        applog::warn(format!("could not change the window theme: {e}"));
+    }
+}
+
 fn env_mb(name: &str, default: usize) -> usize {
     std::env::var(name)
         .ok()
@@ -215,6 +234,13 @@ pub fn run() {
                 if let Some(args) = platform::current().webview_browser_args() {
                     window = window.additional_browser_args(&args);
                 }
+                window = window.theme(theme_for(
+                    app.state::<AppState>()
+                        .store
+                        .lock()
+                        .map(|s| s.settings().appearance)
+                        .unwrap_or_default(),
+                ));
                 window.build()?;
             }
             Ok(())
@@ -275,6 +301,10 @@ pub fn run() {
             commands::save_as,
             commands::reload_document,
             commands::remember_view,
+            commands::scan_annotations_for_repair,
+            commands::repair_annotations,
+            commands::get_settings,
+            commands::set_settings,
             commands::app_ready,
             commands::log_metric,
             commands::log_error,

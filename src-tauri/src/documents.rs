@@ -317,6 +317,8 @@ impl Documents {
             name: file_name(&saved.path),
             path: saved.path.display().to_string(),
             fell_back_to_full: saved.outcome.fell_back_to_full,
+            outline: saved.outline.map(Into::into),
+            annotations: crate::annotations::changed(saved.annotations),
         })
     }
 
@@ -394,6 +396,7 @@ pub fn document_info(id: u32, info: CoreInfo, view: Option<ViewState>) -> Docume
         flags: info.flags.into(),
         state: info.state.into(),
         outline: info.outline.into(),
+        annotations: crate::annotations::pages(info.annotations),
         view,
         open_ms: info.open_time.as_secs_f64() * 1000.0,
     }

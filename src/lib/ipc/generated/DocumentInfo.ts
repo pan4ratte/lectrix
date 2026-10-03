@@ -3,6 +3,7 @@ import type { DocumentFlags } from "./DocumentFlags";
 import type { DocumentState } from "./DocumentState";
 import type { LabelRule } from "./LabelRule";
 import type { Outline } from "./Outline";
+import type { PageAnnotations } from "./PageAnnotations";
 import type { PageSize } from "./PageSize";
 import type { ViewState } from "./ViewState";
 
@@ -23,6 +24,10 @@ labels: Array<string> | null,
  * The label rules exactly as stored (empty when there are no labels).
  */
 labelRules: Array<LabelRule>, flags: DocumentFlags, state: DocumentState, outline: Outline, 
+/**
+ * The annotations of every page that has any.
+ */
+annotations: Array<PageAnnotations>, 
 /**
  * Where the user left off last time, if this file was opened before.
  */

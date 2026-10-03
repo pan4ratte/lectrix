@@ -8,7 +8,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
-use crate::ipc::ViewState;
+use crate::ipc::{Appearance, ViewState};
 
 const MAX_RECENT: usize = 20;
 const MAX_VIEWS: usize = 500;
@@ -33,6 +33,18 @@ struct Data {
     /// Keyed by `Platform::file_key`.
     #[serde(default)]
     views: HashMap<String, StoredView>,
+    #[serde(default)]
+    settings: StoredSettings,
+}
+
+/// What the Settings dialog changes (section 6.5, Phase 5).
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+pub struct StoredSettings {
+    /// The author name for new annotations; `None` uses the Windows user name.
+    #[serde(default)]
+    pub author: Option<String>,
+    #[serde(default)]
+    pub appearance: Appearance,
 }
 
 pub struct Store {
@@ -79,6 +91,17 @@ impl Store {
     pub fn remove_recent(&mut self, index: usize) {
         if index < self.data.recent.len() {
             self.data.recent.remove(index);
+            self.persist();
+        }
+    }
+
+    pub fn settings(&self) -> &StoredSettings {
+        &self.data.settings
+    }
+
+    pub fn set_settings(&mut self, settings: StoredSettings) {
+        if self.data.settings != settings {
+            self.data.settings = settings;
             self.persist();
         }
     }
@@ -188,6 +211,26 @@ mod tests {
         let reloaded = Store::load(Some(file));
         assert_eq!(reloaded.view("c:/docs/a.pdf"), Some(view(41)));
         assert_eq!(reloaded.view("c:/docs/b.pdf"), None);
+    }
+
+    #[test]
+    fn settings_round_trip_and_default_for_old_files() {
+        let file = temp_store("settings.json");
+        let mut store = Store::load(Some(file.clone()));
+        assert_eq!(*store.settings(), StoredSettings::default());
+        store.set_settings(StoredSettings {
+            author: Some("Ada Lovelace".into()),
+            appearance: Appearance::Dark,
+        });
+        let reloaded = Store::load(Some(file.clone()));
+        assert_eq!(reloaded.settings().author.as_deref(), Some("Ada Lovelace"));
+        assert_eq!(reloaded.settings().appearance, Appearance::Dark);
+        // A state file from Phase 4 (no settings) still loads, with defaults.
+        fs::write(&file, br#"{"recent":[],"views":{}}"#).unwrap();
+        assert_eq!(
+            *Store::load(Some(file)).settings(),
+            StoredSettings::default()
+        );
     }
 
     #[test]

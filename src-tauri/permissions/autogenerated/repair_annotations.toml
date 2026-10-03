@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-repair-annotations"
+description = "Enables the repair_annotations command without any pre-configured scope."
+commands.allow = ["repair_annotations"]
+
+[[permission]]
+identifier = "deny-repair-annotations"
+description = "Denies the repair_annotations command without any pre-configured scope."
+commands.deny = ["repair_annotations"]

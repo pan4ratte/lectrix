@@ -40,6 +40,16 @@ pub trait Platform: Send + Sync {
         None
     }
 
+    /// The name of the signed-in user, the default author of annotations (section 5.1
+    /// rule 6).
+    fn user_name(&self) -> Option<String> {
+        ["USERNAME", "USER"]
+            .iter()
+            .filter_map(|k| std::env::var(k).ok())
+            .map(|v| v.trim().to_owned())
+            .find(|v| !v.is_empty())
+    }
+
     /// A stable key for remembering things about a file (recent files, view position).
     fn file_key(&self, path: &Path) -> String {
         std::fs::canonicalize(path)

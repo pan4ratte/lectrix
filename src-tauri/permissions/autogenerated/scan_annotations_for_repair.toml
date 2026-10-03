@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-scan-annotations-for-repair"
+description = "Enables the scan_annotations_for_repair command without any pre-configured scope."
+commands.allow = ["scan_annotations_for_repair"]
+
+[[permission]]
+identifier = "deny-scan-annotations-for-repair"
+description = "Denies the scan_annotations_for_repair command without any pre-configured scope."
+commands.deny = ["scan_annotations_for_repair"]

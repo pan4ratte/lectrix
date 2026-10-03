@@ -4,6 +4,7 @@ import type { DocumentState } from "./DocumentState";
 import type { LabelRule } from "./LabelRule";
 import type { MergeReport } from "./MergeReport";
 import type { Outline } from "./Outline";
+import type { PageAnnotations } from "./PageAnnotations";
 
 /**
  * What a mutating command changed (AGENTS.md section 3).
@@ -31,4 +32,9 @@ pageCount: number,
 /**
  * What inserting pages did (renamed names, links left out).
  */
-mergeReport: MergeReport | null, };
+mergeReport: MergeReport | null, 
+/**
+ * Pages whose annotations changed, with all of their annotations now (a page with
+ * none left has an empty list).
+ */
+annotations: Array<PageAnnotations>, };
