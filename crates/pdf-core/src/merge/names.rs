@@ -104,21 +104,52 @@ fn walk_tree(
     Ok(())
 }
 
-/// The destination array a destination value stands for: the value itself, a named
-/// destination's array, or the `/D` of a destination dictionary.
-pub(crate) fn resolve_dest(doc: &PdfDocument, value: &PdfObject) -> Result<Option<PdfObject>> {
-    if value.is_array()? {
-        return Ok(Some(value.try_clone()?));
+/// A document's named destinations, by name. Looking a name up in a name tree is a linear
+/// search, and a file can have thousands of links and bookmarks using names, so each
+/// source's names are read once.
+pub(crate) struct DestIndex(HashMap<Vec<u8>, PdfObject>);
+
+impl DestIndex {
+    pub fn empty() -> DestIndex {
+        DestIndex(HashMap::new())
     }
-    if let Some(name) = name_bytes(value)? {
-        return crate::outline::lookup_dest(doc, &name);
+
+    pub fn new(doc: &PdfDocument) -> Result<DestIndex> {
+        let mut map = HashMap::new();
+        for (name, value) in collect(doc)? {
+            // A named destination is an array, or a dictionary whose /D is the array.
+            let array = if value.is_dict()? {
+                value.get_dict("D")?
+            } else {
+                Some(value)
+            };
+            if let Some(array) = array.filter(|a| a.is_array().unwrap_or(false)) {
+                map.insert(name, array);
+            }
+        }
+        Ok(DestIndex(map))
     }
-    if value.is_dict()? {
-        return Ok(value
-            .get_dict("D")?
-            .filter(|d| d.is_array().unwrap_or(false)));
+
+    /// Where a destination value (an array, a name or string, or a dictionary with `/D`)
+    /// leads.
+    pub fn page(&self, value: &PdfObject) -> Result<PageRef> {
+        if value.is_array()? {
+            return dest_page(value);
+        }
+        if let Some(name) = name_bytes(value)? {
+            return match self.0.get(&name) {
+                Some(array) => dest_page(array),
+                None => Ok(PageRef::Unknown),
+            };
+        }
+        if value.is_dict()?
+            && let Some(array) = value.get_dict("D")?
+            && array.is_array()?
+        {
+            return dest_page(&array);
+        }
+        Ok(PageRef::Unknown)
     }
-    Ok(None)
 }
 
 /// Where a destination array points: a page object, or (in some files) a page index.

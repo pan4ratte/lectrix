@@ -10,7 +10,7 @@ use std::collections::HashMap;
 use mupdf::pdf::{PdfDocument, PdfObject};
 
 use super::copy::Copier;
-use super::names::{self, PageRef};
+use super::names::{self, DestIndex, PageRef};
 use crate::error::Result;
 use crate::outline::edit::NewBookmark;
 use crate::outline::tree::Tree;
@@ -25,19 +25,26 @@ pub(crate) struct Copied {
     pub dropped: usize,
 }
 
+/// What decides whether a source's link or bookmark still has its page.
+pub(crate) struct Targets<'a> {
+    pub src: &'a PdfDocument,
+    /// Source page index to destination page object number, for picked pages.
+    pub picked: &'a HashMap<usize, i32>,
+    pub dests: &'a DestIndex,
+}
+
 pub(crate) fn copy(
     dst: &mut PdfDocument,
-    src: &PdfDocument,
     copier: &mut Copier,
-    picked: &HashMap<usize, i32>,
+    targets: &Targets<'_>,
 ) -> Result<Copied> {
-    let tree = Tree::load(src)?;
+    let tree = Tree::load(targets.src)?;
     let mut out = Copied {
         items: Vec::new(),
         dropped: 0,
     };
     for &i in &tree.top {
-        if let Some(item) = copy_node(dst, src, &tree, i, copier, picked, &mut out.dropped)? {
+        if let Some(item) = copy_node(dst, &tree, i, copier, targets, &mut out.dropped)? {
             out.items.push(item);
         }
     }
@@ -46,21 +53,20 @@ pub(crate) fn copy(
 
 fn copy_node(
     dst: &mut PdfDocument,
-    src: &PdfDocument,
     tree: &Tree,
     index: usize,
     copier: &mut Copier,
-    picked: &HashMap<usize, i32>,
+    targets: &Targets<'_>,
     dropped: &mut usize,
 ) -> Result<Option<NewBookmark>> {
     let node = &tree.nodes[index];
     let mut children = Vec::new();
     for &c in &node.children {
-        if let Some(child) = copy_node(dst, src, tree, c, copier, picked, dropped)? {
+        if let Some(child) = copy_node(dst, tree, c, copier, targets, dropped)? {
             children.push(child);
         }
     }
-    let removed = target_removed(src, &node.obj, copier, picked)?;
+    let removed = target_removed(&node.obj, copier, targets)?;
     if removed && children.is_empty() {
         *dropped += 1;
         return Ok(None);
@@ -89,22 +95,18 @@ fn copy_node(
 /// True if the link or bookmark leads to a page of `src` that is not being copied.
 /// Destinations that lead nowhere in the source stay as they are.
 pub(crate) fn target_removed(
-    src: &PdfDocument,
     item: &PdfObject,
     copier: &Copier,
-    picked: &HashMap<usize, i32>,
+    targets: &Targets<'_>,
 ) -> Result<bool> {
     let Some(dest) = names::goto_dest(item)? else {
         return Ok(false);
     };
-    let Some(array) = names::resolve_dest(src, &dest)? else {
-        return Ok(false);
-    };
-    Ok(match names::dest_page(&array)? {
+    Ok(match targets.dests.page(&dest)? {
         PageRef::Object(num) => copier.is_dropped(num),
         PageRef::Index(i) => {
-            let count = usize::try_from(src.page_count()?).unwrap_or(0);
-            i < count && !picked.contains_key(&i)
+            let count = usize::try_from(targets.src.page_count()?).unwrap_or(0);
+            i < count && !targets.picked.contains_key(&i)
         }
         PageRef::Unknown => false,
     })

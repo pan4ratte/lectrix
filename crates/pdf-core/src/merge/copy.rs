@@ -17,7 +17,6 @@
 
 use std::collections::{HashMap, VecDeque};
 
-use mupdf::Buffer;
 use mupdf::pdf::{PdfDocument, PdfObject};
 
 use crate::error::Result;
@@ -89,8 +88,9 @@ impl Copier {
             target.write_object(&value)?;
             if src.is_stream()? {
                 // Raw stream data: decrypted but still encoded, so /Filter stays valid.
+                // `target` was created in this operation (see `ffi::set_new_stream`).
                 let data = src.read_raw_stream()?;
-                target.write_raw_stream_buffer(&Buffer::from_copied_bytes(&data)?)?;
+                crate::ffi::set_new_stream(dst, &target, &data)?;
             }
         }
         Ok(())

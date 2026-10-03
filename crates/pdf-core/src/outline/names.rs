@@ -76,6 +76,26 @@ fn tree_lookup(
         && names.is_array()?
     {
         let len = i32::try_from(names.len()?).unwrap_or(i32::MAX);
+        // Keys in a leaf are sorted (PDF 32000-1, 7.9.6), so search by halves first; a
+        // leaf can hold thousands of names (combined files write one leaf). Unsorted
+        // leaves in damaged files are still searched one by one below.
+        let (mut lo, mut hi) = (0, len / 2);
+        while lo < hi {
+            let mid = lo + (hi - lo) / 2;
+            let Some(k) = names
+                .get_array(2 * mid)?
+                .map(|k| name_bytes(&k))
+                .transpose()?
+                .flatten()
+            else {
+                break;
+            };
+            match k.as_slice().cmp(key) {
+                std::cmp::Ordering::Equal => return Ok(names.get_array(2 * mid + 1)?),
+                std::cmp::Ordering::Less => lo = mid + 1,
+                std::cmp::Ordering::Greater => hi = mid,
+            }
+        }
         let mut i = 0;
         while i + 1 < len {
             if let Some(k) = names.get_array(i)?

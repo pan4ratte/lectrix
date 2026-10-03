@@ -113,6 +113,42 @@ int folio_pdf_undoredo_step(fz_context *ctx, pdf_document *doc, int step, char *
 }
 
 /*
+ * Sets the data of stream object `num` to `data` (raw: still encoded, so its /Filter stays
+ * valid), like pdf_update_stream(..., compressed = 1). The object must have been created
+ * in the journal operation in progress, or the document must have no journal.
+ *
+ * MuPDF records the first change to each object in an operation by scanning every change
+ * already recorded in it, so copying thousands of objects in one undo step is quadratic
+ * (inserting a 2,881-page book took minutes). An object created in the operation needs no
+ * record of later changes: undo removes it whole, with its stream. So the journal is set
+ * aside for this one write.
+ */
+int folio_pdf_set_new_stream(fz_context *ctx, pdf_document *doc, int num, const unsigned char *data, size_t len, folio_error *err)
+{
+	pdf_journal *journal = doc->journal;
+	fz_buffer *buf = NULL;
+	pdf_obj *ref = NULL;
+	fz_var(buf);
+	fz_var(ref);
+	doc->journal = NULL;
+	fz_try(ctx)
+	{
+		buf = fz_new_buffer_from_copied_data(ctx, data, len);
+		ref = pdf_new_indirect(ctx, doc, num, 0);
+		pdf_update_stream(ctx, doc, ref, buf, 1);
+	}
+	fz_always(ctx)
+	{
+		doc->journal = journal;
+		pdf_drop_obj(ctx, ref);
+		fz_drop_buffer(ctx, buf);
+	}
+	fz_catch(ctx)
+		return folio_caught(ctx, err);
+	return 0;
+}
+
+/*
  * A read-only fz_stream over an operating-system file handle that the caller opened.
  *
  * MuPDF's own file stream (fz_open_file) opens files without FILE_SHARE_DELETE on

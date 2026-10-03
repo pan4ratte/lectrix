@@ -357,7 +357,6 @@ pub fn insert_pages(
     if labels::is_plain(&rules) && old_rules.is_empty() {
         rules.clear();
     }
-    // MuPDF shifts stored labels while inserting pages; this writes the intended ones.
     page_labels::set_rules(doc, rules)?;
     Ok(engine.report)
 }
@@ -401,6 +400,110 @@ const PAGE_KEYS_SKIPPED: [&[u8]; 9] = [
     b"StructParents",
 ];
 
+/// Where the new pages join the page tree: as one new `/Pages` node, child number `index`
+/// of `parent`. Each new page gets its `/Parent` before it is written, so the existing
+/// tree changes in only two places (the parent's `/Kids` and the `/Count`s above it).
+/// Inserting page by page with `pdf_insert_page` would instead change the tree, and add a
+/// nested undo step, for every page: inserting a 2,881-page book took minutes that way.
+struct TreeSlot {
+    parent: PdfObject,
+    index: usize,
+}
+
+/// Inheritable page keys the destination's tree defines above the new pages. A copied page
+/// that lacks one gets it written explicitly, so it does not take the destination's value.
+#[derive(Default)]
+struct Inherited {
+    rotate: bool,
+    crop_box: bool,
+    resources: bool,
+}
+
+/// Finds where pages inserted before page `at` join the tree. `None` if the tree is too
+/// damaged to tell (then pages are inserted one by one).
+fn tree_slot(doc: &PdfDocument, at: usize) -> Result<Option<TreeSlot>> {
+    let count = usize::try_from(doc.page_count()?).unwrap_or(0);
+    if count == 0 {
+        let Some(root) = doc.catalog()?.get_dict("Pages")? else {
+            return Ok(None);
+        };
+        return Ok(root.is_indirect()?.then_some(TreeSlot {
+            parent: root,
+            index: 0,
+        }));
+    }
+    let neighbour = doc.find_page(page_no(at.min(count - 1))?)?;
+    let Some(parent) = neighbour.get_dict("Parent")? else {
+        return Ok(None);
+    };
+    if !neighbour.is_indirect()? || !parent.is_indirect()? {
+        return Ok(None);
+    }
+    let Some(kids) = parent.get_dict("Kids")? else {
+        return Ok(None);
+    };
+    let num = neighbour.as_indirect()?;
+    let Some(position) = array_items(&kids)?
+        .iter()
+        .position(|k| k.is_indirect().unwrap_or(false) && k.as_indirect().ok() == Some(num))
+    else {
+        return Ok(None);
+    };
+    Ok(Some(TreeSlot {
+        parent,
+        index: if at >= count { position + 1 } else { position },
+    }))
+}
+
+/// The inheritable keys defined on `node` and the nodes above it.
+fn inherited_from(node: &PdfObject) -> Result<Inherited> {
+    let has = |key: &str| -> Result<bool> { Ok(node.get_dict_inheritable(key)?.is_some()) };
+    Ok(Inherited {
+        rotate: has("Rotate")?,
+        crop_box: has("CropBox")?,
+        resources: has("Resources")?,
+    })
+}
+
+/// Links the new `/Pages` node into the tree: the parent's `/Kids` gains it at the slot's
+/// index, and every `/Count` from the parent up grows by `added`.
+fn link_node(dst: &mut PdfDocument, slot: &TreeSlot, node: &PdfObject, added: usize) -> Result<()> {
+    let mut parent = slot.parent.clone();
+    let old = parent
+        .get_dict("Kids")?
+        .map(|k| array_items(&k))
+        .transpose()?
+        .unwrap_or_default();
+    let mut kids = dst.new_array_with_capacity(i32::try_from(old.len() + 1).unwrap_or(0))?;
+    for (i, kid) in old.into_iter().enumerate() {
+        if i == slot.index {
+            kids.array_push(node.clone())?;
+        }
+        kids.array_push(kid)?;
+    }
+    if slot.index >= kids.len()? {
+        kids.array_push(node.clone())?;
+    }
+    parent.dict_put("Kids", kids)?;
+    let added =
+        i32::try_from(added).map_err(|_| Error::InvalidArgument("too many pages".into()))?;
+    let mut current = Some(parent);
+    let mut depth = 0;
+    while let Some(mut n) = current {
+        depth += 1;
+        if depth > 64 {
+            break;
+        }
+        let count = match n.get_dict("Count")? {
+            Some(c) if c.is_int()? => c.as_int()?,
+            _ => 0,
+        };
+        n.dict_put("Count", PdfObject::new_int(count + added)?)?;
+        current = n.get_dict("Parent")?;
+    }
+    Ok(())
+}
+
 /// Per-source state while copying.
 struct SourceState {
     copier: Copier,
@@ -413,6 +516,8 @@ struct SourceState {
     /// Copied annotations, for the destination-reference pass.
     annots: Vec<PdfObject>,
     first_output_page: Option<usize>,
+    /// The source's named destinations, read once.
+    dests: names::DestIndex,
 }
 
 struct Engine<'a> {
@@ -471,10 +576,24 @@ impl<'a> Engine<'a> {
                 names: Vec::new(),
                 annots: Vec::new(),
                 first_output_page: None,
+                dests: names::DestIndex::empty(),
             })
             .collect();
 
-        // 1. Reserve the new pages, and mark what must not be copied.
+        // 1. Reserve the new pages and the node that will hold them, and mark what must
+        // not be copied.
+        let slot = tree_slot(dst, at)?;
+        let node = match &slot {
+            Some(_) => Some(dst.create_object()?),
+            None => None,
+        };
+        let inherited = match &slot {
+            Some(slot) => inherited_from(&slot.parent)?,
+            None => match dst.catalog()?.get_dict("Pages")? {
+                Some(root) => inherited_from(&root)?,
+                None => Inherited::default(),
+            },
+        };
         let mut targets = Vec::with_capacity(picks.len());
         for (k, pick) in picks.iter().enumerate() {
             let target = dst.create_object()?;
@@ -495,11 +614,32 @@ impl<'a> Engine<'a> {
         }
 
         // 2. Pages, in output order.
+        let refs: Vec<PdfObject> = targets.iter().map(PdfObject::clone).collect();
         for (k, (pick, target)) in picks.iter().zip(targets).enumerate() {
-            self.copy_page(dst, pick, target, at + k)?;
+            let place = match &node {
+                Some(node) => PagePlace::Under(node),
+                None => PagePlace::Insert(at + k),
+            };
+            self.copy_page(dst, pick, target, place, &inherited)?;
             if !progress(k + 1, picks.len()) {
                 return Err(Error::Cancelled);
             }
+        }
+        if let (Some(slot), Some(mut node)) = (&slot, node) {
+            let mut kids = dst.new_array_with_capacity(i32::try_from(refs.len()).unwrap_or(0))?;
+            for r in refs {
+                kids.array_push(r)?;
+            }
+            let mut dict = dst.new_dict()?;
+            dict.dict_put("Type", PdfObject::new_name("Pages")?)?;
+            dict.dict_put("Parent", slot.parent.clone())?;
+            dict.dict_put("Kids", kids)?;
+            dict.dict_put(
+                "Count",
+                PdfObject::new_int(i32::try_from(picks.len()).unwrap_or(i32::MAX))?,
+            )?;
+            node.write_object(&dict)?;
+            link_node(dst, slot, &node, picks.len())?;
         }
 
         // 3. Named destinations, form fields, layers and bookmarks of each source.
@@ -542,7 +682,12 @@ impl<'a> Engine<'a> {
             }
             let mut items = Vec::new();
             if bookmarks != BookmarkMode::Drop {
-                let copied = bookmarks::copy(dst, &source.doc, &mut state.copier, &state.pages)?;
+                let targets = bookmarks::Targets {
+                    src: &source.doc,
+                    picked: &state.pages,
+                    dests: &state.dests,
+                };
+                let copied = bookmarks::copy(dst, &mut state.copier, &targets)?;
                 self.report.dropped_bookmarks += copied.dropped;
                 items = copied.items;
             }
@@ -604,11 +749,9 @@ impl<'a> Engine<'a> {
     fn plan_names(&mut self, s: usize) -> Result<()> {
         let src = &self.sources[s].doc;
         let state = &mut self.states[s];
+        state.dests = names::DestIndex::new(src)?;
         for (name, value) in names::collect(src)? {
-            let Some(dest) = names::resolve_dest(src, &value)? else {
-                continue;
-            };
-            let kept = match names::dest_page(&dest)? {
+            let kept = match state.dests.page(&value)? {
                 names::PageRef::Object(num) => state.copier.mapped(num).is_some(),
                 names::PageRef::Index(i) => state.pages.contains_key(&i),
                 names::PageRef::Unknown => false,
@@ -636,7 +779,8 @@ impl<'a> Engine<'a> {
         dst: &mut PdfDocument,
         pick: &PagePick,
         mut target: PdfObject,
-        position: usize,
+        place: PagePlace<'_>,
+        inherited: &Inherited,
     ) -> Result<()> {
         let src = &self.sources[pick.source].doc;
         let state = &mut self.states[pick.source];
@@ -662,8 +806,18 @@ impl<'a> Engine<'a> {
             _ => 0,
         };
         let rotate = normalize_rotation(normalize_rotation(rotate) + pick.rotate);
-        if rotate != 0 {
+        if rotate != 0 || inherited.rotate {
             page.dict_put("Rotate", PdfObject::new_int(rotate)?)?;
+        }
+        if inherited.crop_box
+            && page.get_dict("CropBox")?.is_none()
+            && let Some(media) = page.get_dict("MediaBox")?
+        {
+            // A copy (try_clone is deep): the crop box equals the media box.
+            page.dict_put("CropBox", media.try_clone()?)?;
+        }
+        if inherited.resources && page.get_dict("Resources")?.is_none() {
+            page.dict_put("Resources", dst.new_dict()?)?;
         }
         for (key, value) in dict_entries(&src_page)? {
             if PAGE_KEYS_SKIPPED.contains(&key.as_name()?.as_slice()) {
@@ -688,7 +842,12 @@ impl<'a> Engine<'a> {
                 let is_link = dict
                     .get_dict("Subtype")?
                     .is_some_and(|s| s.as_name().ok().as_deref() == Some(b"Link"));
-                if is_link && bookmarks::target_removed(src, &dict, &state.copier, &state.pages)? {
+                let targets = bookmarks::Targets {
+                    src,
+                    picked: &state.pages,
+                    dests: &state.dests,
+                };
+                if is_link && bookmarks::target_removed(&dict, &state.copier, &targets)? {
                     self.report.dropped_links += 1;
                     continue;
                 }
@@ -709,10 +868,25 @@ impl<'a> Engine<'a> {
             }
         }
 
-        target.write_object(&page)?;
-        dst.insert_page(page_no(position)?, &target)?;
+        match place {
+            PagePlace::Under(node) => {
+                page.dict_put("Parent", node.clone())?;
+                target.write_object(&page)?;
+            }
+            PagePlace::Insert(position) => {
+                target.write_object(&page)?;
+                dst.insert_page(page_no(position)?, &target)?;
+            }
+        }
         state.copier.finish(dst)
     }
+}
+
+/// Where a copied page goes: under the new `/Pages` node, or (in a damaged tree) into
+/// the tree at this position.
+enum PagePlace<'a> {
+    Under(&'a PdfObject),
+    Insert(usize),
 }
 
 fn page_no(page: usize) -> Result<i32> {

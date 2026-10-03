@@ -150,6 +150,12 @@ pub struct NewBookmark {
 /// Adds `items` (with their children) as children number `index`, `index + 1`... of
 /// `parent` (`None`: the top level; an index past the end appends). The outline is created
 /// if the document has none.
+///
+/// Every new item gets its object number first and is then written once, links and
+/// `/Count` included. Only the existing items next to them, and the counts above, are
+/// changed in place: in an undo step, each change to an existing object is recorded at a
+/// cost that grows with the step (see `ffi::set_new_stream`), so thousands of new
+/// bookmarks must not be patched key by key.
 pub fn insert_items(
     doc: &mut PdfDocument,
     parent: Option<u32>,
@@ -162,31 +168,54 @@ pub fn insert_items(
     let mut tree = editable(doc)?;
     let parent = find_parent(&tree, parent)?;
     ensure_root(doc, &mut tree)?;
-    let mut new_parents = Vec::new();
+    let mut dicts = Vec::new();
     let mut nodes = Vec::with_capacity(items.len());
     for item in items {
-        nodes.push(add_node(doc, &mut tree, parent, item, &mut new_parents)?);
+        nodes.push(reserve(doc, &mut tree, parent, item, &mut dicts)?);
     }
-    for (k, node) in nodes.into_iter().enumerate() {
+    for (k, &node) in nodes.iter().enumerate() {
         insert(&mut tree, parent, index.saturating_add(k), node);
     }
-    // Children before their parents, so each count is final when it is written.
-    for &p in &new_parents {
-        relink(&tree, Some(p))?;
-        write_count(&tree, p)?;
+    let parent_obj = parent_obj(&tree, parent)?;
+    for (node, mut dict) in dicts {
+        let item = &tree.nodes[node];
+        let up = match item.parent {
+            Some(p) => tree.nodes[p].obj.clone(),
+            None => parent_obj.clone(),
+        };
+        dict.dict_put("Parent", up)?;
+        let siblings = tree.children(item.parent);
+        let at = siblings.iter().position(|&n| n == node).unwrap_or(0);
+        if at > 0 {
+            dict.dict_put("Prev", tree.nodes[siblings[at - 1]].obj.clone())?;
+        }
+        if let Some(&next) = siblings.get(at + 1) {
+            dict.dict_put("Next", tree.nodes[next].obj.clone())?;
+        }
+        if let (Some(&first), Some(&last)) = (item.children.first(), item.children.last()) {
+            dict.dict_put("First", tree.nodes[first].obj.clone())?;
+            dict.dict_put("Last", tree.nodes[last].obj.clone())?;
+            let n = visible(&tree, Some(node));
+            dict.dict_put("Count", PdfObject::new_int(if item.open { n } else { -n })?)?;
+        }
+        tree.nodes[node].obj.clone().write_object(&dict)?;
     }
+    // The new items already hold the right values, so this changes only their existing
+    // neighbours, the parent's /First and /Last, and the counts above.
     relink(&tree, parent)?;
     fix_counts(&tree, parent)
 }
 
-fn add_node(
+/// Gives a new item (and its children) an object number and a place in `tree`; its
+/// dictionary is written later, once all links are known.
+fn reserve(
     doc: &mut PdfDocument,
     tree: &mut Tree,
     parent: Option<usize>,
     item: NewBookmark,
-    new_parents: &mut Vec<usize>,
+    dicts: &mut Vec<(usize, PdfObject)>,
 ) -> Result<usize> {
-    let obj = doc.add_object(&item.dict)?;
+    let obj = doc.create_object()?;
     let num = obj.as_indirect()?;
     let node = tree.nodes.len();
     tree.nodes.push(super::tree::Node {
@@ -196,12 +225,10 @@ fn add_node(
         children: Vec::new(),
         open: item.open,
     });
+    dicts.push((node, item.dict));
     for child in item.children {
-        let c = add_node(doc, tree, Some(node), child, new_parents)?;
+        let c = reserve(doc, tree, Some(node), child, dicts)?;
         tree.nodes[node].children.push(c);
-    }
-    if !tree.nodes[node].children.is_empty() {
-        new_parents.push(node);
     }
     Ok(node)
 }

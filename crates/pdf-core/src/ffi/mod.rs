@@ -4,9 +4,11 @@
 //! errors before they can reach Rust frames.
 
 mod journal;
+mod objects;
 mod stream;
 
 pub use journal::{Journal, JournalState};
+pub use objects::set_new_stream;
 pub use stream::{open_pdf_shared, was_repaired};
 
 use std::ffi::{CStr, c_char};

@@ -671,6 +671,97 @@ fn inserting_pages_is_one_undo_step_and_keeps_what_the_document_had() {
     );
 }
 
+/// Five pages in a two-level page tree whose root says every page is turned 90° and
+/// cropped: inserted pages must not take those values from the tree.
+fn nested_tree() -> Vec<u8> {
+    let page =
+        |parent: u32, n: u32| format!("<< /Type /Page /Parent {parent} 0 R /Contents {n} 0 R >>");
+    assemble(&[
+        "<< /Type /Catalog /Pages 2 0 R >>".into(),
+        "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 5 /Rotate 90 /CropBox [0 0 200 200] /MediaBox [0 0 300 400] /Resources << /Font << /F1 15 0 R >> >> >>".into(),
+        "<< /Type /Pages /Parent 2 0 R /Kids [5 0 R 6 0 R] /Count 2 >>".into(),
+        "<< /Type /Pages /Parent 2 0 R /Kids [7 0 R 8 0 R 9 0 R] /Count 3 >>".into(),
+        page(3, 10),
+        page(3, 11),
+        page(4, 12),
+        page(4, 13),
+        page(4, 14),
+        content("Tree 1"),
+        content("Tree 2"),
+        content("Tree 3"),
+        content("Tree 4"),
+        content("Tree 5"),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>".into(),
+    ])
+}
+
+#[test]
+fn inserting_into_a_nested_tree_keeps_order_and_does_not_inherit() {
+    let dir = out_dir("merge-insert-tree");
+    let (_, b) = sources(&dir);
+    let tree = write(&dir, "tree.pdf", nested_tree());
+    let (session, _) = Session::open(&tree, None).unwrap();
+    // Before page 4: into the second inner node.
+    let change = session
+        .apply(Operation::InsertPages {
+            source: InsertSource {
+                path: b.clone(),
+                password: None,
+                pages: vec![0, 2],
+            },
+            at: 3,
+            options: InsertOptions::default(),
+        })
+        .unwrap();
+    assert_eq!(change.page_count, 7);
+    // Beta's pages are upright 300x400 pages; the tree's own pages stay turned and cropped.
+    let sizes: Vec<(f32, f32)> = change_sizes(&session);
+    assert_eq!(sizes[3], (300.0, 400.0));
+    assert_eq!(sizes[4], (300.0, 400.0));
+    assert_eq!(sizes[0], (200.0, 200.0));
+    // Undo puts the tree back as it was; redo brings the pages back.
+    assert_eq!(session.undo().unwrap().page_count, 5);
+    assert_eq!(change_sizes(&session)[3], (200.0, 200.0));
+    assert_eq!(session.redo().unwrap().page_count, 7);
+    let path = dir.join("tree-inserted.pdf");
+    session
+        .save(SaveKind::Incremental, Some(path.clone()))
+        .unwrap();
+    qpdf_check(&path);
+    let out = open(&path);
+    let texts: Vec<String> = (0..7).map(|p| page_text(&out, p)).collect();
+    for (i, text) in [
+        "Tree 1", "Tree 2", "Tree 3", "Beta 1", "Beta 3", "Tree 4", "Tree 5",
+    ]
+    .iter()
+    .enumerate()
+    {
+        assert!(texts[i].contains(text), "page {i}: {}", texts[i]);
+    }
+    let rotation = |p: i32| {
+        out.find_page(p)
+            .unwrap()
+            .get_dict_inheritable("Rotate")
+            .unwrap()
+            .map_or(0, |r| r.as_int().unwrap())
+    };
+    assert_eq!(
+        [rotation(2), rotation(3), rotation(4), rotation(5)],
+        [90, 0, 0, 90]
+    );
+    session.close();
+}
+
+fn change_sizes(session: &Session) -> Vec<(f32, f32)> {
+    session
+        .info()
+        .unwrap()
+        .pages
+        .iter()
+        .map(|p| (p.width, p.height))
+        .collect()
+}
+
 #[test]
 fn inserted_pages_keep_their_own_labels_when_they_have_some() {
     let dir = out_dir("merge-insert-labels");
