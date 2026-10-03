@@ -45,3 +45,35 @@ $logs = Join-Path $env:LOCALAPPDATA 'org.folio.pdf\logs'
 Write-Output "--- app log ($logs)"
 Get-ChildItem $logs -ErrorAction SilentlyContinue | Sort-Object LastWriteTime | Select-Object -Last 1 |
     ForEach-Object { Get-Content $_.FullName | Select-Object -Last 40 }
+
+# A WebDriver session straight against msedgedriver, with its verbose log: which browser
+# arguments reach WebView2, and whether the DevTools port file appears.
+Write-Output '--- WebDriver session (msedgedriver --verbose)'
+Get-Process folio -ErrorAction SilentlyContinue | Stop-Process -Force
+Remove-Item Env:FOLIO_OPEN
+$driverLog = Join-Path $out 'msedgedriver.log'
+$driverExe = Join-Path $root 'target/e2e-tools/msedgedriver.exe'
+$driver = Start-Process $driverExe -ArgumentList '--port=9515', '--verbose', "--log-path=$driverLog" -PassThru -WindowStyle Hidden
+Start-Sleep -Seconds 2
+$body = @{ capabilities = @{ alwaysMatch = @{ browserName = 'webview2'; 'ms:edgeOptions' = @{
+    binary = $exe; args = @(); webviewOptions = @{} } } } } | ConvertTo-Json -Depth 6
+$job = Start-Job -ScriptBlock {
+    param($b)
+    try {
+        $r = Invoke-RestMethod -Method Post -Uri http://127.0.0.1:9515/session -Body $b -ContentType 'application/json' -TimeoutSec 90
+        "session created: $($r.value.sessionId)"
+    } catch { "session failed: $($_.Exception.Message)" }
+} -ArgumentList $body
+Start-Sleep -Seconds 15
+Write-Output 'WebView2 processes while the session is pending:'
+Get-CimInstance Win32_Process -Filter "Name = 'msedgewebview2.exe'" | Where-Object { $_.CommandLine -notmatch '--type=' } |
+    ForEach-Object { "  pid $($_.ProcessId): $($_.CommandLine)" }
+$data = Join-Path $env:LOCALAPPDATA 'org.folio.pdf\EBWebView'
+Write-Output "DevToolsActivePort files under $data :"
+Get-ChildItem $data -Recurse -Filter DevToolsActivePort -ErrorAction SilentlyContinue | ForEach-Object { "  $($_.FullName)" }
+Receive-Job $job -Wait
+Stop-Process -Id $driver.Id -Force -ErrorAction SilentlyContinue
+Get-Process folio -ErrorAction SilentlyContinue | Stop-Process -Force
+Write-Output '--- msedgedriver log (selected lines)'
+Select-String -Path $driverLog -Pattern 'Launching|WEBVIEW2_|DevToolsActivePort|ERROR|SEVERE|WARNING|user data|Failed' |
+    ForEach-Object { $_.Line.Substring(0, [Math]::Min(600, $_.Line.Length)) } | Select-Object -First 40
