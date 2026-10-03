@@ -4,9 +4,11 @@
 //! every non-embedded font, base-14 names included, and the first query enumerates the
 //! Windows font collection (about 1.6 s once per process). Folio therefore:
 //!
-//! - sends the 14 standard font names straight to MuPDF's built-in, metric-compatible
-//!   fonts, as Acrobat does, so documents that use only base-14 fonts never wait for the
-//!   system font collection; and
+//! - sends the 14 standard font names, and the aliases of them that no installed font can
+//!   match (such as "TimesNewRoman,Bold"), straight to MuPDF's built-in, metric-compatible
+//!   fonts, so documents that use only those never wait for the system font lookup; for
+//!   the aliases, MuPDF ends up with the same built-in font anyway, so pages render
+//!   identically (checked on real-world files); and
 //! - warms the system font collection on a background thread at startup, so documents
 //!   that name other non-embedded fonts (for example "Arial") usually find it ready.
 
@@ -37,18 +39,76 @@ const BASE14: [&str; 14] = [
     "ZapfDingbats",
 ];
 
-/// The base-14 name for a font name as it appears in a PDF, if it is one. Subset prefixes
-/// ("ABCDEF+Helvetica") are ignored.
-pub fn base14_name(name: &str) -> Option<&'static str> {
-    let name = match name.split_once('+') {
+/// Aliases of the base-14 fonts that are neither a PostScript name nor a family name of an
+/// installed font, so the system lookup can never find them (it then costs a full scan of
+/// the installed fonts, about a second per name on Windows) and MuPDF ends up with its
+/// built-in font anyway (`pdf_load_builtin_font`). Taken from MuPDF's `base_font_names`
+/// (`source/pdf/pdf-font.c`), leaving out the real names (`ArialMT`, `Arial`,
+/// `TimesNewRomanPSMT`, `CourierNewPS-BoldMT`, `SymbolMT`, ...): those can resolve to the
+/// installed font and keep doing so.
+const UNRESOLVABLE_ALIASES: [(&str, &str); 31] = [
+    ("CourierNew", "Courier"),
+    ("CourierNew,Bold", "Courier-Bold"),
+    ("Courier,Bold", "Courier-Bold"),
+    ("CourierNew-Bold", "Courier-Bold"),
+    ("CourierNew,Italic", "Courier-Oblique"),
+    ("Courier,Italic", "Courier-Oblique"),
+    ("CourierNew-Italic", "Courier-Oblique"),
+    ("CourierNew,BoldItalic", "Courier-BoldOblique"),
+    ("Courier,BoldItalic", "Courier-BoldOblique"),
+    ("CourierNew-BoldItalic", "Courier-BoldOblique"),
+    ("Arial,Bold", "Helvetica-Bold"),
+    ("Helvetica,Bold", "Helvetica-Bold"),
+    ("Arial,Italic", "Helvetica-Oblique"),
+    ("Helvetica,Italic", "Helvetica-Oblique"),
+    ("Helvetica-Italic", "Helvetica-Oblique"),
+    ("Arial,BoldItalic", "Helvetica-BoldOblique"),
+    ("Helvetica,BoldItalic", "Helvetica-BoldOblique"),
+    ("Helvetica-BoldItalic", "Helvetica-BoldOblique"),
+    ("TimesNewRoman", "Times-Roman"),
+    ("TimesNewRomanPS", "Times-Roman"),
+    ("TimesNewRoman,Bold", "Times-Bold"),
+    ("TimesNewRomanPS-Bold", "Times-Bold"),
+    ("TimesNewRoman-Bold", "Times-Bold"),
+    ("TimesNewRoman,Italic", "Times-Italic"),
+    ("TimesNewRomanPS-Italic", "Times-Italic"),
+    ("TimesNewRoman-Italic", "Times-Italic"),
+    ("TimesNewRoman,BoldItalic", "Times-BoldItalic"),
+    ("TimesNewRomanPS-BoldItalic", "Times-BoldItalic"),
+    ("TimesNewRoman-BoldItalic", "Times-BoldItalic"),
+    ("Symbol,Italic", "Symbol"),
+    ("Symbol,Bold", "Symbol"),
+];
+
+fn strip_subset_prefix(name: &str) -> &str {
+    match name.split_once('+') {
         Some((prefix, rest))
             if prefix.len() == 6 && prefix.bytes().all(|b| b.is_ascii_uppercase()) =>
         {
             rest
         }
         _ => name,
-    };
+    }
+}
+
+/// The base-14 name for a font name as it appears in a PDF, if it is one. Subset prefixes
+/// ("ABCDEF+Helvetica") are ignored.
+pub fn base14_name(name: &str) -> Option<&'static str> {
+    let name = strip_subset_prefix(name);
     BASE14.iter().copied().find(|b| *b == name)
+}
+
+/// The built-in font MuPDF would end up with for a font name the system can never resolve
+/// (see [`UNRESOLVABLE_ALIASES`]): the base-14 names themselves and their unresolvable
+/// aliases.
+pub fn builtin_for(name: &str) -> Option<&'static str> {
+    let bare = strip_subset_prefix(name);
+    base14_name(bare).or_else(|| {
+        UNRESOLVABLE_ALIASES
+            .iter()
+            .find(|(alias, _)| *alias == bare)
+            .map(|(_, base)| *base)
+    })
 }
 
 struct Base14First;
@@ -56,7 +116,7 @@ struct Base14First;
 impl FontLoader for Base14First {
     fn load_font(&self, name: &str, _hints: FontHints) -> Option<Font> {
         // `Font::new` loads the built-in font data for an exact base-14 name.
-        Font::new(base14_name(name)?).ok()
+        Font::new(builtin_for(name)?).ok()
     }
 }
 
@@ -126,6 +186,32 @@ mod tests {
         assert_eq!(base14_name("Helvetica,Bold"), None);
         assert_eq!(base14_name("abcdef+Helvetica"), None);
         assert_eq!(base14_name("TimesNewRoman"), None);
+    }
+
+    #[test]
+    fn unresolvable_aliases_map_to_builtins_but_real_names_do_not() {
+        assert_eq!(builtin_for("TimesNewRoman,Bold"), Some("Times-Bold"));
+        assert_eq!(builtin_for("ABCDEF+CourierNew"), Some("Courier"));
+        assert_eq!(
+            builtin_for("Arial,BoldItalic"),
+            Some("Helvetica-BoldOblique")
+        );
+        assert_eq!(builtin_for("Helvetica"), Some("Helvetica"));
+        // Real names of installed fonts keep going to the system lookup.
+        for real in [
+            "Arial",
+            "ArialMT",
+            "Arial-BoldMT",
+            "TimesNewRomanPSMT",
+            "SymbolMT",
+            "Times New Roman",
+        ] {
+            assert_eq!(builtin_for(real), None, "{real}");
+        }
+        // Every target is a base-14 name.
+        for (_, base) in UNRESOLVABLE_ALIASES {
+            assert!(BASE14.contains(&base), "{base}");
+        }
     }
 
     #[test]
