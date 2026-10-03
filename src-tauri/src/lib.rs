@@ -37,7 +37,7 @@ impl AppState {
     /// Opens a path that came from the dialog, drag-and-drop or the command line. The
     /// webview never supplies paths itself (section 2, security).
     fn open(&self, path: &Path) -> Result<DocumentInfo, AppError> {
-        let (session, info) = Session::open(path)?;
+        let (session, info) = Session::open(path, None)?;
         let id = self.next_id.fetch_add(1, Ordering::Relaxed) + 1;
         self.documents
             .lock()
@@ -49,7 +49,7 @@ impl AppState {
                 .file_name()
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_else(|| "Document".into()),
-            page_count: u32::try_from(info.page_count).unwrap_or(u32::MAX),
+            page_count: u32::try_from(info.pages.len()).unwrap_or(u32::MAX),
             pages: info
                 .pages
                 .iter()

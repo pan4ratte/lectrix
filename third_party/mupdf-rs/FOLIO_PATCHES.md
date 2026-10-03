@@ -10,6 +10,7 @@ are fetched from upstream at the same commit.
 |---|-------|--------|
 | 1 | `src/raw.rs` (new), `src/lib.rs` (one `pub mod raw;` line) | Public raw-pointer accessors (`as_raw_ptr`) on `Context`, `Document`, `Page`, `PdfDocument`, `PdfPage`, `PdfAnnotation`, `PdfObject`, so Folio's `pdf-core/src/ffi/` can call MuPDF APIs the wrapper lacks. |
 | 2 | `Cargo.toml` | Standalone manifest; features trimmed (no JS, OCR, HTML/EPUB/XPS/CBZ/SVG, DOCX output). |
+| 3 | `src/raw.rs` | `PdfDocument::from_raw_owned`, so `pdf-core/src/ffi/stream.rs` can wrap a document it opened from its own file stream (ADR 0003). |
 
 To rebase onto a newer upstream: copy upstream `src/`, `LICENSE`, `README.md`, re-apply
 the rows above, update both commit hashes, and bump `third_party/mupdf-include/` to the

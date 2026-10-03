@@ -32,6 +32,19 @@ impl PdfDocument {
     pub fn as_raw_pdf_ptr(&self) -> *mut pdf_document {
         self.as_raw()
     }
+
+    /// Wraps a `pdf_document` that downstream FFI opened (for example with
+    /// `pdf_open_document_with_stream`). The wrapper takes over the caller's reference and
+    /// drops it when it is dropped.
+    ///
+    /// # Safety
+    ///
+    /// `ptr` must be a valid, non-null `pdf_document` carrying one reference owned by the
+    /// caller, created with a context of the calling thread's family.
+    pub unsafe fn from_raw_owned(ptr: *mut pdf_document) -> Self {
+        // SAFETY: guaranteed by the caller, as documented above.
+        unsafe { Self::from_raw(ptr) }
+    }
 }
 
 impl Page {

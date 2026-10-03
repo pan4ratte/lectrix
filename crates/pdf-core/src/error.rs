@@ -24,6 +24,12 @@ pub enum Error {
     TargetLocked(std::path::PathBuf),
     #[error("the document's worker thread has stopped")]
     ActorGone,
+    #[error("the document is encrypted and needs a password")]
+    PasswordRequired,
+    #[error("the password does not open the document")]
+    WrongPassword,
+    #[error("the document's permissions do not allow this change")]
+    NotPermitted,
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }
