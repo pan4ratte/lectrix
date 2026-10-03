@@ -6,12 +6,43 @@ use mupdf::pdf::{PdfDocument, PdfObject};
 
 use crate::error::{Error, Result};
 use crate::geometry::normalize_rotation;
+use crate::outline::{ViewDest, edit};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Operation {
     /// Turns pages by `degrees` (a multiple of 90; positive is clockwise) by changing
     /// their `/Rotate`. This modifies the document, unlike rotating the view.
-    RotatePages { pages: Vec<usize>, degrees: i32 },
+    RotatePages {
+        pages: Vec<usize>,
+        degrees: i32,
+    },
+    /// Adds a bookmark as child number `index` of `parent` (`None`: top level).
+    AddBookmark {
+        parent: Option<u32>,
+        index: usize,
+        title: String,
+        dest: ViewDest,
+    },
+    RenameBookmark {
+        id: u32,
+        title: String,
+    },
+    /// Moves a bookmark to child number `index` of `parent`, counted after it has left
+    /// its old place.
+    MoveBookmark {
+        id: u32,
+        parent: Option<u32>,
+        index: usize,
+    },
+    /// Removes a bookmark and its children.
+    DeleteBookmark {
+        id: u32,
+    },
+    /// Points a bookmark at a new place ("Set destination to current view").
+    SetBookmarkDestination {
+        id: u32,
+        dest: ViewDest,
+    },
 }
 
 impl Operation {
@@ -20,6 +51,24 @@ impl Operation {
         match self {
             Operation::RotatePages { pages, .. } if pages.len() == 1 => "Rotate page".into(),
             Operation::RotatePages { .. } => "Rotate pages".into(),
+            Operation::AddBookmark { .. } => "Add bookmark".into(),
+            Operation::RenameBookmark { .. } => "Rename bookmark".into(),
+            Operation::MoveBookmark { .. } => "Move bookmark".into(),
+            Operation::DeleteBookmark { .. } => "Delete bookmark".into(),
+            Operation::SetBookmarkDestination { .. } => "Change bookmark destination".into(),
+        }
+    }
+
+    /// True if the operation needs the "assemble" permission (bit 4 or 11), which covers
+    /// rotating pages and creating outline items.
+    pub(crate) fn needs_assemble(&self) -> bool {
+        match self {
+            Operation::RotatePages { .. }
+            | Operation::AddBookmark { .. }
+            | Operation::RenameBookmark { .. }
+            | Operation::MoveBookmark { .. }
+            | Operation::DeleteBookmark { .. }
+            | Operation::SetBookmarkDestination { .. } => true,
         }
     }
 
@@ -40,11 +89,19 @@ impl Operation {
                 }
                 Ok(())
             }
+            Operation::AddBookmark { title, dest, .. } => {
+                edit::clean_title(title)?;
+                check_dest(dest, page_count)
+            }
+            Operation::RenameBookmark { title, .. } => edit::clean_title(title).map(drop),
+            Operation::SetBookmarkDestination { dest, .. } => check_dest(dest, page_count),
+            Operation::MoveBookmark { .. } | Operation::DeleteBookmark { .. } => Ok(()),
         }
     }
 
-    /// Applies the operation. The caller wraps this in a journal step.
-    pub(crate) fn apply(&self, doc: &mut PdfDocument) -> Result<()> {
+    /// Applies the operation and returns the id of the object it created, if any (the
+    /// new bookmark). The caller wraps this in a journal step.
+    pub(crate) fn apply(&self, doc: &mut PdfDocument) -> Result<Option<u32>> {
         match self {
             Operation::RotatePages { pages, degrees } => {
                 let mut pages = pages.clone();
@@ -53,10 +110,36 @@ impl Operation {
                 for page in pages {
                     rotate_page(doc, page, *degrees)?;
                 }
-                Ok(())
+                Ok(None)
+            }
+            Operation::AddBookmark {
+                parent,
+                index,
+                title,
+                dest,
+            } => edit::add(doc, *parent, *index, title, dest).map(Some),
+            Operation::RenameBookmark { id, title } => edit::rename(doc, *id, title).map(|()| None),
+            Operation::MoveBookmark { id, parent, index } => {
+                edit::move_to(doc, *id, *parent, *index).map(|()| None)
+            }
+            Operation::DeleteBookmark { id } => edit::delete(doc, *id).map(|()| None),
+            Operation::SetBookmarkDestination { id, dest } => {
+                edit::set_destination(doc, *id, dest).map(|()| None)
             }
         }
     }
+}
+
+fn check_dest(dest: &ViewDest, page_count: usize) -> Result<()> {
+    if dest.page >= page_count {
+        return Err(Error::PageOutOfRange(dest.page));
+    }
+    if !dest.x.is_finite() || !dest.y.is_finite() {
+        return Err(Error::InvalidArgument(
+            "the position is not a number".into(),
+        ));
+    }
+    Ok(())
 }
 
 /// Adds `degrees` to the page's effective (possibly inherited) `/Rotate` and writes the

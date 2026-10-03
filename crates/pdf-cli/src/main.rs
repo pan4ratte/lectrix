@@ -16,9 +16,11 @@ use pdf_core::annot::{self, MarkupKind, MarkupSpec, Rgb};
 use pdf_core::geometry::Rect;
 use pdf_core::labels::{self, LabelRule, LabelStyle};
 use pdf_core::merge::{self, BookmarkMode, LabelMode, MergeOptions, MergeSource};
-use pdf_core::outline::{self, OutlineItem, OutlineTarget, ReadOutlineItem};
+use pdf_core::ops::Operation;
+use pdf_core::outline::{self, Bookmark, OutlineItem, OutlineTarget, Target, ViewDest};
 use pdf_core::render;
 use pdf_core::save::{self, SaveKind};
+use pdf_core::session::Session;
 use pdf_core::testgen::{self, SampleSpec};
 use pdf_core::{Error, Result};
 
@@ -126,6 +128,20 @@ enum OutlineAction {
         #[arg(long = "item", required = true)]
         items: Vec<String>,
     },
+    /// Print the outline with ids (object numbers) and targets.
+    Show { input: PathBuf },
+    /// Edit bookmarks in place, as the app does (one journal step per operation, then an
+    /// incremental save). Operations, applied in order; PAGE is 1-based, X and Y are the
+    /// view-space point (points from the page's top-left), PARENT is an id or `-` for the
+    /// top level:
+    ///   add:PARENT:INDEX:PAGE:X:Y:TITLE   rename:ID:TITLE   move:ID:PARENT:INDEX
+    ///   delete:ID   retarget:ID:PAGE:X:Y   open:ID   close:ID
+    Edit {
+        input: PathBuf,
+        out: PathBuf,
+        #[arg(long = "op", required = true)]
+        ops: Vec<String>,
+    },
 }
 
 #[derive(Subcommand)]
@@ -229,12 +245,20 @@ fn run(command: Command) -> Result<()> {
                 edit(&input, &out, |doc| labels::write_rules(doc, Vec::new()))?;
             }
         },
-        Command::Outline {
-            action: OutlineAction::Set { input, out, items },
-        } => {
-            let tree = parse_outline(&items)?;
-            edit(&input, &out, |doc| outline::write_outline(doc, &tree))?;
-        }
+        Command::Outline { action } => match action {
+            OutlineAction::Set { input, out, items } => {
+                let tree = parse_outline(&items)?;
+                edit(&input, &out, |doc| outline::write_outline(doc, &tree))?;
+            }
+            OutlineAction::Show { input } => {
+                let outline = outline::read_bookmarks(&open(&input)?)?;
+                if outline.damaged {
+                    println!("(damaged: shown as far as it can be read; not editable)");
+                }
+                print_bookmarks(&outline.items, 0);
+            }
+            OutlineAction::Edit { input, out, ops } => edit_outline(&input, &out, &ops)?,
+        },
         Command::Merge {
             out,
             inputs,
@@ -433,7 +457,151 @@ fn info(path: &Path) -> Result<()> {
     Ok(())
 }
 
-fn print_outline(items: &[ReadOutlineItem], depth: usize) {
+/// One `outline edit` step: an operation, or an expanded state (written at save).
+enum OutlineStep {
+    Op(Operation),
+    Open(u32, bool),
+}
+
+fn parse_outline_step(spec: &str) -> Result<OutlineStep> {
+    let bad = || Error::InvalidArgument(format!("bad operation {spec:?}"));
+    let id = |s: &str| s.parse::<u32>().map_err(|_| bad());
+    let parent = |s: &str| if s == "-" { Ok(None) } else { id(s).map(Some) };
+    let number = |s: &str| s.parse::<f64>().map_err(|_| bad());
+    let page = |s: &str| {
+        s.parse::<usize>()
+            .ok()
+            .and_then(|p| p.checked_sub(1))
+            .ok_or_else(bad)
+    };
+    let (kind, rest) = spec.split_once(':').ok_or_else(bad)?;
+    Ok(match kind {
+        "add" => {
+            let f: Vec<&str> = rest.splitn(6, ':').collect();
+            let [p, index, pg, x, y, title] = f.as_slice() else {
+                return Err(bad());
+            };
+            OutlineStep::Op(Operation::AddBookmark {
+                parent: parent(p)?,
+                index: index.parse().map_err(|_| bad())?,
+                title: (*title).to_owned(),
+                dest: ViewDest {
+                    page: page(pg)?,
+                    x: number(x)?,
+                    y: number(y)?,
+                },
+            })
+        }
+        "rename" => {
+            let (i, title) = rest.split_once(':').ok_or_else(bad)?;
+            OutlineStep::Op(Operation::RenameBookmark {
+                id: id(i)?,
+                title: title.to_owned(),
+            })
+        }
+        "move" => {
+            let f: Vec<&str> = rest.split(':').collect();
+            let [i, p, index] = f.as_slice() else {
+                return Err(bad());
+            };
+            OutlineStep::Op(Operation::MoveBookmark {
+                id: id(i)?,
+                parent: parent(p)?,
+                index: index.parse().map_err(|_| bad())?,
+            })
+        }
+        "delete" => OutlineStep::Op(Operation::DeleteBookmark { id: id(rest)? }),
+        "retarget" => {
+            let f: Vec<&str> = rest.split(':').collect();
+            let [i, pg, x, y] = f.as_slice() else {
+                return Err(bad());
+            };
+            OutlineStep::Op(Operation::SetBookmarkDestination {
+                id: id(i)?,
+                dest: ViewDest {
+                    page: page(pg)?,
+                    x: number(x)?,
+                    y: number(y)?,
+                },
+            })
+        }
+        "open" => OutlineStep::Open(id(rest)?, true),
+        "close" => OutlineStep::Open(id(rest)?, false),
+        _ => return Err(bad()),
+    })
+}
+
+fn edit_outline(input: &Path, out: &Path, specs: &[String]) -> Result<()> {
+    if same_file(input, out) {
+        return Err(Error::InvalidArgument(
+            "write to a new file; pdf-cli never modifies its input".into(),
+        ));
+    }
+    let steps = specs
+        .iter()
+        .map(|s| parse_outline_step(s))
+        .collect::<Result<Vec<_>>>()?;
+    let (session, _) = Session::open(input, None)?;
+    let result = (|| {
+        for step in steps {
+            match step {
+                OutlineStep::Op(op) => {
+                    let name = op.name();
+                    let change = session.apply(op)?;
+                    match change.created {
+                        Some(id) => println!("{name}: id {id}"),
+                        None => println!("{name}"),
+                    }
+                }
+                OutlineStep::Open(id, open) => session.set_bookmark_open(id, open)?,
+            }
+        }
+        session.save(SaveKind::Incremental, Some(out.to_path_buf()))
+    })();
+    session.close();
+    let saved = result?;
+    if saved.outcome.fell_back_to_full {
+        println!("note: the input cannot be saved incrementally; wrote a full file instead");
+    }
+    println!("wrote {}", out.display());
+    Ok(())
+}
+
+fn print_bookmarks(items: &[Bookmark], depth: usize) {
+    for b in items {
+        let marker = if b.children.is_empty() {
+            " "
+        } else if b.open {
+            "-"
+        } else {
+            "+"
+        };
+        let target = match &b.target {
+            Target::None => "no target".to_owned(),
+            Target::Page { page, x, y, named } => {
+                let at = |v: &Option<f32>| v.map_or("-".to_owned(), |v| format!("{v}"));
+                let name = named
+                    .as_ref()
+                    .map(|n| format!(" (named {n:?})"))
+                    .unwrap_or_default();
+                format!("page {} at {},{}{name}", page + 1, at(x), at(y))
+            }
+            Target::Broken { named } => format!("broken destination {named:?}"),
+            Target::Uri(u) => format!("link {u}"),
+            Target::File(f) => format!("file {f}"),
+            Target::Action(a) => format!("action {a}"),
+        };
+        println!(
+            "{}{marker} [{}] {} -> {target}",
+            "  ".repeat(depth + 1),
+            b.id,
+            b.title
+        );
+        print_bookmarks(&b.children, depth + 1);
+    }
+}
+
+fn print_outline(items: &[outline::ReadOutlineItem], depth: usize) {
     for item in items {
         let page = item
             .page

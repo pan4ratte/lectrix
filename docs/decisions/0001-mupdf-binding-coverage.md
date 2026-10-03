@@ -60,10 +60,11 @@ public raw access, we drop the vendored copy and depend on crates.io again.
 | Structured text, search | `TextPage`, `Page::to_text_page` | crate |
 | Page labels (read one label) | `PdfDocument::page_label` | crate |
 | Page labels (write) | `set_page_label_rule` (one rule per call, MuPDF semantics) | own number-tree writer in `labels.rs` on `PdfObject`, for exact round-trip control |
-| Outline write | `set_outlines` rebuilds the whole tree; no `/Count`, no open state, no `/XYZ` null zoom | own writer in `outline.rs` on `PdfObject` (section 6.2 needs untouched items preserved) |
+| Outline write | `set_outlines` rebuilds the whole tree; no `/Count`, no open state, no `/XYZ` null zoom | own writer in `outline/mod.rs`, and an in-place editor in `outline/edit.rs` that writes only changed keys (Phase 2; section 6.2 needs untouched items preserved) |
+| Named destinations | none (`pdf_lookup_dest` is not wrapped and returns a borrowed object) | own `/Dests` dictionary and name-tree lookup in `outline/names.rs` |
 | Annotations: create, quads, colour, opacity, author, contents, ink, popup, `update` (appearance synthesis) | `PdfPage::create_annotation`, `PdfAnnotation::*` | crate; QuadPoints and `/Rect` written by `annot/` through one quad writer |
 | Journalling: begin/end/abandon operation | `PdfDocument::begin_operation` etc. | crate |
-| Journalling: enable, undo, redo, state, step names | none | `ffi/journal.rs` plus the shim |
+| Journalling: enable, undo, redo, state, step names, implicit operations | none | `ffi/journal.rs` plus the shim (implicit operations write expanded bookmark states at save without an undo step, Phase 2) |
 | Merge with one graft map per source | `insert_pdf` grafts page by page with no shared map, so shared resources get duplicated | `ffi/graft.rs` + shim around `pdf_graft_mapped_page` |
 | Header/library version check | none | shim `folio_mupdf_headers_match_library` (test) |
 | Open from a share-delete OS handle (ADR 0003) | `PdfDocument::open` only takes a path | `ffi/stream.rs` + shim `folio_pdf_open_os_handle`; crate patch 3 (`from_raw_owned`) |

@@ -16,6 +16,11 @@ unsafe extern "C" {
         doc: *mut pdf_document,
         err: *mut FolioError,
     ) -> c_int;
+    fn folio_pdf_begin_implicit_operation(
+        ctx: *mut fz_context,
+        doc: *mut pdf_document,
+        err: *mut FolioError,
+    ) -> c_int;
     fn folio_pdf_undo(ctx: *mut fz_context, doc: *mut pdf_document, err: *mut FolioError) -> c_int;
     fn folio_pdf_redo(ctx: *mut fz_context, doc: *mut pdf_document, err: *mut FolioError) -> c_int;
     fn folio_pdf_undoredo_state(
@@ -76,6 +81,15 @@ impl<'a> Journal<'a> {
         // SAFETY: `ctx` is this thread's context, from the same family that opened `doc`;
         // `doc` is alive for the borrow; `err` points to a live FolioError.
         self.call(|ctx, doc, err| unsafe { folio_pdf_enable_journal(ctx, doc, err) })
+    }
+
+    /// Starts an unnamed operation (end it with `PdfDocument::end_operation`). Its changes
+    /// are not an undo step of their own: MuPDF folds them into the previous step, or
+    /// keeps them out of the history when there is none. Used for changes that should be
+    /// saved but not undone, such as which bookmarks are expanded.
+    pub fn begin_implicit(&mut self) -> Result<()> {
+        // SAFETY: as in `enable`.
+        self.call(|ctx, doc, err| unsafe { folio_pdf_begin_implicit_operation(ctx, doc, err) })
     }
 
     pub fn undo(&mut self) -> Result<()> {

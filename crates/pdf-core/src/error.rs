@@ -30,6 +30,10 @@ pub enum Error {
     WrongPassword,
     #[error("the document's permissions do not allow this change")]
     NotPermitted,
+    /// The outline is malformed (a cycle, a shared item, an item that is not an indirect
+    /// object): it is shown, but edits are refused.
+    #[error("the document's bookmarks are damaged and cannot be edited")]
+    DamagedOutline,
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }

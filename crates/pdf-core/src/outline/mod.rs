@@ -1,12 +1,54 @@
 //! Bookmarks (the document outline).
 //!
-//! Phase 0 writes a whole new outline. In-place editing that keeps untouched items
-//! byte-for-byte (AGENTS.md section 6.2) builds on the same item writer in Phase 2.
+//! - [`read_bookmarks`] reads the tree the bookmarks panel shows, with stable ids and
+//!   resolved targets (`tree.rs`, named destinations in `names.rs`).
+//! - [`edit`] changes it in place, touching only what each edit must (AGENTS.md
+//!   section 6.2: untouched bookmarks keep their destinations and actions exactly).
+//! - [`write_outline`] replaces the whole outline (pdf-cli, merging).
+
+pub mod edit;
+mod names;
+mod tree;
+
+pub use names::lookup_dest;
+pub use tree::{Bookmark, Outline, Target, read_bookmarks};
 
 use mupdf::pdf::{PdfDocument, PdfObject};
 
 use crate::error::{Error, Result};
+use crate::geometry::{PageGeometry, Point, read_page_boxes};
 use crate::objects::{self, text_string};
+
+/// A place to point a new or retargeted bookmark at: the point at the top-left of the
+/// view, in view space (points from the top-left of the visible page at zoom 1).
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct ViewDest {
+    pub page: usize,
+    pub x: f64,
+    pub y: f64,
+}
+
+/// `[page /XYZ left top null]` for a point in view space (AGENTS.md section 6.2: explicit
+/// destination, left and top of the view, null zoom so the reader keeps its zoom). The
+/// point is converted to user space through `geometry.rs`, clamped to the visible page.
+pub fn destination_from_view(doc: &PdfDocument, dest: &ViewDest) -> Result<PdfObject> {
+    let page_no = i32::try_from(dest.page).map_err(|_| Error::PageOutOfRange(dest.page))?;
+    if page_no >= doc.page_count()? || !dest.x.is_finite() || !dest.y.is_finite() {
+        return Err(Error::PageOutOfRange(dest.page));
+    }
+    let page_ref = doc.find_page(page_no)?;
+    let g = PageGeometry::new(&read_page_boxes(&page_ref)?);
+    let view = Point::new(dest.x.clamp(0.0, g.width), dest.y.clamp(0.0, g.height));
+    let user = g.view_to_user(view);
+    let mut array = doc.new_array_with_capacity(5)?;
+    array.array_push(page_ref)?;
+    array.array_push(PdfObject::new_name("XYZ")?)?;
+    // Whole points are plenty for a scroll position and keep the numbers short.
+    array.array_push(PdfObject::new_real(user.x.round() as f32)?)?;
+    array.array_push(PdfObject::new_real(user.y.round() as f32)?)?;
+    array.array_push(PdfObject::new_null())?;
+    Ok(array)
+}
 
 /// Where a bookmark points.
 #[derive(Debug, Clone, PartialEq)]

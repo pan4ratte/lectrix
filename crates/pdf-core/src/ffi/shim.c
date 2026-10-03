@@ -75,6 +75,20 @@ int folio_pdf_redo(fz_context *ctx, pdf_document *doc, folio_error *err)
 	return 0;
 }
 
+/*
+ * Starts an operation with no name. Its changes are folded into the previous journal
+ * step when it ends, or kept out of the history when there is none: they are not an undo
+ * step of their own. End it with pdf_end_operation.
+ */
+int folio_pdf_begin_implicit_operation(fz_context *ctx, pdf_document *doc, folio_error *err)
+{
+	fz_try(ctx)
+		pdf_begin_implicit_operation(ctx, doc);
+	fz_catch(ctx)
+		return folio_caught(ctx, err);
+	return 0;
+}
+
 /* Writes the current position (0 = original document) and the step count. */
 int folio_pdf_undoredo_state(fz_context *ctx, pdf_document *doc, int *current, int *steps, folio_error *err)
 {

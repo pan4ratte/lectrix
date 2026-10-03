@@ -13,8 +13,12 @@
 //! **Saving** writes through [`crate::save::save_atomic`] and then reopens the saved file
 //! (ADR 0003): MuPDF's in-memory document still points at the old file's offsets after an
 //! incremental save. The undo history therefore starts again after each save.
+//!
+//! **Expanded bookmarks** are not edits: expanding or collapsing a bookmark in the panel
+//! neither dirties the document nor adds an undo step (Phase 2 review). The actor keeps
+//! the panel's states and writes them into the outline when the document is next saved.
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -31,6 +35,7 @@ use crate::ffi::{Journal, open_pdf_shared};
 use crate::geometry::{PageGeometry, read_page_boxes};
 use crate::labels;
 use crate::ops::Operation;
+use crate::outline::{self, Outline};
 use crate::render::{self, PixelRect, RgbaImage};
 use crate::save::{SaveKind, SaveOutcome, save_atomic};
 use crate::text::{self, PageText, SearchHit};
@@ -61,6 +66,8 @@ pub struct DocumentInfo {
     pub labels: Option<Vec<String>>,
     pub flags: DocumentFlags,
     pub state: DocumentState,
+    /// The bookmarks, with the panel's expanded states.
+    pub outline: Outline,
     /// Time to open the file and read every page's geometry.
     pub open_time: Duration,
 }
@@ -73,6 +80,10 @@ pub struct DocumentChange {
     pub changed_pages: Vec<(usize, PageSize)>,
     /// The new labels, if they changed (`Some(None)`: the labels were removed).
     pub labels: Option<Option<Vec<String>>>,
+    /// The new bookmarks, if they changed (targets move when pages rotate, too).
+    pub outline: Option<Outline>,
+    /// The id of the object the operation created (the new bookmark).
+    pub created: Option<u32>,
 }
 
 #[derive(Debug, Clone)]
@@ -110,6 +121,11 @@ enum Command {
     },
     Redo {
         reply: Reply<DocumentChange>,
+    },
+    SetBookmarkOpen {
+        id: u32,
+        open: bool,
+        reply: Reply<()>,
     },
     Save {
         kind: SaveKind,
@@ -246,6 +262,12 @@ impl Session {
         self.call(|reply| Command::Redo { reply })
     }
 
+    /// Records that a bookmark was expanded or collapsed in the panel. Not an edit: the
+    /// state is written into the outline at the next save.
+    pub fn set_bookmark_open(&self, id: u32, open: bool) -> Result<()> {
+        self.call(|reply| Command::SetBookmarkOpen { id, open, reply })
+    }
+
     /// Saves to the document's own file (`target: None`) or to `target` (Save As). After
     /// a Save As, the session belongs to `target`.
     pub fn save(&self, kind: SaveKind, target: Option<PathBuf>) -> Result<SaveResult> {
@@ -279,6 +301,10 @@ struct Actor {
     flags: DocumentFlags,
     pages: Vec<PageSize>,
     labels: Option<Vec<String>>,
+    /// The outline as the document has it.
+    outline: Outline,
+    /// Bookmarks expanded or collapsed in the panel since the last save (id to open).
+    open_states: HashMap<u32, bool>,
     /// Revision of the content at each journal position (index 0: as opened or saved).
     history: Vec<u64>,
     position: usize,
@@ -325,6 +351,10 @@ fn actor(
             Command::Redo { reply } => {
                 let _ = reply.send(actor.step(true));
             }
+            Command::SetBookmarkOpen { id, open, reply } => {
+                actor.set_bookmark_open(id, open);
+                let _ = reply.send(Ok(()));
+            }
             Command::Save {
                 kind,
                 target,
@@ -362,6 +392,7 @@ impl Actor {
         let flags = read_flags(&doc)?;
         let pages = page_sizes(&doc)?;
         let labels = page_labels(&doc, pages.len())?;
+        let outline = outline::read_bookmarks(&doc)?;
         Ok(Actor {
             doc,
             path,
@@ -369,6 +400,8 @@ impl Actor {
             flags,
             pages,
             labels,
+            outline,
+            open_states: HashMap::new(),
             history: vec![0],
             position: 0,
             saved_revision: 0,
@@ -401,8 +434,66 @@ impl Actor {
             labels: self.labels.clone(),
             flags: self.flags,
             state: self.state(),
+            outline: self.outline_view(),
             open_time,
         }
+    }
+
+    /// The outline with the panel's expanded states.
+    fn outline_view(&self) -> Outline {
+        self.outline.clone().with_open_states(&self.open_states)
+    }
+
+    fn set_bookmark_open(&mut self, id: u32, open: bool) {
+        let mut stored = None;
+        self.outline.for_each(|b| {
+            if b.id == id {
+                stored = Some(b.open);
+            }
+        });
+        match stored {
+            Some(s) if s == open => {
+                self.open_states.remove(&id);
+            }
+            Some(_) => {
+                self.open_states.insert(id, open);
+            }
+            None => {}
+        }
+    }
+
+    /// Forgets panel states of bookmarks that are gone or already stored that way.
+    fn prune_open_states(&mut self) {
+        let mut stored = HashMap::new();
+        self.outline.for_each(|b| {
+            stored.insert(b.id, b.open);
+        });
+        self.open_states
+            .retain(|id, open| stored.get(id).is_some_and(|s| s != open));
+    }
+
+    /// Writes the panel's expanded states into the outline, as an unnamed journal change so
+    /// they are not an undo step of their own. Skipped where writing them would be an edit
+    /// the user did not ask for: a signed document with no other changes (the save would
+    /// add a revision after the signature), or one whose permissions do not allow outline
+    /// changes.
+    fn write_open_states(&mut self) -> Result<()> {
+        if self.open_states.is_empty()
+            || !self.flags.can_assemble
+            || (self.flags.signed && self.revision() == self.saved_revision)
+        {
+            return Ok(());
+        }
+        let states: Vec<(u32, bool)> = self.open_states.iter().map(|(&k, &v)| (k, v)).collect();
+        Journal::new(&mut self.doc).begin_implicit()?;
+        match outline::edit::set_open(&mut self.doc, &states) {
+            Ok(_) => self.doc.end_operation()?,
+            Err(e) => {
+                self.doc.abandon_operation()?;
+                return Err(e);
+            }
+        }
+        Ok(())
     }
 
     fn display_list(&mut self, page: usize, cache: bool) -> Result<(Arc<DisplayList>, u64)> {
@@ -427,18 +518,21 @@ impl Actor {
 
     fn apply(&mut self, op: &Operation) -> Result<DocumentChange> {
         op.validate(self.pages.len())?;
-        if !self.flags.can_assemble && matches!(op, Operation::RotatePages { .. }) {
+        if !self.flags.can_assemble && op.needs_assemble() {
             return Err(Error::NotPermitted);
         }
         let before = Journal::new(&mut self.doc).state()?.current;
         self.doc.begin_operation(&op.name())?;
-        match op.apply(&mut self.doc) {
-            Ok(()) => self.doc.end_operation()?,
+        let created = match op.apply(&mut self.doc) {
+            Ok(created) => {
+                self.doc.end_operation()?;
+                created
+            }
             Err(e) => {
                 self.doc.abandon_operation()?;
                 return Err(e);
             }
-        }
+        };
         let after = Journal::new(&mut self.doc).state()?.current;
         if after != before {
             let revision = self.next_revision;
@@ -447,7 +541,9 @@ impl Actor {
             self.history.resize(after + 1, revision);
             self.position = after;
         }
-        self.changed()
+        let mut change = self.changed()?;
+        change.created = created;
+        Ok(change)
     }
 
     /// Undo (`forward: false`) or redo.
@@ -495,10 +591,20 @@ impl Actor {
         } else {
             None
         };
+        let outline = outline::read_bookmarks(&self.doc)?;
+        let outline = if outline != self.outline {
+            self.outline = outline;
+            self.prune_open_states();
+            Some(self.outline_view())
+        } else {
+            None
+        };
         Ok(DocumentChange {
             state: self.state(),
             changed_pages,
             labels,
+            outline,
+            created: None,
         })
     }
 
@@ -513,6 +619,7 @@ impl Actor {
         } else {
             kind
         };
+        self.write_open_states()?;
         let outcome = save_atomic(&self.doc, kind, Some(&self.path), &target)?;
         let revision = self.revision();
         self.saved_revision = revision;
@@ -526,6 +633,8 @@ impl Actor {
                 self.lists.clear();
                 self.history = vec![revision];
                 self.position = 0;
+                self.outline = outline::read_bookmarks(&self.doc)?;
+                self.prune_open_states();
             }
             // The file is saved; keep working on the old in-memory document.
             Err(_) => self.needs_full_save = true,
@@ -544,6 +653,8 @@ impl Actor {
         self.flags = read_flags(&self.doc)?;
         self.pages = page_sizes(&self.doc)?;
         self.labels = page_labels(&self.doc, self.pages.len())?;
+        self.outline = outline::read_bookmarks(&self.doc)?;
+        self.open_states.clear();
         self.lists.clear();
         self.needs_full_save = false;
         let revision = self.next_revision;
