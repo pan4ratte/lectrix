@@ -255,3 +255,15 @@ rendering. Encoding is now cheap because the PNG is made from the cached RGBA re
   thumbnail jumps are.
 - Copying respects the document's copy permission; rotating pages respects the
   assemble/modify permission and a signed document's warning.
+
+### Review decisions (2026-10-03)
+
+1. **Page images: PNG by default** (ADR 0004). Raw RGBA stays available for measurement.
+2. **WebView2 memory:** investigated in Phase 2 (added to its checklist in AGENTS.md).
+3. **Undo history starts again after each save:** accepted (ADR 0003).
+4. **CI:** the Phase 1 commits are pushed.
+5. **Dark mode:** a light/dark/system switch in Settings, planned for Phase 5, where the
+   Settings dialog is built (AGENTS.md sections 8 and 10).
+6. **Real-world test files:** selected from the user's Calibre library into a git-ignored
+   local corpus (see "Local corpus" below); the library itself is never touched.
+7. **End-to-end tests:** added to the Phase 2 checklist.

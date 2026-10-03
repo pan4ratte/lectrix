@@ -319,9 +319,9 @@ pub enum Backdrop {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum ImageFormat {
-    /// Raw RGBA drawn with putImageData (AGENTS.md section 3).
+    /// Raw RGBA drawn with putImageData (AGENTS.md section 3; kept for measurements).
     Rgba,
-    /// PNG decoded by the webview.
+    /// PNG decoded by the webview: the default (ADR 0004).
     Png,
 }
 
@@ -337,7 +337,7 @@ pub struct StartupInfo {
     /// Set by the FOLIO_PERF environment variable: the frontend runs its scripted
     /// performance measurements (tests/perf/measure.ps1).
     pub perf_mode: bool,
-    /// Page image format; FOLIO_IMAGE_FORMAT=png switches from the default raw RGBA.
+    /// Page image format: PNG (ADR 0004); FOLIO_IMAGE_FORMAT=rgba switches to raw RGBA.
     pub image_format: ImageFormat,
 }
 

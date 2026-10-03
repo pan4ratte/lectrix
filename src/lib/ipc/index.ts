@@ -100,7 +100,7 @@ export interface TileRect {
 }
 
 /** The format page images are requested in (set once from StartupInfo). */
-let imageFormat: ImageFormat = 'rgba';
+let imageFormat: ImageFormat = 'png';
 
 export function setImageFormat(format: ImageFormat) {
 	imageFormat = format;

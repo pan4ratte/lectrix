@@ -17,8 +17,8 @@ param(
     [int]$Runs = 3,
     [int]$IdleSeconds = 5,
     [switch]$Perf,
-    # Page image format for every run: rgba (default, AGENTS.md section 3) or png.
-    [ValidateSet('rgba', 'png')][string]$Format = 'rgba'
+    # Page image format for every run: png (the default, ADR 0004) or rgba.
+    [ValidateSet('rgba', 'png')][string]$Format = 'png'
 )
 
 $ErrorActionPreference = 'Stop'

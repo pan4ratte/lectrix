@@ -3,9 +3,10 @@ import { describe, expect, it } from 'vitest';
 import { isAppError, pageUrl } from './index';
 
 describe('pageUrl', () => {
-	it('includes document, page, scale and revision', () => {
+	it('includes document, page, scale and revision, as PNG by default (ADR 0004)', () => {
 		const url = pageUrl(3, 41, 1.5, 7);
-		expect(url).toMatch(/\/page\/3\/41\?scale=1\.500&rev=7$/);
+		expect(url).toMatch(/\/page\/3\/41\?scale=1\.500&rev=7&fmt=png$/);
+		expect(pageUrl(3, 41, 1.5, 7, undefined, 'rgba')).toMatch(/&rev=7$/);
 	});
 
 	it('adds tiles and the PNG format when asked', () => {

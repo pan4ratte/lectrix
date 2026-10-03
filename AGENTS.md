@@ -249,7 +249,7 @@ The app should feel like a native Windows 11 app: calm, fast, and keyboard-frien
 **Visual style.**
 
 - Mica window background through Tauri's window effects, with a solid fallback where Mica is unavailable.
-- Follow the system light/dark setting and accent color.
+- Follow the system light/dark setting and accent color by default; Settings can force light or dark (Phase 5).
 - Font stack: Segoe UI Variable, Segoe UI, then system UI fonts for other platforms.
 - Spacing on an 8 px grid (4 px for tight spots); corner radius 6–8 px; thin borders instead of heavy shadows.
 - All colors, sizes and radii as CSS variables (design tokens) consumed by Tailwind; no hard-coded colors in components.
@@ -292,6 +292,8 @@ Interoperability is verified by machines on every commit and by a person before 
 - annotations made by other apps, especially the ones that display wrongly in Acrobat (the user will supply these).
 
 Write test outputs to `target/test-output/`, never next to corpus files.
+
+Real-world files the user owns but cannot publish (for example books from their Calibre library) form a **local corpus**: copies in `tests/corpus-local/`, which is git-ignored and listed in its `manifest.json`. Tests that use it skip when it is absent (as in CI). The source library is only ever read, never written.
 
 **Unit tests (`pdf-core`):** coordinate transforms for every rotation and CropBox case; quad ordering; label formatting (roman, letters past z, prefixes); outline serialization including Unicode titles; atomic save failure paths.
 
@@ -342,6 +344,8 @@ Goal: prove the risky parts before building UI.
 - [ ] Everything in 6.2 works, with undo/redo for each action.
 - [ ] A file with a 3-level outline edited in the app opens with the correct tree, titles and targets in Acrobat, Edge and Firefox.
 - [ ] Untouched bookmarks keep their original destinations byte-for-byte (verified by a test).
+- [ ] End-to-end tests (`tauri-driver` with WebdriverIO, section 9) run in CI for open, save and reopen, and for adding, renaming and saving a bookmark.
+- [ ] WebView2 memory (ADR 0002 growth rule, Phase 1 report) investigated: where the growth comes from (GPU process, renderer), what reduces it (fewer mounted pages, lower-resolution images while scrolling fast, `<img>` instead of `<canvas>`, WebView2's memory target level), and either a fix that meets the rule or a proposal to revise it.
 
 ### Phase 3: Page labels
 
@@ -362,6 +366,7 @@ Goal: prove the risky parts before building UI.
 - [ ] The interop harness passes for every annotation type on rotated, cropped and normal pages.
 - [ ] The repair command (5.3) fixes the user-supplied problem files so they pass the harness, without changing content, color, author or position.
 - [ ] The manual checklist in section 9 is prepared for the user.
+- [ ] A Settings dialog (author name, 6.5) with an appearance choice: System (default), Light or Dark; the choice applies immediately and is remembered in app data.
 
 ### Phase 6: Polish and release
 

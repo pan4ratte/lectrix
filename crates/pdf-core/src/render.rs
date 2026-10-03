@@ -3,9 +3,9 @@
 //! The display list is built on the document's thread. `DisplayList` is `Send + Sync`
 //! (ADR 0001), so rasterizing and encoding can run on worker threads.
 //!
-//! The app shows raw RGBA drawn into a `<canvas>` (AGENTS.md section 3: PNG encoding took
-//! over 30% of render time in Phase 0). Above a zoom threshold the frontend asks for
-//! 512 px tiles instead of whole pages. Rendered images are kept in an [`ImageCache`].
+//! Pages are rendered to opaque RGBA and kept in an [`ImageCache`]; the app sends them to
+//! the webview as PNG encoded from that RGBA (ADR 0004). Above a zoom threshold the
+//! frontend asks for 512 px tiles instead of whole pages.
 
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};

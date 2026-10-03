@@ -17,6 +17,6 @@ accentColor: string | null,
  */
 perfMode: boolean, 
 /**
- * Page image format; FOLIO_IMAGE_FORMAT=png switches from the default raw RGBA.
+ * Page image format: PNG (ADR 0004); FOLIO_IMAGE_FORMAT=rgba switches to raw RGBA.
  */
 imageFormat: ImageFormat, };

@@ -4,10 +4,10 @@
 //! On Windows (WebView2) the same URL is served as `http://folio.localhost/page/...`. The
 //! revision is part of the URL, so a URL always means the same pixels.
 //!
-//! The default response is raw RGBA (`application/octet-stream`, 4 bytes per pixel, size
-//! in the `X-Folio-Width` and `X-Folio-Height` headers) that the frontend draws into a
-//! `<canvas>` (AGENTS.md section 3). `fmt=png` returns the same cached pixels as PNG;
-//! Phase 1 measures both (docs/progress.md).
+//! Without `fmt`, the response is raw RGBA (`application/octet-stream`, 4 bytes per pixel,
+//! size in the `X-Folio-Width` and `X-Folio-Height` headers). `fmt=png` returns the same
+//! cached pixels as PNG, which the app uses by default because it reaches the screen about
+//! three times faster through WebView2 (ADR 0004).
 
 use std::borrow::Cow;
 use std::sync::{Arc, Condvar, Mutex};
