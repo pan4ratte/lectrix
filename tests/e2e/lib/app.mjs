@@ -6,7 +6,7 @@
 // the default locations.
 
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createConnection } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -40,6 +40,19 @@ function waitForPort(port, timeoutMs) {
 }
 
 /**
+ * tauri-driver cannot pass arguments to msedgedriver, but it runs any executable: a small
+ * wrapper adds a verbose log of every session (target/test-output/e2e/driver-session.log,
+ * uploaded by CI when the tests fail).
+ */
+function verboseDriver() {
+	const wrapper = join(dirname(edgeDriver), 'msedgedriver-verbose.cmd');
+	const log = join(OUT, 'driver-session.log');
+	writeFileSync(wrapper, `@"${edgeDriver}" %* --verbose --append-log "--log-path=${log}"
+`);
+	return wrapper;
+}
+
+/**
  * Ends any Folio still running. Folio is single-instance: a leftover process would take
  * over the next launch, which then exits before WebDriver can attach.
  */
@@ -63,7 +76,7 @@ export async function launch(files = []) {
 	}
 	mkdirSync(OUT, { recursive: true });
 	killStrayApps();
-	const driver = spawn(tauriDriver, ['--port', String(PORT), '--native-driver', edgeDriver], {
+	const driver = spawn(tauriDriver, ['--port', String(PORT), '--native-driver', verboseDriver()], {
 		env: { ...process.env, FOLIO_EPHEMERAL: '1', FOLIO_OPEN: files.join(';') },
 		stdio: ['ignore', 'inherit', 'inherit']
 	});
