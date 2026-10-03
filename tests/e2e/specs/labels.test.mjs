@@ -61,7 +61,7 @@ test('set, preview, undo, save and reopen page labels', async () => {
 	let { browser, stop } = await launch([path]);
 	try {
 		await waitForDocument(browser);
-		await (await browser.$('button=Labels')).click();
+		await (await browser.$('button[aria-label="Page labels"]')).click();
 		await (await browser.$('p*=No page labels yet')).waitForDisplayed();
 		await waitForRows(browser, ['1–8 1 – 8'], 'no labels');
 
@@ -116,7 +116,7 @@ test('set, preview, undo, save and reopen page labels', async () => {
 	({ browser, stop } = await launch([path]));
 	try {
 		await waitForDocument(browser);
-		await (await browser.$('button=Labels')).click();
+		await (await browser.$('button[aria-label="Page labels"]')).click();
 		await waitForRows(browser, ['1–3 i – iii', '4–6 Ch-1 – Ch-3', '7–8 A – B'], 'reopened');
 		// The page box takes a label.
 		await browser.keys(['Control', 'g']);

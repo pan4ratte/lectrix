@@ -2,6 +2,9 @@
 
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
+import { repair } from '#lib/features/annotations/actions.ts';
+import { tools } from '#lib/features/annotations/state.svelte.ts';
+import type { Tool } from '#lib/features/annotations/tools.ts';
 import { addBookmark } from '#lib/features/bookmarks/actions.ts';
 import { showLabels, startRangeAt } from '#lib/features/labels/actions.ts';
 import { copySelection } from '#lib/features/viewer/actions.ts';
@@ -17,6 +20,14 @@ function withTab(run: (tab: DocTab) => void | Promise<unknown>) {
 	};
 }
 
+/** Picks an annotation tool (section 8 shortcuts). Drawing tools need permission to annotate. */
+function useTool(tool: Tool) {
+	return withTab((t) => {
+		if (tool !== 'select' && !t.flags.canAnnotate) return;
+		tools.tool = tool;
+	});
+}
+
 export const commands = {
 	open: () => void app.open(),
 	save: withTab((t) => app.save(t)),
@@ -29,6 +40,9 @@ export const commands = {
 	},
 	combineFiles: () => app.openCombine(),
 	exit: () => void getCurrentWindow().close(),
+	settings: () => {
+		app.settingsOpen = true;
+	},
 
 	undo: () => {
 		if (app.combineActive) app.combine?.undo();
@@ -90,6 +104,19 @@ export const commands = {
 		app.sidebarPanel = 'bookmarks';
 	},
 	showLabels: () => showLabels(),
+	showAnnotations: () => {
+		app.sidebarOpen = true;
+		app.sidebarPanel = 'annotations';
+	},
+	repairAnnotations: withTab((t) => repair(t)),
+	toolSelect: useTool('select'),
+	toolHighlight: useTool('highlight'),
+	toolUnderline: useTool('underline'),
+	toolStrikeOut: useTool('strikeOut'),
+	toolSquiggly: useTool('squiggly'),
+	toolNote: useTool('note'),
+	toolPen: useTool('ink'),
+	toolText: useTool('freeText'),
 	startLabelRange: withTab((t) => startRangeAt(t, t.currentPage))
 };
 

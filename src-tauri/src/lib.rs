@@ -145,19 +145,19 @@ fn watch_files(app: AppHandle) {
         .unwrap_or_else(|e| applog::error(format!("file watching is off: {e}")));
 }
 
-fn theme_for(appearance: ipc::Appearance) -> Option<tauri::Theme> {
+fn dark(appearance: ipc::Appearance) -> Option<bool> {
     match appearance {
         ipc::Appearance::System => None,
-        ipc::Appearance::Light => Some(tauri::Theme::Light),
-        ipc::Appearance::Dark => Some(tauri::Theme::Dark),
+        ipc::Appearance::Light => Some(false),
+        ipc::Appearance::Dark => Some(true),
     }
 }
 
-/// Applies the Settings appearance to the main window: its frame and the webview's
-/// `prefers-color-scheme`, which the design tokens follow.
+/// Applies the Settings appearance to the main window: its frame, backdrop and the
+/// webview's `prefers-color-scheme` (the frontend also marks the forced theme itself).
 pub(crate) fn apply_appearance(app: &AppHandle, appearance: ipc::Appearance) {
     if let Some(window) = app.get_webview_window("main")
-        && let Err(e) = window.set_theme(theme_for(appearance))
+        && let Err(e) = platform::current().set_appearance(&window, dark(appearance))
     {
         applog::warn(format!("could not change the window theme: {e}"));
     }
@@ -234,14 +234,16 @@ pub fn run() {
                 if let Some(args) = platform::current().webview_browser_args() {
                     window = window.additional_browser_args(&args);
                 }
-                window = window.theme(theme_for(
-                    app.state::<AppState>()
-                        .store
-                        .lock()
-                        .map(|s| s.settings().appearance)
-                        .unwrap_or_default(),
-                ));
                 window.build()?;
+                let appearance = app
+                    .state::<AppState>()
+                    .store
+                    .lock()
+                    .map(|s| s.settings().appearance)
+                    .unwrap_or_default();
+                if appearance != ipc::Appearance::System {
+                    apply_appearance(app.handle(), appearance);
+                }
             }
             Ok(())
         })

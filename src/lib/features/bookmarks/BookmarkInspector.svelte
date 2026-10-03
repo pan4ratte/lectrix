@@ -37,7 +37,7 @@
 	}
 </script>
 
-{#if app.inspectorOpen && bookmark}
+{#if app.inspectorOpen && bookmark && !tab.selectedAnnotation}
 	{@const b = bookmark}
 	<aside
 		class="absolute right-6 z-10 flex w-72 flex-col gap-3 rounded-panel border border-line bg-surface-raised p-3 shadow-[0_4px_12px_var(--color-page-shadow)]"

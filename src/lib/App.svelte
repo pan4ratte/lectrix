@@ -14,6 +14,11 @@
 	import StartScreen from '#lib/components/StartScreen.svelte';
 	import TitleBar from '#lib/components/TitleBar.svelte';
 	import Toasts from '#lib/components/Toasts.svelte';
+	import SettingsDialog from '#lib/components/SettingsDialog.svelte';
+	import { cancelTextDraft } from '#lib/features/annotations/actions.ts';
+	import AnnotationInspector from '#lib/features/annotations/AnnotationInspector.svelte';
+	import AnnotationToolbar from '#lib/features/annotations/AnnotationToolbar.svelte';
+	import { tools } from '#lib/features/annotations/state.svelte.ts';
 	import CombineView from '#lib/features/merge/CombineView.svelte';
 	import InsertPagesDialog from '#lib/features/merge/InsertPagesDialog.svelte';
 	import { firstPagePainted, runPerf } from '#lib/features/viewer/perfrun.ts';
@@ -23,6 +28,7 @@
 	import {
 		appReady,
 		closeDocument,
+		getSettings,
 		logMetric,
 		onDocumentsOpened,
 		onFileChanged,
@@ -32,7 +38,7 @@
 	} from '#lib/ipc/index.ts';
 	import { commandFor, isBlocked, isTextInput } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
-	import { applyTheme } from '#lib/theme.ts';
+	import { applyAppearance, applyTheme } from '#lib/theme.ts';
 
 	const tab = $derived(app.active);
 
@@ -41,6 +47,9 @@
 			const info = await appReady();
 			app.startup = info;
 			applyTheme(info);
+			void getSettings()
+				.then((s) => applyAppearance(s.appearance))
+				.catch(() => {});
 			setImageFormat(info.imageFormat);
 			void logMetric('main_to_ready_ms', info.mainToReadyMs);
 			void app.refreshRecent();
@@ -69,7 +78,14 @@
 			return;
 		}
 		if (event.key === 'Escape' && !inInput && tab) {
-			if (tab.selection) tab.selection = null;
+			// One step back at a time: what is being drawn, the selection, the search, then
+			// the Select tool (section 8: Esc picks Select).
+			if (tab.draft) {
+				if (tab.draft.kind === 'text') cancelTextDraft(tab);
+				else tab.draft = null;
+			} else if (tab.selection) tab.selection = null;
+			else if (tab.selectedAnnotation) tab.selectedAnnotation = null;
+			else if (tools.tool !== 'select') tools.tool = 'select';
 			else if (tab.search.open) {
 				tab.search.open = false;
 				tab.search.clear();
@@ -141,6 +157,8 @@
 					{#key tab.id}
 						<div class="relative flex min-h-0 flex-1 flex-col">
 							<Viewer {tab} />
+							<AnnotationToolbar {tab} />
+							<AnnotationInspector {tab} />
 							<BookmarkInspector {tab} />
 						</div>
 					{/key}
@@ -159,6 +177,7 @@
 </div>
 
 <InsertPagesDialog />
+<SettingsDialog />
 <DialogHost />
 <PasswordDialog />
 <Toasts />

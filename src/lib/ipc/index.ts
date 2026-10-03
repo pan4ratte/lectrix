@@ -59,6 +59,20 @@ export type { PageSize } from './generated/PageSize';
 export type { TextLine } from './generated/TextLine';
 export type { ViewDest } from './generated/ViewDest';
 export type { ZoomMode } from './generated/ZoomMode';
+export type { Annotation } from './generated/Annotation';
+export type { AnnotationBody } from './generated/AnnotationBody';
+export type { AnnotationEditInput } from './generated/AnnotationEditInput';
+export type { AnnotationKind } from './generated/AnnotationKind';
+export type { AnnotationProblem } from './generated/AnnotationProblem';
+export type { NewAnnotationInput } from './generated/NewAnnotationInput';
+export type { PageAnnotations } from './generated/PageAnnotations';
+export type { RepairSummary } from './generated/RepairSummary';
+export type { Appearance } from './generated/Appearance';
+export type { Settings } from './generated/Settings';
+export type { SettingsInput } from './generated/SettingsInput';
+import type { RepairSummary } from './generated/RepairSummary';
+import type { Settings } from './generated/Settings';
+import type { SettingsInput } from './generated/SettingsInput';
 
 export function isAppError(value: unknown): value is AppError {
 	return (
@@ -120,6 +134,13 @@ export const saveAs = (id: number, optimized: boolean) =>
 export const reloadDocument = (id: number) => invoke<DocumentInfo>('reload_document', { id });
 export const rememberView = (id: number, view: ViewState) =>
 	invoke<void>('remember_view', { id, view });
+/** What "Repair annotations" would fix (section 5.3). */
+export const scanAnnotationsForRepair = (id: number) => invoke<RepairSummary>('scan_annotations_for_repair', { id });
+/** Fixes it, as one undo step. */
+export const repairAnnotations = (id: number) => invoke<DocumentChange>('repair_annotations', { id });
+export const getSettings = () => invoke<Settings>('get_settings');
+/** Stores the settings; the appearance applies to the window at once. */
+export const setSettings = (settings: SettingsInput) => invoke<Settings>('set_settings', { settings });
 export const appReady = () => invoke<StartupInfo>('app_ready');
 export const logMetric = (name: string, ms: number) => invoke<void>('log_metric', { name, ms });
 export const logError = (message: string) => invoke<void>('log_error', { message });

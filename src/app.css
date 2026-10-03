@@ -43,8 +43,9 @@
 	--folio-source-6: #038387;
 }
 
+/* Dark: the system's choice unless Settings forces light, or forced (data-theme). */
 @media (prefers-color-scheme: dark) {
-	:root {
+	:root:not([data-theme='light']) {
 		--folio-bg: #202020;
 		--folio-chrome: #202020;
 		--folio-surface: #2b2b2b;
@@ -70,6 +71,38 @@
 		--folio-source-5: #b59ae6;
 		--folio-source-6: #4fb7b9;
 	}
+}
+
+:root[data-theme='dark'] {
+	color-scheme: dark;
+	--folio-bg: #202020;
+	--folio-chrome: #202020;
+	--folio-surface: #2b2b2b;
+	--folio-surface-raised: #2c2c2c;
+	--folio-canvas: #1a1a1a;
+	--folio-hover: rgb(255 255 255 / 0.06);
+	--folio-pressed: rgb(255 255 255 / 0.09);
+	--folio-fg: #ffffff;
+	--folio-fg-muted: #c5c5c5;
+	--folio-line: #3a3a3a;
+	/* Windows uses a lighter shade of the accent on dark backgrounds. */
+	--folio-accent: color-mix(in srgb, var(--folio-system-accent, #0078d4) 55%, white);
+	--folio-accent-fg: #000000;
+	--folio-danger: #ff99a4;
+	--folio-danger-bg: #442726;
+	--folio-info-bg: #1f2a35;
+	--folio-page-shadow: rgb(0 0 0 / 0.5);
+	--folio-overlay: rgb(0 0 0 / 0.5);
+	--folio-source-1: #479ef5;
+	--folio-source-2: #e370d9;
+	--folio-source-3: #54b054;
+	--folio-source-4: #f7894a;
+	--folio-source-5: #b59ae6;
+	--folio-source-6: #4fb7b9;
+}
+
+:root[data-theme='light'] {
+	color-scheme: light;
 }
 
 /* With Mica, the chrome is transparent and the system material shows through. */
@@ -143,6 +176,35 @@ button {
 	fill: var(--folio-search-current);
 }
 
+/* Annotations on the page canvas. */
+.annotation-outline {
+	fill: none;
+	stroke: var(--folio-accent);
+	stroke-width: 1.5px;
+}
+.annotation-outline-draft {
+	stroke-dasharray: 4 3;
+}
+.annotation-handle {
+	fill: var(--folio-surface-raised);
+	stroke: var(--folio-accent);
+	stroke-width: 1.5px;
+}
+.annotation-editor {
+	z-index: 1;
+	margin: 0;
+	padding: 0;
+	overflow: hidden;
+	border: 0;
+	background: rgb(255 255 255 / 0.6);
+	font-family: Helvetica, Arial, sans-serif;
+	line-height: 1.2;
+	outline: 1.5px dashed var(--folio-accent);
+	resize: none;
+	white-space: pre-wrap;
+	overflow-wrap: normal;
+}
+
 .viewer-scroll:focus-visible {
 	outline: 2px solid var(--folio-focus);
 	outline-offset: -2px;
@@ -194,6 +256,122 @@ button {
 }
 .button-primary:hover {
 	background: color-mix(in srgb, var(--folio-accent), var(--folio-bg) 10%);
+}
+
+.field {
+	padding: 0 8px;
+	border: 1px solid var(--folio-line);
+	border-radius: var(--radius-control);
+	background: var(--folio-surface);
+	color: var(--folio-fg);
+	outline: none;
+}
+.field:focus {
+	border-color: var(--folio-accent);
+}
+.field[readonly] {
+	color: var(--folio-fg-muted);
+}
+
+/* ----- annotation tools ----- */
+
+.tool-button[aria-pressed='true'] {
+	background: var(--folio-row-selected);
+	color: var(--folio-fg);
+	box-shadow: inset 0 -2px 0 var(--folio-accent);
+}
+.swatch {
+	display: inline-flex;
+	width: 22px;
+	height: 22px;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid color-mix(in srgb, var(--folio-fg) 25%, transparent);
+	border-radius: 50%;
+	background: var(--swatch);
+	cursor: default;
+}
+.swatch[aria-checked='true'],
+.swatch-custom-on {
+	outline: 2px solid var(--folio-accent);
+	outline-offset: 1px;
+}
+.swatch-custom {
+	background: conic-gradient(#e53935, #ffd400, #5fd35f, #33a7ff, #b04ad6, #e53935);
+}
+.swatch-custom:focus-within {
+	outline: 2px solid var(--folio-focus);
+	outline-offset: 2px;
+}
+.toolbar-select {
+	height: 28px;
+	margin-left: 4px;
+	padding: 0 4px;
+	border: 1px solid var(--folio-line);
+	border-radius: var(--radius-control);
+	background: var(--folio-surface);
+	color: var(--folio-fg);
+	font-size: 12px;
+}
+.annotation-dot {
+	width: 10px;
+	height: 10px;
+	flex-shrink: 0;
+	border: 1px solid color-mix(in srgb, var(--folio-fg) 25%, transparent);
+	border-radius: 50%;
+	background: var(--swatch);
+}
+.annotation-list:focus-visible {
+	outline: 2px solid var(--folio-focus);
+	outline-offset: -2px;
+}
+.annotation-row {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	padding: 6px 8px;
+	border-radius: 4px;
+	content-visibility: auto;
+	contain-intrinsic-size: auto 52px;
+}
+.annotation-row:hover {
+	background: var(--folio-hover);
+}
+.annotation-row[aria-selected='true'] {
+	background: var(--folio-row-selected);
+}
+.repair-badge {
+	display: inline-flex;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 2px;
+	margin-left: auto;
+	padding: 0 6px;
+	border-radius: 8px;
+	background: var(--folio-danger-bg);
+	color: var(--folio-danger);
+	font-size: 11px;
+	line-height: 18px;
+}
+.radio {
+	display: inline-flex;
+	width: 18px;
+	height: 18px;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid var(--folio-fg-muted);
+	border-radius: 50%;
+	background: var(--folio-surface);
+}
+.radio[data-state='checked'] {
+	border-color: var(--folio-accent);
+}
+.radio-dot {
+	width: 8px;
+	height: 8px;
+	border-radius: 50%;
+	background: var(--folio-accent);
 }
 
 /* ----- menus (bits-ui) ----- */
@@ -272,8 +450,10 @@ button {
 
 .sidebar-tab {
 	display: inline-flex;
-	height: 28px;
+	height: 32px;
+	min-width: 32px;
 	align-items: center;
+	justify-content: center;
 	gap: 6px;
 	padding: 0 8px;
 	border: 0;

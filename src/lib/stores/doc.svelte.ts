@@ -5,15 +5,19 @@ import {
 	getPageText,
 	logError,
 	searchText,
+	type Annotation,
 	type DocumentChange,
 	type DocumentFlags,
 	type DocumentInfo,
 	type DocumentState,
 	type LabelRule,
 	type Outline,
+	type PageAnnotations,
 	type PageSize,
+	type SaveResult,
 	type ViewState
 } from '#lib/ipc/index.ts';
+import type { Box } from '#lib/features/annotations/geometry.ts';
 import { NavHistory, type ViewPosition } from '#lib/features/viewer/history.ts';
 import { normalizeRotation, type Rotation } from '#lib/features/viewer/layout.ts';
 import { prepareText, type Caret, type TextGeometry } from '#lib/features/viewer/selection.ts';
@@ -43,6 +47,19 @@ export interface ViewerApi {
 }
 
 export type BannerKind = 'changedOnDisk' | 'changedOnDiskDirty' | 'deletedOnDisk';
+
+/** Something being drawn or dragged on a page, shown before Rust makes it (page points). */
+export type AnnotationDraft =
+	| { kind: 'move'; page: number; id: number; box: Box }
+	| { kind: 'ink'; page: number; points: number[] }
+	| { kind: 'area'; page: number; box: Box }
+	/** A text box being typed: new (`id` null) or an existing one being edited. */
+	| { kind: 'text'; page: number; id: number | null; box: Box; text: string; fontSize: number; color: string };
+
+export interface AnnotationRef {
+	page: number;
+	id: number;
+}
 
 export interface SearchHit {
 	page: number;
@@ -181,6 +198,21 @@ export class DocTab {
 	selectedBookmark = $state<number | null>(null);
 	/** The bookmark whose title is being edited in the panel. */
 	renamingBookmark = $state<number | null>(null);
+	/** Annotations by page (pages without any are left out). */
+	annotations = $state.raw<ReadonlyMap<number, Annotation[]>>(new Map());
+	selectedAnnotation = $state<AnnotationRef | null>(null);
+	/** Something being drawn or dragged on a page. */
+	draft = $state<AnnotationDraft | null>(null);
+	/** Every annotation, in page order. */
+	allAnnotations = $derived.by(() => {
+		const pages = [...this.annotations.keys()].sort((a, b) => a - b);
+		return pages.flatMap((p) => this.annotations.get(p) ?? []);
+	});
+	/** The selected annotation's data. */
+	selectedAnnotationInfo = $derived.by(() => {
+		const sel = this.selectedAnnotation;
+		return sel ? (this.annotations.get(sel.page)?.find((a) => a.id === sel.id) ?? null) : null;
+	});
 
 	zoom = $state(1);
 	zoomMode = $state<ZoomMode>('fitWidth');
@@ -229,6 +261,8 @@ export class DocTab {
 		this.flags = info.flags;
 		this.state = info.state;
 		this.setOutline(info.outline);
+		this.setAnnotations(info.annotations, true);
+		this.draft = null;
 		this.texts.clear();
 		this.textRequests.clear();
 		this.selection = null;
@@ -253,6 +287,9 @@ export class DocTab {
 			this.previewLabels = null;
 		}
 		if (change.outline) this.setOutline(change.outline);
+		if (change.annotations.length || change.pageCount !== this.pages.length) {
+			this.setAnnotations(change.annotations, false, change.pageCount);
+		}
 		if (revisionChanged) {
 			this.selection = null;
 			if (this.search.query) void this.search.start(this.search.query, this.currentPage);
@@ -261,6 +298,46 @@ export class DocTab {
 
 	get pageCount() {
 		return this.pages.length;
+	}
+
+	/** What a save changed beyond the state: ids, after Save As (optimized) renumbered objects. */
+	applySaved(result: SaveResult) {
+		if (result.outline) this.setOutline(result.outline);
+		if (result.annotations.length) this.setAnnotations(result.annotations, false);
+	}
+
+	annotationsOn(page: number): readonly Annotation[] {
+		return this.annotations.get(page) ?? [];
+	}
+
+	annotation(page: number, id: number): Annotation | null {
+		return this.annotations.get(page)?.find((a) => a.id === id) ?? null;
+	}
+
+	/** Replies to an annotation (shown under it, read-only: section 5.2). */
+	repliesTo(page: number, id: number): Annotation[] {
+		return this.annotationsOn(page).filter((a) => a.replyTo === id && id !== 0);
+	}
+
+	selectAnnotation(page: number, id: number) {
+		this.selectedAnnotation = { page, id };
+		this.selection = null;
+	}
+
+	/**
+	 * Takes Rust's annotation lists: all of them (`replace`), or the pages that changed (an
+	 * empty list removes a page). Pages past `pageCount` are dropped.
+	 */
+	private setAnnotations(pages: PageAnnotations[], replace: boolean, pageCount = this.pages.length) {
+		const map = replace ? new Map<number, Annotation[]>() : new Map(this.annotations);
+		for (const p of pages) {
+			if (p.annotations.length) map.set(p.page, p.annotations);
+			else map.delete(p.page);
+		}
+		for (const page of map.keys()) if (page >= pageCount) map.delete(page);
+		this.annotations = map;
+		const sel = this.selectedAnnotation;
+		if (sel && !map.get(sel.page)?.some((a) => a.id === sel.id)) this.selectedAnnotation = null;
 	}
 
 	/** Page labels can be changed (permissions allow document changes). */

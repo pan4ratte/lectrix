@@ -35,6 +35,22 @@ pub trait Platform: Send + Sync {
     /// control.
     fn set_low_memory(&self, _window: &tauri::WebviewWindow, _low: bool) {}
 
+    /// Light or dark window (`None`: as the system is). The webview's color scheme follows
+    /// the window theme; platforms with a backdrop material also retint it.
+    fn set_appearance(
+        &self,
+        window: &tauri::WebviewWindow,
+        dark: Option<bool>,
+    ) -> tauri::Result<()> {
+        window.set_theme(dark.map(|d| {
+            if d {
+                tauri::Theme::Dark
+            } else {
+                tauri::Theme::Light
+            }
+        }))
+    }
+
     /// Browser arguments for the webview, when they must differ from Tauri's defaults.
     fn webview_browser_args(&self) -> Option<String> {
         None

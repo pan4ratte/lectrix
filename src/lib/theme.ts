@@ -1,7 +1,7 @@
 // Applies the system look reported at startup: the window backdrop (Mica or solid) and the
 // accent color (section 8).
 
-import type { StartupInfo } from '#lib/ipc/index.ts';
+import type { Appearance, StartupInfo } from '#lib/ipc/index.ts';
 
 /** Relative luminance of a #rrggbb color (WCAG 2.x). */
 export function luminance(hex: string): number {
@@ -21,6 +21,17 @@ export function textOn(hex: string): '#000000' | '#ffffff' {
 	const contrastWhite = 1.05 / (l + 0.05);
 	const contrastBlack = (l + 0.05) / 0.05;
 	return contrastWhite >= contrastBlack ? '#ffffff' : '#000000';
+}
+
+/**
+ * Light, dark or the system's choice (Settings). Rust also sets the window's theme; the
+ * attribute makes the design tokens follow even where the webview keeps reporting the
+ * system's scheme.
+ */
+export function applyAppearance(appearance: Appearance) {
+	const root = document.documentElement;
+	if (appearance === 'system') delete root.dataset.theme;
+	else root.dataset.theme = appearance;
 }
 
 export function applyTheme(info: StartupInfo) {

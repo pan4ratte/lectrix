@@ -86,9 +86,13 @@ class AppStore {
 	recent = $state<RecentFile[]>([]);
 	sidebarOpen = $state(true);
 	/** The panel shown in the sidebar. */
-	sidebarPanel = $state<'pages' | 'bookmarks' | 'labels'>('pages');
+	sidebarPanel = $state<'pages' | 'bookmarks' | 'annotations' | 'labels'>('pages');
 	/** The inspector (properties of the selected bookmark) is open. */
 	inspectorOpen = $state(false);
+	/** A note was just placed: the annotation inspector focuses its text. */
+	focusNoteText = $state(false);
+	/** The Settings dialog is open. */
+	settingsOpen = $state(false);
 	dialog = $state<DialogRequest | null>(null);
 	passwordPrompts = $state<PasswordRequest[]>([]);
 	toasts = $state<Toast[]>([]);
@@ -523,7 +527,7 @@ class AppStore {
 	// ----- editing -----
 
 	/** Warns once before the first edit of a signed document (section 5.4). */
-	private async allowEdit(tab: DocTab): Promise<boolean> {
+	async allowEdit(tab: DocTab): Promise<boolean> {
 		if (!tab.flags.signed || tab.signedWarningAccepted) return true;
 		const choice = await this.ask({
 			title: 'This document is signed',
@@ -587,6 +591,7 @@ class AppStore {
 
 	private afterSave(tab: DocTab, result: SaveResult) {
 		tab.state = result.state;
+		tab.applySaved(result);
 		tab.name = result.name;
 		tab.path = result.path;
 		tab.banner = null;

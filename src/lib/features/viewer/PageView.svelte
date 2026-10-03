@@ -2,6 +2,10 @@
 	// One page: its rendered pixels (whole, or tiles at high zoom), and overlays for the
 	// text selection and search hits. Inside, everything is laid out unrotated in page
 	// points scaled to CSS pixels; a CSS transform applies the view rotation.
+	import { cancelTextDraft, commitTextDraft } from '#lib/features/annotations/actions.ts';
+	import { HANDLES, handlePoint } from '#lib/features/annotations/geometry.ts';
+	import { tools } from '#lib/features/annotations/state.svelte.ts';
+	import { capabilities, isMarkupTool } from '#lib/features/annotations/tools.ts';
 	import { pageUrl, type PageSize } from '#lib/ipc/index.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -155,6 +159,51 @@
 
 	const hits = $derived(tab.search.byPage.get(index) ?? []);
 	const label = $derived(tab.displayLabels?.[index]);
+
+	// Annotations: the selected one's outline and handles, and what is being drawn.
+	const selected = $derived(tab.selectedAnnotation?.page === index ? tab.selectedAnnotationInfo : null);
+	const draft = $derived(tab.draft?.page === index ? tab.draft : null);
+	const handles = $derived(selected !== null && capabilities(selected, tab.flags.canAnnotate).resize);
+	/** Handle size in page points: 8 screen pixels at any zoom. */
+	const hs = $derived(8 / k);
+	const showSelected = $derived(
+		selected !== null && !(draft && (draft.kind === 'move' || draft.kind === 'text') && draft.id === selected.id)
+	);
+	const textDraft = $derived(draft?.kind === 'text' ? draft : null);
+	const areaColor = $derived(isMarkupTool(tools.tool) ? tools.style(tools.tool).color : null);
+
+	function onEditorInput(event: Event) {
+		const d = tab.draft;
+		if (d?.kind !== 'text') return;
+		const el = event.currentTarget as HTMLTextAreaElement;
+		tab.draft = { ...d, text: el.value };
+		fitEditor(el);
+	}
+
+	function onEditorKey(event: KeyboardEvent) {
+		event.stopPropagation();
+		if (event.key === 'Escape') {
+			event.preventDefault();
+			cancelTextDraft(tab);
+			tab.viewer?.focus();
+		} else if (event.key === 'Enter' && event.ctrlKey) {
+			event.preventDefault();
+			void commitTextDraft(tab);
+			tab.viewer?.focus();
+		}
+	}
+
+	/** Grows the editor with its text, as the text box will. */
+	function fitEditor(el: HTMLTextAreaElement) {
+		el.style.height = 'auto';
+		el.style.height = `${el.scrollHeight}px`;
+	}
+
+	function editor(el: HTMLTextAreaElement) {
+		fitEditor(el);
+		el.focus();
+		el.setSelectionRange(el.value.length, el.value.length);
+	}
 </script>
 
 <div
@@ -214,7 +263,7 @@
 			/>
 		{/if}
 
-		{#if selection.length || hits.length}
+		{#if selection.length || hits.length || showSelected || (draft && draft.kind !== 'text')}
 			<svg
 				class="pointer-events-none absolute inset-0"
 				width={innerW}
@@ -233,7 +282,86 @@
 				{#each selection as r, ri (ri)}
 					<rect x={r[0]} y={r[1]} width={r[2]! - r[0]!} height={r[3]! - r[1]!} class="fill-selection" />
 				{/each}
+				{#if showSelected && selected}
+					{@const b = selected.bounds}
+					<rect
+						x={b[0]}
+						y={b[1]}
+						width={b[2] - b[0]}
+						height={b[3] - b[1]}
+						class="annotation-outline"
+						vector-effect="non-scaling-stroke"
+					/>
+					{#if handles}
+						{#each HANDLES as h (h)}
+							{@const [hx, hy] = handlePoint(b, h)}
+							<rect
+								x={hx - hs / 2}
+								y={hy - hs / 2}
+								width={hs}
+								height={hs}
+								class="annotation-handle"
+								vector-effect="non-scaling-stroke"
+							/>
+						{/each}
+					{/if}
+				{/if}
+				{#if draft?.kind === 'move'}
+					{@const b = draft.box}
+					<rect
+						x={b[0]}
+						y={b[1]}
+						width={b[2] - b[0]}
+						height={b[3] - b[1]}
+						class="annotation-outline annotation-outline-draft"
+						vector-effect="non-scaling-stroke"
+					/>
+				{:else if draft?.kind === 'ink'}
+					{@const style = tools.style('ink')}
+					<polyline
+						points={draft.points.join(' ')}
+						fill="none"
+						stroke={style.color}
+						stroke-width={style.width}
+						stroke-opacity={style.opacity}
+						stroke-linecap="round"
+						stroke-linejoin="round"
+					/>
+				{:else if draft?.kind === 'area'}
+					{@const b = draft.box}
+					<rect
+						x={Math.min(b[0], b[2])}
+						y={Math.min(b[1], b[3])}
+						width={Math.abs(b[2] - b[0])}
+						height={Math.abs(b[3] - b[1])}
+						class="annotation-outline annotation-outline-draft"
+						fill={areaColor ?? 'none'}
+						fill-opacity={areaColor ? 0.35 : 0}
+						vector-effect="non-scaling-stroke"
+					/>
+				{/if}
 			</svg>
+		{/if}
+
+		{#if textDraft}
+			{@const b = textDraft.box}
+			<textarea
+				data-annotation-editor
+				class="annotation-editor absolute"
+				style:left="{b[0] * k}px"
+				style:top="{b[1] * k}px"
+				style:width="{(b[2] - b[0]) * k}px"
+				style:min-height="{(b[3] - b[1]) * k}px"
+				style:font-size="{textDraft.fontSize * k}px"
+				style:color={textDraft.color}
+				value={textDraft.text}
+				aria-label="Text box text"
+				spellcheck="true"
+				oninput={onEditorInput}
+				onkeydown={onEditorKey}
+				onblur={() => void commitTextDraft(tab)}
+				{@attach editor}
+			></textarea>
 		{/if}
 	</div>
 </div>

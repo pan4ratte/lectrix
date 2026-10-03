@@ -51,6 +51,33 @@ fn read_user_dword(subkey: &str, value: &str) -> Option<u32> {
 }
 
 impl Platform for Windows {
+    /// The window theme, and Mica in the same tone: the plain Mica effect follows the
+    /// system's theme, not the window's, so a forced theme would show a light material
+    /// behind dark text (or the reverse).
+    fn set_appearance(
+        &self,
+        window: &tauri::WebviewWindow,
+        dark: Option<bool>,
+    ) -> tauri::Result<()> {
+        use tauri::window::{Effect, EffectsBuilder};
+        window.set_theme(dark.map(|d| {
+            if d {
+                tauri::Theme::Dark
+            } else {
+                tauri::Theme::Light
+            }
+        }))?;
+        if self.backdrop() == Backdrop::Mica {
+            let effect = match dark {
+                Some(true) => Effect::MicaDark,
+                Some(false) => Effect::MicaLight,
+                None => Effect::Mica,
+            };
+            window.set_effects(EffectsBuilder::new().effect(effect).build())?;
+        }
+        Ok(())
+    }
+
     fn backdrop(&self) -> Backdrop {
         if build_number() >= WINDOWS_11_BUILD {
             Backdrop::Mica

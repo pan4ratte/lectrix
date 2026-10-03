@@ -54,7 +54,7 @@ test('add, rename, nest, undo, save and reopen bookmarks', async () => {
 	let { browser, stop } = await launch([path]);
 	try {
 		await waitForDocument(browser);
-		await (await browser.$('button=Bookmarks')).click();
+		await (await browser.$('button[aria-label="Bookmarks"]')).click();
 		await (await browser.$('p*=No bookmarks yet')).waitForDisplayed();
 
 		// Ctrl+B with no text selected: titled after the page, open for renaming. (No click
@@ -117,7 +117,7 @@ test('add, rename, nest, undo, save and reopen bookmarks', async () => {
 	({ browser, stop } = await launch([path]));
 	try {
 		await waitForDocument(browser);
-		await (await browser.$('button=Bookmarks')).click();
+		await (await browser.$('button[aria-label="Bookmarks"]')).click();
 		await waitForRows(browser, [['Chapter One', 1, 'false']], 'reopened collapsed');
 		// Expanding is not an edit.
 		await (await (await row(browser, 'Chapter One')).$('[data-toggle]')).click();

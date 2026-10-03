@@ -39,7 +39,14 @@ const BINDINGS: Binding[] = [
 	{ key: 'Tab', ctrl: true, command: 'nextTab', inInputs: true },
 	{ key: 'Tab', ctrl: true, shift: true, command: 'previousTab', inInputs: true },
 	{ key: 'PageDown', ctrl: true, command: 'nextTab', inInputs: true },
-	{ key: 'PageUp', ctrl: true, command: 'previousTab', inInputs: true }
+	{ key: 'PageUp', ctrl: true, command: 'previousTab', inInputs: true },
+	{ key: ',', ctrl: true, command: 'settings', inInputs: true },
+	// Annotation tools (Esc for Select is handled with the other uses of Escape).
+	{ key: 'h', command: 'toolHighlight' },
+	{ key: 'u', command: 'toolUnderline' },
+	{ key: 'n', command: 'toolNote' },
+	{ key: 'p', command: 'toolPen' },
+	{ key: 't', command: 'toolText' }
 ];
 
 /** Browser shortcuts that make no sense in the app (reload, print preview, view source). */

@@ -5,6 +5,22 @@
 	import { onMount, tick, untrack } from 'svelte';
 
 	import { chain } from '#lib/components/chain.ts';
+	import { commitTextDraft, create, refuseIfLocked, remove, update } from '#lib/features/annotations/actions.ts';
+	import {
+		annotationAt,
+		boxQuad,
+		clampBox,
+		handleAt,
+		moveBox,
+		normalizeBox,
+		resizeBox,
+		selectionRanges,
+		type Box,
+		type Handle
+	} from '#lib/features/annotations/geometry.ts';
+	import { tools } from '#lib/features/annotations/state.svelte.ts';
+	import { capabilities, isMarkupTool } from '#lib/features/annotations/tools.ts';
+	import type { Annotation } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -21,7 +37,7 @@
 	} from './layout.ts';
 	import PageView from './PageView.svelte';
 	import SearchBar from './SearchBar.svelte';
-	import { hitTest, isOverText, lineAt, wordAt, type Caret } from './selection.ts';
+	import { compareCarets, hitTest, isOverText, lineAt, ordered, wordAt, type Caret } from './selection.ts';
 	import { clampZoom, fitPageZoom, fitWidthZoom, type ZoomMode } from './zoom.ts';
 
 	let { tab }: { tab: DocTab } = $props();
@@ -281,15 +297,35 @@
 		void zoomAround(tab.zoom * factor, 'custom', event.clientX - rect.left, event.clientY - rect.top);
 	}
 
-	// ----- selection -----
+	// ----- pointer: text selection and annotation tools (section 6.5) -----
 
-	let dragging: { anchor: Caret } | null = null;
+	/** What a pointer drag is doing. Coordinates are page points of `page`. */
+	type Gesture =
+		| { kind: 'text'; anchor: Caret }
+		| { kind: 'move'; page: number; id: number; start: [number, number]; box: Box; handle: Handle | null; moved: boolean }
+		| { kind: 'ink'; page: number; points: number[] }
+		| { kind: 'area'; page: number; start: [number, number] }
+		| { kind: 'textbox'; page: number; start: [number, number] };
+
+	let gesture: Gesture | null = null;
 	let lastPointer = { x: 0, y: 0 };
 	let autoScroll = 0;
+
+	/** Screen pixels to page points at the current zoom. */
+	function px(n: number) {
+		return n / (tab.zoom * CSS_PX_PER_PT);
+	}
 
 	function pageUnder(clientY: number): number {
 		const rect = scroller!.getBoundingClientRect();
 		return Math.max(0, pageAtY(layout, clientY - rect.top + scrollTop));
+	}
+
+	/** A point on `page`, kept on the page. */
+	function pointOn(page: number, clientX: number, clientY: number): [number, number] {
+		const [x, y] = toPage(page, clientX, clientY);
+		const s = tab.pages[page]!;
+		return [Math.min(s.width, Math.max(0, x)), Math.min(s.height, Math.max(0, y))];
 	}
 
 	function caretAt(clientX: number, clientY: number, nearest: boolean): Caret | null {
@@ -303,50 +339,155 @@
 		return hitTest(text, x, y, nearest);
 	}
 
-	function onPointerDown(event: PointerEvent) {
-		if (event.button !== 0 || !scroller) return;
-		const target = event.target as HTMLElement;
-		if (!target.closest('.page')) {
-			tab.selection = null;
-			return;
-		}
-		const caret = caretAt(event.clientX, event.clientY, false);
-		if (!caret) {
-			tab.selection = null;
-			return;
-		}
+	function begin(event: PointerEvent, g: Gesture) {
+		gesture = g;
 		event.preventDefault();
-		scroller.focus({ preventScroll: true });
-		const text = tab.text(caret.page)!;
-		if (event.detail === 2 || event.detail === 3) {
-			const [anchor, focus] = event.detail === 2 ? wordAt(text, caret) : lineAt(text, caret);
-			tab.selection = { anchor, focus };
-			dragging = { anchor };
-		} else if (event.shiftKey && tab.selection) {
-			tab.selection = { anchor: tab.selection.anchor, focus: caret };
-			dragging = { anchor: tab.selection.anchor };
-		} else {
-			tab.selection = { anchor: caret, focus: caret };
-			dragging = { anchor: caret };
-		}
-		scroller.setPointerCapture(event.pointerId);
+		scroller!.focus({ preventScroll: true });
+		scroller!.setPointerCapture(event.pointerId);
 		lastPointer = { x: event.clientX, y: event.clientY };
 		autoScroll = requestAnimationFrame(autoScrollStep);
 	}
 
-	function extendTo(clientX: number, clientY: number) {
-		if (!dragging) return;
-		const focus = caretAt(clientX, clientY, true);
-		if (focus) tab.selection = { anchor: dragging.anchor, focus };
+	/** Starts a text selection (any tool that works on text). */
+	function beginText(event: PointerEvent): boolean {
+		const caret = caretAt(event.clientX, event.clientY, false);
+		if (!caret) {
+			tab.selection = null;
+			return false;
+		}
+		const text = tab.text(caret.page)!;
+		let anchor = caret;
+		if (event.detail === 2 || event.detail === 3) {
+			const [a, focus] = event.detail === 2 ? wordAt(text, caret) : lineAt(text, caret);
+			tab.selection = { anchor: a, focus };
+			anchor = a;
+		} else if (event.shiftKey && tab.selection) {
+			anchor = tab.selection.anchor;
+			tab.selection = { anchor, focus: caret };
+		} else {
+			tab.selection = { anchor: caret, focus: caret };
+		}
+		begin(event, { kind: 'text', anchor });
+		return true;
+	}
+
+	function onPointerDown(event: PointerEvent) {
+		if (event.button !== 0 || !scroller) return;
+		const target = event.target as HTMLElement;
+		if (target.closest('[data-annotation-editor]')) return;
+		if (tab.draft?.kind === 'text') {
+			// A click outside the text box being typed finishes it.
+			void commitTextDraft(tab);
+			event.preventDefault();
+			return;
+		}
+		if (!target.closest('.page')) {
+			tab.selection = null;
+			tab.selectedAnnotation = null;
+			return;
+		}
+		const page = pageUnder(event.clientY);
+		const [x, y] = pointOn(page, event.clientX, event.clientY);
+		const tool = tools.tool;
+		if (tool !== 'select' && refuseIfLocked(tab)) return;
+
+		if (tool === 'select') {
+			const selected = tab.selectedAnnotationInfo;
+			if (selected && selected.page === page && capabilities(selected, tab.flags.canAnnotate).resize) {
+				const handle = handleAt(selected.bounds, x, y, px(6));
+				if (handle) {
+					begin(event, { kind: 'move', page, id: selected.id, start: [x, y], box: [...selected.bounds], handle, moved: false });
+					return;
+				}
+			}
+			const hit = annotationAt(tab.annotationsOn(page), x, y, px(4));
+			if (hit) {
+				tab.selectAnnotation(page, hit.id);
+				const caps = capabilities(hit, tab.flags.canAnnotate);
+				if (event.detail === 2 && hit.kind === 'freeText' && caps.text) {
+					openTextEditor(hit);
+					event.preventDefault();
+				} else if (caps.move) {
+					begin(event, { kind: 'move', page, id: hit.id, start: [x, y], box: [...hit.bounds], handle: null, moved: false });
+				} else {
+					event.preventDefault();
+					scroller.focus({ preventScroll: true });
+				}
+				return;
+			}
+			tab.selectedAnnotation = null;
+			beginText(event);
+			return;
+		}
+
+		tab.selectedAnnotation = null;
+		if (isMarkupTool(tool)) {
+			if (event.altKey) {
+				tab.selection = null;
+				tab.draft = { kind: 'area', page, box: [x, y, x, y] };
+				begin(event, { kind: 'area', page, start: [x, y] });
+			} else {
+				beginText(event);
+			}
+		} else if (tool === 'ink') {
+			tab.selection = null;
+			tab.draft = { kind: 'ink', page, points: [x, y] };
+			begin(event, { kind: 'ink', page, points: [x, y] });
+		} else if (tool === 'note') {
+			event.preventDefault();
+			// The icon's top-left corner at the click, kept on the page.
+			const s = tab.pages[page]!;
+			const at = [Math.min(x, s.width - 20), Math.min(y, s.height - 20)] as const;
+			void create(tab, 'note', [{ page, body: { tool: 'note', x: at[0], y: at[1], text: '' } }]).then((change) => {
+				if (change) {
+					tools.tool = 'select';
+					app.focusNoteText = true;
+				}
+			});
+		} else if (tool === 'freeText') {
+			tab.selection = null;
+			tab.draft = { kind: 'area', page, box: [x, y, x, y] };
+			begin(event, { kind: 'textbox', page, start: [x, y] });
+		}
+	}
+
+	/** Follows the pointer during a drag. */
+	function dragTo(clientX: number, clientY: number) {
+		const g = gesture;
+		if (!g) return;
+		if (g.kind === 'text') {
+			const focus = caretAt(clientX, clientY, true);
+			if (focus) tab.selection = { anchor: g.anchor, focus };
+			return;
+		}
+		const [x, y] = pointOn(g.page, clientX, clientY);
+		if (g.kind === 'move') {
+			const dx = x - g.start[0];
+			const dy = y - g.start[1];
+			if (!g.moved && Math.hypot(dx, dy) < px(3)) return;
+			g.moved = true;
+			const s = tab.pages[g.page]!;
+			const box = g.handle ? resizeBox(g.box, g.handle, dx, dy, px(8)) : clampBox(moveBox(g.box, dx, dy), s.width, s.height);
+			tab.draft = { kind: 'move', page: g.page, id: g.id, box };
+		} else if (g.kind === 'ink') {
+			const n = g.points.length;
+			if (Math.hypot(x - g.points[n - 2]!, y - g.points[n - 1]!) < px(1)) return;
+			g.points.push(x, y);
+			tab.draft = { kind: 'ink', page: g.page, points: [...g.points] };
+		} else {
+			tab.draft = { kind: 'area', page: g.page, box: [g.start[0], g.start[1], x, y] };
+		}
 	}
 
 	let cursorFrame = 0;
 	let overText = $state(false);
+	/** What the pointer is over with the Select tool: an annotation that moves, or one that doesn't. */
+	let overAnnotation = $state<'move' | 'select' | null>(null);
 
 	function onPointerMove(event: PointerEvent) {
 		lastPointer = { x: event.clientX, y: event.clientY };
-		if (dragging) {
-			extendTo(event.clientX, event.clientY);
+		if (gesture) {
+			dragTo(event.clientX, event.clientY);
 			return;
 		}
 		if (cursorFrame) return;
@@ -356,30 +497,102 @@
 			const target = document.elementFromPoint(lastPointer.x, lastPointer.y);
 			if (!target?.closest('.page')) {
 				overText = false;
+				overAnnotation = null;
 				return;
 			}
 			const page = pageUnder(lastPointer.y);
-			const text = tab.text(page);
 			const [x, y] = toPage(page, lastPointer.x, lastPointer.y);
+			overAnnotation = null;
+			if (tools.tool === 'select') {
+				const hit = annotationAt(tab.annotationsOn(page), x, y, px(4));
+				if (hit) overAnnotation = capabilities(hit, tab.flags.canAnnotate).move ? 'move' : 'select';
+			}
+			const text = tab.text(page);
 			overText = !!text && isOverText(text, x, y);
 		});
 	}
 
-	function onPointerUp(event: PointerEvent) {
-		if (!dragging) return;
-		extendTo(event.clientX, event.clientY);
-		dragging = null;
+	async function onPointerUp(event: PointerEvent) {
+		const g = gesture;
+		if (!g) return;
+		dragTo(event.clientX, event.clientY);
+		gesture = null;
 		cancelAnimationFrame(autoScroll);
 		if (scroller?.hasPointerCapture(event.pointerId)) scroller.releasePointerCapture(event.pointerId);
-		const sel = tab.selection;
-		if (sel && sel.anchor.page === sel.focus.page && sel.anchor.line === sel.focus.line && sel.anchor.offset === sel.focus.offset) {
-			tab.selection = null;
+		const tool = tools.tool;
+		switch (g.kind) {
+			case 'text': {
+				const sel = tab.selection;
+				if (sel && compareCarets(sel.anchor, sel.focus) === 0) {
+					tab.selection = null;
+				} else if (sel && isMarkupTool(tool)) {
+					const [start, end] = ordered(sel.anchor, sel.focus);
+					const pages = selectionRanges(tab.textMap(), start, end);
+					tab.selection = null;
+					await create(
+						tab,
+						tool,
+						pages.map((p) => ({ page: p.page, body: { tool: 'textMarkup', kind: tool, ranges: p.ranges, note: null } }))
+					);
+				}
+				break;
+			}
+			case 'move': {
+				const draft = tab.draft;
+				if (g.moved && draft?.kind === 'move') {
+					await update(tab, g.page, g.id, { bounds: draft.box });
+				}
+				tab.draft = null;
+				break;
+			}
+			case 'ink': {
+				await create(tab, 'ink', [
+					{ page: g.page, body: { tool: 'ink', strokes: [g.points], width: tools.style('ink').width } }
+				]);
+				// The pen stays: a drawing is often several strokes.
+				tab.selectedAnnotation = null;
+				tab.draft = null;
+				break;
+			}
+			case 'area': {
+				const box = normalizeBox(tab.draft?.kind === 'area' ? tab.draft.box : [0, 0, 0, 0]);
+				tab.draft = null;
+				if (isMarkupTool(tool) && box[2] - box[0] > px(3) && box[3] - box[1] > px(3)) {
+					await create(tab, tool, [
+						{ page: g.page, body: { tool: 'markup', kind: tool, quads: boxQuad(box), note: null } }
+					]);
+				}
+				break;
+			}
+			case 'textbox': {
+				const dragged = normalizeBox(tab.draft?.kind === 'area' ? tab.draft.box : [0, 0, 0, 0]);
+				const style = tools.style('freeText');
+				const s = tab.pages[g.page]!;
+				// A click makes a box 200 pt wide; a drag sets the width.
+				const width = dragged[2] - dragged[0] > px(16) ? dragged[2] - dragged[0] : Math.min(200, s.width - g.start[0]);
+				const x0 = Math.min(g.start[0], dragged[0]);
+				const box: Box = [x0, dragged[1], x0 + Math.max(width, px(16)), dragged[1] + style.fontSize * 1.2];
+				tab.draft = { kind: 'text', page: g.page, id: null, box, text: '', fontSize: style.fontSize, color: style.color };
+				break;
+			}
 		}
 	}
 
-	/** Scrolls while a selection is dragged past the top or bottom edge. */
+	function openTextEditor(a: Annotation) {
+		tab.draft = {
+			kind: 'text',
+			page: a.page,
+			id: a.id,
+			box: [...a.bounds],
+			text: a.contents,
+			fontSize: a.fontSize ?? 12,
+			color: a.color ?? '#000000'
+		};
+	}
+
+	/** Scrolls while something is dragged past the top or bottom edge. */
 	function autoScrollStep() {
-		if (!dragging || !scroller) return;
+		if (!gesture || !scroller) return;
 		const rect = scroller.getBoundingClientRect();
 		const edge = 32;
 		let dy = 0;
@@ -388,9 +601,20 @@
 		if (dy !== 0) {
 			scroller.scrollTop += dy;
 			onScroll();
-			extendTo(lastPointer.x, lastPointer.y);
+			dragTo(lastPointer.x, lastPointer.y);
 		}
 		autoScroll = requestAnimationFrame(autoScrollStep);
+	}
+
+	function onKeyDown(event: KeyboardEvent) {
+		if ((event.key === 'Delete' || event.key === 'Backspace') && tab.selectedAnnotation && !event.ctrlKey) {
+			const { page, id } = tab.selectedAnnotation;
+			const a = tab.annotation(page, id);
+			if (a && capabilities(a, tab.flags.canAnnotate).delete) {
+				event.preventDefault();
+				void remove(tab, page, id);
+			}
+		}
 	}
 
 	// ----- context menu -----
@@ -476,12 +700,16 @@
 					{...props}
 					bind:this={scroller}
 					class="viewer-scroll h-full overflow-auto bg-canvas outline-none"
-					class:cursor-text={overText}
+					class:cursor-text={overText && !overAnnotation && (tools.tool === 'select' || isMarkupTool(tools.tool))}
+					class:cursor-crosshair={tools.tool === 'ink' || tools.tool === 'note' || tools.tool === 'freeText'}
+					class:cursor-move={overAnnotation === 'move'}
+					class:cursor-pointer={overAnnotation === 'select'}
 					tabindex="0"
 					role="document"
 					aria-label="{tab.name}, {tab.pageCount} pages"
 					onscroll={onScroll}
 					onpointerdown={chain(props, 'onpointerdown', onPointerDown)}
+					onkeydown={onKeyDown}
 					onpointermove={chain(props, 'onpointermove', onPointerMove)}
 					onpointerup={chain(props, 'onpointerup', onPointerUp)}
 					onpointercancel={chain(props, 'onpointercancel', onPointerUp)}
