@@ -246,18 +246,26 @@ fn every_type_has_every_profile_key_on_every_page_geometry() {
                     check_popup(&obj, &name);
                     assert_eq!(get(&obj, "Contents").as_string().unwrap(), "Sticky note");
                     assert_eq!(get(&obj, "Name").as_name().unwrap(), b"Comment");
-                    // The icon is where it was put, and upright on screen.
-                    let view = geometry.user_rect_to_view(rect);
-                    assert!((view.x0 - at.x).abs() < 0.01 && (view.y0 - at.y).abs() < 0.01);
-                    let matrix = match normal.get_dict("Matrix").unwrap() {
+                    // Acrobat and MuPDF show a note upright, from the upper-left corner
+                    // of /Rect in user space (NoRotate): that corner is under `at`.
+                    let corner = geometry.user_to_view(Point::new(rect.x0, rect.y1));
+                    assert!(
+                        (corner.x - at.x).abs() < 0.01 && (corner.y - at.y).abs() < 0.01,
+                        "{name}: {corner:?}"
+                    );
+                    // And at the size of the appearance box (NoZoom), which is the size of
+                    // /Rect, as PDFium and pdf.js draw it; /Matrix is the identity.
+                    let bbox = objects::rect(&get(&normal, "BBox")).unwrap().unwrap();
+                    assert!(
+                        (bbox.width() - rect.width()).abs() < 0.01,
+                        "{name}: {bbox:?}"
+                    );
+                    assert!((bbox.height() - rect.height()).abs() < 0.01, "{name}");
+                    let identity = match normal.get_dict("Matrix").unwrap() {
                         Some(m) => objects::numbers(&m).unwrap().unwrap(),
                         None => vec![1.0, 0.0, 0.0, 1.0, 0.0, 0.0],
                     };
-                    let (sin, cos) = f64::from(rotation).to_radians().sin_cos();
-                    assert!(
-                        (matrix[0] - cos).abs() < 1e-6 && (matrix[1] - sin).abs() < 1e-6,
-                        "{name}: /Matrix {matrix:?}"
-                    );
+                    assert_eq!(identity, [1.0, 0.0, 0.0, 1.0, 0.0, 0.0], "{name}");
                 }
                 Body::Ink { strokes, width } => {
                     let bs = get(&get(&obj, "BS"), "W").as_float().unwrap();

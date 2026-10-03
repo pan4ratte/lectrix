@@ -178,6 +178,7 @@ fn read_one(
             .reduce(|a, b| a.union(&b))
             .unwrap_or(rect),
         Some(Kind::FreeText) => text_box_view(obj, geometry)?,
+        Some(Kind::Note) => note_view(obj, user_rect, geometry)?,
         _ => rect,
     };
     let opacity = match obj.get_dict("CA")? {
@@ -254,12 +255,15 @@ pub(crate) fn problems(obj: &PdfObject, subtype: &str, flags: Option<i32>) -> Re
             Some(r) => objects::rect(&r)?,
             None => None,
         };
-        const EPS: f64 = 0.01;
+        // Acrobat's own highlights can miss a skewed quad's corner by a fraction of a
+        // point, with an appearance that fits that /Rect: nothing is cut off. Content
+        // counts as outside only past the profile's margin.
+        const SLACK: f64 = super::RECT_MARGIN;
         let contained = rect.is_some_and(|r| {
-            r.x0 <= content.x0 + EPS
-                && r.y0 <= content.y0 + EPS
-                && r.x1 >= content.x1 - EPS
-                && r.y1 >= content.y1 - EPS
+            r.x0 <= content.x0 + SLACK
+                && r.y0 <= content.y0 + SLACK
+                && r.x1 >= content.x1 - SLACK
+                && r.y1 >= content.y1 - SLACK
         });
         if !contained {
             out.push(Problem::RectTooSmall);
@@ -435,6 +439,34 @@ fn parse_da(da: &str) -> DefaultAppearance {
         }
     }
     out
+}
+
+/// Where a sticky note's icon is shown (view space). Acrobat and MuPDF draw text
+/// annotations as if NoZoom and NoRotate were set (PDF 32000-1 12.5.6.4): upright, at the
+/// size of the appearance's `/BBox`, from the upper-left corner of `/Rect` in user space.
+pub(crate) fn note_view(obj: &PdfObject, rect: Rect, geometry: &PageGeometry) -> Result<Rect> {
+    let bbox = obj
+        .get_dict("AP")?
+        .and_then(|ap| ap.get_dict("N").ok().flatten())
+        .and_then(|n| n.get_dict("BBox").ok().flatten())
+        .map(|b| objects::rect(&b))
+        .transpose()?
+        .flatten()
+        .filter(|b| !b.is_empty());
+    let (w, h) = bbox.map_or((rect.width(), rect.height()), |b| (b.width(), b.height()));
+    let corner = geometry.user_to_view(Point::new(rect.x0, rect.y1));
+    // User units to view points (UserUnit).
+    let unit = {
+        let a = geometry.user_to_view(Point::new(0.0, 0.0));
+        let b = geometry.user_to_view(Point::new(1.0, 0.0));
+        (b.x - a.x).hypot(b.y - a.y)
+    };
+    Ok(Rect::new(
+        corner.x,
+        corner.y,
+        corner.x + w * unit,
+        corner.y + h * unit,
+    ))
 }
 
 /// A text box's colour (from `/DA`).

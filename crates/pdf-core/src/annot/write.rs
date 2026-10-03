@@ -149,8 +149,28 @@ pub(super) fn text_box_font(obj: &PdfObject) -> Result<(String, f32)> {
     ))
 }
 
-/// Moves a sticky note so its icon's top-left corner is at `bounds`' (view space); the
-/// icon keeps its size and its popup moves along.
+/// A sticky note's `/Rect` (user space) for an icon whose top-left corner is shown at
+/// `at` (view space), `size` view points square.
+///
+/// Acrobat and MuPDF draw text annotations as if NoZoom and NoRotate were set (PDF 32000-1
+/// 12.5.6.4): the icon stays upright and keeps its size, fixed at the upper-left corner of
+/// `/Rect` in user space. So that corner is the point under `at`, whatever the page's
+/// rotation. (PDFium and pdf.js turn the icon with the page instead; see
+/// `docs/interop-profile.md`.)
+pub(super) fn note_rect(at: Point, size: f64, geometry: &PageGeometry) -> Rect {
+    let corner = geometry.view_to_user(at);
+    // View points to user units (UserUnit).
+    let unit = {
+        let a = geometry.view_to_user(Point::new(0.0, 0.0));
+        let b = geometry.view_to_user(Point::new(1.0, 0.0));
+        (b.x - a.x).hypot(b.y - a.y)
+    };
+    let s = size * unit;
+    Rect::new(corner.x, corner.y - s, corner.x + s, corner.y)
+}
+
+/// Moves a sticky note so its icon's top-left corner is shown at `bounds`' (view space);
+/// the icon keeps its size and its popup moves along.
 pub(super) fn move_note(
     doc: &PdfDocument,
     annot: &mut PdfAnnotation,
@@ -158,31 +178,29 @@ pub(super) fn move_note(
     geometry: &PageGeometry,
 ) -> Result<()> {
     let mut obj = annot.object();
-    let Some(current) = obj
-        .get_dict("Rect")?
-        .map(|r| objects::rect(&r))
-        .transpose()?
-        .flatten()
-    else {
+    let Some(current) = current_rect(&obj)? else {
         return Err(Error::InvalidArgument("the note has no position".into()));
     };
-    let view = geometry.user_rect_to_view(current);
     let bounds = bounds.normalized();
-    let (dx, dy) = (bounds.x0 - view.x0, bounds.y0 - view.y0);
-    let shift = |r: Rect| Rect::new(r.x0 + dx, r.y0 + dy, r.x1 + dx, r.y1 + dy);
-    obj.dict_put(
-        "Rect",
-        objects::rect_array(doc, geometry.view_rect_to_user(shift(view)))?,
-    )?;
+    let old_corner = geometry.user_to_view(Point::new(current.x0, current.y1));
+    let corner = geometry.view_to_user(Point::new(bounds.x0, bounds.y0));
+    let moved = Rect::new(
+        corner.x,
+        corner.y - current.height(),
+        corner.x + current.width(),
+        corner.y,
+    );
+    obj.dict_put("Rect", objects::rect_array(doc, moved)?)?;
+    let (dx, dy) = (bounds.x0 - old_corner.x, bounds.y0 - old_corner.y);
     if let Some(mut popup) = obj.get_dict("Popup")?
-        && let Some(r) = popup
-            .get_dict("Rect")?
-            .map(|r| objects::rect(&r))
-            .transpose()?
-            .flatten()
+        && let Some(r) = current_rect(&popup)?
     {
-        let moved = geometry.view_rect_to_user(shift(geometry.user_rect_to_view(r)));
-        popup.dict_put("Rect", objects::rect_array(doc, moved)?)?;
+        let v = geometry.user_rect_to_view(r);
+        let shifted = Rect::new(v.x0 + dx, v.y0 + dy, v.x1 + dx, v.y1 + dy);
+        popup.dict_put(
+            "Rect",
+            objects::rect_array(doc, geometry.view_rect_to_user(shifted))?,
+        )?;
     }
     Ok(())
 }
@@ -229,12 +247,8 @@ pub(super) fn reshape_ink(
 
 /// Regenerates the annotation's normal appearance with MuPDF (rule 2) and applies the
 /// profile's corrections: `/Rect` containing the content plus stroke and margin (rule 4),
-/// a text box's margin in `/RD`, and note icons upright on rotated pages.
-pub(crate) fn synthesize(
-    doc: &PdfDocument,
-    annot: &mut PdfAnnotation,
-    geometry: &PageGeometry,
-) -> Result<()> {
+/// a text box's margin in `/RD`, and note icons drawn the size of their `/Rect`.
+pub(crate) fn synthesize(doc: &PdfDocument, annot: &mut PdfAnnotation) -> Result<()> {
     let subtype = super::subtype(&annot.object())?;
     let kind = Kind::from_subtype(&subtype);
     ffi::request_appearance(annot)?;
@@ -246,7 +260,7 @@ pub(crate) fn synthesize(
         )));
     }
     match kind {
-        Some(Kind::Note) => upright_icon(doc, &obj, geometry)?,
+        Some(Kind::Note) => icon_box_fits_rect(doc, &obj)?,
         Some(Kind::FreeText) => {
             if let Some(box_) = current_rect(&obj)? {
                 finalize_rect(doc, annot, box_.expand(RECT_MARGIN))?;
@@ -310,25 +324,56 @@ pub(crate) fn content_rect(obj: &PdfObject) -> Result<Option<Rect>> {
     }
 }
 
-/// Keeps a note's icon upright on a rotated page: MuPDF draws it in page space, so on a
-/// page with `/Rotate 90` it would lie on its side. The appearance's `/Matrix` turns it
-/// back; `/Rect` stays where it is.
-fn upright_icon(doc: &PdfDocument, obj: &PdfObject, geometry: &PageGeometry) -> Result<()> {
-    if geometry.rotation == 0 {
+/// Makes a note icon's appearance box the size of its `/Rect`. MuPDF draws the icon in a
+/// 16 × 16 box and lets readers scale it into `/Rect`; but readers that treat notes as
+/// NoZoom (Acrobat, MuPDF) draw the box at its own size, so a 20 pt `/Rect` would show
+/// a 16 pt icon there and a 20 pt one in PDFium and pdf.js. The drawing is scaled inside
+/// the stream instead, and `/BBox` set to the `/Rect`'s size.
+fn icon_box_fits_rect(doc: &PdfDocument, obj: &PdfObject) -> Result<()> {
+    let Some(rect) = current_rect(obj)? else {
         return Ok(());
-    }
+    };
     let Some(mut normal) = obj
         .get_dict("AP")?
         .and_then(|ap| ap.get_dict("N").ok().flatten())
+        .filter(|n| n.is_stream().unwrap_or(false))
     else {
         return Ok(());
     };
-    let m = Affine::rotate_quarter_turns(geometry.rotation);
+    let Some(bbox) = current_rect_key(&normal, "BBox")?.filter(|b| !b.is_empty()) else {
+        return Ok(());
+    };
+    let (sx, sy) = (rect.width() / bbox.width(), rect.height() / bbox.height());
+    if (sx - 1.0).abs() < 1e-6 && (sy - 1.0).abs() < 1e-6 && bbox.x0 == 0.0 && bbox.y0 == 0.0 {
+        return Ok(());
+    }
+    let m = Affine::translate(-bbox.x0, -bbox.y0).then(&Affine::scale(sx, sy));
+    let drawing = normal.read_stream()?;
+    let mut content = format!(
+        "q {} {} {} {} {} {} cm
+",
+        m.a, m.b, m.c, m.d, m.e, m.f
+    )
+    .into_bytes();
+    content.extend_from_slice(&drawing);
+    content.extend_from_slice(
+        b"
+Q
+",
+    );
+    normal.write_stream_buffer(&mupdf::Buffer::from_copied_bytes(&content)?)?;
     normal.dict_put(
-        "Matrix",
-        objects::real_array(doc, &[m.a, m.b, m.c, m.d, m.e, m.f])?,
+        "BBox",
+        objects::rect_array(doc, Rect::new(0.0, 0.0, rect.width(), rect.height()))?,
     )?;
     Ok(())
+}
+
+fn current_rect_key(obj: &PdfObject, key: &str) -> Result<Option<Rect>> {
+    match obj.get_dict(key)? {
+        Some(r) => objects::rect(&r),
+        None => Ok(None),
+    }
 }
 
 /// Rule 4 after appearance synthesis: MuPDF sets `/Rect` to the appearance bounds, which

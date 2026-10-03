@@ -5,6 +5,9 @@
     python tests/interop/run.py phase3      # page labels edited as the app edits them
     python tests/interop/run.py phase4      # files combined and pages inserted as the app does it
     python tests/interop/run.py phase4-local  # three real files from the local corpus, combined
+    python tests/interop/run.py phase5      # every annotation type on every page geometry; edits; repair
+    python tests/interop/run.py phase5-local  # repair on the local corpus files that need it
+
     python tests/interop/run.py check FILE  # render/visibility checks for one existing file
 
 For every annotation in a checked file, each annotated page is rendered by three
@@ -177,11 +180,13 @@ def load(path: Path) -> np.ndarray:
     return np.asarray(Image.open(path).convert("RGB")).astype(np.int16)
 
 
-def annotation_checks(pdf: Path, report: Report, work: Path) -> None:
+def annotation_checks(pdf: Path, report: Report, work: Path, pages: set[int] | None = None) -> None:
+    """`pages` (1-based) limits the checks to annotations on those pages."""
     pdfium_info = info_pdfium(pdf)
     pdfjs_info = info_pdfjs(pdf)
-    annots = [a for a in pdfium_info["annotations"] if a["subtype"] not in ("Popup", "Link", "Widget")]
-    jsannots = [a for a in pdfjs_info["annotations"] if a["subtype"] not in ("Popup", "Link", "Widget")]
+    wanted = lambda a: a["subtype"] not in ("Popup", "Link", "Widget") and (pages is None or a["page"] in pages)
+    annots = [a for a in pdfium_info["annotations"] if wanted(a)]
+    jsannots = [a for a in pdfjs_info["annotations"] if wanted(a)]
     report.check(len(annots) == len(jsannots), f"{pdf.name}: PDFium sees {len(annots)} annotations, pdf.js {len(jsannots)}")
     for a in jsannots:
         report.check(bool(a.get("hasAppearance")), f"{pdf.name}: pdf.js finds an appearance stream for {a['subtype']} on page {a['page']}")
@@ -197,12 +202,13 @@ def annotation_checks(pdf: Path, report: Report, work: Path) -> None:
         page = a["page"]
         label = f"{pdf.name}: {a['subtype']} #{n + 1} on page {page}"
         stats = {}
+        region = display_area(pdf, page - 1, a)
         for name in ENGINES:
             on, off = renders[(name, page, True)], renders[(name, page, False)]
             if on.shape != off.shape:
                 report.check(False, f"{label}: {name} renders differ in size")
                 continue
-            x0, y0, x1, y1 = rect_to_pixels(pdf, page - 1, a["rect"], on.shape)
+            x0, y0, x1, y1 = rect_to_pixels(pdf, page - 1, region, on.shape)
             region_on, region_off = on[y0:y1, x0:x1], off[y0:y1, x0:x1]
             changed = np.abs(region_on - region_off).max(axis=2) > CHANGE_THRESHOLD
             area = max(1, changed.size)
@@ -229,6 +235,34 @@ def annotation_checks(pdf: Path, report: Report, work: Path) -> None:
                     b_img = renders[(names[j], page, True)]
                     x0, y0, x1, y1 = ra
                     save_diff(work / f"engines-{n + 1}-{names[i]}-{names[j]}.png", a_img[y0:y1, x0:x1], b_img[y0:y1, x0:x1])
+
+
+def display_area(pdf: Path, page_index: int, annot: dict) -> list[float]:
+    """Where an annotation may be drawn, in user space: its /Rect, and for a sticky note
+    (/Text) on a rotated page also that Rect turned about its upper-left corner. PDF
+    32000-1 12.5.6.4 has text annotations behave as if NoRotate were set, which Acrobat and
+    MuPDF do (the icon stays upright at that corner); PDFium and pdf.js draw it in /Rect,
+    turned with the page. Either is a visible note."""
+    x0, y0, x1, y1 = annot["rect"]
+    if annot["subtype"] != "Text":
+        return [x0, y0, x1, y1]
+    import pypdfium2 as pdfium
+
+    doc = pdfium.PdfDocument(str(pdf))
+    rotate = doc[page_index].get_rotation()
+    doc.close()
+    if rotate == 0:
+        return [x0, y0, x1, y1]
+    import math
+
+    t = math.radians(rotate)
+    cos, sin = round(math.cos(t)), round(math.sin(t))
+    # Counter-clockwise in user space (y up), about (x0, y1), as MuPDF's fz_rotate.
+    pts = [(x - x0, y - y1) for x, y in ((x0, y0), (x1, y0), (x0, y1), (x1, y1))]
+    turned = [(x0 + px * cos - py * sin, y1 + px * sin + py * cos) for px, py in pts]
+    xs = [p[0] for p in turned] + [x0, x1]
+    ys = [p[1] for p in turned] + [y0, y1]
+    return [min(xs), min(ys), max(xs), max(ys)]
 
 
 def save_diff(path: Path, a: np.ndarray, b: np.ndarray) -> None:
@@ -699,6 +733,211 @@ def phase4_local(report: Report) -> None:
     annotation_checks(out, report, case)
 
 
+# --- Phase 5: annotations -------------------------------------------------------------
+
+MANUAL = ROOT / "target" / "test-output" / "manual" / "phase5"
+
+# Page geometries every annotation type is checked on (AGENTS.md section 10, Phase 5).
+GEOMETRIES = {
+    "normal": [],
+    "rot90": ["--rotate", "90"],
+    "rot180": ["--rotate", "180"],
+    "rot270": ["--rotate", "270"],
+    "crop": ["--crop", "100,150,500,700"],
+    "crop-rot90": ["--crop", "100,150,500,700", "--rotate", "90"],
+    "userunit": ["--user-unit", "2"],
+}
+
+
+def list_annotations(pdf: Path) -> list[dict]:
+    """`pdf-cli annot list`, parsed: page (1-based), id, subtype, author, text, problems."""
+    out = []
+    for line in run([pdf_cli(), "annot", "list", str(pdf)]).stdout.splitlines():
+        words = line.split()
+        if len(words) < 4 or words[1] != "object":
+            continue
+        author = line.split(' author "', 1)[1].split('"', 1)[0] if ' author "' in line else ""
+        text = line.split(' text "', 1)[1].rsplit('"', 1)[0] if ' text "' in line else ""
+        problems = line.split(" needs-repair ", 1)[1] if " needs-repair " in line else ""
+        out.append({"page": int(words[0][1:]), "id": int(words[2]), "subtype": words[3], "author": author, "text": text, "problems": problems})
+    return out
+
+
+def annotate_every_type(cli: str, src: Path, work: Path, name: str) -> Path:
+    """One annotation of each type on its own page (so no two share a /Rect area), the way
+    the app writes them: highlight, underline, strikeout, squiggly over the marker text,
+    a sticky note, a drawing, a text box, and an area highlight (Alt-drag)."""
+    steps = [
+        ["annot", "markup", "--page", "1", "--kind", "highlight", "--text", "quick brown fox", "--opacity", "0.6", "--note", "Highlight note — ünïcödé"],
+        ["annot", "markup", "--page", "2", "--kind", "underline", "--text", "quick brown fox", "--color", "0B8043"],
+        ["annot", "markup", "--page", "3", "--kind", "strikeout", "--text", "quick brown fox", "--color", "D50000"],
+        ["annot", "markup", "--page", "4", "--kind", "squiggly", "--text", "quick brown fox", "--color", "1A73E8"],
+        ["annot", "note", "--page", "5", "--at", "120,90", "--text", "Sticky note text"],
+        ["annot", "ink", "--page", "6", "--width", "2.5", "--color", "1A73E8", "--opacity", "0.8",
+         "--stroke", ";".join(f"{100 + x},{220 + round(25 * __import__('math').sin(x / 12), 2)}" for x in range(0, 200, 2)),
+         "--stroke", "120,300;160,340;200,300"],
+        ["annot", "text", "--page", "7", "--rect", "72,200,300,210", "--text", "Text box written by Folio\nSecond line", "--size", "14", "--color", "C62828"],
+        ["annot", "markup", "--page", "8", "--kind", "highlight", "--rect", "60,60,260,160", "--opacity", "0.5"],
+    ]
+    current = src
+    for k, step in enumerate(steps):
+        nxt = work / f"{name}-step{k + 1}.pdf"
+        # Every command takes INPUT OUTPUT right after the subcommand.
+        run([cli, step[0], step[1], str(current), str(nxt)] + step[2:] + ["--author", "Folio Harness"])
+        current = nxt
+    final = work / f"{name}.pdf"
+    shutil.copyfile(current, final)
+    return final
+
+
+def phase5(report: Report) -> None:
+    """Every annotation type on normal, rotated, cropped and UserUnit pages; edits; and the
+    repair command on annotations "another app" wrote with each problem section 5.3 lists.
+
+    Rendered at 4x: strikeouts, underlines and squiggles are lines under 1 pt thick, and at
+    2x their anti-aliased edges (which rasterizers spread differently) outweigh the line
+    itself in the colour comparison."""
+    global SCALE
+    SCALE = 4.0
+    work = OUT / "phase5"
+    shutil.rmtree(work, ignore_errors=True)
+    work.mkdir(parents=True, exist_ok=True)
+    shutil.rmtree(MANUAL, ignore_errors=True)
+    MANUAL.mkdir(parents=True, exist_ok=True)
+    cli = pdf_cli()
+
+    # 1. Every type on every page geometry.
+    for name, extra in GEOMETRIES.items():
+        src = work / f"gen-{name}.pdf"
+        run([cli, "gen", str(src), "--pages", "8"] + extra)
+        out = annotate_every_type(cli, src, work, f"types-{name}")
+        print(out.name)
+        qpdf_check(out, report)
+        listed = list_annotations(out)
+        report.check(len(listed) == 8 and not any(a["problems"] for a in listed), f"{out.name}: 8 annotations, none needs repair")
+        case = work / name
+        case.mkdir(exist_ok=True)
+        annotation_checks(out, report, case)
+        if name in ("normal", "rot90", "crop", "userunit"):
+            shutil.copyfile(out, MANUAL / f"types-{name}.pdf")
+
+    # 2. Edits on the normal file: recolour and re-note the highlight, move the note,
+    # resize the drawing, retype the text box, delete the strikeout.
+    src = work / "types-normal.pdf"
+    ids = {a["subtype"]: a for a in list_annotations(src) if a["page"] != 8}
+    edits = [
+        ["--page", "1", "--id", str(ids["Highlight"]["id"]), "--color", "FF80AB", "--contents", "Edited note"],
+        ["--page", "5", "--id", str(ids["Text"]["id"]), "--bounds", "300,400,320,420"],
+        ["--page", "6", "--id", str(ids["Ink"]["id"]), "--bounds", "80,400,400,560", "--width", "4"],
+        ["--page", "7", "--id", str(ids["FreeText"]["id"]), "--contents", "Retyped, and longer: it wraps onto more lines than before in this box", "--size", "16"],
+    ]
+    current = src
+    for k, e in enumerate(edits):
+        nxt = work / f"edited-step{k + 1}.pdf"
+        run([cli, "annot", "edit", str(current), str(nxt)] + e)
+        current = nxt
+    edited = work / "edited.pdf"
+    run([cli, "annot", "delete", str(current), str(edited), "--page", "3", "--id", str(ids["StrikeOut"]["id"])])
+    print(edited.name)
+    qpdf_check(edited, report)
+    after = list_annotations(edited)
+    report.check(len(after) == 7 and not any(a["subtype"] == "StrikeOut" for a in after), f"{edited.name}: the strikeout is gone, 7 annotations left")
+    report.check(any(a["text"] == "Edited note" for a in after), f"{edited.name}: the highlight's note was edited")
+    case = work / "edited"
+    case.mkdir(exist_ok=True)
+    annotation_checks(edited, report, case)
+    shutil.copyfile(edited, MANUAL / "edited.pdf")
+
+    # 3. Repair: annotations another app wrote with every problem repair fixes.
+    broken = work / "problems.pdf"
+    broken.write_bytes(problems_fixture())
+    before = list_annotations(broken)
+    print(broken.name)
+    report.check(sum(1 for a in before if a["problems"]) == 8, f"{broken.name}: 8 annotations need repair (got {sum(1 for a in before if a['problems'])})")
+    scratch = Report()
+    scratch_dir = work / "problems-before"
+    scratch_dir.mkdir(exist_ok=True)
+    print("  (before repair, for information:)")
+    annotation_checks(broken, scratch, scratch_dir)
+    print(f"  before repair: {len(scratch.failures)} of {len(scratch.passes) + len(scratch.failures)} checks fail")
+    repaired = work / "repaired.pdf"
+    log = run([cli, "annot", "repair", str(broken), str(repaired)]).stdout
+    print(repaired.name)
+    qpdf_check(repaired, report)
+    fixed = list_annotations(repaired)
+    report.check(not any(a["problems"] for a in fixed), f"{repaired.name}: nothing needs repair any more")
+    key = lambda a: (a["page"], a["id"], a["subtype"], a["author"], a["text"])
+    report.check(sorted(map(key, fixed)) == sorted(map(key, before)), f"{repaired.name}: same annotations, authors and texts as before")
+    report.check(log.count("annotation object") >= 8, f"{repaired.name}: every change is reported with its object number")
+    case = work / "repaired"
+    case.mkdir(exist_ok=True)
+    annotation_checks(repaired, report, case)
+    shutil.copyfile(broken, MANUAL / "problems-before-repair.pdf")
+    shutil.copyfile(repaired, MANUAL / "problems-repaired.pdf")
+
+
+def problems_fixture() -> bytes:
+    """Annotations "another app" wrote, by hand, each with problems section 5.3 lists.
+    Page 1 is upright, page 2 is turned 90 degrees."""
+    content = "BT /F1 12 Tf 72 700 Td (Annotations written by another app, with problems.) Tj ET"
+    objects = [
+        "<< /Type /Catalog /Pages 2 0 R >>",
+        "<< /Type /Pages /Kids [3 0 R 12 0 R] /Count 2 >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R /Annots [6 0 R 7 0 R 8 0 R 9 0 R 10 0 R 11 0 R] >>",
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+        f"<< /Length {len(content)} >>\nstream\n{content}\nendstream",
+        # Highlight: quads in the spec's counter-clockwise order, no appearance, no metadata,
+        # /Rect smaller than the quads.
+        "<< /Type /Annot /Subtype /Highlight /Rect [72 640 120 650] /C [1 0.9 0] /T (Other App) /Contents (Old highlight) /QuadPoints [72 630 300 630 300 660 72 660] >>",
+        # Underline: clockwise quads, no appearance.
+        "<< /Type /Annot /Subtype /Underline /Rect [72 580 300 610] /C [0 0.6 0] /T (Other App) /F 4 /NM (u-1) /M (D:20200101000000Z) /P 3 0 R /QuadPoints [72 610 300 610 300 580 72 580] >>",
+        # Ink: no appearance, /Rect smaller than the strokes.
+        "<< /Type /Annot /Subtype /Ink /Rect [100 400 150 450] /C [0 0 1] /T (Other App) /BS << /W 3 >> /InkList [[100 400 180 520 260 400 340 520]] >>",
+        # Sticky note: no appearance, no /NM, /M or /P.
+        "<< /Type /Annot /Subtype /Text /Rect [400 650 420 670] /C [1 0.8 0] /F 4 /T (Other App) /Contents (A note from another app) >>",
+        # Text box: no appearance.
+        "<< /Type /Annot /Subtype /FreeText /Rect [72 300 300 340] /F 4 /NM (ft-1) /M (D:20200101000000Z) /P 3 0 R /T (Other App) /DA (/Helv 14 Tf 0.8 0 0 rg) /Contents (Typed by another app) >>",
+        # Square: no appearance, no /F.
+        "<< /Type /Annot /Subtype /Square /Rect [350 200 500 280] /C [0.6 0 0.6] /NM (sq-1) /M (D:20200101000000Z) /P 3 0 R /T (Other App) /BS << /W 2 >> >>",
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Rotate 90 /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R /Annots [13 0 R 14 0 R] >>",
+        # Page 2, turned: a highlight in counter-clockwise order with no appearance, and a
+        # note without one.
+        "<< /Type /Annot /Subtype /Highlight /Rect [72 690 300 715] /C [1 0.9 0] /T (Other App) /F 4 /NM (h-2) /M (D:20200101000000Z) /P 12 0 R /QuadPoints [72 690 300 690 300 715 72 715] >>",
+        "<< /Type /Annot /Subtype /Text /Rect [400 500 420 520] /C [0.2 0.6 1] /F 4 /NM (n-2) /M (D:20200101000000Z) /T (Other App) /Contents (Note on a turned page) >>",
+    ]
+    return assemble_pdf(objects)
+
+
+def phase5_local(report: Report) -> None:
+    """Repair on the real files in the git-ignored local corpus that need it: an Acrobat
+    highlight whose /Rect misses its quads, and a stamp without /NM and /P."""
+    names = {"01-annot-caret.pdf", "04-annot-stamp.pdf"}
+    sources = [LOCAL_CORPUS / n for n in sorted(names)]
+    if not all(f.exists() for f in sources):
+        print(f"local corpus not found in {LOCAL_CORPUS}; skipping")
+        return
+    work = OUT / "phase5-local"
+    shutil.rmtree(work, ignore_errors=True)
+    work.mkdir(parents=True, exist_ok=True)
+    for src in sources:
+        before = list_annotations(src)
+        needing = {a["id"] for a in before if a["problems"]}
+        out = work / src.name
+        run([pdf_cli(), "annot", "repair", str(src), str(out)])
+        print(out.name)
+        got, worst = qpdf_status(out), qpdf_status(src)
+        order = {0: 0, 3: 1, 2: 2}
+        report.check(order.get(got, 2) <= order.get(worst, 2), f"{out.name}: qpdf --check exit {got} (source: {worst})")
+        after = list_annotations(out)
+        report.check(not any(a["problems"] for a in after), f"{out.name}: nothing needs repair any more ({len(needing)} annotations were repaired)")
+        key = lambda a: (a["page"], a["id"], a["subtype"], a["author"], a["text"])
+        report.check(sorted(map(key, after)) == sorted(map(key, before)), f"{out.name}: same annotations, authors and texts as before")
+        pages = {a["page"] for a in before if a["id"] in needing}
+        case = work / src.stem
+        case.mkdir(exist_ok=True)
+        annotation_checks(out, report, case, pages=pages)
+
+
 def main(argv: list[str]) -> int:
     # Titles in the checks are Unicode; Windows consoles (CI) default to a code page.
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -713,6 +952,10 @@ def main(argv: list[str]) -> int:
         phase4(report)
     elif argv[:1] == ["phase4-local"]:
         phase4_local(report)
+    elif argv[:1] == ["phase5"]:
+        phase5(report)
+    elif argv[:1] == ["phase5-local"]:
+        phase5_local(report)
     elif argv[:1] == ["check"] and len(argv) == 2:
         pdf = Path(argv[1]).resolve()
         work = OUT / "check" / pdf.stem

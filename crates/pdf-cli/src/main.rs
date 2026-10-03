@@ -12,8 +12,8 @@ use mupdf::pdf::PdfDocument;
 use mupdf::text_page::TextPageFlags;
 
 use pdf_core::annot::quads::Quad;
-use pdf_core::annot::{self, MarkupKind, MarkupSpec, Rgb};
-use pdf_core::geometry::Rect;
+use pdf_core::annot::{self, AnnotationEdit, Body, MarkupKind, MarkupSpec, NewAnnotation, Rgb};
+use pdf_core::geometry::{Point, Rect};
 use pdf_core::labels::{self, LabelRule, LabelStyle};
 use pdf_core::merge::{
     self, BookmarkMode, InsertLabels, InsertOptions, LabelMode, MergeOptions, MergeReport,
@@ -191,7 +191,8 @@ enum OutlineAction {
 
 #[derive(Subcommand)]
 enum AnnotAction {
-    /// Mark up text: finds TEXT on PAGE and creates one annotation over every match.
+    /// Mark up text: finds TEXT on PAGE and creates one annotation over every match, or
+    /// marks up an area (--rect, one quad, as Alt-drag does in the app).
     Markup {
         input: PathBuf,
         out: PathBuf,
@@ -200,8 +201,11 @@ enum AnnotAction {
         /// Page number (1-based).
         #[arg(long, default_value_t = 1)]
         page: usize,
-        #[arg(long)]
-        text: String,
+        #[arg(long, required_unless_present = "rect")]
+        text: Option<String>,
+        /// An area instead of text: x0,y0,x1,y1 in view space (points, top-left origin).
+        #[arg(long, value_parser = parse_rect, conflicts_with = "text")]
+        rect: Option<Rect>,
         /// RRGGBB.
         #[arg(long, default_value = "FFEB3B", value_parser = parse_color)]
         color: Rgb,
@@ -212,6 +216,98 @@ enum AnnotAction {
         #[arg(long)]
         note: Option<String>,
     },
+    /// A sticky note whose icon's top-left corner is at X,Y (view space).
+    Note {
+        input: PathBuf,
+        out: PathBuf,
+        #[arg(long, default_value_t = 1)]
+        page: usize,
+        #[arg(long, value_parser = parse_point)]
+        at: Point,
+        #[arg(long, default_value = "")]
+        text: String,
+        #[command(flatten)]
+        style: StyleArgs,
+    },
+    /// A freehand drawing. Each --stroke is "x,y;x,y;..." in view space.
+    Ink {
+        input: PathBuf,
+        out: PathBuf,
+        #[arg(long, default_value_t = 1)]
+        page: usize,
+        #[arg(long = "stroke", required = true, value_parser = parse_stroke)]
+        strokes: Vec<Vec<Point>>,
+        #[arg(long, default_value_t = 2.0)]
+        width: f64,
+        #[command(flatten)]
+        style: StyleArgs,
+    },
+    /// A text box at x0,y0,x1,y1 (view space); its height grows to fit the text.
+    Text {
+        input: PathBuf,
+        out: PathBuf,
+        #[arg(long, default_value_t = 1)]
+        page: usize,
+        #[arg(long, value_parser = parse_rect)]
+        rect: Rect,
+        #[arg(long)]
+        text: String,
+        #[arg(long, default_value_t = 12.0)]
+        size: f64,
+        #[command(flatten)]
+        style: StyleArgs,
+    },
+    /// List every annotation with what needs repair.
+    List { input: PathBuf },
+    /// Change annotation ID (object number) on PAGE.
+    Edit {
+        input: PathBuf,
+        out: PathBuf,
+        #[arg(long, default_value_t = 1)]
+        page: usize,
+        #[arg(long)]
+        id: u32,
+        #[arg(long, value_parser = parse_color)]
+        color: Option<Rgb>,
+        #[arg(long)]
+        opacity: Option<f32>,
+        #[arg(long)]
+        contents: Option<String>,
+        #[arg(long)]
+        author: Option<String>,
+        /// Move or resize: x0,y0,x1,y1 in view space.
+        #[arg(long, value_parser = parse_rect)]
+        bounds: Option<Rect>,
+        #[arg(long)]
+        width: Option<f64>,
+        #[arg(long)]
+        size: Option<f64>,
+    },
+    /// Delete annotation ID on PAGE with its popup and replies.
+    Delete {
+        input: PathBuf,
+        out: PathBuf,
+        #[arg(long, default_value_t = 1)]
+        page: usize,
+        #[arg(long)]
+        id: u32,
+    },
+    /// Scan for problems; with OUT, repair them and write the result there.
+    Repair {
+        input: PathBuf,
+        out: Option<PathBuf>,
+    },
+}
+
+#[derive(clap::Args)]
+struct StyleArgs {
+    /// RRGGBB.
+    #[arg(long, default_value = "FFEB3B", value_parser = parse_color)]
+    color: Rgb,
+    #[arg(long, default_value_t = 1.0)]
+    opacity: f32,
+    #[arg(long, default_value = "Folio")]
+    author: String,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -420,6 +516,7 @@ fn run(command: Command) -> Result<()> {
                     kind,
                     page,
                     text,
+                    rect,
                     color,
                     opacity,
                     author,
@@ -428,10 +525,15 @@ fn run(command: Command) -> Result<()> {
         } => {
             let index = page.checked_sub(1).ok_or(Error::PageOutOfRange(0))?;
             edit(&input, &out, |doc| {
-                let quads = find_text(doc, index, &text)?;
+                let quads = match (&text, rect) {
+                    (_, Some(rect)) => vec![Quad::from_view_rect(rect)],
+                    (Some(text), None) => find_text(doc, index, text)?,
+                    (None, None) => Vec::new(),
+                };
                 if quads.is_empty() {
                     return Err(Error::InvalidArgument(format!(
-                        "\"{text}\" not found on page {page}"
+                        "\"{}\" not found on page {page}",
+                        text.as_deref().unwrap_or_default()
                     )));
                 }
                 let spec = MarkupSpec {
@@ -456,6 +558,7 @@ fn run(command: Command) -> Result<()> {
                 Ok(())
             })?;
         }
+        Command::Annot { action } => annot_command(action)?,
         Command::Render {
             input,
             out,
@@ -987,6 +1090,191 @@ fn bench(path: &Path, scale: f32, samples: usize) -> Result<()> {
 
 fn ms(d: std::time::Duration) -> f64 {
     d.as_secs_f64() * 1000.0
+}
+
+fn parse_point(s: &str) -> std::result::Result<Point, String> {
+    let v: Vec<f64> = s
+        .split(',')
+        .map(|p| p.trim().parse::<f64>().map_err(|e| e.to_string()))
+        .collect::<std::result::Result<_, _>>()?;
+    match v.as_slice() {
+        [x, y] => Ok(Point::new(*x, *y)),
+        _ => Err("expected x,y".into()),
+    }
+}
+
+fn parse_stroke(s: &str) -> std::result::Result<Vec<Point>, String> {
+    s.split(';')
+        .filter(|p| !p.trim().is_empty())
+        .map(parse_point)
+        .collect()
+}
+
+/// `annot` subcommands other than `markup`: through a session, as the app does.
+fn annot_command(action: AnnotAction) -> Result<()> {
+    let page_index = |page: usize| page.checked_sub(1).ok_or(Error::PageOutOfRange(0));
+    let add = |input: &Path, out: &Path, page: usize, body: Body, style: StyleArgs| {
+        let op = Operation::AddAnnotation {
+            annotation: NewAnnotation {
+                page: page_index(page)?,
+                body,
+                color: style.color,
+                opacity: style.opacity,
+                author: style.author,
+            },
+        };
+        edit_in_session(input, out, vec![op])
+    };
+    match action {
+        AnnotAction::Markup { .. } => Err(Error::InvalidArgument(
+            "markup is handled before this".into(),
+        )),
+        AnnotAction::Note {
+            input,
+            out,
+            page,
+            at,
+            text,
+            style,
+        } => add(&input, &out, page, Body::Note { at, text }, style),
+        AnnotAction::Ink {
+            input,
+            out,
+            page,
+            strokes,
+            width,
+            style,
+        } => add(&input, &out, page, Body::Ink { strokes, width }, style),
+        AnnotAction::Text {
+            input,
+            out,
+            page,
+            rect,
+            text,
+            size,
+            style,
+        } => add(
+            &input,
+            &out,
+            page,
+            Body::FreeText {
+                rect,
+                text,
+                font_size: size,
+            },
+            style,
+        ),
+        AnnotAction::List { input } => list_annotations(&input),
+        AnnotAction::Edit {
+            input,
+            out,
+            page,
+            id,
+            color,
+            opacity,
+            contents,
+            author,
+            bounds,
+            width,
+            size,
+        } => {
+            let op = Operation::UpdateAnnotation {
+                page: page_index(page)?,
+                id,
+                edit: AnnotationEdit {
+                    color,
+                    opacity,
+                    contents,
+                    author,
+                    bounds,
+                    width,
+                    font_size: size,
+                },
+            };
+            edit_in_session(&input, &out, vec![op])
+        }
+        AnnotAction::Delete {
+            input,
+            out,
+            page,
+            id,
+        } => edit_in_session(
+            &input,
+            &out,
+            vec![Operation::DeleteAnnotation {
+                page: page_index(page)?,
+                id,
+            }],
+        ),
+        AnnotAction::Repair { input, out } => repair_annotations(&input, out.as_deref()),
+    }
+}
+
+fn list_annotations(input: &Path) -> Result<()> {
+    let (session, info) = Session::open(input, None)?;
+    session.close();
+    for page in &info.annotations {
+        for a in page {
+            let r = a.rect;
+            let mut line = format!(
+                "p{} object {} {} rect [{:.1} {:.1} {:.1} {:.1}] author {:?}",
+                a.page + 1,
+                a.id,
+                a.subtype,
+                r.x0,
+                r.y0,
+                r.x1,
+                r.y1,
+                a.author
+            );
+            if !a.contents.is_empty() {
+                let short: String = a.contents.chars().take(40).collect();
+                line.push_str(&format!(" text {short:?}"));
+            }
+            if let Some(parent) = a.reply_to {
+                line.push_str(&format!(" reply-to {parent}"));
+            }
+            if !a.problems.is_empty() {
+                line.push_str(&format!(" needs-repair {:?}", a.problems));
+            }
+            println!("{line}");
+        }
+    }
+    Ok(())
+}
+
+fn repair_annotations(input: &Path, out: Option<&Path>) -> Result<()> {
+    if out.is_some_and(|o| same_file(input, o)) {
+        return Err(Error::InvalidArgument(
+            "write to a new file; pdf-cli never modifies its input".into(),
+        ));
+    }
+    let (session, _) = Session::open(input, None)?;
+    let result = (|| {
+        let found = session.scan_annotations()?;
+        if found.is_clean() {
+            println!("no problems found");
+        }
+        for (problem, count) in &found.counts {
+            println!("{problem:?}: {count}");
+        }
+        println!(
+            "annotations to repair: {}, with problems repair can't fix: {}",
+            found.fixable, found.unfixable
+        );
+        let Some(out) = out else {
+            return Ok(());
+        };
+        let change = session.apply(Operation::RepairAnnotations)?;
+        for c in change.repairs.iter().flatten() {
+            println!("{c}");
+        }
+        session.save(SaveKind::Incremental, Some(out.to_path_buf()))?;
+        println!("wrote {}", out.display());
+        Ok(())
+    })();
+    session.close();
+    result
 }
 
 fn parse_rect(s: &str) -> std::result::Result<Rect, String> {

@@ -151,7 +151,7 @@ pub fn repair(doc: &mut PdfDocument) -> Result<Vec<RepairChange>> {
                 }
             }
             if synthesize {
-                write::synthesize(doc, &mut annot, &geometry)?;
+                write::synthesize(doc, &mut annot)?;
                 if info.problems.contains(&Problem::MissingAppearance) {
                     fixed.push(Problem::MissingAppearance);
                 }

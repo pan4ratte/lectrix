@@ -503,11 +503,8 @@ pub fn create(doc: &mut PdfDocument, new: &NewAnnotation) -> Result<AnnotationRe
             )?;
         }
         Body::Note { at, .. } => {
-            let view = Rect::new(at.x, at.y, at.x + NOTE_SIZE, at.y + NOTE_SIZE);
-            obj.dict_put(
-                "Rect",
-                objects::rect_array(doc, geometry.view_rect_to_user(view))?,
-            )?;
+            let rect = write::note_rect(*at, NOTE_SIZE, &geometry);
+            obj.dict_put("Rect", objects::rect_array(doc, rect)?)?;
             annot.set_icon_name(NOTE_ICON)?;
         }
         Body::Ink { strokes, width } => {
@@ -558,7 +555,7 @@ pub fn create(doc: &mut PdfDocument, new: &NewAnnotation) -> Result<AnnotationRe
     }
 
     // Rule 2: appearance stream, then the profile's /Rect.
-    write::synthesize(doc, &mut annot, &geometry)?;
+    write::synthesize(doc, &mut annot)?;
 
     Ok(AnnotationRef {
         page: new.page,
@@ -700,7 +697,7 @@ pub fn edit(doc: &mut PdfDocument, page: usize, id: u32, edit: &AnnotationEdit) 
     annot
         .object()
         .dict_put("M", PdfObject::new_string(&meta::pdf_date_now())?)?;
-    write::synthesize(doc, &mut annot, &geometry)
+    write::synthesize(doc, &mut annot)
 }
 
 /// Deletes an annotation, its popup, and its replies (`/IRT`) on the same page, as
