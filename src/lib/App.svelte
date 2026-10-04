@@ -7,6 +7,7 @@
 
 	import { commands } from '#lib/commands.ts';
 	import { isContextMenuKey, openContextMenu } from '#lib/components/contextmenu.ts';
+	import AboutDialog from '#lib/components/AboutDialog.svelte';
 	import BookmarkInspector from '#lib/features/bookmarks/BookmarkInspector.svelte';
 	import DialogHost from '#lib/components/DialogHost.svelte';
 	import FileBanner from '#lib/components/FileBanner.svelte';
@@ -189,6 +190,7 @@
 
 <InsertPagesDialog />
 <SettingsDialog />
+<AboutDialog />
 <DialogHost />
 <PasswordDialog />
 <Toasts />

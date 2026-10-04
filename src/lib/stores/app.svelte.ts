@@ -97,6 +97,8 @@ class AppStore {
 	focusNoteText = $state(false);
 	/** The Settings dialog is open. */
 	settingsOpen = $state(false);
+	/** The About dialog is open. */
+	aboutOpen = $state(false);
 	dialog = $state<DialogRequest | null>(null);
 	passwordPrompts = $state<PasswordRequest[]>([]);
 	toasts = $state<Toast[]>([]);

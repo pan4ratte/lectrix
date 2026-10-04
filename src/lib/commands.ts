@@ -43,6 +43,9 @@ export const commands = {
 	settings: () => {
 		app.settingsOpen = true;
 	},
+	about: () => {
+		app.aboutOpen = true;
+	},
 
 	undo: () => {
 		if (app.combineActive) app.combine?.undo();

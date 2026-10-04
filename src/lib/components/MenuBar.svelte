@@ -3,6 +3,7 @@
 	import { Menubar } from 'bits-ui';
 
 	import { commands } from '#lib/commands.ts';
+	import { APP_NAME } from '#lib/config.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 
 	const tab = $derived(app.active);
@@ -181,6 +182,15 @@
 				>
 					Repair annotations…
 				</Menubar.Item>
+			</Menubar.Content>
+		</Menubar.Portal>
+	</Menubar.Menu>
+
+	<Menubar.Menu>
+		<Menubar.Trigger class="menubar-trigger">Help</Menubar.Trigger>
+		<Menubar.Portal>
+			<Menubar.Content class="menu-content" align="start" sideOffset={4}>
+				<Menubar.Item class="menu-item" onSelect={commands.about}>About {APP_NAME}</Menubar.Item>
 			</Menubar.Content>
 		</Menubar.Portal>
 	</Menubar.Menu>

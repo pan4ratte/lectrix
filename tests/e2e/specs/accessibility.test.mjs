@@ -22,9 +22,9 @@ function describe(stop) {
 }
 
 /** Every Tab stop is named and shows focus (the stop where focus leaves the page aside). */
-function assertStops(stops, where) {
+function assertStops(stops, where, atLeast = 4) {
 	const real = stops.filter((s) => s.tag !== 'none');
-	assert.ok(real.length > 3, `${where}: Tab reaches controls`);
+	assert.ok(real.length >= atLeast, `${where}: Tab reaches controls`);
 	for (const s of real) {
 		assert.ok(s.name, `${where}: unnamed Tab stop ${describe(s)}`);
 		assert.ok(s.visibleFocus, `${where}: focus not visible on ${describe(s)}`);
@@ -156,6 +156,24 @@ test('menus, tabs and lists move with arrow keys; dialogs keep focus inside', as
 		await browser.keys(['Escape']);
 		await browser.waitUntil(() => browser.execute(() => document.querySelector('[role="dialog"]') === null), {
 			timeoutMsg: 'Escape did not close Settings'
+		});
+
+		// Help > About: the version and where the source code is (AGPL section 6).
+		await (await browser.$('button[role="menuitem"]=Help')).click();
+		await (await browser.$('[role="menuitem"]*=About')).click();
+		await browser.waitUntil(() => browser.execute(() => document.querySelector('[role="dialog"]') !== null));
+		const about = await browser.execute(() => ({
+			text: document.querySelector('[role="dialog"]')?.textContent ?? '',
+			source: document.querySelector('[role="dialog"] input')?.value ?? ''
+		}));
+		assert.match(about.text, /Version \d+\.\d+\.\d+/);
+		assert.match(about.text, /GNU Affero\s+General Public License/);
+		assert.match(about.source, /^https:\/\//);
+		const aboutStops = assertStops(await tabWalk(browser, { max: 20 }), 'About', 3);
+		assert.ok(aboutStops.includes('Source code') && aboutStops.includes('Copy'), `About reaches ${aboutStops.join(', ')}`);
+		await browser.keys(['Escape']);
+		await browser.waitUntil(() => browser.execute(() => document.querySelector('[role="dialog"]') === null), {
+			timeoutMsg: 'Escape did not close About'
 		});
 	} finally {
 		await stop();
