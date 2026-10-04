@@ -67,7 +67,7 @@ def rust_packages() -> list[dict]:
     meta = json.loads(
         subprocess.run(
             ["cargo", "metadata", "--format-version", "1", "--filter-platform", TARGET, "--locked"],
-            cwd=ROOT, check=True, capture_output=True, text=True,
+            cwd=ROOT, check=True, capture_output=True, encoding="utf-8",
         ).stdout
     )
     packages = {p["id"]: p for p in meta["packages"]}
