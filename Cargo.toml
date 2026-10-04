@@ -20,3 +20,10 @@ thiserror = "=2.0.21"
 [profile.dev.package."*"]
 # MuPDF is large; optimize dependencies even in dev so rendering timings are meaningful.
 opt-level = 2
+
+
+# Folio's fork of mupdf-sys: the same MuPDF 1.27.2, with a build-time patch so JPEG 2000
+# images are decoded at the resolution they are drawn at (ADR 0008). The fork changes only
+# mupdf-sys/build.rs and adds mupdf-sys/folio_patches.rs; MuPDF itself is not forked.
+[patch."https://github.com/messense/mupdf-rs"]
+mupdf-sys = { git = "https://github.com/pan4ratte/mupdf-rs", rev = "460b796a88f2fa4ba617b07fbb7f73e5308f1417" }

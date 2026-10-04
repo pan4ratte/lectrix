@@ -1300,3 +1300,31 @@ Task Manager, and a short Narrator walk. About 20 minutes.
    is left to upstream.
 3. **ADR 0007:** accepted, with the PDF box checked by default.
 4. **AGPL source offer:** an About dialog in the app with a link to the source.
+
+### After the review (2026-10-04)
+
+- **About dialog (decision 4).** Help > About Folio shows the version, the AGPL notice,
+  MuPDF's credit, where the license files are installed, and the source code address with
+  a Copy button (Folio stays offline, so the address is shown, not opened). The address is
+  one constant, `SOURCE_URL` in `src/lib/config.ts`: `https://github.com/pan4ratte/sci-pdf`.
+  **That repository is private**, so the link only works for others once it is public or
+  the constant names another public copy. The accessibility E2E flow covers the dialog.
+- **JPEG 2000 at the resolution drawn (decision 2, option (a)), ADR 0008.** MuPDF is now
+  built from Folio's fork of `mupdf-rs` (`pan4ratte/mupdf-rs`, branch
+  `folio-mupdf-1.27.2`), which patches MuPDF's JPEG 2000 decoding at build time. The same
+  change as a plain diff for Artifex is in `docs/upstream/`, for you to send.
+  - `29-slow-first-page`, first page in the app: 1.05 s → **376 to 382 ms** (target met).
+  - `pdf-cli`: page 1 at fit width 992 → 425 ms; its thumbnail 904 → 42 ms; body-page
+    thumbnails 113 → 47 ms; body pages at fit width unchanged (219 → 218 ms), as they
+    already decode at about the size drawn.
+  - Scrolling that book was not re-measured: the scroll test is driven by
+    `requestAnimationFrame`, which WebView2 stops while the window is covered, and the
+    machine was in use. Body pages render as before, and cheaper thumbnails hold MuPDF's
+    JPEG 2000 lock for less time, so it should be no worse than the table above; scroll
+    blanking on such books remains a known gap until MuPDF decodes several images at once.
+  - New test `crates/pdf-core/tests/jpx.rs` (small renders match the full decode scaled
+    down; fixture `tests/fixtures/quadrants-1024.jp2`, 14 KB). pdf-core tests (137) and
+    the local corpus pass with the fork.
+- Two outline tests saved without the guard against `qpdf` runs in parallel tests
+  (ADR 0003), and one failed once; both are guarded now.
+- The first CI run after this change rebuilds MuPDF from the fork (no cache yet).

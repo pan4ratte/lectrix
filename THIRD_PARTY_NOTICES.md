@@ -7,7 +7,7 @@ following third-party components. Every one has an AGPL-compatible license.
 | --- | --- | --- |
 | MuPDF 1.27.2 (Artifex Software) and its bundled third-party libraries (freetype, harfbuzz, jbig2dec, lcms2mt, libjpeg, openjpeg, zlib, brotli, gumbo, extract) | AGPL-3.0 (MuPDF); FTL/MIT/BSD-style/zlib (third-party) | PDF engine, statically linked via `mupdf-sys` |
 | MuPDF public headers (`third_party/mupdf-include/`) | AGPL-3.0 | compiling the FFI shim |
-| `mupdf`, `mupdf-sys` crates (messense/mupdf-rs) | AGPL-3.0 | Rust bindings; `mupdf` vendored with patches in `third_party/mupdf-rs/` |
+| `mupdf`, `mupdf-sys` crates (messense/mupdf-rs) | AGPL-3.0 | Rust bindings; `mupdf` vendored with patches in `third_party/mupdf-rs/`; `mupdf-sys` built from Folio's fork (pan4ratte/mupdf-rs), which patches MuPDF's JPEG 2000 decoding at build time (ADR 0008) |
 | Tauri, tauri-build, tauri-plugin-dialog, tauri-plugin-single-instance | MIT OR Apache-2.0 | app shell |
 | windows-sys | MIT OR Apache-2.0 | Windows API bindings (`platform` module) |
 | windows | MIT OR Apache-2.0 | DirectWrite installed-font index (`pdf-core` `platform` module, ADR 0005) |

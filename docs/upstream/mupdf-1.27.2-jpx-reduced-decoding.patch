@@ -1,0 +1,168 @@
+--- a/source/fitz/load-jpx.c	2026-10-04 13:14:34.068000900 +0200
++++ b/source/fitz/load-jpx.c	2026-10-04 13:14:34.099283500 +0200
+@@ -411,7 +411,7 @@
+ }
+ 
+ static fz_pixmap *
+-jpx_read_image(fz_context *ctx, fz_jpxd *state, const unsigned char *data, size_t size, fz_colorspace *defcs, int onlymeta)
++jpx_read_image(fz_context *ctx, fz_jpxd *state, const unsigned char *data, size_t size, fz_colorspace *defcs, int onlymeta, int *reduce)
+ {
+ 	fz_pixmap *img = NULL;
+ 	opj_dparameters_t params;
+@@ -467,6 +467,34 @@
+ 		fz_throw(ctx, FZ_ERROR_LIBRARY, "Failed to read JPX header");
+ 	}
+ 
++	/* Folio: decode at a reduced resolution when asked to (*reduce halvings), as far as
++	 * the codestream's resolution levels allow; *reduce becomes what was applied. */
++	if (reduce)
++	{
++		int wanted = *reduce;
++		*reduce = 0;
++		if (!onlymeta && wanted > 0 && jpx->x0 == 0 && jpx->y0 == 0)
++		{
++			opj_codestream_info_v2_t *info = opj_get_cstr_info(codec);
++			OPJ_UINT32 c, levels = 0;
++			if (info)
++			{
++				if (info->m_default_tile_info.tccp_info)
++				{
++					levels = 33;
++					for (c = 0; c < info->nbcomps; c++)
++						if (info->m_default_tile_info.tccp_info[c].numresolutions < levels)
++							levels = info->m_default_tile_info.tccp_info[c].numresolutions;
++				}
++				opj_destroy_cstr_info(&info);
++			}
++			if (levels > 0 && wanted > (int)levels - 1)
++				wanted = (int)levels - 1;
++			if (levels > 0 && wanted > 0 && opj_set_decoded_resolution_factor(codec, (OPJ_UINT32)wanted))
++				*reduce = wanted;
++		}
++	}
++
+ 	if (!onlymeta)
+ 	{
+ 		if (!opj_decode(codec, stream, jpx))
+@@ -546,6 +574,12 @@
+ 
+ 	w = state->width = jpx->x1 - jpx->x0;
+ 	h = state->height = jpx->y1 - jpx->y0;
++	/* Folio: a reduced decode is smaller (OpenJPEG keeps the full reference grid). */
++	if (reduce && *reduce > 0 && w > 0 && h > 0)
++	{
++		w = (int)(((OPJ_UINT32)w + (1u << *reduce) - 1) >> *reduce);
++		h = (int)(((OPJ_UINT32)h + (1u << *reduce) - 1) >> *reduce);
++	}
+ 	state->xres = 72; /* openjpeg does not read the JPEG 2000 resc box */
+ 	state->yres = 72; /* openjpeg does not read the JPEG 2000 resc box */
+ 
+@@ -650,7 +684,7 @@
+ 	fz_try(ctx)
+ 	{
+ 		fz_opj_lock(ctx);
+-		pix = jpx_read_image(ctx, &state, data, size, defcs, 0);
++		pix = jpx_read_image(ctx, &state, data, size, defcs, 0, NULL);
+ 	}
+ 	fz_always(ctx)
+ 		fz_opj_unlock(ctx);
+@@ -660,6 +694,47 @@
+ 	return pix;
+ }
+ 
++/* Folio: like fz_load_jpx, decoded *reduce halvings smaller where the codestream
++ * allows; *reduce becomes the reduction applied (0 to *reduce). */
++fz_pixmap *fz_load_jpx_reduced(fz_context *ctx, const unsigned char *data, size_t size, fz_colorspace *defcs, int *reduce);
++
++fz_pixmap *
++fz_load_jpx_reduced(fz_context *ctx, const unsigned char *data, size_t size, fz_colorspace *defcs, int *reduce)
++{
++	fz_jpxd state = { 0 };
++	fz_pixmap *pix = NULL;
++	int wanted = *reduce;
++	int failed = 0;
++
++	if (wanted <= 0)
++	{
++		*reduce = 0;
++		return fz_load_jpx(ctx, data, size, defcs);
++	}
++
++	fz_try(ctx)
++	{
++		fz_opj_lock(ctx);
++		pix = jpx_read_image(ctx, &state, data, size, defcs, 0, reduce);
++	}
++	fz_always(ctx)
++		fz_opj_unlock(ctx);
++	fz_catch(ctx)
++	{
++		fz_rethrow_if(ctx, FZ_ERROR_SYSTEM);
++		fz_report_error(ctx);
++		failed = 1;
++	}
++
++	if (failed)
++	{
++		/* A reduced decode failed: decode in full, as MuPDF always did. */
++		*reduce = 0;
++		pix = fz_load_jpx(ctx, data, size, defcs);
++	}
++	return pix;
++}
++
+ void
+ fz_load_jpx_info(fz_context *ctx, const unsigned char *data, size_t size, int *wp, int *hp, int *xresp, int *yresp, fz_colorspace **cspacep, fz_colorspace *defcs)
+ {
+@@ -668,7 +743,7 @@
+ 	fz_try(ctx)
+ 	{
+ 		fz_opj_lock(ctx);
+-		jpx_read_image(ctx, &state, data, size, defcs, 1);
++		jpx_read_image(ctx, &state, data, size, defcs, 1, NULL);
+ 	}
+ 	fz_always(ctx)
+ 		fz_opj_unlock(ctx);
+@@ -684,6 +759,14 @@
+ 
+ #else /* FZ_ENABLE_JPX */
+ 
++fz_pixmap *fz_load_jpx_reduced(fz_context *ctx, const unsigned char *data, size_t size, fz_colorspace *defcs, int *reduce);
++
++fz_pixmap *
++fz_load_jpx_reduced(fz_context *ctx, const unsigned char *data, size_t size, fz_colorspace *defcs, int *reduce)
++{
++	fz_throw(ctx, FZ_ERROR_UNSUPPORTED, "JPX support disabled");
++}
++
+ fz_pixmap *
+ fz_load_jpx(fz_context *ctx, const unsigned char *data, size_t size, fz_colorspace *defcs)
+ {
+--- a/source/fitz/image.c	2026-10-04 13:14:34.131342900 +0200
++++ b/source/fitz/image.c	2026-10-04 13:14:34.161262900 +0200
+@@ -778,6 +778,9 @@
+ 	return 0;
+ }
+ 
++/* Folio: load-jpx.c */
++fz_pixmap *fz_load_jpx_reduced(fz_context *ctx, const unsigned char *data, size_t size, fz_colorspace *defcs, int *reduce);
++
+ static fz_pixmap *
+ compressed_image_get_pixmap(fz_context *ctx, fz_image *image_, fz_irect *subarea, int w, int h, int *l2factor)
+ {
+@@ -821,7 +824,14 @@
+ 		tile = fz_load_jxr(ctx, image->buffer->buffer->data, image->buffer->buffer->len);
+ 		break;
+ 	case FZ_IMAGE_JPX:
+-		tile = fz_load_jpx(ctx, image->buffer->buffer->data, image->buffer->buffer->len, image->super.colorspace);
++		{
++			/* Folio: decode as reduced as asked, where the codestream allows; the caller
++			 * subsamples what remains in *l2factor. */
++			int reduce = l2factor ? *l2factor : 0;
++			tile = fz_load_jpx_reduced(ctx, image->buffer->buffer->data, image->buffer->buffer->len, image->super.colorspace, &reduce);
++			if (l2factor)
++				*l2factor -= reduce;
++		}
+ 		if (image->super.use_decode &&
+ 			!fz_colorspace_is_indexed(ctx, image->super.colorspace) &&
+ 			!fz_colorspace_is_lab(ctx, image->super.colorspace)

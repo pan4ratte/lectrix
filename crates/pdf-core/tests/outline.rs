@@ -219,7 +219,7 @@ fn edits_touch_only_what_they_must_and_untouched_destinations_survive() {
     assert_eq!(info.state, state_before);
     assert!(find(&info.outline, B).open);
 
-    session.save(SaveKind::Incremental, None).unwrap();
+    common::writing(|| session.save(SaveKind::Incremental, None)).unwrap();
     session.close();
 
     let saved = std::fs::read(&path).unwrap();
@@ -483,7 +483,7 @@ fn first_bookmark_creates_the_outline() {
         })
         .unwrap();
     assert_eq!(change.outline.unwrap().items[0].title, "Préface — 日本");
-    session.save(SaveKind::Incremental, None).unwrap();
+    common::writing(|| session.save(SaveKind::Incremental, None)).unwrap();
     session.close();
     qpdf_check(&path);
     let doc = open(&path);

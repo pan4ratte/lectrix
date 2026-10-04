@@ -37,7 +37,9 @@ Three problems came up with the latest release, `mupdf` 0.8.0 (MuPDF 1.27.2):
     `brotli`. JavaScript, Tesseract OCR, HTML/EPUB/XPS/CBZ/SVG input and DOCX output
     are out of v1 scope and only add build time and binary size.
 - **`mupdf-sys` comes from upstream git at the same commit.** We do not vendor it,
-  because it carries the full MuPDF and third-party C source tree.
+  because it carries the full MuPDF and third-party C source tree. Since Phase 6 it comes
+  from Folio's fork of `mupdf-rs` at that commit plus one build-time patch (JPEG 2000
+  decoded at the resolution drawn), through `[patch]` in the workspace (ADR 0008).
 - **Vendor MuPDF 1.27.2's public headers** (`third_party/mupdf-include/`, about 1 MB) so
   `crates/pdf-core/build.rs` can compile `src/ffi/shim.c` with the `cc` crate. Every
   shim function wraps its MuPDF calls in `fz_try`/`fz_catch` and returns an error code

@@ -2232,7 +2232,7 @@ dependencies = [
 [[package]]
 name = "mupdf-sys"
 version = "0.8.0"
-source = "git+https://github.com/messense/mupdf-rs?rev=537d50556ee8e4abf2435f81357dfef3c145d883#537d50556ee8e4abf2435f81357dfef3c145d883"
+source = "git+https://github.com/pan4ratte/mupdf-rs?rev=460b796a88f2fa4ba617b07fbb7f73e5308f1417#460b796a88f2fa4ba617b07fbb7f73e5308f1417"
 dependencies = [
  "bindgen",
  "cc",

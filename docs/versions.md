@@ -19,7 +19,7 @@ Recorded at project start (2026-10-02). Versions are pinned exactly in `Cargo.to
 | Component | Version | Source |
 | --- | --- | --- |
 | MuPDF | 1.27.2 | built from source by `mupdf-sys` |
-| `mupdf-sys` | 0.8.0 @ `537d50556ee8e4abf2435f81357dfef3c145d883` | git, upstream messense/mupdf-rs |
+| `mupdf-sys` | 0.8.0 @ `537d50556ee8e4abf2435f81357dfef3c145d883` + Folio patch | git, Folio's fork pan4ratte/mupdf-rs, branch `folio-mupdf-1.27.2` @ `460b796a88f2fa4ba617b07fbb7f73e5308f1417` (upstream commit plus `folio_patches.rs`: JPEG 2000 decoded at the resolution drawn, ADR 0008), via `[patch]` in `Cargo.toml` |
 | `mupdf` | 0.8.0 @ same commit, Folio-patched | vendored in `third_party/mupdf-rs` (ADR 0001); built without `system-fonts` since Phase 2 (ADR 0005), so `font-kit` is no longer in the build |
 
 ## Rust crates (direct)

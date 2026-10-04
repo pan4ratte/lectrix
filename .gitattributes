@@ -3,4 +3,5 @@
 *.ico binary
 *.icns binary
 *.pdf binary
+*.jp2 binary
 tests/corpus/** filter=lfs diff=lfs merge=lfs -text
