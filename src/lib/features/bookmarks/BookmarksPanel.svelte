@@ -11,6 +11,7 @@
 	import { tick } from 'svelte';
 
 	import { chain } from '#lib/components/chain.ts';
+	import { ClickCounter } from '#lib/components/clicks.ts';
 	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -160,6 +161,8 @@
 		return row ? { row, index, offset: y - index * ROW } : null;
 	}
 
+	const clickCounter = new ClickCounter();
+
 	function onPointerDown(event: PointerEvent) {
 		if (event.button !== 0 || !list) return;
 		const target = event.target as HTMLElement;
@@ -174,7 +177,7 @@
 			if (found) setOpen(tab, found.bookmark, !found.bookmark.open);
 			return;
 		}
-		if (event.detail === 2) {
+		if (clickCounter.count(event) === 2) {
 			startRename(tab, id);
 			return;
 		}
