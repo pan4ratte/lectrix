@@ -138,6 +138,13 @@ jobs:
       # .cargo/config.toml points at the Windows LLVM unless this is set.
       LIBCLANG_PATH: /usr/lib/llvm-18/lib
     steps:
+      # Debug, test and release builds of MuPDF and WebKitGTK outgrow the runner's free
+      # space; drop preinstalled SDKs this job never uses (about 25 GB).
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+          df -h /
+
       - uses: actions/checkout@v4
 
       - uses: dtolnay/rust-toolchain@master
