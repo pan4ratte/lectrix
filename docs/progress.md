@@ -870,7 +870,12 @@ annotations and form fields.
 
 ## Phase 5: Annotations and repair (report, 2026-10-04)
 
-**Status: ready for review, not yet complete.** Every annotation type can be created,
+**Status: complete.** Reviewed by the user on 2026-10-04 (decisions below; the repair box
+counts as done with the stand-in problem files); Acrobat checked by the user; CI green on
+the pushed commits (run 37186592805, including interop `phase5` and the new E2E flows).
+The original report follows.
+
+*Report as written:* ready for review, not yet complete. Every annotation type can be created,
 edited, moved and deleted in the app, repair works, and every local check is green: the
 Rust tests, Vitest, all interop suites (`phase5`: 528 checks) and the end-to-end tests
 (now 9 flows). Three things are still open: CI has not run on these commits (they are
@@ -1004,9 +1009,11 @@ with the files in `target/test-output/manual/phase5/`.
 ### Review decisions (2026-10-04)
 
 1. **CI:** the Phase 5 commits are pushed.
-2. **Problem files:** you have none of your own. Open: whether the repair box can be
-   checked with the stand-ins (the hand-written problem file and the two local-corpus
-   files), or stays open until such files turn up.
+2. **Problem files:** you have none of your own, so the repair box counts as done with
+   the stand-ins: the hand-written problem file (every problem section 5.3 lists) and the
+   two local-corpus files that need repair. Each is invisible in at least one engine
+   before repair and visible in all three after, unchanged in content, colour, author and
+   place.
 3. **Text box colour: option (a).** `/C []` (no background), the colour in `/DA`; rule 6
    reads "`/C` as the type defines it" (`docs/interop-profile.md`).
 4. **ADR 0006:** accepted.
