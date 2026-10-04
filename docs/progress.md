@@ -1289,3 +1289,14 @@ Task Manager, and a short Narrator walk. About 20 minutes.
 - Muted text in the light theme is now `#575757` (was `#5c5c5c`). The system accent may
   be shown a little darker (light theme) or lighter (dark theme) than Windows shows it,
   when that is needed for 3:1 contrast.
+
+### Review decisions (2026-10-04)
+
+1. **CI:** the Phase 6 commits are pushed. The user reports the CI results (including the
+   first runs of the macOS and Linux jobs and the installer check) and does the manual
+   checklist.
+2. **JPEG 2000 scans: option (a).** The reduced-resolution decoding patch is carried in a
+   Folio fork of `mupdf-sys` and offered upstream; lifting MuPDF's global JPEG 2000 lock
+   is left to upstream.
+3. **ADR 0007:** accepted, with the PDF box checked by default.
+4. **AGPL source offer:** an About dialog in the app with a link to the source.

@@ -1,6 +1,6 @@
 # 0007: Installers ask whether Folio opens PDF files, and never take over the default
 
-- Status: proposed (Phase 6)
+- Status: accepted (Phase 6 review, 2026-10-04)
 - Date: 2026-10-04
 
 ## Context
