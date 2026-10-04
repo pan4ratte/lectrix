@@ -7,7 +7,7 @@
 
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { createConnection } from 'node:net';
+import { createConnection, createServer } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -16,8 +16,6 @@ import { remote } from 'webdriverio';
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 export const OUT = join(ROOT, 'target', 'test-output', 'e2e');
 const PORT = 4444;
-/** tauri-driver's default port for msedgedriver. */
-const NATIVE_PORT = 4445;
 
 const app = process.env.FOLIO_APP ?? join(ROOT, 'target', 'release', 'folio.exe');
 const tauriDriver = process.env.TAURI_DRIVER ?? 'tauri-driver';
@@ -41,21 +39,19 @@ function waitForPort(port, timeoutMs) {
 	});
 }
 
-function waitForPortFree(port, timeoutMs) {
-	const deadline = Date.now() + timeoutMs;
+/**
+ * A port nothing is listening on, for msedgedriver. A fixed port is not enough: in CI
+ * the previous session's processes sometimes still hold it for a moment after they
+ * were ended, and the next msedgedriver then cannot bind it.
+ */
+function freePort() {
 	return new Promise((done, fail) => {
-		const attempt = () => {
-			const socket = createConnection({ host: '127.0.0.1', port }, () => {
-				socket.end();
-				if (Date.now() > deadline) fail(new Error(`port ${port} is still in use`));
-				else setTimeout(attempt, 100);
-			});
-			socket.on('error', () => {
-				socket.destroy();
-				done();
-			});
-		};
-		attempt();
+		const server = createServer();
+		server.once('error', fail);
+		server.listen(0, '127.0.0.1', () => {
+			const { port } = server.address();
+			server.close(() => done(port));
+		});
 	});
 }
 
@@ -82,8 +78,7 @@ function killStrayApps() {
 
 /**
  * Ends tauri-driver with everything it started. Killing only tauri-driver leaves the
- * msedgedriver behind its wrapper running on NATIVE_PORT, and the next launch's
- * msedgedriver then cannot bind the port.
+ * msedgedriver behind its wrapper running.
  */
 async function killDriver(driver, exited) {
 	spawnSync('taskkill', ['/PID', String(driver.pid), '/F', '/T'], { stdio: 'ignore' });
@@ -108,8 +103,9 @@ export async function launch(files = [], { dialogs, env = {} } = {}) {
 	}
 	mkdirSync(OUT, { recursive: true });
 	killStrayApps();
-	await waitForPortFree(NATIVE_PORT, 10_000);
-	const driver = spawn(tauriDriver, ['--port', String(PORT), '--native-driver', verboseDriver()], {
+	const nativePort = await freePort();
+	const driverArgs = ['--port', String(PORT), '--native-port', String(nativePort), '--native-driver', verboseDriver()];
+	const driver = spawn(tauriDriver, driverArgs, {
 		env: {
 			...process.env,
 			FOLIO_EPHEMERAL: '1',
