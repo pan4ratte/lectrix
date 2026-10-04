@@ -38,7 +38,23 @@ const COMMANDS: &[&str] = &[
 
 fn main() {
     let manifest = tauri_build::AppManifest::new().commands(COMMANDS);
-    if let Err(e) = tauri_build::try_build(tauri_build::Attributes::new().app_manifest(manifest)) {
+    let mut attributes = tauri_build::Attributes::new().app_manifest(manifest);
+    // tauri-build's Windows manifest holds only a Common Controls v6 dependency, and it is
+    // embedded in the app binary alone. Test binaries that link the dialog plugin import
+    // TaskDialogIndirect, which only Common Controls v6 has, and fail to start without it
+    // (STATUS_ENTRYPOINT_NOT_FOUND). So the linker writes the same dependency into every
+    // binary of this crate instead (two manifests in the app binary would clash).
+    if std::env::var("CARGO_CFG_TARGET_ENV").as_deref() == Ok("msvc") {
+        attributes = attributes
+            .windows_attributes(tauri_build::WindowsAttributes::new_without_app_manifest());
+        println!("cargo:rustc-link-arg=/MANIFEST:EMBED");
+        println!(
+            "cargo:rustc-link-arg=/MANIFESTDEPENDENCY:type='win32' \
+             name='Microsoft.Windows.Common-Controls' version='6.0.0.0' \
+             processorArchitecture='*' publicKeyToken='6595b64144ccf1df' language='*'"
+        );
+    }
+    if let Err(e) = tauri_build::try_build(attributes) {
         panic!("tauri-build failed: {e:#}");
     }
 }
