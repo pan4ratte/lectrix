@@ -306,10 +306,15 @@
 		const rect = scroller.getBoundingClientRect();
 		wheelFactor *= wheelZoomFactor(event.deltaY, event.deltaMode);
 		wheelAnchor = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+		holdRendering();
+		if (!wheelFrame) wheelFrame = requestAnimationFrame(applyWheelZoom);
+	}
+
+	/** Keeps the current render zoom until zooming has paused. */
+	function holdRendering() {
 		heldRenderZoom ??= tab.zoom;
 		clearTimeout(settleTimer);
 		settleTimer = setTimeout(() => (heldRenderZoom = null), ZOOM_SETTLE_MS);
-		if (!wheelFrame) wheelFrame = requestAnimationFrame(applyWheelZoom);
 	}
 
 	function applyWheelZoom() {
@@ -654,6 +659,9 @@
 		const resize = new ResizeObserver(() => {
 			if (!scroller) return;
 			const first = viewportW === 0;
+			// A fit mode re-fits on every frame of a pane sliding or being resized, or of the
+			// window being resized: render once that settles, as for a wheel zoom.
+			if (!first && tab.zoomMode !== 'custom') holdRendering();
 			viewportW = scroller.clientWidth;
 			viewportH = scroller.clientHeight;
 			dpr = window.devicePixelRatio || 1;

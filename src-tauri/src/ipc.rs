@@ -904,6 +904,33 @@ pub struct StartupInfo {
     pub perf_scroll_only: bool,
     /// Page image format: PNG (ADR 0004); LECTRIX_IMAGE_FORMAT=rgba switches to raw RGBA.
     pub image_format: ImageFormat,
+    /// The side panes as the user left them.
+    pub panes: PaneLayout,
+}
+
+/// Which side panes are open and how wide they are (section 8), remembered in app data.
+/// Widths are CSS pixels; the frontend keeps them within its limits.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export)]
+pub struct PaneLayout {
+    /// The left sidebar (pages, bookmarks, page labels).
+    pub sidebar_open: bool,
+    pub sidebar_width: u32,
+    /// The right pane (the annotation list).
+    pub annotations_open: bool,
+    pub annotations_width: u32,
+}
+
+impl Default for PaneLayout {
+    fn default() -> Self {
+        PaneLayout {
+            sidebar_open: true,
+            sidebar_width: 240,
+            annotations_open: false,
+            annotations_width: 300,
+        }
+    }
 }
 
 /// Light or dark: following the system, or forced (Settings, section 8).

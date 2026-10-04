@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-set-pane-layout"
+description = "Enables the set_pane_layout command without any pre-configured scope."
+commands.allow = ["set_pane_layout"]
+
+[[permission]]
+identifier = "deny-set-pane-layout"
+description = "Denies the set_pane_layout command without any pre-configured scope."
+commands.deny = ["set_pane_layout"]

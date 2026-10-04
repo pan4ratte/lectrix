@@ -59,7 +59,7 @@ Expected differences, not failures:
 ## Your own files
 
 If you have PDFs whose annotations display wrongly in Acrobat, open one in Lectrix: the
-Annotations panel marks the ones that need repair. Run Document > Repair annotations,
+annotation pane (title bar, right) marks the ones that need repair. Run Document > Repair annotations,
 save a copy, and check the copy in Acrobat.
 
 # Manual release checklist: installers, crash recovery, accessibility

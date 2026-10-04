@@ -40,6 +40,19 @@ async function waitForRowCount(browser, n, message) {
 }
 
 /** Converts page points of page `index` (view space at zoom 1) to viewport pixels. */
+/** Opens the annotation pane and waits until it has finished sliding in. */
+async function showAnnotations(browser) {
+	await (await browser.$('button[aria-label="Show annotations"]')).click();
+	await browser.waitUntil(
+		() =>
+			browser.execute(() => {
+				const pane = document.querySelector('aside[aria-label="Annotations"]');
+				return pane !== null && pane.getAnimations({ subtree: true }).length === 0;
+			}),
+		{ timeoutMsg: 'the annotation pane did not open' }
+	);
+}
+
 async function pagePoint(browser, index, x, y) {
 	const r = await browser.execute(
 		(i) => document.querySelector(`.page[data-page="${i}"]`).getBoundingClientRect().toJSON(),
@@ -72,7 +85,7 @@ test('create, edit, delete, undo, save and reopen annotations', async () => {
 	let { browser, stop } = await launch([path]);
 	try {
 		await waitForDocument(browser);
-		await (await browser.$('button[aria-label="Annotations"]')).click();
+		await showAnnotations(browser);
 		await (await browser.$('p*=No annotations yet')).waitForDisplayed();
 
 		// Highlight: H, then select text on the marker line (sample pages put it 96 pt from
@@ -83,7 +96,11 @@ test('create, edit, delete, undo, save and reopen annotations', async () => {
 		await waitForRowCount(browser, 1, 'highlight');
 		assert.match(await statusText(browser), /Unsaved changes/);
 
-		// Note: N, click, type its text in the inspector.
+		// Note: N, click, type its text in the inspector. Escape first deselects the highlight,
+		// whose inspector would otherwise cover the spot on the page (the annotation pane
+		// leaves the page narrower).
+		await browser.keys(['Escape']);
+		await browser.keys(['Escape']);
 		await browser.keys('n');
 		await click(browser, await pagePoint(browser, 0, 400, 150));
 		await waitForRowCount(browser, 2, 'note');
@@ -150,7 +167,7 @@ test('create, edit, delete, undo, save and reopen annotations', async () => {
 	({ browser, stop } = await launch([path]));
 	try {
 		await waitForDocument(browser);
-		await (await browser.$('button[aria-label="Annotations"]')).click();
+		await showAnnotations(browser);
 		await waitForRowCount(browser, 4, 'reopened');
 
 		// Settings: another author and the dark appearance, applied at once.
@@ -210,7 +227,7 @@ test('repair annotations another app wrote', async () => {
 	const { browser, stop } = await launch([path]);
 	try {
 		await waitForDocument(browser);
-		await (await browser.$('button[aria-label="Annotations"]')).click();
+		await showAnnotations(browser);
 		await waitForRowCount(browser, 2, 'other app');
 		assert.ok((await listRows(browser)).every((r) => r.includes('Needs repair')));
 

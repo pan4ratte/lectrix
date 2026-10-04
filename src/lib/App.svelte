@@ -1,6 +1,7 @@
 <script lang="ts">
-	// The app window: title bar, sidebar, page canvas, status bar, and the wiring between
-	// Rust events, shortcuts and the stores.
+	// The app window: title bar, sidebar, page canvas, annotation pane, status bar, and the
+	// wiring between Rust events, shortcuts and the stores.
+	import { X } from '@lucide/svelte';
 	import { getCurrentWebview } from '@tauri-apps/api/webview';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { onMount } from 'svelte';
@@ -12,6 +13,8 @@
 	import DialogHost from '#lib/components/DialogHost.svelte';
 	import FileBanner from '#lib/components/FileBanner.svelte';
 	import PasswordDialog from '#lib/components/PasswordDialog.svelte';
+	import { ANNOTATIONS_LIMITS, SIDEBAR_LIMITS } from '#lib/components/panes.ts';
+	import SidePane from '#lib/components/SidePane.svelte';
 	import Sidebar from '#lib/components/Sidebar.svelte';
 	import StartScreen from '#lib/components/StartScreen.svelte';
 	import TitleBar from '#lib/components/TitleBar.svelte';
@@ -19,6 +22,7 @@
 	import SettingsDialog from '#lib/components/SettingsDialog.svelte';
 	import { cancelTextDraft } from '#lib/features/annotations/actions.ts';
 	import AnnotationInspector from '#lib/features/annotations/AnnotationInspector.svelte';
+	import AnnotationsPanel from '#lib/features/annotations/AnnotationsPanel.svelte';
 	import AnnotationToolbar from '#lib/features/annotations/AnnotationToolbar.svelte';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
 	import CombineView from '#lib/features/merge/CombineView.svelte';
@@ -36,6 +40,7 @@
 		onFileChanged,
 		onMergeSourcesAdded,
 		setImageFormat,
+		setPaneLayout,
 		toAppError
 	} from '#lib/ipc/index.ts';
 	import { COMMIT_FIELD_FIRST, commandFor, isBlocked, isBrowserZoomKey, isTextInput } from '#lib/shortcuts.ts';
@@ -48,6 +53,7 @@
 		try {
 			const info = await appReady();
 			app.startup = info;
+			app.restorePanes(info.panes);
 			applyTheme(info);
 			void getSettings()
 				.then((s) => applyAppearance(s.appearance))
@@ -121,6 +127,15 @@
 		if (event.ctrlKey) event.preventDefault();
 	}
 
+	// Remember the side panes, once a resize has settled.
+	let panesTimer: ReturnType<typeof setTimeout> | undefined;
+	$effect(() => {
+		if (!app.panesRestored) return;
+		const panes = app.panes;
+		clearTimeout(panesTimer);
+		panesTimer = setTimeout(() => void setPaneLayout(panes).catch(() => {}), 500);
+	});
+
 	// Remember where the user is, a moment after they stop moving.
 	let rememberTimer: ReturnType<typeof setTimeout> | undefined;
 	$effect(() => {
@@ -160,6 +175,7 @@
 			window.removeEventListener('keydown', blockPageZoomKey, { capture: true });
 			window.removeEventListener('wheel', blockPageZoomWheel, { capture: true });
 			clearTimeout(rememberTimer);
+			clearTimeout(panesTimer);
 			for (const u of unlisteners) void u.then((f) => f());
 		};
 	});
@@ -175,8 +191,17 @@
 				<CombineView combine={app.combine} />
 			</main>
 		{:else}
-			{#if tab && app.sidebarOpen}
-				<Sidebar {tab} />
+			{#if tab}
+				<SidePane
+					side="left"
+					label="Sidebar"
+					open={app.sidebarOpen}
+					bind:width={app.sidebarWidth}
+					limits={SIDEBAR_LIMITS}
+					animate={app.panesRestored}
+				>
+					<Sidebar {tab} />
+				</SidePane>
 			{/if}
 			<main class="flex min-w-0 flex-1 flex-col bg-canvas">
 				{#if tab}
@@ -193,6 +218,34 @@
 					<StartScreen />
 				{/if}
 			</main>
+			{#if tab}
+				<SidePane
+					side="right"
+					label="Annotations"
+					open={app.annotationsOpen}
+					bind:width={app.annotationsWidth}
+					limits={ANNOTATIONS_LIMITS}
+					animate={app.panesRestored}
+				>
+					<div class="flex h-10 shrink-0 items-center gap-1 pr-1 pl-3">
+						<h2 class="flex-1 text-sm font-semibold">Annotations</h2>
+						<button
+							type="button"
+							class="icon-button"
+							aria-label="Hide annotations"
+							title="Hide annotations"
+							onclick={commands.toggleAnnotations}
+						>
+							<X size={16} aria-hidden="true" />
+						</button>
+					</div>
+					<div class="min-h-0 flex-1">
+						{#key tab.id}
+							<AnnotationsPanel {tab} />
+						{/key}
+					</div>
+				</SidePane>
+			{/if}
 		{/if}
 	</div>
 	{#if tab}

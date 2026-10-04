@@ -358,6 +358,7 @@ pub fn run() {
             commands::get_settings,
             commands::set_settings,
             commands::app_ready,
+            commands::set_pane_layout,
             commands::log_metric,
             commands::log_error,
         ])

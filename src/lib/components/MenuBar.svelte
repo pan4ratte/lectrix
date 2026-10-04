@@ -105,11 +105,19 @@
 						<span class="w-4" aria-hidden="true">{checked ? '✓' : ''}</span>Sidebar
 					{/snippet}
 				</Menubar.CheckboxItem>
+				<Menubar.CheckboxItem
+					class="menu-item"
+					disabled={!hasDoc}
+					checked={app.annotationsOpen}
+					onCheckedChange={commands.toggleAnnotations}
+				>
+					{#snippet children({ checked })}
+						<span class="w-4" aria-hidden="true">{checked ? '✓' : ''}</span>Annotations pane
+					{/snippet}
+				</Menubar.CheckboxItem>
+				<Menubar.Separator class="menu-separator" />
 				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.showBookmarks}>
 					Bookmarks
-				</Menubar.Item>
-				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.showAnnotations}>
-					Annotations
 				</Menubar.Item>
 				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.showLabels}>
 					Page labels

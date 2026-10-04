@@ -36,6 +36,7 @@ const COMMANDS: &[&str] = &[
     "get_settings",
     "set_settings",
     "app_ready",
+    "set_pane_layout",
     "log_metric",
     "log_error",
 ];

@@ -470,6 +470,41 @@ button {
 
 /* ----- sidebar ----- */
 
+/* The edge of a side pane that resizes it: a wide, invisible grip, with a thin accent
+   line while hovered or dragged, and the usual focus ring (inset, so the pane does not
+   clip it). */
+.pane-resizer {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	z-index: 30;
+	width: 8px;
+	cursor: col-resize;
+	touch-action: none;
+}
+.pane-resizer:focus-visible {
+	outline-offset: -2px;
+}
+.pane-resizer-left {
+	right: -4px;
+}
+.pane-resizer-right {
+	left: -4px;
+}
+.pane-resizer::after {
+	content: '';
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	left: 3px;
+	width: 2px;
+	transition: background-color 100ms;
+}
+.pane-resizer:hover::after,
+.pane-resizer-active::after {
+	background: var(--lectrix-accent);
+}
+
 .sidebar-tab {
 	display: inline-flex;
 	height: 32px;

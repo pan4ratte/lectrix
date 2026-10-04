@@ -22,8 +22,8 @@ use crate::combine::{self, Progress};
 use crate::ipc::{
     AppError, Backdrop, DocumentChange, DocumentInfo, ImageFormat, LabelMode, MergeOutcome,
     MergePlan, MergeProgress, MergeRequest, MergeStage, OpenResult, OperationInput, PageHits,
-    PageText, RecentFile, RecoveredDocument, SaveResult, SearchChunk, Settings, SettingsInput,
-    StartupInfo, UnsavedSource, ViewState,
+    PageText, PaneLayout, RecentFile, RecoveredDocument, SaveResult, SearchChunk, Settings,
+    SettingsInput, StartupInfo, UnsavedSource, ViewState,
 };
 use crate::platform::Platform;
 use crate::store::StoredSettings;
@@ -709,9 +709,10 @@ pub fn remember_view(state: State<'_, AppState>, id: u32, view: ViewState) -> Re
 
 /// Called by the frontend on first mount: startup time and how to style the window.
 #[tauri::command]
-pub fn app_ready() -> StartupInfo {
+pub fn app_ready(state: State<'_, AppState>) -> StartupInfo {
     let elapsed = MAIN_START.get().map(Instant::elapsed).unwrap_or_default();
     let platform = platform::current();
+    let panes = state.store.lock().map(|s| s.panes()).unwrap_or_default();
     StartupInfo {
         main_to_ready_ms: elapsed.as_secs_f64() * 1000.0,
         backdrop: match platform.backdrop() {
@@ -725,7 +726,16 @@ pub fn app_ready() -> StartupInfo {
             Ok("rgba") => ImageFormat::Rgba,
             _ => ImageFormat::Png,
         },
+        panes,
     }
+}
+
+/// Remembers which side panes are open and their widths.
+#[tauri::command]
+pub fn set_pane_layout(state: State<'_, AppState>, panes: PaneLayout) -> Result<(), AppError> {
+    let mut store = state.store.lock().map_err(|_| AppError::bad_state())?;
+    store.set_panes(panes);
+    Ok(())
 }
 
 /// Prints a frontend timing to stdout as `[lectrix-metric] name=value`, for scripted

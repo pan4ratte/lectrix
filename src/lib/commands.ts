@@ -81,6 +81,9 @@ export const commands = {
 	toggleSidebar: () => {
 		app.sidebarOpen = !app.sidebarOpen;
 	},
+	toggleAnnotations: () => {
+		app.annotationsOpen = !app.annotationsOpen;
+	},
 	goToPage: () => {
 		const box = document.querySelector<HTMLInputElement>('[data-page-box]');
 		box?.focus();
@@ -107,10 +110,6 @@ export const commands = {
 		app.sidebarPanel = 'bookmarks';
 	},
 	showLabels: () => showLabels(),
-	showAnnotations: () => {
-		app.sidebarOpen = true;
-		app.sidebarPanel = 'annotations';
-	},
 	repairAnnotations: withTab((t) => repair(t)),
 	toolSelect: useTool('select'),
 	toolHighlight: useTool('highlight'),

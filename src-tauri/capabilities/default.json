@@ -47,6 +47,7 @@
     "allow-get-settings",
     "allow-set-settings",
     "allow-app-ready",
+    "allow-set-pane-layout",
     "allow-log-metric",
     "allow-log-error"
   ]

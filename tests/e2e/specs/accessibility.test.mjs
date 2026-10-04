@@ -70,15 +70,23 @@ test('every Tab stop is named and shows focus, in every panel and dialog', async
 		}
 		await assertAllNamed(browser, 'document');
 
-		for (const panel of ['Bookmarks', 'Annotations', 'Page labels']) {
+		for (const panel of ['Bookmarks', 'Page labels']) {
 			await (await browser.$(`button[role="tab"][aria-label="${panel}"]`)).click();
 			await browser.pause(200);
 			assertStops(await tabWalk(browser, { max: 80 }), `${panel} panel`);
 			await assertAllNamed(browser, `${panel} panel`);
 		}
 
+		// The annotation pane on the right, and the edges that resize both panes.
+		await (await browser.$('button[aria-label="Show annotations"]')).click();
+		await browser.pause(300);
+		const withPane = assertStops(await tabWalk(browser, { max: 100 }), 'annotation pane');
+		for (const name of ['Hide annotations', 'Show type', 'Resize sidebar', 'Resize annotations']) {
+			assert.ok(withPane.includes(name), `annotation pane reaches ${name}`);
+		}
+		await assertAllNamed(browser, 'annotation pane');
+
 		// A selected annotation: its row, the inspector and the toolbar's colours.
-		await (await browser.$('button[role="tab"][aria-label="Annotations"]')).click();
 		await (await browser.$('.annotation-row')).click();
 		await browser.pause(300);
 		const withInspector = assertStops(await tabWalk(browser, { max: 100 }), 'annotation inspector');
@@ -134,6 +142,16 @@ test('menus, tabs and lists move with arrow keys; dialogs keep focus inside', as
 			timeoutMsg: 'Shift+F10 did not open the bookmark menu'
 		});
 		await browser.keys(['Escape']);
+
+		// The sidebar's edge, after its content: arrows resize it, Home goes to the narrowest.
+		await tabTo(browser, (s) => s.name === 'Resize sidebar', 'the sidebar edge');
+		const sidebarWidth = () =>
+			browser.execute(() => Number(document.querySelector('[role="separator"][aria-label="Resize sidebar"]').getAttribute('aria-valuenow')));
+		const before = await sidebarWidth();
+		await browser.keys(['ArrowRight']);
+		assert.equal(await sidebarWidth(), before + 16, 'Right widens the sidebar');
+		await browser.keys(['Home']);
+		assert.equal(await sidebarWidth(), 180, 'Home makes it narrowest');
 
 		// Menu bar: Enter opens a menu, arrows move through items with visible focus.
 		const file = await browser.$('button[role="menuitem"]');
@@ -201,11 +219,8 @@ test('a keyboard-only session: go to a page, bookmark it, edit a note, save', as
 		await browser.keys(['Control', 'a']);
 		await browser.keys([...'Chapter three', 'Enter']);
 
-		// To the Annotations panel and its list, by Tab and arrows only.
-		const sidebarTabs = ['Pages', 'Bookmarks', 'Annotations', 'Page labels'];
-		await tabTo(browser, (s) => s.computedRole === 'tab' && sidebarTabs.includes(s.name), 'the sidebar tabs');
-		for (let i = 0; i < 4 && (await focused(browser)).name !== 'Annotations'; i++) await browser.keys(['ArrowRight']);
-		assert.equal((await focused(browser)).name, 'Annotations');
+		// Open the annotation pane and reach its list, by Tab and Enter only.
+		await tabTo(browser, (s) => s.name === 'Show annotations', 'the annotation pane button');
 		await browser.keys(['Enter']);
 		await tabTo(browser, (s) => s.computedRole === 'listbox' && s.name === 'Annotations', 'the annotation list');
 		await browser.keys(['ArrowDown']);

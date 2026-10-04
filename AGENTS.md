@@ -257,7 +257,7 @@ Settled details:
 - **Text markup:** with a markup tool active, selecting text creates the annotation on mouse-up. Alt-drag creates an area highlight (one rectangular quad) for scanned pages without text.
 - **Style:** six preset colors plus a custom picker, opacity, stroke width for the pen; the last-used style per tool is remembered.
 - **Inspector panel** for the selected annotation: color, opacity, note text, author, dates.
-- **Annotation list** in the sidebar: grouped by page, filter by type and author, click to jump, edit note text, delete, "needs repair" badges.
+- **Annotation list** in the right pane: grouped by page, filter by type and author, click to jump, edit note text, delete, "needs repair" badges.
 - Annotations can be moved, resized (ink, text box, notes) and deleted; every change is undoable.
 - Author name is set in Settings, defaulting to the Windows user name.
 
@@ -306,10 +306,12 @@ The app should feel like a native Windows 11 app: calm, fast, and keyboard-frien
 
 **Layout.**
 
-- **Title bar:** custom (Tauri decorations off, explicit drag region), holding the document tabs and the standard window buttons.
-- **Left sidebar**, collapsible, with four panels: Pages (thumbnails), Bookmarks, Annotations, Page labels. The tabs are icons with tooltips and accessible names.
+- **Title bar:** custom (Tauri decorations off, explicit drag region), holding the sidebar and annotation pane toggles, the document tabs and the standard window buttons.
+- **Left sidebar**, collapsible (open by default), with three panels: Pages (thumbnails), Bookmarks, Page labels. The tabs are icons with tooltips and accessible names.
 - **Center:** the page canvas, with a floating annotation toolbar.
-- **Right inspector**, shown only when something is selected: properties of the selected annotation or bookmark.
+- **Right pane**, collapsible (closed by default): the annotation list. Its toggle carries the "needs repair" dot.
+- **Inspector**, floating over the right edge of the page, shown only when something is selected: properties of the selected annotation or bookmark.
+- **Side panes** resize by dragging their inner edge, or from the keyboard on that edge (arrows, Home, End); a double-click resets the width. Each takes at most 40% of the window. Which panes are open and their widths are remembered in app data. Opening and closing slides (140 ms); a fit-width or fit-page view re-fits as a pane moves and renders again once it stops.
 - **Status bar:** page label and physical page number (e.g. "iv (4 of 312)"), zoom level, save state.
 
 **Visual style.**

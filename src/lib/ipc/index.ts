@@ -14,6 +14,7 @@ import type { MergeRequest } from './generated/MergeRequest';
 import type { OpenResult } from './generated/OpenResult';
 import type { OperationInput } from './generated/OperationInput';
 import type { PageText } from './generated/PageText';
+import type { PaneLayout } from './generated/PaneLayout';
 import type { RecentFile } from './generated/RecentFile';
 import type { RecoveredDocument } from './generated/RecoveredDocument';
 import type { SaveResult } from './generated/SaveResult';
@@ -33,6 +34,7 @@ export type {
 	OpenResult,
 	OperationInput,
 	PageText,
+	PaneLayout,
 	RecentFile,
 	RecoveredDocument,
 	SaveResult,
@@ -150,6 +152,8 @@ export const getSettings = () => invoke<Settings>('get_settings');
 /** Stores the settings; the appearance applies to the window at once. */
 export const setSettings = (settings: SettingsInput) => invoke<Settings>('set_settings', { settings });
 export const appReady = () => invoke<StartupInfo>('app_ready');
+/** Remembers which side panes are open and their widths. */
+export const setPaneLayout = (panes: PaneLayout) => invoke<void>('set_pane_layout', { panes });
 export const logMetric = (name: string, ms: number) => invoke<void>('log_metric', { name, ms });
 export const logError = (message: string) => invoke<void>('log_error', { message });
 

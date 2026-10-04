@@ -8,7 +8,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
-use crate::ipc::{Appearance, ViewState};
+use crate::ipc::{Appearance, PaneLayout, ViewState};
 
 const MAX_RECENT: usize = 20;
 const MAX_VIEWS: usize = 500;
@@ -35,6 +35,8 @@ struct Data {
     views: HashMap<String, StoredView>,
     #[serde(default)]
     settings: StoredSettings,
+    #[serde(default)]
+    panes: PaneLayout,
 }
 
 /// What the Settings dialog changes (section 6.5).
@@ -102,6 +104,17 @@ impl Store {
     pub fn set_settings(&mut self, settings: StoredSettings) {
         if self.data.settings != settings {
             self.data.settings = settings;
+            self.persist();
+        }
+    }
+
+    pub fn panes(&self) -> PaneLayout {
+        self.data.panes
+    }
+
+    pub fn set_panes(&mut self, panes: PaneLayout) {
+        if self.data.panes != panes {
+            self.data.panes = panes;
             self.persist();
         }
     }
@@ -231,6 +244,32 @@ mod tests {
             *Store::load(Some(file)).settings(),
             StoredSettings::default()
         );
+    }
+
+    #[test]
+    fn panes_round_trip_and_default_for_old_files() {
+        let file = temp_store("panes.json");
+        let mut store = Store::load(Some(file.clone()));
+        assert_eq!(store.panes(), PaneLayout::default());
+        let panes = PaneLayout {
+            sidebar_open: false,
+            sidebar_width: 320,
+            annotations_open: true,
+            annotations_width: 400,
+        };
+        store.set_panes(panes);
+        assert_eq!(Store::load(Some(file.clone())).panes(), panes);
+        // A state file from before the panes were remembered loads with defaults, and one
+        // missing a field keeps the others.
+        fs::write(&file, br#"{"recent":[],"views":{}}"#).unwrap();
+        assert_eq!(
+            Store::load(Some(file.clone())).panes(),
+            PaneLayout::default()
+        );
+        fs::write(&file, br#"{"panes":{"sidebarWidth":300}}"#).unwrap();
+        let partial = Store::load(Some(file)).panes();
+        assert_eq!(partial.sidebar_width, 300);
+        assert!(partial.sidebar_open);
     }
 
     #[test]

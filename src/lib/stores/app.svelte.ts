@@ -32,10 +32,12 @@ import {
 	type InsertLabelMode,
 	type OpenResult,
 	type OperationInput,
+	type PaneLayout,
 	type RecentFile,
 	type SaveResult,
 	type StartupInfo
 } from '#lib/ipc/index.ts';
+import { ANNOTATIONS_LIMITS, SIDEBAR_LIMITS, clampWidth } from '#lib/components/panes.ts';
 import { CombineState } from '#lib/features/merge/combine.svelte.ts';
 import { reportDetail, signedWarning } from '#lib/features/merge/pages.ts';
 import { discardQuestion, recoveryQuestion } from '#lib/features/recovery/recovery.ts';
@@ -89,9 +91,15 @@ class AppStore {
 	activeId = $state<number | null>(null);
 	startup = $state<StartupInfo | null>(null);
 	recent = $state<RecentFile[]>([]);
+	/** The left sidebar (section 8): open, its width, and the panel it shows. */
 	sidebarOpen = $state(true);
-	/** The panel shown in the sidebar. */
-	sidebarPanel = $state<'pages' | 'bookmarks' | 'annotations' | 'labels'>('pages');
+	sidebarWidth = $state(SIDEBAR_LIMITS.initial);
+	sidebarPanel = $state<'pages' | 'bookmarks' | 'labels'>('pages');
+	/** The right pane with the annotation list. */
+	annotationsOpen = $state(false);
+	annotationsWidth = $state(ANNOTATIONS_LIMITS.initial);
+	/** The remembered pane layout is in; until then panes neither animate nor are saved. */
+	panesRestored = $state(false);
 	/** The inspector (properties of the selected bookmark) is open. */
 	inspectorOpen = $state(false);
 	/** A note was just placed: the annotation inspector focuses its text. */
@@ -146,6 +154,25 @@ class AppStore {
 				}
 			};
 		});
+	}
+
+	// ----- side panes -----
+
+	restorePanes(panes: PaneLayout) {
+		this.sidebarOpen = panes.sidebarOpen;
+		this.sidebarWidth = clampWidth(panes.sidebarWidth, SIDEBAR_LIMITS);
+		this.annotationsOpen = panes.annotationsOpen;
+		this.annotationsWidth = clampWidth(panes.annotationsWidth, ANNOTATIONS_LIMITS);
+		this.panesRestored = true;
+	}
+
+	get panes(): PaneLayout {
+		return {
+			sidebarOpen: this.sidebarOpen,
+			sidebarWidth: this.sidebarWidth,
+			annotationsOpen: this.annotationsOpen,
+			annotationsWidth: this.annotationsWidth
+		};
 	}
 
 	// ----- opening -----
