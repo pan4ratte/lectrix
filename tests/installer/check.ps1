@@ -18,6 +18,8 @@ $logs = Join-Path $root 'target\test-output\installer'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
 $product = 'Folio'
+# Tauri's default manufacturer: the middle part of the identifier org.folio.pdf.
+$manufacturer = 'folio'
 $progId = "$product.Document"
 $failures = New-Object System.Collections.Generic.List[string]
 
@@ -74,6 +76,8 @@ foreach ($case in @(@{ Args = @('/S'); Registered = $true }, @{ Args = @('/S', '
     Run (Join-Path $nsisDir 'uninstall.exe') @('/S', "_?=$nsisDir")
     Check (-not (Test-Path $nsisExe)) 'folio.exe removed'
     Check-Registration 'HKCU' $false $nsisExe
+    # The MSI would otherwise read this and install into the per-user folder.
+    Check ($null -eq (Get-Value "HKCU:\Software\$manufacturer\$product" '(default)')) 'install location forgotten'
     Remove-Item -Recurse -Force $nsisDir -ErrorAction SilentlyContinue
 }
 

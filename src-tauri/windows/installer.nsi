@@ -948,6 +948,13 @@ Section Uninstall
   ; We do this when not updating (to preserve the registry value on updates)
   ${If} $UpdateMode <> 1
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PRODUCTNAME}"
+
+    ; Folio: forget the install location even when app data is kept. The MSI reads this
+    ; value to pick its folder, so a later MSI install would otherwise land in the old
+    ; per-user folder instead of Program Files.
+    DeleteRegValue SHCTX "${MANUPRODUCTKEY}" ""
+    DeleteRegKey /ifempty SHCTX "${MANUPRODUCTKEY}"
+    DeleteRegKey /ifempty SHCTX "${MANUKEY}"
   ${EndIf}
 
   ; Delete app data if the checkbox is selected
