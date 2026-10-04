@@ -112,7 +112,21 @@ export async function launch(files = [], { dialogs, env = {} } = {}) {
 				killStrayApps();
 			}
 		};
-		return { browser, stop };
+		/** Ends Folio the way a crash would: no chance to clean up. */
+		const crash = async () => {
+			killStrayApps();
+			await browser.deleteSession().catch(() => {});
+			driver.kill();
+			await exited;
+		};
+		/** Cleans up after Folio quit by itself (the session is already gone). */
+		const exitedByItself = async () => {
+			await browser.deleteSession().catch(() => {});
+			driver.kill();
+			await exited;
+			killStrayApps();
+		};
+		return { browser, stop, crash, exitedByItself };
 	} catch (e) {
 		driver.kill();
 		await exited;

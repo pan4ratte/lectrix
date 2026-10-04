@@ -14,6 +14,12 @@
 //! (ADR 0003): MuPDF's in-memory document still points at the old file's offsets after an
 //! incremental save. The undo history therefore starts again after each save.
 //!
+//! **Recovery copies** (AGENTS.md section 7, crash recovery) are snapshots: the file the
+//! document was opened from plus its unsaved changes as an incremental update, written
+//! without disturbing the document or its undo history. A restored session reads from the
+//! copy but belongs to the original file, and is dirty until saved. Its undo history
+//! starts at the restore (ADR 0001: MuPDF 1.27.2 cannot load a saved journal).
+//!
 //! **Expanded bookmarks** are not edits: expanding or collapsing a bookmark in the panel
 //! neither dirties the document nor adds an undo step (Phase 2 review). The actor keeps
 //! the panel's states and writes them into the outline when the document is next saved.
@@ -33,7 +39,7 @@ use crate::annot::read::{AnnotationInfo, read_all as read_annotations};
 use crate::annot::repair::{self, RepairChange, RepairScan};
 use crate::docinfo::{DocumentFlags, read_flags};
 use crate::error::{Error, Result};
-use crate::ffi::{Journal, open_pdf_shared};
+use crate::ffi::{Journal, open_pdf_shared, save_snapshot};
 use crate::geometry::{PageGeometry, read_page_boxes};
 use crate::labels::{self, LabelRule};
 use crate::merge::MergeReport;
@@ -109,6 +115,17 @@ pub struct DocumentChange {
     pub repairs: Option<Vec<RepairChange>>,
 }
 
+/// What [`Session::write_recovery`] did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RecoveryWrite {
+    /// The document has no unsaved changes: there is nothing to recover.
+    Clean,
+    /// The copy written earlier for this revision is still current.
+    Unchanged,
+    /// A copy of `revision` was written.
+    Written { revision: u64 },
+}
+
 #[derive(Debug, Clone)]
 pub struct SaveResult {
     pub state: DocumentState,
@@ -162,6 +179,11 @@ enum Command {
         target: Option<PathBuf>,
         reply: Reply<SaveResult>,
     },
+    WriteRecovery {
+        target: PathBuf,
+        written: Option<u64>,
+        reply: Reply<RecoveryWrite>,
+    },
     Reload {
         reply: Reply<DocumentInfo>,
     },
@@ -180,17 +202,42 @@ impl Session {
     /// Encrypted documents need `password` ([`Error::PasswordRequired`] without one,
     /// [`Error::WrongPassword`] if it does not fit).
     pub fn open(path: &Path, password: Option<&str>) -> Result<(Session, DocumentInfo)> {
+        Self::spawn(Origin {
+            file: path.to_path_buf(),
+            path: path.to_path_buf(),
+            password: password.map(str::to_owned),
+            restored: false,
+        })
+    }
+
+    /// Opens a recovery copy written by [`Session::write_recovery`] as the document of
+    /// `path`, the file it is a copy of. The session reads from `copy`, which must stay
+    /// until the session is saved, reloaded or closed. It saves to `path`, and it is dirty
+    /// until then. Its undo history starts here.
+    pub fn restore(
+        copy: &Path,
+        path: &Path,
+        password: Option<&str>,
+    ) -> Result<(Session, DocumentInfo)> {
+        Self::spawn(Origin {
+            file: copy.to_path_buf(),
+            path: path.to_path_buf(),
+            password: password.map(str::to_owned),
+            restored: true,
+        })
+    }
+
+    fn spawn(origin: Origin) -> Result<(Session, DocumentInfo)> {
         let (tx, rx) = mpsc::channel();
         let (ready_tx, ready_rx) = mpsc::sync_channel(1);
-        let path_buf = path.to_path_buf();
-        let password = password.map(str::to_owned);
-        let name = path
+        let name = origin
+            .path
             .file_name()
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
         thread::Builder::new()
             .name(format!("doc:{name}"))
-            .spawn(move || actor(path_buf, password, rx, ready_tx))?;
+            .spawn(move || actor(origin, rx, ready_tx))?;
         let info = ready_rx.recv().map_err(|_| Error::ActorGone)??;
         Ok((Session { tx }, info))
     }
@@ -313,6 +360,18 @@ impl Session {
         })
     }
 
+    /// Writes a recovery copy to `target` if the document has unsaved changes and
+    /// `written` (the revision of the last copy) is not the current revision. The document
+    /// and its undo history stay as they were. Documents MuPDF repaired on open are copied
+    /// in full instead.
+    pub fn write_recovery(&self, target: &Path, written: Option<u64>) -> Result<RecoveryWrite> {
+        self.call(|reply| Command::WriteRecovery {
+            target: target.to_path_buf(),
+            written,
+            reply,
+        })
+    }
+
     /// Discards the in-memory document and opens the file again (after it changed on
     /// disk).
     pub fn reload(&self) -> Result<DocumentInfo> {
@@ -329,9 +388,23 @@ impl Session {
 /// reference to its decoded image.
 const DISPLAY_LIST_CACHE: usize = 24;
 
+/// Where an actor's document comes from.
+struct Origin {
+    /// The file MuPDF reads.
+    file: PathBuf,
+    /// The file the document belongs to (saved to).
+    path: PathBuf,
+    password: Option<String>,
+    /// `file` is a recovery copy of `path`.
+    restored: bool,
+}
+
 struct Actor {
     doc: PdfDocument,
+    /// The file the document belongs to: where it is saved.
     path: PathBuf,
+    /// The file MuPDF reads: `path`, or a recovery copy of it after a restore.
+    file: PathBuf,
     password: Option<String>,
     flags: DocumentFlags,
     pages: Vec<PageSize>,
@@ -353,14 +426,9 @@ struct Actor {
     needs_full_save: bool,
 }
 
-fn actor(
-    path: PathBuf,
-    password: Option<String>,
-    rx: Receiver<Command>,
-    ready: SyncSender<Result<DocumentInfo>>,
-) {
+fn actor(origin: Origin, rx: Receiver<Command>, ready: SyncSender<Result<DocumentInfo>>) {
     let start = Instant::now();
-    let mut actor = match Actor::open(path, password) {
+    let mut actor = match Actor::open(origin) {
         Ok(actor) => actor,
         Err(e) => {
             let _ = ready.send(Err(e));
@@ -402,6 +470,13 @@ fn actor(
             } => {
                 let _ = reply.send(actor.save(kind, target));
             }
+            Command::WriteRecovery {
+                target,
+                written,
+                reply,
+            } => {
+                let _ = reply.send(actor.write_recovery(&target, written));
+            }
             Command::Reload { reply } => {
                 let start = Instant::now();
                 let _ = reply.send(actor.reload().map(|()| actor.info(start.elapsed())));
@@ -427,16 +502,26 @@ fn load(path: &Path, password: Option<&str>) -> Result<PdfDocument> {
 }
 
 impl Actor {
-    fn open(path: PathBuf, password: Option<String>) -> Result<Actor> {
-        let doc = load(&path, password.as_deref())?;
+    fn open(origin: Origin) -> Result<Actor> {
+        let Origin {
+            file,
+            path,
+            password,
+            restored,
+        } = origin;
+        let doc = load(&file, password.as_deref())?;
         let flags = read_flags(&doc)?;
         let pages = page_sizes(&doc)?;
         let labels = page_labels(&doc, pages.len())?;
         let outline = outline::read_bookmarks(&doc)?;
         let annotations = read_annotations(&doc)?;
+        // A restored document differs from its file until it is saved. The file's revision
+        // (0) is at no journal position, so undoing back to the restore leaves it dirty.
+        let (history, next_revision) = if restored { (vec![1], 2) } else { (vec![0], 1) };
         Ok(Actor {
             doc,
             path,
+            file,
             password,
             flags,
             pages,
@@ -444,10 +529,10 @@ impl Actor {
             outline,
             annotations,
             open_states: HashMap::new(),
-            history: vec![0],
+            history,
             position: 0,
             saved_revision: 0,
-            next_revision: 1,
+            next_revision,
             lists: VecDeque::new(),
             needs_full_save: false,
         })
@@ -687,7 +772,7 @@ impl Actor {
             kind
         };
         self.write_open_states()?;
-        let outcome = save_atomic(&self.doc, kind, Some(&self.path), &target)?;
+        let outcome = save_atomic(&self.doc, kind, Some(&self.file), &target)?;
         let revision = self.revision();
         self.saved_revision = revision;
         let mut outline_changed = None;
@@ -697,6 +782,7 @@ impl Actor {
         match load(&target, self.password.as_deref()) {
             Ok(doc) => {
                 self.doc = doc;
+                self.file = target.clone();
                 self.needs_full_save = false;
                 self.flags = read_flags(&self.doc)?;
                 self.lists.clear();
@@ -723,9 +809,30 @@ impl Actor {
         })
     }
 
+    /// Writes a recovery copy (see [`Session::write_recovery`]).
+    fn write_recovery(&mut self, target: &Path, written: Option<u64>) -> Result<RecoveryWrite> {
+        let revision = self.revision();
+        if revision == self.saved_revision {
+            return Ok(RecoveryWrite::Clean);
+        }
+        if written == Some(revision) {
+            return Ok(RecoveryWrite::Unchanged);
+        }
+        if self.needs_full_save || !self.doc.can_be_saved_incrementally() {
+            // A repaired file (or one the in-memory document no longer matches) can only be
+            // written whole. A full save leaves the document and its journal as they were:
+            // MuPDF records no changes while saving.
+            save_atomic(&self.doc, SaveKind::Full, None, target)?;
+        } else {
+            save_snapshot(&mut self.doc, target)?;
+        }
+        Ok(RecoveryWrite::Written { revision })
+    }
+
     fn reload(&mut self) -> Result<()> {
         let doc = load(&self.path, self.password.as_deref())?;
         self.doc = doc;
+        self.file = self.path.clone();
         self.flags = read_flags(&self.doc)?;
         self.pages = page_sizes(&self.doc)?;
         self.labels = page_labels(&self.doc, self.pages.len())?;

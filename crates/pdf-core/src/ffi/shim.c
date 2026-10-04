@@ -299,3 +299,34 @@ int folio_pdf_was_repaired(fz_context *ctx, pdf_document *doc, int *repaired, fo
 	return 0;
 }
 
+
+/*
+ * Crash recovery (AGENTS.md section 7). A snapshot is the document's file followed by its
+ * unsaved changes as an incremental section, written without finalizing that section in
+ * memory, so the document carries on as if nothing was written (undo history included).
+ * The path is UTF-8; MuPDF converts it for Windows (fz_fopen_utf8).
+ *
+ * MuPDF's saved journals (pdf_save_journal / pdf_load_journal) would bring the undo
+ * history back too, but 1.27.2 cannot load a journal that records any change:
+ * pdf_deserialise_journal links its entries into the history while
+ * pdf_add_journal_fragment only appends to a pending operation, so the first change throws
+ * "Can't add a journal fragment absent an operation". ADR 0001 has the details.
+ */
+int folio_pdf_save_snapshot(fz_context *ctx, pdf_document *doc, const char *path, folio_error *err)
+{
+	fz_try(ctx)
+		pdf_save_snapshot(ctx, doc, path);
+	fz_catch(ctx)
+		return folio_caught(ctx, err);
+	return 0;
+}
+
+/* 1 if the document has changes that a save would write. */
+int folio_pdf_has_unsaved_changes(fz_context *ctx, pdf_document *doc, int *changed, folio_error *err)
+{
+	fz_try(ctx)
+		*changed = pdf_has_unsaved_changes(ctx, doc);
+	fz_catch(ctx)
+		return folio_caught(ctx, err);
+	return 0;
+}

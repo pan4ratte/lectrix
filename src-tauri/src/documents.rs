@@ -6,6 +6,10 @@
 //! their pages (section 6.4). A source has its own session (so its thumbnails render
 //! through the page protocol), is never a tab, is not matched against tabs showing the same
 //! file, and is not watched.
+//!
+//! The registry also keeps the tabs' recovery copies (section 7, `recovery.rs`): saving,
+//! reloading or closing a document deletes its copy, and a copy left by a crash can be
+//! restored as a tab.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -18,10 +22,11 @@ use pdf_core::session::{DocumentInfo as CoreInfo, Session};
 
 use crate::ipc::{AppError, DocumentInfo, FileChangedEvent, OpenResult, SaveResult, ViewState};
 use crate::platform::Platform;
+use crate::recovery::{Recovery, RestoreSource};
 use crate::store::Store;
 
 /// Size and modification time: enough to notice that another program rewrote a file.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 pub struct FileStamp {
     modified: Option<SystemTime>,
     len: u64,
@@ -56,6 +61,8 @@ struct OpenDoc {
 struct Pending {
     path: PathBuf,
     source: bool,
+    /// A recovery copy being restored, rather than the file itself.
+    restore: Option<RestoreSource>,
 }
 
 #[derive(Default)]
@@ -65,6 +72,7 @@ pub struct Documents {
     /// Encrypted files waiting for a password, by token.
     pending: Mutex<HashMap<u32, Pending>>,
     next_token: AtomicU32,
+    recovery: Recovery,
 }
 
 fn lock<T>(m: &Mutex<T>) -> Result<MutexGuard<'_, T>, AppError> {
@@ -78,6 +86,18 @@ fn file_name(path: &Path) -> String {
 }
 
 impl Documents {
+    /// A registry that keeps recovery copies with `recovery` (off without a folder).
+    pub fn new(recovery: Recovery) -> Documents {
+        Documents {
+            recovery,
+            ..Documents::default()
+        }
+    }
+
+    pub fn recovery(&self) -> &Recovery {
+        &self.recovery
+    }
+
     pub fn session(&self, id: u32) -> Result<Session, AppError> {
         lock(&self.docs)?
             .get(&id)
@@ -177,21 +197,7 @@ impl Documents {
                 }
             }
             Err(e @ (pdf_core::Error::PasswordRequired | pdf_core::Error::WrongPassword)) => {
-                let token = self.next_token.fetch_add(1, Ordering::Relaxed) + 1;
-                if let Ok(mut pending) = self.pending.lock() {
-                    pending.insert(
-                        token,
-                        Pending {
-                            path: path.to_path_buf(),
-                            source,
-                        },
-                    );
-                }
-                OpenResult::NeedsPassword {
-                    token,
-                    name,
-                    retry: matches!(e, pdf_core::Error::WrongPassword),
-                }
+                self.ask_password(path, source, None, name, &e)
             }
             Err(e) => {
                 crate::applog::warn(format!("could not open {}: {e:?}", path.display()));
@@ -200,6 +206,139 @@ impl Documents {
                     error: e.into(),
                 }
             }
+        }
+    }
+
+    fn ask_password(
+        &self,
+        path: &Path,
+        source: bool,
+        restore: Option<RestoreSource>,
+        name: String,
+        error: &pdf_core::Error,
+    ) -> OpenResult {
+        let token = self.next_token.fetch_add(1, Ordering::Relaxed) + 1;
+        if let Ok(mut pending) = self.pending.lock() {
+            pending.insert(
+                token,
+                Pending {
+                    path: path.to_path_buf(),
+                    source,
+                    restore,
+                },
+            );
+        }
+        OpenResult::NeedsPassword {
+            token,
+            name,
+            retry: matches!(error, pdf_core::Error::WrongPassword),
+        }
+    }
+
+    /// Opens the recovery copy an earlier run left in `slot` as a tab for its file, with
+    /// the unsaved changes it holds (section 7).
+    pub fn restore(&self, slot: &str, platform: &dyn Platform, store: &Mutex<Store>) -> OpenResult {
+        match self.recovery.source(slot) {
+            Some(source) => self.restore_from(source, None, platform, store),
+            None => OpenResult::Failed {
+                name: "A recovered document".into(),
+                error: AppError::new(
+                    "Its recovered changes are no longer there.",
+                    Some("They may have been restored or discarded already."),
+                ),
+            },
+        }
+    }
+
+    fn restore_from(
+        &self,
+        source: RestoreSource,
+        password: Option<&str>,
+        platform: &dyn Platform,
+        store: &Mutex<Store>,
+    ) -> OpenResult {
+        let name = file_name(&source.path);
+        if self.find_open(&source.path, platform).is_some() {
+            return OpenResult::Failed {
+                name,
+                error: AppError::new(
+                    "The file is open already, so its recovered changes were kept for later.",
+                    Some("Close it, then start Folio again to restore them."),
+                ),
+            };
+        }
+        match Session::restore(&source.copy, &source.path, password) {
+            Ok((session, info)) => {
+                let id = self.next_id.fetch_add(1, Ordering::Relaxed) + 1;
+                let revision = info.state.revision;
+                let doc = OpenDoc {
+                    session,
+                    path: source.path.clone(),
+                    // The file as it was when the copy was written: if another program
+                    // changed it since, the watcher reports that at its next check.
+                    stamp: source.stamp,
+                    reported: None,
+                    saving: false,
+                    password: password.map(str::to_owned),
+                    source: false,
+                };
+                match self.docs.lock() {
+                    Ok(mut docs) => {
+                        docs.insert(id, doc);
+                    }
+                    Err(_) => {
+                        return OpenResult::Failed {
+                            name,
+                            error: AppError::bad_state(),
+                        };
+                    }
+                }
+                self.recovery.adopt(id, &source, revision);
+                let view = store.lock().ok().and_then(|mut s| {
+                    s.add_recent(&source.path, |a, b| platform.same_file(a, b));
+                    s.view(&platform.file_key(&source.path))
+                });
+                crate::applog::info(format!(
+                    "restored document {id} from recovery slot {}",
+                    source.slot
+                ));
+                OpenResult::Opened {
+                    document: document_info(id, info, view),
+                }
+            }
+            Err(e @ (pdf_core::Error::PasswordRequired | pdf_core::Error::WrongPassword)) => {
+                let path = source.path.clone();
+                self.ask_password(&path, false, Some(source), name, &e)
+            }
+            Err(e) => {
+                crate::applog::warn(format!(
+                    "could not restore recovery slot {}: {e:?}",
+                    source.slot
+                ));
+                OpenResult::Failed {
+                    name,
+                    error: e.into(),
+                }
+            }
+        }
+    }
+
+    /// Writes recovery copies of the tabs with unsaved changes, and deletes those of tabs
+    /// that no longer have any.
+    pub fn write_recovery_copies(&self) {
+        if !self.recovery.enabled() {
+            return;
+        }
+        let tabs: Vec<(u32, Session, PathBuf)> = match self.docs.lock() {
+            Ok(docs) => docs
+                .iter()
+                .filter(|(_, d)| !d.source && !d.saving)
+                .map(|(id, d)| (*id, d.session.clone(), d.path.clone()))
+                .collect(),
+            Err(_) => return,
+        };
+        for (id, session, path) in tabs {
+            self.recovery.write(id, &session, &path);
         }
     }
 
@@ -217,13 +356,16 @@ impl Documents {
                 Some("Open it again."),
             )
         })?;
-        Ok(self.open_as(
-            &pending.path,
-            Some(password),
-            pending.source,
-            platform,
-            store,
-        ))
+        Ok(match pending.restore {
+            Some(source) => self.restore_from(source, Some(password), platform, store),
+            None => self.open_as(
+                &pending.path,
+                Some(password),
+                pending.source,
+                platform,
+                store,
+            ),
+        })
     }
 
     pub fn cancel_unlock(&self, token: u32) {
@@ -265,6 +407,7 @@ impl Documents {
     pub fn close(&self, id: u32) -> Option<Session> {
         let doc = self.docs.lock().ok()?.remove(&id)?;
         doc.session.close();
+        self.recovery.discard(id);
         Some(doc.session)
     }
 
@@ -304,6 +447,7 @@ impl Documents {
         doc.stamp = FileStamp::of(&doc.path);
         doc.reported = None;
         drop(docs);
+        self.recovery.discard(id);
         if save_as && let Ok(mut store) = store.lock() {
             store.add_recent(&saved.path, |a, b| platform.same_file(a, b));
         }
@@ -331,6 +475,7 @@ impl Documents {
     ) -> Result<DocumentInfo, AppError> {
         let session = self.session(id)?;
         let info = session.reload()?;
+        self.recovery.discard(id);
         let path = {
             let mut docs = lock(&self.docs)?;
             let doc = docs.get_mut(&id).ok_or_else(AppError::document_closed)?;

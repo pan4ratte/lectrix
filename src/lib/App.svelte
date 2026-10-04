@@ -53,6 +53,9 @@
 			setImageFormat(info.imageFormat);
 			void logMetric('main_to_ready_ms', info.mainToReadyMs);
 			void app.refreshRecent();
+			// Before the startup files: if one of them is a recovered document, it then
+			// switches to the restored tab instead of opening without the changes.
+			await app.offerRecovery();
 			const openStartedAt = performance.now();
 			await app.openStartup();
 			if (app.tabs.length > 0) {

@@ -129,6 +129,9 @@ enum Command {
         #[arg(long)]
         document: Option<PathBuf>,
     },
+    /// Crash recovery (section 7): turn page 1 in a session, write a recovery copy to OUT
+    /// and time it, then restore the copy as INPUT's document (nothing is saved).
+    Recovery { input: PathBuf, out: PathBuf },
     /// Measure open, render and encode times (AGENTS.md section 2 targets).
     Bench {
         input: PathBuf,
@@ -583,7 +586,53 @@ fn run(command: Command) -> Result<()> {
             scale,
             samples,
         } => bench(&input, scale, samples)?,
+        Command::Recovery { input, out } => recovery(&input, &out)?,
     }
+    Ok(())
+}
+
+fn recovery(input: &Path, out: &Path) -> Result<()> {
+    use pdf_core::session::{RecoveryWrite, Session};
+    if same_file(input, out) {
+        return Err(Error::InvalidArgument(
+            "write to a new file; pdf-cli never modifies its input".into(),
+        ));
+    }
+    let (session, info) = Session::open(input, None)?;
+    session.apply(Operation::RotatePages {
+        pages: vec![0],
+        degrees: 90,
+    })?;
+    let t0 = Instant::now();
+    let written = session.write_recovery(out, None)?;
+    let write_ms = t0.elapsed().as_secs_f64() * 1000.0;
+    let RecoveryWrite::Written { revision } = written else {
+        return Err(Error::InvalidArgument(format!(
+            "no copy written: {written:?}"
+        )));
+    };
+    let copy_len = std::fs::metadata(out)?.len();
+    println!(
+        "copy of revision {revision}: {copy_len} bytes in {write_ms:.0} ms ({}; input {} bytes)",
+        if info.flags.repaired {
+            "full copy, the input was repaired"
+        } else {
+            "snapshot"
+        },
+        std::fs::metadata(input)?.len()
+    );
+    session.close();
+    let t0 = Instant::now();
+    let (restored, info) = Session::restore(out, input, None)?;
+    println!(
+        "restored in {:.0} ms: {} pages, page 1 {}x{} pt, dirty {}",
+        t0.elapsed().as_secs_f64() * 1000.0,
+        info.pages.len(),
+        info.pages.first().map_or(0.0, |p| p.width),
+        info.pages.first().map_or(0.0, |p| p.height),
+        info.state.dirty
+    );
+    restored.close();
     Ok(())
 }
 

@@ -5,8 +5,10 @@ import {
 	applyOperation,
 	cancelUnlock,
 	closeDocument,
+	discardRecovered,
 	listOpenDocuments,
 	listRecentFiles,
+	listRecovered,
 	openInsertSource,
 	openRecent,
 	openStartupDocuments,
@@ -15,6 +17,7 @@ import {
 	reloadDocument,
 	rememberView,
 	removeRecent,
+	restoreRecovered,
 	save as saveCommand,
 	saveAs as saveAsCommand,
 	setDropTarget,
@@ -34,6 +37,7 @@ import {
 } from '#lib/ipc/index.ts';
 import { CombineState } from '#lib/features/merge/combine.svelte.ts';
 import { reportDetail, signedWarning } from '#lib/features/merge/pages.ts';
+import { discardQuestion, recoveryQuestion } from '#lib/features/recovery/recovery.ts';
 
 import { DocTab } from './doc.svelte.ts';
 
@@ -156,9 +160,12 @@ class AppStore {
 		for (const result of results) {
 			switch (result.kind) {
 				case 'opened': {
-					const tab = new DocTab(result.document);
-					this.tabs = [...this.tabs, tab];
-					activate = tab.id;
+					// A document can come back twice at startup: restored after a crash, then
+					// listed again among the documents Rust has open.
+					if (!this.tabs.some((t) => t.id === result.document.id)) {
+						this.tabs = [...this.tabs, new DocTab(result.document)];
+					}
+					activate = result.document.id;
 					break;
 				}
 				case 'alreadyOpen':
@@ -217,6 +224,46 @@ class AppStore {
 			const open = await listOpenDocuments();
 			if (open.length) this.handleOpenResults(open.map((document) => ({ kind: 'opened', document })));
 			this.handleOpenResults(await openStartupDocuments());
+		} catch (e) {
+			this.showError(toAppError(e));
+		}
+	}
+
+	/**
+	 * Offers to restore unsaved changes a crash left behind (section 7). "Not now" keeps
+	 * them for the next start.
+	 */
+	async offerRecovery() {
+		let found;
+		try {
+			found = await listRecovered();
+		} catch {
+			return;
+		}
+		if (found.length === 0) return;
+		const slots = found.map((d) => d.slot);
+		const choice = await this.ask(recoveryQuestion(found));
+		try {
+			if (choice === 'restore') {
+				const results = await restoreRecovered(slots);
+				this.handleOpenResults(results);
+				const restored = results.flatMap((r) => (r.kind === 'opened' ? [r.document.name] : []));
+				if (restored.length > 0) {
+					this.notify(
+						{
+							kind: 'info',
+							message:
+								restored.length === 1
+									? `${restored[0]} is back with its unsaved changes.`
+									: `${restored.length} documents are back with their unsaved changes.`,
+							suggestion: 'Save to keep the changes.'
+						},
+						10000
+					);
+				}
+			} else if (choice === 'discard' && (await this.ask(discardQuestion(found.length))) === 'discard') {
+				await discardRecovered(slots);
+			}
 		} catch (e) {
 			this.showError(toAppError(e));
 		}

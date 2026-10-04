@@ -15,6 +15,7 @@ import type { OpenResult } from './generated/OpenResult';
 import type { OperationInput } from './generated/OperationInput';
 import type { PageText } from './generated/PageText';
 import type { RecentFile } from './generated/RecentFile';
+import type { RecoveredDocument } from './generated/RecoveredDocument';
 import type { SaveResult } from './generated/SaveResult';
 import type { SearchChunk } from './generated/SearchChunk';
 import type { StartupInfo } from './generated/StartupInfo';
@@ -33,6 +34,7 @@ export type {
 	OperationInput,
 	PageText,
 	RecentFile,
+	RecoveredDocument,
 	SaveResult,
 	SearchChunk,
 	StartupInfo,
@@ -96,6 +98,10 @@ export const openStartupDocuments = () => invoke<OpenResult[]>('open_startup_doc
 export const openRecent = (index: number) => invoke<OpenResult>('open_recent', { index });
 export const removeRecent = (index: number) => invoke<void>('remove_recent', { index });
 export const listRecentFiles = () => invoke<RecentFile[]>('list_recent_files');
+// Crash recovery (section 7): unsaved changes a crash left behind.
+export const listRecovered = () => invoke<RecoveredDocument[]>('list_recovered');
+export const restoreRecovered = (slots: string[]) => invoke<OpenResult[]>('restore_recovered', { slots });
+export const discardRecovered = (slots: string[]) => invoke<void>('discard_recovered', { slots });
 export const unlockDocument = (token: number, password: string) =>
 	invoke<OpenResult>('unlock_document', { token, password });
 export const cancelUnlock = (token: number) => invoke<void>('cancel_unlock', { token });

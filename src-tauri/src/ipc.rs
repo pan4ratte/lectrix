@@ -853,6 +853,21 @@ pub struct RecentFile {
     pub exists: bool,
 }
 
+/// Unsaved changes a crash left behind, offered for restoring (section 7).
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct RecoveredDocument {
+    /// Identifies the recovery copy; pass it to `restore_recovered` or `discard_recovered`.
+    pub slot: String,
+    pub name: String,
+    pub folder: String,
+    /// When the copy was written, in milliseconds since the Unix epoch.
+    pub saved_at: f64,
+    /// False when the document's file is no longer where it was.
+    pub exists: bool,
+}
+
 #[derive(Debug, Clone, Copy, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]

@@ -22,8 +22,8 @@ use crate::combine::{self, Progress};
 use crate::ipc::{
     AppError, Backdrop, DocumentChange, DocumentInfo, ImageFormat, LabelMode, MergeOutcome,
     MergePlan, MergeProgress, MergeRequest, MergeStage, OpenResult, OperationInput, PageHits,
-    PageText, RecentFile, SaveResult, SearchChunk, Settings, SettingsInput, StartupInfo,
-    UnsavedSource, ViewState,
+    PageText, RecentFile, RecoveredDocument, SaveResult, SearchChunk, Settings, SettingsInput,
+    StartupInfo, UnsavedSource, ViewState,
 };
 use crate::platform::Platform;
 use crate::store::StoredSettings;
@@ -195,6 +195,47 @@ pub fn list_recent_files(state: State<'_, AppState>) -> Result<Vec<RecentFile>, 
             exists: e.path.is_file(),
         })
         .collect())
+}
+
+/// Unsaved changes that a crash left behind (section 7), newest first.
+#[tauri::command]
+pub fn list_recovered(state: State<'_, AppState>) -> Vec<RecoveredDocument> {
+    state
+        .documents
+        .recovery()
+        .pending()
+        .into_iter()
+        .map(|p| RecoveredDocument {
+            name: file_name(&p.path),
+            folder: p
+                .path
+                .parent()
+                .map(|f| f.display().to_string())
+                .unwrap_or_default(),
+            saved_at: p
+                .saved_at
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_secs_f64() * 1000.0)
+                .unwrap_or(0.0),
+            exists: p.path.is_file(),
+            slot: p.slot,
+        })
+        .collect()
+}
+
+/// Opens recovered documents as tabs, with their unsaved changes.
+#[tauri::command(async)]
+pub fn restore_recovered(state: State<'_, AppState>, slots: Vec<String>) -> Vec<OpenResult> {
+    slots
+        .iter()
+        .map(|slot| state.documents.restore(slot, state.platform, &state.store))
+        .collect()
+}
+
+/// Deletes recovered changes the user chose not to keep.
+#[tauri::command]
+pub fn discard_recovered(state: State<'_, AppState>, slots: Vec<String>) {
+    state.documents.recovery().discard_pending(&slots);
 }
 
 /// Retries an encrypted document with the password the user typed.

@@ -6,11 +6,13 @@
 mod annot;
 mod journal;
 mod objects;
+mod snapshot;
 mod stream;
 
 pub use annot::request_appearance;
 pub use journal::{Journal, JournalState};
 pub use objects::set_new_stream;
+pub use snapshot::{has_unsaved_changes, save_snapshot};
 pub use stream::{open_pdf_shared, was_repaired};
 
 use std::ffi::{CStr, c_char};

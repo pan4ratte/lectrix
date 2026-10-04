@@ -75,6 +75,7 @@ public raw access, we drop the vendored copy and depend on crates.io again.
 | Text geometry, search | `DisplayList::to_text_page`, `TextPage::search_cb` | crate |
 | Signature detection | `pdf_count_signatures` counts unsigned fields too | own walk of `/AcroForm /Fields` in `docinfo.rs` |
 | Save incremental / full | `PdfWriteOptions`, `save_with_options` | crate |
+| Snapshot for crash recovery (file plus unsaved changes, without finalizing them) | none | `ffi::save_snapshot` (shim around `pdf_save_snapshot`), `ffi::has_unsaved_changes` (Phase 6, below) |
 | Raw object access | `PdfObject` dict and array API, `catalog`, `trailer` | crate |
 
 This table is updated as `ffi/` grows.
@@ -111,6 +112,28 @@ step took 197 s. Inserted pages therefore join the tree as one new `/Pages` node
 with their `/Parent` already set, and the stream data of objects created in the step is
 written with the journal set aside (`ffi::set_new_stream`); undo removes such objects
 whole, with their streams, so nothing needs recording. The same insert now takes 0.2 s.
+
+Phase 6 (crash recovery, AGENTS.md section 7): recovery copies are MuPDF snapshots
+(`pdf_save_snapshot`): the document's file followed by its unsaved changes as an
+incremental update, written without finalizing that update in memory. MuPDF records no
+journal changes while saving (`save_in_progress`, `pdf-object.c`), and the empty "Save
+document" step it opens is dropped, so the document, its undo and its redo history stay
+exactly as they were (tested). Reopened, a snapshot is an ordinary file whose last update
+holds the changes, so saving a restored document in place keeps the original bytes as its
+prefix (section 5.4). Snapshots need an incremental write, which MuPDF refuses for
+repaired files; those are copied with a full save, which also records nothing in the
+journal.
+
+MuPDF can save the undo history next to a snapshot (`pdf_save_journal`) and load it back
+(`pdf_load_journal`), which would let a restored document undo the changes it came back
+with. In 1.27.2 loading fails as soon as the journal records any change:
+`pdf_deserialise_journal` links its entries into the history list (`new_entry`), but
+`pdf_add_journal_fragment` only appends to the pending operation (`pending_tail`), which
+is empty while loading, so the first fragment throws "Can't add a journal fragment absent
+an operation". The journal's structs are private to `pdf-object.c`, so the shim cannot
+work around it. A restored document's undo history therefore starts at the restore. This
+could be reported upstream; if a later MuPDF fixes it, restoring the history is a small
+change (save the journal beside the snapshot, load it in `Session::restore`).
 
 ## Thread safety
 

@@ -9,6 +9,7 @@ mod documents;
 mod ipc;
 mod platform;
 mod protocol;
+mod recovery;
 mod store;
 
 use std::path::{Path, PathBuf};
@@ -17,12 +18,13 @@ use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
 use pdf_core::render::ImageCache;
-use tauri::{AppHandle, DragDropEvent, Emitter, Manager, WindowEvent};
+use tauri::{AppHandle, DragDropEvent, Emitter, Manager, RunEvent, WindowEvent};
 
 use documents::Documents;
 use ipc::OpenResult;
 use platform::Platform;
 use protocol::RenderGate;
+use recovery::Recovery;
 use store::Store;
 
 /// Working product name. Change it here, in `src/lib/config.ts` and in tauri.conf.json.
@@ -145,6 +147,41 @@ fn watch_files(app: AppHandle) {
         .unwrap_or_else(|e| applog::error(format!("file watching is off: {e}")));
 }
 
+/// Writes recovery copies of documents with unsaved changes, every two minutes
+/// (section 7).
+fn write_recovery_copies(app: AppHandle) {
+    let interval = std::env::var("FOLIO_RECOVERY_INTERVAL_MS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .map(std::time::Duration::from_millis)
+        .unwrap_or(recovery::INTERVAL);
+    std::thread::Builder::new()
+        .name("recovery".into())
+        .spawn(move || {
+            loop {
+                std::thread::sleep(interval);
+                app.state::<AppState>().documents.write_recovery_copies();
+            }
+        })
+        .map(drop)
+        .unwrap_or_else(|e| applog::error(format!("crash recovery is off: {e}")));
+}
+
+/// Where recovery copies go: the app's local data folder, or FOLIO_RECOVERY_DIR (for
+/// tests). Off for measurement and test runs (FOLIO_EPHEMERAL) unless that is set.
+fn recovery_dir(app: &AppHandle) -> Option<PathBuf> {
+    if let Some(dir) = std::env::var_os("FOLIO_RECOVERY_DIR") {
+        return Some(PathBuf::from(dir));
+    }
+    if std::env::var_os("FOLIO_EPHEMERAL").is_some() {
+        return None;
+    }
+    app.path()
+        .app_local_data_dir()
+        .ok()
+        .map(|d| d.join("recovery"))
+}
+
 fn dark(appearance: ipc::Appearance) -> Option<bool> {
     match appearance {
         ipc::Appearance::System => None,
@@ -216,8 +253,10 @@ pub fn run() {
                     .ok()
                     .map(|d| d.join("state.json"))
             };
+            let recovery = Recovery::new(recovery_dir(app.handle()));
+            let recovering = recovery.enabled();
             app.manage(AppState {
-                documents: Documents::default(),
+                documents: Documents::new(recovery),
                 store: Mutex::new(Store::load(store_file)),
                 image_cache: ImageCache::new(env_mb("FOLIO_IMAGE_CACHE_MB", IMAGE_CACHE_MB) << 20),
                 render_gate: RenderGate::new(),
@@ -227,6 +266,9 @@ pub fn run() {
                 merge_cancel: Mutex::new(None),
             });
             watch_files(app.handle().clone());
+            if recovering {
+                write_recovery_copies(app.handle().clone());
+            }
             // The main window is made here, not from tauri.conf.json, so it can get browser
             // arguments the platform needs (`create: false` in the config).
             if let Some(config) = app.config().app.windows.iter().find(|w| w.label == "main") {
@@ -282,6 +324,9 @@ pub fn run() {
             commands::open_recent,
             commands::remove_recent,
             commands::list_recent_files,
+            commands::list_recovered,
+            commands::restore_recovered,
+            commands::discard_recovered,
             commands::unlock_document,
             commands::cancel_unlock,
             commands::close_document,
@@ -311,7 +356,16 @@ pub fn run() {
             commands::log_metric,
             commands::log_error,
         ])
-        .run(tauri::generate_context!());
+        .build(tauri::generate_context!())
+        .map(|app| {
+            app.run(|app, event| {
+                // Quitting normally: the user saved or chose not to save, so this run's
+                // recovery copies go. Only a crash leaves them behind.
+                if let RunEvent::Exit = event {
+                    app.state::<AppState>().documents.recovery().close();
+                }
+            })
+        });
     if let Err(e) = result {
         applog::error(format!("{APP_NAME} could not start: {e}"));
         eprintln!("{APP_NAME} could not start: {e}");
