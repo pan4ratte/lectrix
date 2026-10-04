@@ -76,6 +76,11 @@ function killStrayApps() {
 	spawnSync('taskkill', ['/IM', 'folio.exe', '/F', '/T'], { stdio: 'ignore' });
 }
 
+function appRunning() {
+	const list = spawnSync('tasklist', ['/FI', 'IMAGENAME eq folio.exe', '/NH'], { encoding: 'utf8' });
+	return list.stdout.toLowerCase().includes('folio.exe');
+}
+
 /**
  * Ends tauri-driver with everything it started. Killing only tauri-driver leaves the
  * msedgedriver behind its wrapper running.
@@ -144,11 +149,18 @@ export async function launch(files = [], { dialogs, env = {} } = {}) {
 			await browser.deleteSession().catch(() => {});
 			await killDriver(driver, exited);
 		};
-		/** Cleans up after Folio quit by itself (the session is already gone). */
+		/**
+		 * Waits for Folio to finish quitting by itself, then cleans up (the session is
+		 * already gone). Resolves to whether Folio quit in time; it is ended either way.
+		 */
 		const exitedByItself = async () => {
+			const deadline = Date.now() + 15_000;
+			while (appRunning() && Date.now() < deadline) await new Promise((r) => setTimeout(r, 200));
+			const quit = !appRunning();
 			await browser.deleteSession().catch(() => {});
 			await killDriver(driver, exited);
 			killStrayApps();
+			return quit;
 		};
 		return { browser, stop, crash, exitedByItself };
 	} catch (e) {

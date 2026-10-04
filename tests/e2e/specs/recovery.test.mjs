@@ -135,15 +135,17 @@ test('discarding recovered changes deletes them; quitting without saving leaves 
 	}
 
 	// Quitting normally with "Don't save" deletes this run's copy too.
+	// Copies are deleted only at the very end of quitting, so wait for Folio to exit.
 	({ browser, exitedByItself } = await launch([path], { env }));
+	let quit = false;
 	try {
 		await changeAndWaitForCopy(browser);
 		await (await browser.$('button[aria-label="Close"]')).click();
 		await answer(browser, 'Don’t save');
-		await new Promise((r) => setTimeout(r, 1500));
 	} finally {
-		await exitedByItself();
+		quit = await exitedByItself();
 	}
+	assert.ok(quit, 'Folio quit after "Don’t save"');
 	assert.deepEqual(recoveryFiles(), [], 'a normal quit leaves no recovery copies');
 	assert.doesNotMatch(cli('info', path), /rotated pages/);
 });
