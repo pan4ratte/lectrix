@@ -51,8 +51,6 @@ const BINDINGS: Binding[] = [
 
 /** Browser shortcuts that make no sense in the app (reload, print preview, view source). */
 const BLOCKED: { key: string; ctrl?: boolean; shift?: boolean }[] = [
-	{ key: 'r', ctrl: true },
-	{ key: 'F5' },
 	{ key: 'p', ctrl: true },
 	{ key: 'u', ctrl: true },
 	{ key: 'j', ctrl: true },
@@ -92,7 +90,17 @@ export function stopUnlessShortcut(event: KeyboardEvent) {
 /** Commands that act on the document as saved: a text field commits its edit first. */
 export const COMMIT_FIELD_FIRST: ReadonlySet<CommandName> = new Set(['save', 'saveAs', 'closeTab']);
 
-export function isBlocked(event: KeyboardEvent): boolean {
+/** Reload: Ctrl+R and F5, with or without Shift or Ctrl (the hard-reload variants). */
+function isReload(event: KeyboardEvent): boolean {
+	return event.key === 'F5' || ((event.ctrlKey || event.metaKey) && sameKey('r', event.key));
+}
+
+/**
+ * Browser keys the app swallows. Development builds keep reload, so a change can be
+ * picked up without restarting `tauri dev` (open documents come back after a reload).
+ */
+export function isBlocked(event: KeyboardEvent, allowReload: boolean = import.meta.env.DEV): boolean {
+	if (isReload(event)) return !allowReload;
 	const ctrl = event.ctrlKey || event.metaKey;
 	return BLOCKED.some((b) => sameKey(b.key, event.key) && !!b.ctrl === ctrl && !!b.shift === event.shiftKey);
 }

@@ -37,10 +37,24 @@ describe('shortcuts', () => {
 	});
 
 	it('blocks browser reload and print', () => {
-		expect(isBlocked(key('r', { ctrl: true }))).toBe(true);
-		expect(isBlocked(key('F5'))).toBe(true);
-		expect(isBlocked(key('p', { ctrl: true }))).toBe(true);
-		expect(isBlocked(key('s', { ctrl: true }))).toBe(false);
+		expect(isBlocked(key('r', { ctrl: true }), false)).toBe(true);
+		expect(isBlocked(key('F5'), false)).toBe(true);
+		expect(isBlocked(key('p', { ctrl: true }), false)).toBe(true);
+		expect(isBlocked(key('s', { ctrl: true }), false)).toBe(false);
+	});
+
+	it('blocks the hard-reload variants too', () => {
+		expect(isBlocked(key('R', { ctrl: true, shift: true }), false)).toBe(true);
+		expect(isBlocked(key('F5', { ctrl: true }), false)).toBe(true);
+		expect(isBlocked(key('F5', { shift: true }), false)).toBe(true);
+		expect(isBlocked(key('r'), false)).toBe(false);
+	});
+
+	it('lets development builds reload, and still blocks the rest', () => {
+		expect(isBlocked(key('r', { ctrl: true }), true)).toBe(false);
+		expect(isBlocked(key('F5'), true)).toBe(false);
+		expect(isBlocked(key('R', { ctrl: true, shift: true }), true)).toBe(false);
+		expect(isBlocked(key('p', { ctrl: true }), true)).toBe(true);
 	});
 
 	it('recognizes every key that zooms the webview itself', () => {
