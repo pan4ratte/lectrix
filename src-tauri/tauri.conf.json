@@ -50,6 +50,19 @@
       "msi"
     ],
     "license": "AGPL-3.0-or-later",
+    "windows": {
+      "nsis": {
+        "template": "windows/installer.nsi"
+      },
+      "wix": {
+        "fragmentPaths": [
+          "windows/pdf-association.wxs"
+        ],
+        "featureRefs": [
+          "PdfAssociation"
+        ]
+      }
+    },
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",
