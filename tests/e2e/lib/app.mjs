@@ -16,6 +16,8 @@ import { remote } from 'webdriverio';
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 export const OUT = join(ROOT, 'target', 'test-output', 'e2e');
 const PORT = 4444;
+/** tauri-driver's default port for msedgedriver. */
+const NATIVE_PORT = 4445;
 
 const app = process.env.FOLIO_APP ?? join(ROOT, 'target', 'release', 'folio.exe');
 const tauriDriver = process.env.TAURI_DRIVER ?? 'tauri-driver';
@@ -33,6 +35,24 @@ function waitForPort(port, timeoutMs) {
 				socket.destroy();
 				if (Date.now() > deadline) fail(new Error(`nothing listening on port ${port}`));
 				else setTimeout(attempt, 100);
+			});
+		};
+		attempt();
+	});
+}
+
+function waitForPortFree(port, timeoutMs) {
+	const deadline = Date.now() + timeoutMs;
+	return new Promise((done, fail) => {
+		const attempt = () => {
+			const socket = createConnection({ host: '127.0.0.1', port }, () => {
+				socket.end();
+				if (Date.now() > deadline) fail(new Error(`port ${port} is still in use`));
+				else setTimeout(attempt, 100);
+			});
+			socket.on('error', () => {
+				socket.destroy();
+				done();
 			});
 		};
 		attempt();
@@ -61,6 +81,16 @@ function killStrayApps() {
 }
 
 /**
+ * Ends tauri-driver with everything it started. Killing only tauri-driver leaves the
+ * msedgedriver behind its wrapper running on NATIVE_PORT, and the next launch's
+ * msedgedriver then cannot bind the port.
+ */
+async function killDriver(driver, exited) {
+	spawnSync('taskkill', ['/PID', String(driver.pid), '/F', '/T'], { stdio: 'ignore' });
+	await exited;
+}
+
+/**
  * Starts Folio with `files` (PDF paths) open and returns `{ browser, stop }`. Recent
  * files and remembered views stay out of the user's app data (FOLIO_EPHEMERAL).
  *
@@ -78,6 +108,7 @@ export async function launch(files = [], { dialogs, env = {} } = {}) {
 	}
 	mkdirSync(OUT, { recursive: true });
 	killStrayApps();
+	await waitForPortFree(NATIVE_PORT, 10_000);
 	const driver = spawn(tauriDriver, ['--port', String(PORT), '--native-driver', verboseDriver()], {
 		env: {
 			...process.env,
@@ -107,8 +138,7 @@ export async function launch(files = [], { dialogs, env = {} } = {}) {
 			try {
 				await browser.deleteSession();
 			} finally {
-				driver.kill();
-				await exited;
+				await killDriver(driver, exited);
 				killStrayApps();
 			}
 		};
@@ -116,20 +146,17 @@ export async function launch(files = [], { dialogs, env = {} } = {}) {
 		const crash = async () => {
 			killStrayApps();
 			await browser.deleteSession().catch(() => {});
-			driver.kill();
-			await exited;
+			await killDriver(driver, exited);
 		};
 		/** Cleans up after Folio quit by itself (the session is already gone). */
 		const exitedByItself = async () => {
 			await browser.deleteSession().catch(() => {});
-			driver.kill();
-			await exited;
+			await killDriver(driver, exited);
 			killStrayApps();
 		};
 		return { browser, stop, crash, exitedByItself };
 	} catch (e) {
-		driver.kill();
-		await exited;
+		await killDriver(driver, exited);
 		killStrayApps();
 		throw e;
 	}
