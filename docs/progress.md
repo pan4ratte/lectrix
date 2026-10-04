@@ -1306,9 +1306,9 @@ Task Manager, and a short Narrator walk. About 20 minutes.
 - **About dialog (decision 4).** Help > About Lectrix shows the version, the AGPL notice,
   MuPDF's credit, where the license files are installed, and the source code address with
   a Copy button (Lectrix stays offline, so the address is shown, not opened). The address is
-  one constant, `SOURCE_URL` in `src/lib/config.ts`: `https://github.com/pan4ratte/sci-pdf`.
-  **That repository is private**, so the link only works for others once it is public or
-  the constant names another public copy. The accessibility E2E flow covers the dialog.
+  one constant, `SOURCE_URL` in `src/lib/config.ts`: `https://github.com/pan4ratte/lectrix`.
+  The repository was made public (and renamed from `sci-pdf`) on 2026-10-04, so the
+  address works for everyone. The accessibility E2E flow covers the dialog.
 - **JPEG 2000 at the resolution drawn (decision 2, option (a)), ADR 0008.** MuPDF is now
   built from Lectrix's fork of `mupdf-rs` (`pan4ratte/mupdf-rs`, branch
   `folio-mupdf-1.27.2`), which patches MuPDF's JPEG 2000 decoding at build time. The same
