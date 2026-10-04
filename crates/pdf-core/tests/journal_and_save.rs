@@ -4,7 +4,7 @@ mod common;
 
 use std::fs;
 
-use common::{open, out_dir, sample_file};
+use common::{open, out_dir, qpdf_check, sample_file};
 use pdf_core::Error;
 use pdf_core::annot::quads::Quad;
 use pdf_core::annot::{MarkupKind, MarkupSpec, Rgb, add_text_markup};
@@ -58,6 +58,59 @@ fn undo_and_redo_an_annotation() {
 
     // Errors from MuPDF come back as values, not aborts.
     Journal::new(&mut doc).redo().unwrap_err();
+}
+
+/// A highlight with a note: an annotation, a popup and an appearance stream, all new
+/// objects.
+fn add_highlight(doc: &mut mupdf::pdf::PdfDocument, y: f64) {
+    doc.begin_operation("Add highlight").unwrap();
+    add_text_markup(
+        doc,
+        &MarkupSpec {
+            kind: MarkupKind::Highlight,
+            page: 0,
+            quads: vec![Quad::from_view_rect(Rect::new(72.0, y, 200.0, y + 12.0))],
+            color: Rgb::YELLOW,
+            opacity: 1.0,
+            author: "Lectrix".into(),
+            note: Some("note".into()),
+        },
+    )
+    .unwrap();
+    doc.end_operation().unwrap();
+}
+
+#[test]
+fn saving_after_undoing_new_objects_writes_a_consistent_trailer() {
+    let dir = out_dir("save-after-undo");
+    for kind in [SaveKind::Incremental, SaveKind::Full] {
+        // Undone on its own, and undone after a step that is kept.
+        for keep_one in [false, true] {
+            let name = format!("{kind:?}-{keep_one}");
+            let src = sample_file(&dir, &format!("{name}-src.pdf"), SampleSpec::default());
+            let mut doc = open(&src);
+            Journal::new(&mut doc).enable().unwrap();
+            if keep_one {
+                add_highlight(&mut doc, 100.0);
+            }
+            add_highlight(&mut doc, 200.0);
+            let with_both = annotation_count(&doc);
+            Journal::new(&mut doc).undo().unwrap();
+            let kept = annotation_count(&doc);
+            assert_eq!(kept, usize::from(keep_one), "{name}");
+            // A recovery copy is an incremental update too.
+            let snapshot = dir.join(format!("{name}-snapshot.pdf"));
+            pdf_core::ffi::save_snapshot(&mut doc, &snapshot).unwrap();
+            qpdf_check(&snapshot);
+            let out = dir.join(format!("{name}.pdf"));
+            save_atomic(&doc, kind, Some(&src), &out).unwrap();
+            qpdf_check(&out);
+            assert_eq!(annotation_count(&open(&out)), kept, "{name}");
+            // The undone step can still be redone.
+            Journal::new(&mut doc).redo().unwrap();
+            assert_eq!(annotation_count(&doc), with_both, "{name}");
+        }
+    }
 }
 
 #[test]

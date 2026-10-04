@@ -40,6 +40,8 @@ pub fn save_snapshot(doc: &mut PdfDocument, path: &Path) -> Result<()> {
         Error::InvalidArgument(format!("path is not valid Unicode: {}", path.display()))
     })?;
     let path = CString::new(s).map_err(|_| Error::InvalidArgument(format!("NUL in {s}")))?;
+    // A snapshot is an incremental update too: keep its /Size true after an undo.
+    super::trim_unused_objects(doc);
     let ctx = Context::get().as_raw_ptr();
     let mut err = LectrixError::new();
     // SAFETY: `ctx` is this thread's context, from the family that opened `doc`; `doc` is

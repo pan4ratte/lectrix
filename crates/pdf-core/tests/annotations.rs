@@ -1101,25 +1101,8 @@ fn annotations_are_undoable_steps_through_the_session() {
         back.state.redo_name.as_deref(),
         Some("Change highlight to underline")
     );
-    // Redone and changed back, so the saved file ends on a step that was kept: undoing a
-    // step that made objects and then saving leaves a trailer /Size qpdf warns about
-    // (docs/status.md).
-    let redone = session.redo().unwrap();
-    assert_eq!(redone.annotations[0].1[0].kind, Some(Kind::Underline));
-    let restored = session
-        .apply(Operation::UpdateAnnotation {
-            page: 1,
-            id,
-            edit: AnnotationEdit {
-                kind: Some(MarkupKind::Highlight),
-                ..AnnotationEdit::default()
-            },
-        })
-        .unwrap();
-    assert_eq!(
-        restored.state.undo_name.as_deref(),
-        Some("Change underline to highlight")
-    );
+    // The undone change made an appearance stream, so the save below also checks that
+    // objects an undone step created leave the trailer's /Size true.
     let deleted = session
         .apply(Operation::DeleteAnnotation { page: 1, id })
         .unwrap();
@@ -1128,7 +1111,7 @@ fn annotations_are_undoable_steps_through_the_session() {
 
     let undone = session.undo().unwrap();
     assert_eq!(undone.annotations[0].1.len(), 2);
-    assert_eq!(undone.state.revision, restored.state.revision);
+    assert_eq!(undone.state.revision, back.state.revision);
     let redone = session.redo().unwrap();
     assert_eq!(redone.annotations[0].1.len(), 1);
 

@@ -89,6 +89,8 @@ fn write_to(doc: &PdfDocument, kind: SaveKind, original: Option<&Path>, temp: &P
             })?;
             fs::copy(original, temp)?;
             options.set_incremental(true);
+            // Objects an undone step created must not count towards the trailer's /Size.
+            crate::ffi::trim_unused_objects(doc);
         }
         SaveKind::Full => {}
         SaveKind::Optimized => {

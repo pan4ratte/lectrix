@@ -321,6 +321,48 @@ int lectrix_pdf_save_snapshot(fz_context *ctx, pdf_document *doc, const char *pa
 	return 0;
 }
 
+/*
+ * Drops never-used entries from the end of the document's edit section (the in-memory
+ * incremental xref) and returns how many it dropped.
+ *
+ * Undoing a step marks the objects it created as never used (type 0), but they stay in
+ * the section's length. An incremental save writes that length as the trailer's /Size
+ * while writing none of those entries, so /Size runs past the highest object in the file
+ * and qpdf warns. Never-used entries at the end carry nothing (no object, no stream), and
+ * the section never shrinks below the older sections, so the file says the same with or
+ * without them. If a redo or a new object needs them again, MuPDF grows the section back,
+ * zero-filled (pdf_get_incremental_xref_entry, resize_xref_sub in pdf-xref.c).
+ *
+ * Nothing here can throw: it only reads and shortens MuPDF's own structures (public in
+ * pdf/document.h and pdf/xref.h, checked against the library at startup).
+ */
+int lectrix_pdf_trim_unused_objects(pdf_document *doc)
+{
+	pdf_xref *xref;
+	pdf_xref_subsec *sub;
+	int floor = 0;
+	int n, i;
+
+	/* Only the edit section, outside any operation and when viewing the latest version. */
+	if (doc->num_incremental_sections == 0 || doc->xref_base != 0 || doc->local_xref_nesting > 0)
+		return 0;
+	xref = &doc->xref_sections[0];
+	sub = xref->subsec;
+	if (sub == NULL || sub->next != NULL || sub->start != 0 || sub->len != xref->num_objects)
+		return 0;
+	for (i = 1; i < doc->num_xref_sections; i++)
+		if (doc->xref_sections[i].num_objects > floor)
+			floor = doc->xref_sections[i].num_objects;
+
+	n = xref->num_objects;
+	while (n > floor && sub->table[n - 1].type == 0 && sub->table[n - 1].obj == NULL && sub->table[n - 1].stm_buf == NULL)
+		n--;
+	i = xref->num_objects - n;
+	sub->len = n;
+	xref->num_objects = n;
+	return i;
+}
+
 /* 1 if the document has changes that a save would write. */
 int lectrix_pdf_has_unsaved_changes(fz_context *ctx, pdf_document *doc, int *changed, lectrix_error *err)
 {
