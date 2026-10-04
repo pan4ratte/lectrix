@@ -68,6 +68,7 @@ foreach ($case in @(@{ Args = @('/S'); Registered = $true }, @{ Args = @('/S', '
     Write-Host "NSIS $($nsis.Name) $($case.Args -join ' ')"
     Run $nsis.FullName $case.Args
     Check (Test-Path $nsisExe) "folio.exe installed in $nsisDir"
+    Check (Test-Path (Join-Path $nsisDir 'THIRD_PARTY_LICENSES.md')) 'license notices installed'
     Check-Registration 'HKCU' $case.Registered $nsisExe
     # _?= runs the uninstaller in place, so Start-Process can wait for it.
     Run (Join-Path $nsisDir 'uninstall.exe') @('/S', "_?=$nsisDir")

@@ -83,6 +83,11 @@ jobs:
       - name: Build installers
         run: npx tauri build
 
+      # Every shipped crate and bundled npm package has an AGPL-compatible license, and
+      # THIRD_PARTY_LICENSES.md (installed with the app) is up to date.
+      - name: License check
+        run: python tests/licenses/notices.py --check
+
       # Installs and uninstalls both installers silently, with and without the PDF file
       # registration, and checks the registry (ADR 0007).
       - name: Installer check

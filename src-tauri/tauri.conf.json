@@ -50,6 +50,11 @@
       "msi"
     ],
     "license": "AGPL-3.0-or-later",
+    "resources": {
+      "../LICENSE": "LICENSE.txt",
+      "../THIRD_PARTY_NOTICES.md": "THIRD_PARTY_NOTICES.md",
+      "../THIRD_PARTY_LICENSES.md": "THIRD_PARTY_LICENSES.md"
+    },
     "windows": {
       "nsis": {
         "template": "windows/installer.nsi"
