@@ -83,6 +83,22 @@ explicit file extensions.
 bits-ui's own SvelteKit dependency (server-side cookie parsing). Folio ships a static
 SPA with no server, so the code is never reached. We will re-check when bits-ui updates.
 
+## Installers (Phase 6)
+
+Downloaded by the Tauri CLI (2.12.1) on the first `npx tauri build` into
+`%LOCALAPPDATA%\tauri`, not pinned by Folio:
+
+| Tool | Version | Notes |
+| --- | --- | --- |
+| NSIS | 3.11 | with `nsis_tauri_utils` 0.5.3; Folio's template is a modified copy of the CLI's own (`src-tauri/windows/installer.nsi`, ADR 0007) |
+| WiX Toolset | 3.14 | `src-tauri/windows/pdf-association.wxs` is added as a fragment (ADR 0007) |
+
+When the Tauri CLI is upgraded, re-apply the `Folio:` changes to its new NSIS template.
+
+macOS and Linux CI jobs (build only): `macos-latest` with Xcode's libclang, and
+`ubuntu-24.04` with `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `librsvg2-dev`,
+`libayatana-appindicator3-dev` and `libclang-18-dev`.
+
 ## End-to-end tests (tests/e2e, not shipped; Phase 2)
 
 | Tool | Version | License |

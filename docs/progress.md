@@ -1024,3 +1024,268 @@ with the files in `target/test-output/manual/phase5/`.
    you annotate a turned page (the text box carries `/Rotate 90`, as Acrobat writes, so
    Acrobat keeps it upright when you edit it). The text markups follow the text. The
    checklist now says so.
+
+## Phase 6: Polish and release (report, 2026-10-04)
+
+**Status: ready for review, not yet complete.** Crash recovery, the installers with the PDF
+choice, the accessibility pass and the macOS/Linux CI jobs are built, and every local check
+is green: the Rust tests, Vitest, all interop suites, the local corpus and the end-to-end
+tests (now 16 flows). Three things are still open:
+
+- CI has not run on these commits (they are not pushed), so the new macOS and Linux jobs
+  and the installer check have never run.
+- One performance gap remains, for scanned books stored as JPEG 2000. Closing it needs a
+  decision about MuPDF.
+- The manual checklist (installers, a real crash, Narrator) is yours to do.
+
+### Checklist
+
+| Item | Result |
+| --- | --- |
+| Crash recovery, recent files and per-file view memory work | Yes. **Crash recovery:** every 2 minutes, each document with unsaved changes gets a recovery copy in `%LOCALAPPDATA%\org.folio.pdf\recovery` (only when its content changed since the last copy). Saving, reloading or closing a document deletes its copy, and so does quitting normally (after "Save" or "Don't save"). At the next start, copies a crash left behind are offered: "Restore unsaved changes?" with the file names and times, and Restore, Discard… (asks once more) or Not now (asked again next time). A restored document opens in a tab for its own file, marked unsaved. Save writes onto the file incrementally, so its original bytes stay intact (section 5.4). If another program changed the file since the copy was made, the usual "changed on disk" banner appears. Encrypted files ask for their password again. **Recent files and remembered views** (built in Phase 1) now have an end-to-end test: a closed document reopens from the start screen's list on the same page and zoom. |
+| NSIS and MSI installers build in CI; `.pdf` association can be chosen at install | Built locally; the CI step is written but has not run. Both installers have a "PDF files" page after the folder page: "Open PDF files with Folio", checked by default. When it is chosen, Folio is registered for PDFs: it appears in Open with and in Settings > Default apps, and Windows asks which app to use at the next PDF. Windows 10 and 11 let no installer take over the default itself (ADR 0007, proposed). For silent installs, `/NOPDF` (NSIS) or `FOLIO_ASSOCIATE_PDF=0` (MSI) leaves the registration out. `tests/installer/check.ps1` installs and uninstalls both silently, with and without the registration, checks the registry and files, and checks that the `.pdf` default is never touched. It installs software, so it runs on CI runners only; I have not run it on your machine. I checked the built MSI's tables instead (feature, condition, registry rows, the dialog's events). Both installers now also install `LICENSE.txt` and the license notices. |
+| Performance targets met, or gaps documented | Met on the generated 1,000-page file and on most real files (table below). One gap: scanned books stored as JPEG 2000 (decision 2). |
+| Large JPEG 2000 pages: look into decoding at the resolution shown, and report | Done (section below). Partly fixed in Folio: that page now shows in 1.05 s instead of 1.85 s. Decoding at the shown resolution needs a change inside MuPDF: decision 2. |
+| Accessibility pass (keyboard-only walkthrough, contrast check) | Done, with fixes (below). An end-to-end test walks every Tab stop in every panel and dialog, and a keyboard-only session reaches a saved file. Contrast is checked by a test against `app.css` in both themes and for all 48 Windows accent colours. |
+| macOS and Linux build-only CI jobs; platform gaps listed | The jobs are written: they build the workspace, its tests and the app, and run the tests without failing the job. They have not run, because nothing is pushed. WSL here has no compilers and needs a password for `sudo`, so I could not build for Linux locally. Platform gaps are listed below. |
+
+### What was built
+
+- **pdf-core.**
+  - `ffi::save_snapshot` wraps MuPDF's `pdf_save_snapshot`: it writes the file plus its
+    unsaved changes as an incremental update, without changing the document, its undo or
+    its redo history (tested).
+  - `Session::write_recovery` writes a copy only for a new unsaved revision. Damaged
+    files that MuPDF repaired are copied in full instead.
+  - `Session::restore` opens a copy as the document of its original file: it reads from
+    the copy, saves to the original, and stays dirty until saved.
+- **App.**
+  - `recovery.rs` keeps one slot per document: `<slot>.json` names the file, and
+    `<slot>-<n>.pdf` is the copy. A new copy gets a new number, and the description is
+    replaced only once the copy is complete. A restored document's copy is kept while the
+    document reads from it.
+  - New commands: `list_recovered`, `restore_recovered`, `discard_recovered`.
+  - Recovery is off for test and measurement runs (`FOLIO_EPHEMERAL`).
+    `FOLIO_RECOVERY_DIR` and `FOLIO_RECOVERY_INTERVAL_MS` exist for tests only.
+- **Installers.** `src-tauri/windows/installer.nsi` is Tauri 2.12.1's NSIS template plus
+  the page, with every change marked `Folio:`. `src-tauri/windows/pdf-association.wxs` is
+  a WiX fragment with the registration as an optional feature and the page as a dialog.
+  ADR 0007 explains the approach.
+- **Accessibility fixes**, from the walkthrough and the contrast test:
+  - The system accent colour is adjusted per theme, so focus rings, selected tabs and
+    outlines keep 3:1 against every surface (a gold accent was 1.7:1 on white). Text on
+    it is black or white, whichever reads better.
+  - Text fields have a 3:1 bottom edge and a 2 px accent underline on focus, as Windows
+    11 text boxes do; their light border alone was 1.3:1. Every field now uses the same
+    style.
+  - Muted text is a shade darker in the light theme: 4.25:1 on a selected row over the
+    page background before, 4.6:1 now.
+  - Menu items, the label ranges list and the custom colour swatch now show keyboard
+    focus.
+  - Shift+F10 and the Menu key open the focused control's context menu (thumbnails,
+    bookmarks, pages). Some actions, such as a bookmark's Properties, were reachable only
+    by right-click.
+  - Text fields in panels swallowed every key, so Ctrl+S, Ctrl+F and the other app-wide
+    shortcuts did nothing while typing a note or a bookmark title. They now pass those
+    through. Saving or closing from a field commits it first, and the store waits for
+    edits in flight before saving.
+- **Viewer.** Thumbnails wait while pages on screen render (see the JPEG 2000 section).
+- **Licenses.** `tests/licenses/notices.py` lists every Rust crate compiled into
+  `folio.exe` and every npm package bundled into the frontend (260 in all). It checks
+  that each license is AGPL-compatible and writes `THIRD_PARTY_LICENSES.md` with their
+  texts. CI runs it with `--check`.
+- **pdf-cli:** new `recovery` command (write a copy, time it, restore it).
+- **CI:** installer check, license check, macOS and Linux jobs.
+- No new dependencies.
+
+### Findings
+
+1. **MuPDF cannot load a saved undo history.** MuPDF can save a document's undo history
+   next to a snapshot (`pdf_save_journal`). In 1.27.2, loading it back fails as soon as
+   the history records any change: `pdf_deserialise_journal` and
+   `pdf_add_journal_fragment` disagree about where entries go (details in ADR 0001). So a
+   restored document's undo history starts at the restore. If a later MuPDF fixes this,
+   restoring the history is a small change. The bug could be reported upstream.
+2. **MuPDF decodes JPEG 2000 one image at a time, at full resolution, on one thread.**
+   Details in the JPEG 2000 section.
+3. **Recovery copies of large files take a moment.** The copy includes the whole file,
+   and while it is written, that document renders nothing new. Measured with
+   `pdf-cli recovery`:
+
+   | File | Copy | Time |
+   | --- | --- | --- |
+   | `18-most-pages` (29 MB, 2,881 pages) | snapshot | 0.10 s |
+   | `16-most-bookmarks` (34 MB) | snapshot | 0.18 s |
+   | `29-slow-first-page` (95 MB) | snapshot | 0.29 s |
+   | `20-repaired` (165 MB, damaged) | full copy | 1.2 s |
+   | `15-largest-file` (173 MB, damaged) | full copy | 1.5 s |
+
+   A copy is written at most every 2 minutes, and only after a change. Restoring takes
+   8 to 309 ms.
+
+### JPEG 2000 pages (Phase 2 finding)
+
+Page 1 of `29-slow-first-page` is a 4975 × 6658 JPEG 2000 image (33 megapixels, a 1.9 MB
+stream). The app draws it at 1421 × 1902.
+
+- **MuPDF ignores the resolution asked for.** For JPEG 2000, MuPDF's image code
+  (`compressed_image_get_pixmap`) calls `fz_load_jpx`, which always decodes every pixel.
+  Other formats get a reduced decode (`l2factor`). OpenJPEG itself can decode at ½, ¼ and
+  so on (`cp_reduce`), but MuPDF never asks it to. MuPDF's OpenJPEG is also built without
+  threads, so `OPJ_NUM_THREADS` changes nothing (922 to 925 ms).
+- **MuPDF decodes one JPEG 2000 image at a time.** Its OpenJPEG glue takes a global lock
+  around every decode (`fz_opj_lock`, shared with FreeType). In the app, the thumbnail of
+  page 1 often started first and held the lock for its own 0.9 s decode, so the page
+  showed after 1.85 s.
+- **Fixed in Folio:** thumbnails now wait while pages on screen render. The page shows in
+  1.05 to 1.07 s. A heavy non-JPEG page elsewhere (`01-annot-caret`) went from 644 to
+  445 ms.
+- **What decoding at the shown resolution would gain**, measured with OpenJPEG 2.5.4
+  (through Pillow) on the same image: full 848 ms, ½ (2488 × 3329) 353 ms, ¼
+  (1244 × 1665) 185 ms. This file has three resolution levels, so ¼ is the most. At fit
+  width MuPDF would ask for ½, so that page would show in about 0.5 s. Thumbnails could
+  use ¼.
+- **The bigger cost is scrolling.** The book's other pages are archive.org-style scans:
+  1643 × 2200 JPEG 2000 plus a small mask, about 0.2 to 0.4 s each to decode. They are
+  close to the size drawn at fit width, so a reduced decode would not help them. What
+  would help is decoding several at once. Scrolling this book now, with the same test as
+  on the generated file:
+
+  | | Blank stretches | Over 200 ms | Worst |
+  | --- | --- | --- | --- |
+  | Steady, 2,000 px/s | 46 | 11 | 1,003 ms (the first pages) |
+  | Fast, 6,000 px/s | 142 | 79 | 404 ms |
+  | Random jumps | 28 | 26 | 413 ms |
+
+  `folio.exe` reached 252 MB after this scroll, from decoded images in flight. Idle with
+  the book open it uses 101 MB.
+- Both remedies, reduced-resolution decoding and multithreaded decoding without the global
+  lock, are changes inside MuPDF (`source/fitz/load-jpx.c`, `image.c`, and how
+  `mupdf-sys` builds OpenJPEG): decision 2.
+
+### Tests
+
+- `cargo test --workspace`: 216 (Phase 5: 200), plus 2 ignored local-corpus tests, which
+  pass on all 30 files. New tests cover:
+  - snapshots: they leave the document, undo and redo as they were; a reopened snapshot
+    starts with the original bytes; damaged files are refused for snapshots and copied
+    in full instead;
+  - copies are written only for new unsaved revisions;
+  - restored sessions: dirty, save incrementally onto the original (qpdf-clean), write
+    copies of their own, reload the original, keep an encrypted file encrypted, and
+    notice when their file changed since the copy;
+  - recovery slots across a crash, a save, an undo back to saved, a close and a normal
+    quit, and leftover or badly named files.
+- Vitest: 127 (Phase 5: 64). New: the recovery question's wording; WCAG contrast of every
+  token pair in both themes and of all 48 Windows accents; the accent shading; keys in
+  panel text fields; context-menu keys; render scheduling.
+- E2E: 16 flows (Phase 5: 10), all pass. New:
+  - a crash and a restore (Not now, then Restore, then Save, checked on disk);
+  - Discard, and a normal quit with "Don't save" leaving no copies;
+  - every Tab stop named and showing focus, on the start screen, in every panel, the
+    inspector, search and Settings;
+  - arrow keys in menus, tabs and lists, keyboard context menus, focus kept inside
+    Settings;
+  - a keyboard-only session: go to a page, add and rename a bookmark, edit a note, save
+    from the note field, checked on disk;
+  - recent files and the remembered view.
+- Interop: phase0 78, phase2 15, phase3 11, phase4 51, phase5 528, phase4-local 206,
+  phase5-local 15, all passed. License check: 260 packages, all allowed. `cargo clippy -D
+  warnings`, `cargo fmt` and `svelte-check` are clean.
+- Not run anywhere yet: the installer check and the macOS and Linux jobs (CI).
+
+### Performance (section 2 targets)
+
+Same machine as before, release build, PNG.
+
+| Target | Measured | Met? |
+| --- | --- | --- |
+| Window visible < 1 s | 30 to 99 ms | Yes |
+| First page of a large PDF visible < 1 s | 1,000-page file 73 to 80 ms; 2,881-page dictionary 137 ms; JPEG 2000 scan 1.05 to 1.07 s | Yes, except the JPEG 2000 page (decision 2) |
+| No blank page > 200 ms while scrolling | 1,000-page file: steady none, fast worst 18 ms, jumps worst 46 to 54 ms. JPEG 2000 book: see above | Yes, except JPEG 2000 scans |
+| `folio.exe` < 200 MB idle (ADR 0002) | 63 to 64 MB with the 1,000-page file, 101 MB with the JPEG 2000 book | Yes |
+| WebView2 (ADR 0002 rule) | Whole tree 635 to 647 MB idle (Phase 5: 638 to 656 MB). Not re-measured against the one-page baseline, as nothing this phase changes what the webview holds | Unchanged |
+
+### Platform gaps (macOS and Linux)
+
+The code is meant to build on all three platforms: both `platform` modules have
+fallbacks, and the file-stream shim has a POSIX branch. None of this has been run yet.
+
+- **Fonts:** there is no installed-font index (ADR 0005). Non-embedded fonts other than
+  the base 14 render with MuPDF's substitutes, and non-embedded CJK text has no glyphs.
+  This needs fontconfig (Linux) and Core Text (macOS) behind the existing `SystemFonts`
+  trait.
+- **Window:** no Mica, no accent colour and no theme retint. The transparent, undecorated
+  window would need macOS's private API (`macOSPrivateApi`) to be translucent, and the
+  custom title bar's window buttons follow Windows (macOS puts them on the left).
+- **Platform services:** the default author comes from `USER`. Same-file checks rely on
+  `canonicalize`, which is case-sensitive on Linux, as it should be there. WebView2's
+  memory target has no equivalent.
+- **Installers and file association:** Windows only. `.dmg`, `.deb`/AppImage and their
+  associations are not configured. Crash recovery, the single-instance hand-off and
+  `FOLIO_DIALOG` are platform-neutral but untested there.
+- **Tests:** some are Windows-only by design (DirectWrite fonts, locked files, the
+  `qpdf.exe` lookup). The informational test step will show the rest.
+
+### Accessibility: what remains
+
+- **Creating and moving annotations needs a pointer.** Text markup is made from a mouse
+  selection; notes, drawings and text boxes are placed by clicking; moving and resizing
+  use handles. Editing, deleting and repairing work from the keyboard (the Annotations
+  panel and the inspector). Acrobat's caret browsing (selecting text with the keyboard)
+  would be the way to add this; it is a feature of its own.
+- **Page text is not exposed to screen readers.** Pages are images, and the text layer is
+  used for selection only.
+- **Windows high-contrast themes** are not handled specifically. WebView2 applies the
+  system colours itself, which I have not checked.
+- A screen-reader pass with Narrator is on the manual checklist. The automated walk uses
+  Chromium's own accessible names and roles.
+
+### Please check
+
+The manual checklist, in `docs/manual-checklist.md` (new part "installers, crash recovery,
+accessibility"): the installers' pages and what Windows does afterwards, a real crash in
+Task Manager, and a short Narrator walk. About 20 minutes.
+
+### Decisions needed
+
+1. **Push to GitHub** so CI runs these commits? CI now also runs the installer check, the
+   license check and the new macOS and Linux jobs, none of which have run. I expect a
+   round or two of fixes on the macOS and Linux jobs.
+2. **JPEG 2000 scans (performance gap).** Both remedies are changes inside MuPDF:
+   decoding at the resolution shown (about 30 lines in `load-jpx.c` and `image.c`), and
+   decoding several images at once (OpenJPEG built with threads and MuPDF's global lock
+   lifted, which is a larger change). Options:
+   - (a) Carry the reduced-resolution patch in a Folio fork of `mupdf-sys` (a git
+     dependency, like the vendored `mupdf` crate), and offer it to Artifex upstream.
+   - (b) Offer it upstream only, and wait for a MuPDF release.
+   - (c) Accept the gap for JPEG 2000 books and record it.
+   - **Recommendation: (a), for the reduced-resolution patch only.** It is small and
+     contained, and it fixes oversized pages and thumbnails. Lifting the global lock is
+     riskier; for that one, (b).
+3. **ADR 0007 (installer PDF registration)** is proposed: approve it, or tell me what to
+   change. In particular, the box is checked by default.
+4. **AGPL source offer (licensing).** The installers now carry the license and the
+   notices. AGPL section 6 also asks that people who get the binary can get the source.
+   The usual way is a link to the public repository in the installer and in the app (an
+   About box, which v1 does not have). Where should it go, and which URL?
+
+### Behavior choices made without explicit guidance
+
+- Recovery copies are written only when the content changed since the last copy. They
+  are deleted as soon as nothing is unsaved, including after undoing back to the saved
+  state.
+- The restore question comes before the files Folio was started with, so a recovered file
+  opens with its changes rather than without them. Escape means "Not now", never
+  "Discard", and discarding asks once more.
+- A restored document's tab has its own file's name and is unsaved. If its file was moved
+  or deleted meanwhile, it still restores, and Save As puts it elsewhere. If the file is
+  already open in a tab, its changes are kept for the next start.
+- Undo after a restore starts at the restored state (finding 1).
+- Encrypted documents are recovered too: the copy keeps their encryption, and restoring
+  asks for the password.
+- The installers' PDF box is checked by default, and silent installs register Folio
+  unless told not to.
+- Muted text in the light theme is now `#575757` (was `#5c5c5c`). The system accent may
+  be shown a little darker (light theme) or lighter (dark theme) than Windows shows it,
+  when that is needed for 3:1 contrast.

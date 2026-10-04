@@ -61,3 +61,44 @@ Expected differences, not failures:
 If you have PDFs whose annotations display wrongly in Acrobat, open one in Folio: the
 Annotations panel marks the ones that need repair. Run Document > Repair annotations,
 save a copy, and check the copy in Acrobat.
+
+# Manual release checklist: installers, crash recovery, accessibility (Phase 6)
+
+About 20 minutes. The installers come from CI (the `installers` artifact) or from
+`npx tauri build` (`target/release/bundle/`). CI installs and uninstalls both silently and
+checks the registry; what it cannot check is the pages you click through and what Windows
+does afterwards.
+
+## Installers
+
+- [ ] `Folio_0.1.0_x64-setup.exe`: after the folder page comes a "PDF files" page with
+      "Open PDF files with Folio" checked and a sentence about Windows asking. Leave it
+      checked and finish.
+- [ ] Double-click a PDF in Explorer: Windows asks which app to use and offers Folio (or,
+      if you had chosen a default before, it keeps it; Folio is then listed under Open with
+      and in Settings > Apps > Default apps). Choosing Folio opens the file in it.
+- [ ] The install folder holds `LICENSE.txt`, `THIRD_PARTY_NOTICES.md` and
+      `THIRD_PARTY_LICENSES.md`.
+- [ ] Uninstall (Settings > Apps): Folio disappears from Open with and Default apps.
+- [ ] Install again with the box unchecked: Folio is not offered for PDFs. Uninstall.
+- [ ] `Folio_0.1.0_x64_en-US.msi`: the same two runs (the page comes after the folder
+      page; it needs administrator rights).
+
+## Crash recovery
+
+- [ ] Open a PDF, add a highlight, wait two and a half minutes, then end Folio in Task
+      Manager (End task). Start Folio: it asks "Restore unsaved changes?" naming the file.
+      Restore: the highlight is back and the tab shows unsaved changes. Save, and check the
+      file in another reader.
+- [ ] Same again, but answer "Not now": the question comes back at the next start. Then
+      "Discard…" and confirm: it does not come back.
+- [ ] Quit normally with "Don't save": the next start asks nothing.
+
+## Accessibility
+
+- [ ] Turn on Narrator (Ctrl+Win+Enter). Tab through the window with a document open:
+      each control is announced with a sensible name (tools, page box, zoom, sidebar tabs,
+      bookmarks, annotation rows). Turn Narrator off.
+- [ ] With a pale accent colour (Settings > Personalization > Colors, for example gold):
+      focus rings, the selected tab and text fields stay easy to see in both light and
+      dark appearance (Folio darkens or lightens the accent where needed).

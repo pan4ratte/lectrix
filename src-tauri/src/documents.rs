@@ -737,4 +737,58 @@ mod tests {
         assert_eq!(saved.name, "c.pdf");
         assert_eq!(docs.path(document.id).unwrap(), dir.join("c.pdf"));
     }
+
+    #[test]
+    fn a_restored_tab_notices_if_its_file_changed_since_the_copy() {
+        let (dir, _, store) = setup("restore-watch");
+        let path = sample(&dir, "r.pdf");
+        let platform = crate::platform::current();
+        let recovery_dir = dir.join("recovery");
+        {
+            let docs = Documents::new(Recovery::new(Some(recovery_dir.clone())));
+            let OpenResult::Opened { document } = docs.open(&path, None, platform, &store) else {
+                panic!("expected Opened");
+            };
+            docs.session(document.id)
+                .unwrap()
+                .apply(Operation::RotatePages {
+                    pages: vec![0],
+                    degrees: 90,
+                })
+                .unwrap();
+            docs.write_recovery_copies();
+            // A crash: the registry goes without closing anything.
+        }
+
+        let docs = Documents::new(Recovery::new(Some(recovery_dir)));
+        let pending = docs.recovery().pending();
+        assert_eq!(pending.len(), 1);
+        let OpenResult::Opened { document } = docs.restore(&pending[0].slot, platform, &store)
+        else {
+            panic!("expected Opened");
+        };
+        assert!(document.state.dirty);
+        assert_eq!(document.path, path.display().to_string());
+        assert!(docs.poll_changes().is_empty(), "the file is as it was");
+        // The same file again: it switches to the restored tab.
+        assert!(matches!(
+            docs.open(&path, None, platform, &store),
+            OpenResult::AlreadyOpen { id } if id == document.id
+        ));
+
+        // Another program rewrites the file: the restored tab hears about it.
+        let other = sample(&dir, "other.pdf");
+        std::fs::rename(&other, &path).unwrap();
+        let events = docs.poll_changes();
+        assert_eq!(events.len(), 1);
+        assert_eq!(events[0].id, document.id);
+
+        // Restoring the same slot twice is refused, and closing deletes the copy.
+        assert!(matches!(
+            docs.restore(&pending[0].slot, platform, &store),
+            OpenResult::Failed { .. }
+        ));
+        docs.close(document.id);
+        assert!(docs.recovery().pending().is_empty());
+    }
 }
