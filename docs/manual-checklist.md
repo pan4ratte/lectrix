@@ -11,7 +11,7 @@ Run `python tests/interop/run.py phase5` and the end-to-end tests (`npm test` in
 | File | What is in it |
 | --- | --- |
 | `types-normal.pdf` | One annotation per page, all written by Folio: 1 highlight with a note ("Highlight note — ünïcödé"), 60% opacity; 2 green underline; 3 red strikeout; 4 blue squiggly underline; 5 sticky note ("Sticky note text"); 6 blue drawing, two strokes, 80% opacity; 7 red text box, two lines; 8 area highlight (a rectangle, 50% opacity). Author "Folio Harness". |
-| `types-rot90.pdf` | The same on pages turned 90°. |
+| `types-rot90.pdf` | The same on pages turned 90°. The four text markups follow the text, so they turn with it. The note, drawing, text box and area highlight were placed the way you place them in the app on a turned page: at the same spot on screen as in `types-normal.pdf` (top left of the page as shown), upright as you see it. Relative to the text they are therefore elsewhere than in `types-normal.pdf`, and not turned with it. |
 | `types-crop.pdf` | The same on pages with a cropped, offset visible area. |
 | `types-userunit.pdf` | The same on pages with a UserUnit of 2 (pages twice the usual size). |
 | `edited.pdf` | `types-normal.pdf` after edits: the highlight is pink with the note "Edited note", the note moved to the lower middle, the drawing resized to a wide box with 4 pt strokes, the text box retyped at 16 pt, and the strikeout deleted. |

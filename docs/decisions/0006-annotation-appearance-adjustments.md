@@ -1,6 +1,6 @@
 # 0006: Corrections Folio makes to MuPDF's annotation appearances and keys
 
-- Status: proposed (Phase 5; for the user's review)
+- Status: accepted (Phase 5; approved by the user on 2026-10-04)
 - Date: 2026-10-04
 
 ## Context

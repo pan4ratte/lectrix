@@ -1000,3 +1000,20 @@ with the files in `target/test-output/manual/phase5/`.
 
 - Acrobat, Foxit, Edge and Firefox by a person (the manual checklist).
 - Touch and stylus input: the pen tool was tested with scripted mouse input (E2E) only.
+
+### Review decisions (2026-10-04)
+
+1. **CI:** the Phase 5 commits are pushed.
+2. **Problem files:** you have none of your own. Open: whether the repair box can be
+   checked with the stand-ins (the hand-written problem file and the two local-corpus
+   files), or stays open until such files turn up.
+3. **Text box colour: option (a).** `/C []` (no background), the colour in `/DA`; rule 6
+   reads "`/C` as the type defines it" (`docs/interop-profile.md`).
+4. **ADR 0006:** accepted.
+5. **Acrobat:** checked by you; everything works. In `types-rot90.pdf`, the note, drawing,
+   text box and area highlight neither follow the text nor turn with the page, unlike in
+   `types-normal.pdf`. That is how the file was made: those four were placed at the same
+   spot on screen as in the normal file, upright as seen, which is what the app does when
+   you annotate a turned page (the text box carries `/Rotate 90`, as Acrobat writes, so
+   Acrobat keeps it upright when you edit it). The text markups follow the text. The
+   checklist now says so.
