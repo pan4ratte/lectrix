@@ -1,8 +1,16 @@
 name: CI
 
+# Pushes that only touch documentation do not run CI. THIRD_PARTY_*.md are not in the list:
+# the installers ship them and the license check reads them.
 on:
   push:
+    paths-ignore:
+      - 'docs/**'
+      - 'AGENTS.md'
   pull_request:
+    paths-ignore:
+      - 'docs/**'
+      - 'AGENTS.md'
 
 env:
   CARGO_TERM_COLOR: always
@@ -37,30 +45,43 @@ jobs:
         run: choco install qpdf --no-progress -y
 
       - name: Install JS and Python dependencies
+        id: setup
         run: |
           npm ci
           npm ci --prefix tests/interop
           python -m pip install -r tests/interop/requirements.txt
 
+      # The checks below run even when an earlier one failed, so one run reports every
+      # failure instead of hiding the later ones. Only a failed setup above stops them.
       - name: cargo fmt
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: cargo fmt --all -- --check
 
       - name: cargo clippy
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: cargo clippy --workspace --all-targets -- -D warnings
 
       - name: cargo test
+        id: test
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: cargo test --workspace
 
+      # cargo test writes the generated types.
       - name: Generated IPC types are up to date
+        if: ${{ !cancelled() && steps.test.outcome != 'skipped' }}
         run: git diff --exit-code -- src/lib/ipc/generated
 
       - name: svelte-check
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: npm run check
 
       - name: Vitest
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: npx vitest run
 
       - name: Interop harness
+        id: interop
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         shell: pwsh
         run: |
           # Without this, only the last command's exit code would fail the step.
@@ -74,28 +95,33 @@ jobs:
           python tests/interop/run.py phase5
 
       - name: Upload interop diffs on failure
-        if: failure()
+        if: ${{ !cancelled() && steps.interop.outcome == 'failure' }}
         uses: actions/upload-artifact@v4
         with:
           name: interop-output
           path: target/test-output/interop
 
       - name: Build installers
+        id: build
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: npx tauri build
 
       # Every shipped crate and bundled npm package has an AGPL-compatible license, and
       # THIRD_PARTY_LICENSES.md (installed with the app) is up to date.
       - name: License check
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: python tests/licenses/notices.py --check
 
       # Installs and uninstalls both installers silently, with and without the PDF file
       # registration, and checks the registry (ADR 0007).
       - name: Installer check
+        id: installer
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         shell: pwsh
         run: ./tests/installer/check.ps1
 
       - name: Upload installer logs on failure
-        if: failure()
+        if: ${{ !cancelled() && steps.installer.outcome == 'failure' }}
         uses: actions/upload-artifact@v4
         with:
           name: installer-logs
@@ -103,6 +129,8 @@ jobs:
 
       # End-to-end tests (section 9) against the release app built above.
       - name: E2E tests
+        id: e2e
+        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         shell: pwsh
         run: |
           cargo install tauri-driver --version 2.1.0 --locked
@@ -111,12 +139,12 @@ jobs:
           npm test --prefix tests/e2e
 
       - name: Diagnose E2E failure
-        if: failure()
+        if: ${{ !cancelled() && steps.e2e.outcome == 'failure' }}
         shell: pwsh
         run: ./tests/e2e/diagnose.ps1
 
       - name: Upload E2E output on failure
-        if: failure()
+        if: ${{ !cancelled() && steps.e2e.outcome == 'failure' }}
         uses: actions/upload-artifact@v4
         with:
           name: e2e-output
