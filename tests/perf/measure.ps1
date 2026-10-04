@@ -3,18 +3,18 @@
 #   powershell -ExecutionPolicy Bypass -File tests/perf/measure.ps1 -Pdf <file.pdf> [-Runs 3] [-Perf]
 #   powershell -ExecutionPolicy Bypass -File tests/perf/measure.ps1 -Empty [-Runs 3]
 #
-# Each run starts Folio with the file and reports: time from launch to a visible main
+# Each run starts Lectrix with the file and reports: time from launch to a visible main
 # window, the app's own metrics (main_to_ready_ms, first_page_visible_ms), and idle memory
-# with the document open (folio.exe alone, and including its WebView2 processes; ADR 0002).
+# with the document open (lectrix.exe alone, and including its WebView2 processes; ADR 0002).
 #
-# -Perf adds one run with FOLIO_PERF set: the app compares raw RGBA with PNG end to end,
+# -Perf adds one run with LECTRIX_PERF set: the app compares raw RGBA with PNG end to end,
 # scrolls the whole document at two steady speeds measuring how long pages stay blank
 # (section 2: no blank page for more than 200 ms), and reports memory after scrolling.
 #
 # -Empty measures the window with no document instead (the baseline of ADR 0002's growth
 # rule): memory $IdleSeconds after the window appears.
 #
-# FOLIO_EPHEMERAL keeps these runs out of the user's recent files and remembered views.
+# LECTRIX_EPHEMERAL keeps these runs out of the user's recent files and remembered views.
 param(
     [string]$Pdf = '',
     [switch]$Empty,
@@ -28,7 +28,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 # $PSScriptRoot is not available in parameter defaults on Windows PowerShell 5.1.
-if (-not $Exe) { $Exe = Join-Path $PSScriptRoot '..\..\target\release\folio.exe' }
+if (-not $Exe) { $Exe = Join-Path $PSScriptRoot '..\..\target\release\lectrix.exe' }
 $Exe = (Resolve-Path $Exe).Path
 if (-not $Empty) {
     if (-not $Pdf) { throw 'Give -Pdf <file>, or -Empty.' }
@@ -45,7 +45,7 @@ function Get-Descendants([int]$ParentId) {
 function Read-Metrics([string]$Log) {
     $metrics = [ordered]@{}
     Get-Content $Log | ForEach-Object {
-        if ($_ -match '^\[folio-metric\] (\w+)=([\d.]+)') { $metrics[$Matches[1]] = [double]$Matches[2] }
+        if ($_ -match '^\[lectrix-metric\] (\w+)=([\d.]+)') { $metrics[$Matches[1]] = [double]$Matches[2] }
     }
     $metrics
 }
@@ -69,10 +69,10 @@ function Measure-Memory($Process) {
     }
 }
 
-function Start-Folio([string]$Log, [int]$Run) {
+function Start-Lectrix([string]$Log, [int]$Run) {
     # A fresh copy per run: the file name is the same, but nothing is cached anywhere.
-    $env:FOLIO_EPHEMERAL = '1'
-    $env:FOLIO_IMAGE_FORMAT = $Format
+    $env:LECTRIX_EPHEMERAL = '1'
+    $env:LECTRIX_IMAGE_FORMAT = $Format
     if ($Empty) {
         return Start-Process -FilePath $Exe -PassThru -RedirectStandardOutput $Log
     }
@@ -90,13 +90,13 @@ function Wait-For([string]$Log, [string]$Pattern, [int]$Seconds, $Stopwatch) {
     }
 }
 
-Get-Process folio -ErrorAction SilentlyContinue | Stop-Process -Force
+Get-Process lectrix -ErrorAction SilentlyContinue | Stop-Process -Force
 
 $results = @()
 for ($i = 1; $i -le $Runs; $i++) {
     $log = Join-Path $out "run-$i.log"
     $sw = [Diagnostics.Stopwatch]::StartNew()
-    $p = Start-Folio $log $i
+    $p = Start-Lectrix $log $i
     while ($true) {
         $p.Refresh()
         if ($p.MainWindowHandle -ne 0) { break }
@@ -116,8 +116,8 @@ for ($i = 1; $i -le $Runs; $i++) {
         WindowVisibleMs          = [math]::Round($windowMs)
         MainToReadyMs            = $metrics['main_to_ready_ms']
         FirstPageVisibleMs       = $metrics['first_page_visible_ms']
-        FolioWorkingSetMB        = $mem.Own
-        FolioPrivateMB           = $mem.Private
+        LectrixWorkingSetMB        = $mem.Own
+        LectrixPrivateMB           = $mem.Private
         WithWebView2WorkingSetMB = $mem.Tree
         WebView2ByTypeMB         = $mem.ByType
     }
@@ -126,16 +126,16 @@ $results | Format-Table -AutoSize | Out-String -Width 400
 
 if ($Perf) {
     $log = Join-Path $out 'perf.log'
-    $env:FOLIO_PERF = '1'
+    $env:LECTRIX_PERF = '1'
     $sw = [Diagnostics.Stopwatch]::StartNew()
-    $p = Start-Folio $log 0
-    Remove-Item Env:FOLIO_PERF
+    $p = Start-Lectrix $log 0
+    Remove-Item Env:LECTRIX_PERF
     Wait-For $log 'perf_done' 300 $sw
     Start-Sleep -Seconds $IdleSeconds
     $mem = Measure-Memory $p
     Stop-Process -Id $p.Id -Force
     $metrics = Read-Metrics $log
-    $metrics['memory_after_scroll_folio_mb'] = $mem.Own
+    $metrics['memory_after_scroll_lectrix_mb'] = $mem.Own
     $metrics['memory_after_scroll_tree_mb'] = $mem.Tree
     $metrics['memory_after_scroll_webview2_by_type'] = $mem.ByType
     [pscustomobject]$metrics | Format-List

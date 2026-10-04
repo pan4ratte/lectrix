@@ -1,6 +1,6 @@
 <script lang="ts">
 	// About (Help menu): version, license, and where the source code is (AGPL-3.0
-	// section 6). Folio makes no network requests, so the address is shown and copied, not
+	// section 6). Lectrix makes no network requests, so the address is shown and copied, not
 	// opened.
 	import { getVersion } from '@tauri-apps/api/app';
 	import { Dialog } from 'bits-ui';

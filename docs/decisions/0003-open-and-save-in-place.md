@@ -22,20 +22,20 @@ the document's own `xref_base`, and nothing re-bases them onto the saved file).
 
 1. **Open through our own file stream.** `pdf-core/src/ffi/stream.rs` opens the file in
    Rust with `FILE_SHARE_READ | FILE_SHARE_DELETE` (no write sharing) and passes the OS
-   handle to a small `fz_stream` implementation in the C shim (`folio_pdf_open_os_handle`,
+   handle to a small `fz_stream` implementation in the C shim (`lectrix_pdf_open_os_handle`,
    modelled on MuPDF's own file stream). Then `pdf_open_document_with_stream`.
    - Delete sharing lets the atomic save rename the new file over the open one. The open
      handle keeps reading the old file's data until the document is dropped (tested:
      `ffi::stream::tests::open_file_can_be_replaced_and_still_read`).
    - Without write sharing, no other program can change the bytes under MuPDF in place.
-     A program that saves by rename (most do) still can, and Folio notices the change
+     A program that saves by rename (most do) still can, and Lectrix notices the change
      through its file watch.
    - The shim uses `ReadFile`/`SetFilePointerEx` on Windows and `read`/`lseek` elsewhere,
      behind `#ifdef _WIN32`. This is the only platform-specific code in `pdf-core`; it is
      a portability shim for the C library rather than a Windows feature, so it lives in
      `ffi/` rather than the app's `platform` module.
    - The vendored crate gains one accessor, `PdfDocument::from_raw_owned`
-     (`third_party/mupdf-rs/FOLIO_PATCHES.md`, patch 3).
+     (`third_party/mupdf-rs/LECTRIX_PATCHES.md`, patch 3).
 2. **Reopen after every successful save.** The document actor saves through `save_atomic`,
    then opens the saved file again and replaces its in-memory document. Later
    incremental saves then append to the right bytes (tested:
@@ -53,7 +53,7 @@ handles on Windows. A child process started while MuPDF has a file open for writ
 inherits that handle and keeps the file open until it exits, which blocks the rename. The
 `pdf-core` test suite hit this (a `qpdf --check` spawned by one test held another test's
 temporary file), and `tests/common/mod.rs` now serializes MuPDF writes against child
-processes. Folio itself starts no child processes. If a future feature does (for example
+processes. Lectrix itself starts no child processes. If a future feature does (for example
 "Show in folder"), it must not do so while a save is in progress, or must restrict handle
 inheritance.
 

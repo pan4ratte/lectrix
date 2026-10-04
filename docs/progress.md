@@ -11,9 +11,9 @@ later runs reuse the Rust cache. Reviewed by the user on 2026-10-03 (decisions b
 
 | Item | Result |
 | --- | --- |
-| Tauri 2 + SvelteKit (static, SSR off) + Tailwind skeleton builds and runs on Windows | Done. Release build `target/release/folio.exe`. |
+| Tauri 2 + SvelteKit (static, SSR off) + Tailwind skeleton builds and runs on Windows | Done. Release build `target/release/lectrix.exe`. |
 | MuPDF linked through the `mupdf` crate; version pinned and recorded | Done. MuPDF 1.27.2. The crate is a vendored, patched copy at upstream `537d505`; see ADR 0001 and `docs/versions.md`. |
-| A page renders in the window through `folio://`; render and encode times measured on a 500-page file | Done. See the performance table below. |
+| A page renders in the window through `lectrix://`; render and encode times measured on a 500-page file | Done. See the performance table below. |
 | `pdf-cli` writes page labels, writes an outline, merges two files, adds a highlight with an appearance stream | Done: `labels set`, `outline set`, `merge`, `annot markup`. |
 | Those four outputs pass `qpdf --check` and display correctly in the harness (all three engines) | Done. `python tests/interop/run.py phase0`: 78 checks pass, 0 fail. |
 | Journalling works on at least one operation | Done. `ffi::Journal` (enable, undo, redo, state, step names) through a C shim; test `undo_and_redo_an_annotation`. |
@@ -65,7 +65,7 @@ corpus files once the user supplies them.
 | Window visible < 1 s | Window handle 33–143 ms after launch; UI mounted 508–692 ms after `main` (3 runs) | Yes |
 | First page of a 500-page PDF visible < 1 s | 1,300–1,607 ms from UI ready to image shown | **No**, see finding 1 |
 | No blank page > 200 ms while scrolling | Not measurable yet (no continuous scroll until Phase 1). Per-page cost after warm-up: 2.9 ms render + 2.1 ms encode at 100% zoom; 10.2 + 6.2 ms at 200% (mean of 25 pages) | Phase 1 |
-| Idle memory < 200 MB, one large document open | `folio.exe` 60 MB working set (13 MB private). Including the WebView2 processes: about 500 MB | Depends on the definition, see finding 3 |
+| Idle memory < 200 MB, one large document open | `lectrix.exe` 60 MB working set (13 MB private). Including the WebView2 processes: about 500 MB | Depends on the definition, see finding 3 |
 
 Reproduce: `powershell -ExecutionPolicy Bypass -File tests/perf/measure.ps1 -Pdf <file>`,
 and `pdf-cli bench <file> --scale 1.333`.
@@ -88,9 +88,9 @@ and `pdf-cli bench <file> --scale 1.333`.
 2. **PNG encoding is above the 30% threshold.** Encoding takes 61–71% of render time on
    these pages. Section 3 says to switch to raw RGBA drawn into a `<canvas>` in that
    case, so Phase 1 will do that unless you object.
-3. **Memory target definition.** Folio's own process uses about 60 MB. WebView2's browser,
+3. **Memory target definition.** Lectrix's own process uses about 60 MB. WebView2's browser,
    GPU and renderer processes add about 440 MB, and we can only partly control that. Should
-   the 200 MB target cover `folio.exe` only, or the whole process tree including WebView2?
+   the 200 MB target cover `lectrix.exe` only, or the whole process tree including WebView2?
 4. **In-place save is blocked on Windows (verified).** MuPDF keeps the source file open
    without `FILE_SHARE_DELETE`, so the atomic rename onto the open file fails (reported
    cleanly as "file is open in another program"). Phase 1 will open files through a stream
@@ -106,7 +106,7 @@ and `pdf-cli bench <file> --scale 1.333`.
 
 1. **Fonts: option (b).** Phase 1 warms the system font cache on a background thread at
    startup, and the vendored crate sends base-14 names straight to MuPDF's built-in fonts.
-2. **Memory target: decided in ADR 0002.** 200 MB applies to `folio.exe`; the whole tree
+2. **Memory target: decided in ADR 0002.** 200 MB applies to `lectrix.exe`; the whole tree
    including WebView2 is reported every phase, with a growth limit.
 3. **Page images: follow section 3 and switch to raw RGBA drawn into a `<canvas>`.**
    Raw pixels are large: a page at 150% on a 2x display is about 14 MB. So Phase 1 measures
@@ -158,7 +158,7 @@ Decisions 1 and 2 below need you.
 - **App crate.** All IPC commands typed through ts-rs; paths never come from the webview.
   Drag-and-drop, command line, single instance, recent files, password prompts, a file
   watcher (stat polling every 1.5 s; no new dependency), a rotating log in
-  `%LOCALAPPDATA%\org.folio.pdf\logs`, and a `platform` module (Mica, accent color, path
+  `%LOCALAPPDATA%\org.lectrix.pdf\logs`, and a `platform` module (Mica, accent color, path
   identity).
 - **Frontend.** Svelte 5 components under `src/lib/features/viewer/` and
   `src/lib/components/`; render requests are prioritized by distance from the viewport
@@ -182,7 +182,7 @@ Decisions 1 and 2 below need you.
   (Phase 0 cases): 78 passed, 0 failed.
 - The tests found one Windows hazard worth knowing: MuPDF writes files through the C
   runtime, whose handles are inheritable, so a child process started during a save keeps
-  the file open. Folio starts no child processes; details in ADR 0003.
+  the file open. Lectrix starts no child processes; details in ADR 0003.
 
 ### Performance (section 2 targets)
 
@@ -195,7 +195,7 @@ the generated 1,000-page text PDF. Run: `tests/perf/measure.ps1 -Pdf big1000.pdf
 | Window visible < 1 s | 31–195 ms | Yes |
 | First page visible < 1 s | 72–160 ms (Phase 0: 1,300–1,607 ms) | Yes |
 | No blank page > 200 ms while scrolling (1,000 pages) | Continuous: 0 blank events at 2,000 px/s (46 pages); worst 122 ms at 6,000 px/s (139 pages). Random jumps: worst 200–246 ms (RGBA), 171 ms (PNG) | Yes for scrolling; jumps borderline |
-| folio.exe < 200 MB (ADR 0002) | 105–108 MB idle with the document open; 137–141 MB after scrolling 185 pages | Yes |
+| lectrix.exe < 200 MB (ADR 0002) | 105–108 MB idle with the document open; 137–141 MB after scrolling 185 pages | Yes |
 | WebView2 growth ≤ 100 MB when opening a 1,000-page document (ADR 0002) | Empty window 507 MB (tree). With the document open and idle: 682–762 MB (+175 to +255). After the scroll tests: 1.6–2.0 GB, of which the WebView2 GPU process alone is 946 MB | **No**, decision 2 |
 
 **RGBA versus PNG, end to end** (request to pixels on a canvas, same 16 pages at the
@@ -213,14 +213,14 @@ rendering. Encoding is now cheap because the PNG is made from the cached RGBA re
 
 1. **Page image format: section 3 conflict (Phase 0 decision 3 asked me to report this).**
    RGBA is about 3× slower end to end than PNG here, and does not improve scrolling. The
-   app still defaults to RGBA as section 3 says; `FOLIO_IMAGE_FORMAT=png` switches it, and
+   app still defaults to RGBA as section 3 says; `LECTRIX_IMAGE_FORMAT=png` switches it, and
    both paths share one cache.
    - (a) Make PNG the default and record it in an ADR. One-line change.
    - (b) Keep RGBA and move pixels through WebView2's shared-buffer API (no copies).
      Probably the fastest, but Windows-only, needs new `webview2-com` code behind the
      `platform` trait, and would be a project of its own.
    - **Recommendation: (a) now;** revisit (b) only if large scans prove slow.
-2. **WebView2 memory breaks ADR 0002's growth rule.** Folio's own process is well under
+2. **WebView2 memory breaks ADR 0002's growth rule.** Lectrix's own process is well under
    target; the growth is in WebView2, mostly its GPU process, and it keeps growing during
    long scrolls. Releasing canvases as pages leave the screen and turning off the browser
    cache for page images did not change the picture. Options:
@@ -294,7 +294,7 @@ designed.
 
 **Performance on real files** (app, PNG):
 
-| File | First page visible | folio.exe |
+| File | First page visible | lectrix.exe |
 | --- | --- | --- |
 | 2,881-page dictionary | 107 ms; scrolling: no blank page at either speed, worst jump 173 ms | 108 MB (157 after scrolling) |
 | 173 MB repaired scan | 315 ms | 120 MB |
@@ -362,7 +362,7 @@ real-world file still takes 1.8 s to show its first page for a reason unrelated 
 - **App.** Sidebar tabs (Pages, Bookmarks), the bookmarks panel (virtualized ARIA tree,
   pointer drag-and-drop; HTML5 drag events do not reach the webview while Tauri's file
   drop is on), the inspector, Document > Add bookmark, View > Bookmarks. Five bookmark
-  operations and `set_bookmark_open` over IPC, types generated by ts-rs. `FOLIO_OPEN`
+  operations and `set_bookmark_open` over IPC, types generated by ts-rs. `LECTRIX_OPEN`
   opens files like command-line arguments (tauri-driver hands launch arguments to WebView2
   on Windows). Page canvases are CPU-backed and fewer pages are mounted (memory); a
   minimized window sets WebView2's memory target to Low.
@@ -370,7 +370,7 @@ real-world file still takes 1.8 s to show its first page for a reason unrelated 
   the app), `fonts` (index, name resolution, a document's non-embedded fonts), rotated
   pages in `info`.
 - **Tests and tools.** `tests/e2e/` (standalone webdriverio 9.32.0, Node's test runner,
-  `fetch-edgedriver.ps1`), interop `phase2`, `measure.ps1 -Empty`, `FOLIO_PERF=scroll`,
+  `fetch-edgedriver.ps1`), interop `phase2`, `measure.ps1 -Empty`, `LECTRIX_PERF=scroll`,
   `tests/perf/memory-over-time.ps1`.
 - **New dependencies** (all MIT OR Apache-2.0 and already in the tree through Tauri):
   `windows` 0.62.2 in `pdf-core` (DirectWrite), `webview2-com` 0.39.1 and `windows-core`
@@ -413,7 +413,7 @@ In the app (first page visible, 3 cold starts each), corpus files with non-embed
 
 ### WebView2 memory (ADR 0002 rule)
 
-Generated 1,000-page file; WebView2 = whole tree minus `folio.exe`.
+Generated 1,000-page file; WebView2 = whole tree minus `lectrix.exe`.
 
 | | Phase 1 | Phase 2 |
 | --- | --- | --- |
@@ -433,14 +433,14 @@ Same machine and file as Phase 1 (`measure.ps1 -Pdf big1000.pdf -Perf`).
 | Window visible < 1 s | 71 to 221 ms | Yes |
 | First page visible < 1 s | 77 to 143 ms | Yes |
 | No blank page > 200 ms while scrolling | Steady: none; fast: worst 56 ms; random jumps: worst 127 ms (Phase 1: 171 to 246 ms) | Yes |
-| folio.exe < 200 MB | 63 MB idle (Phase 1: 105 to 108); 104 MB after scrolling | Yes |
+| lectrix.exe < 200 MB | 63 MB idle (Phase 1: 105 to 108); 104 MB after scrolling | Yes |
 | WebView2 growth ≤ 100 MB | about +120 MB | **No**, decision 1 |
 
 ### Decisions needed
 
 1. **WebView2 growth rule.** What remains (+120 MB) is the cost of showing one page, and no
    longer depends on the document. Options:
-   - (a) Revise ADR 0002's rule to what Folio controls: opening a large document may not
+   - (a) Revise ADR 0002's rule to what Lectrix controls: opening a large document may not
      cost more than 30 MB over opening a one-page document, and memory after scrolling
      must plateau (three rounds of the scroll tests within 10% of one round). Both hold
      today.
@@ -521,16 +521,16 @@ The first CI runs on these commits failed; each fix is its own commit:
 2. **No WebDriver session on CI:** the runner's WebView2 (153, Windows Server 2025)
    ignored `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS` because Tauri passes its own default
    arguments through the API, so msedgedriver's `--remote-debugging-port` never arrived.
-   Folio now creates its main window in code and, when the variable is set, passes both
+   Lectrix now creates its main window in code and, when the variable is set, passes both
    argument lists merged. Without the variable nothing changes.
 3. **Intermittent empty window:** msedgedriver navigates the webview to `about:blank`
-   when a session starts. On the slower runner, Folio's page sometimes loaded first and was
+   when a session starts. On the slower runner, Lectrix's page sometimes loaded first and was
    wiped. The harness now reloads the app page in that case, and the frontend asks Rust for
    documents it already has open (`list_open_documents`) before opening startup files. That
    also helps users: if the webview reloads (a renderer crash), open documents reappear
    instead of an empty window. A third end-to-end test covers it.
 
-The harness also kills stray `folio.exe` (Folio is single-instance), fails fast instead of
+The harness also kills stray `lectrix.exe` (Lectrix is single-instance), fails fast instead of
 retrying, logs every msedgedriver session verbosely, and saves a screenshot when a
 document does not show; CI uploads these and runs `tests/e2e/diagnose.ps1` on failure.
 
@@ -589,7 +589,7 @@ pushed), and Acrobat has to be checked by you (files below).
   writes only the tree object, can be undone, and reads back as written in MuPDF.
 - Local corpus (`--ignored`): all 30 files pass. For the 13 that have labels, a label
   edit round trip passes too: a new range at the last page, saved
-  incrementally, reads back as written in Folio and MuPDF, and `qpdf --check` is no worse.
+  incrementally, reads back as written in Lectrix and MuPDF, and `qpdf --check` is no worse.
 - Vitest: 45 (Phase 2: 35): formatting with the Rust test values, rules as shown (sorted,
   past-the-end rules hidden, first-page rule added), validation, presets, row text.
 - E2E: 4 flows (Phase 2: 3). The new one applies the preset, types a prefix and sees it in
@@ -599,13 +599,13 @@ pushed), and Acrobat has to be checked by you (files below).
 - Interop: phase0 78, phase2 15, phase3 11, all passed. Phase 3 covers letters past Z with
   a prefix ("Anhang Y" to "Anhang FF"), a prefix-only non-ASCII label ("Índice"), the
   other-app fixture before and after an edit, and removed labels. Expected labels are
-  written out in the harness, not computed with Folio's code. `cargo clippy -D warnings`,
+  written out in the harness, not computed with Lectrix's code. `cargo clippy -D warnings`,
   `cargo fmt`, `svelte-check`: clean.
 
 ### Performance (section 2 targets)
 
 Same machine and file as before (`measure.ps1 -Pdf big1000.pdf`, 3 runs): window visible
-56 to 112 ms, first page visible 83 to 106 ms, `folio.exe` 63 MB idle, whole tree 614 to
+56 to 112 ms, first page visible 83 to 106 ms, `lectrix.exe` 63 MB idle, whole tree 614 to
 627 MB. No change from Phase 2. On the file with 2,597 label rules, the panel shows in
 70 ms (24 rows in the page), and the preview follows a keystroke in 63 ms (WebDriver
 round trip included).
@@ -618,7 +618,7 @@ round trip included).
 | File | Expected labels |
 | --- | --- |
 | `app-labels.pdf` (30 pages) | i–iv, 1–15, Anhang Y, Anhang Z, Anhang AA, Anhang BB … Anhang FF, Índice ×3 |
-| `app-made-in-folio.pdf` (8 pages, made in the app by the E2E test) | i, ii, iii, Ch-1, Ch-2, Ch-3, A, B |
+| `app-made-in-lectrix.pdf` (8 pages, made in the app by the E2E test) | i, ii, iii, Ch-1, Ch-2, Ch-3, A, B |
 | `other-app-labels.pdf` (12 pages, as another app wrote it) | Cover, i, ii, iii, 1–5, Äh-C, Äh-D, Index 120 |
 | `other-app-labels-edited.pdf` (the same, decimal range moved to page 6) | Cover, i, ii, iii, iv, 1–4, Äh-C, Äh-D, Index 120 |
 | `labels-removed.pdf` | no labels: 1, 2, 3 … |
@@ -691,13 +691,13 @@ you (files below). One question about signed files is under "Decisions needed".
 | --- | --- |
 | Everything in 6.4 works | Yes. **Combine files** (File menu or the start screen) opens as a tab of its own: the files on the left, every page of every file in one grid. Add files with the dialog or by dropping them on the view. Select pages (click, Ctrl, Shift, arrow keys), reorder them by dragging or with Alt+Shift+arrows, turn them (R, Shift+R) or remove them (Delete), with undo and redo. Bookmarks: one bookmark per file with its bookmarks inside (default), as they are, or none. Labels: each page keeps its label (default), 1, 2, 3 throughout, or none. Combine asks for a new file name (never one of the sources), shows progress with a Stop button, opens the result, and says how many link targets, form fields and attached files were renamed ("src2_…") and which links or bookmarks to left-out pages were removed. Annotations, links, named destinations, form fields, layers and attached files come along with their pages. **Insert pages from file** (Document menu, thumbnails' context menu) uses the same engine: which pages, before or after which page, bookmarks and labels. It is one undo step ("Insert pages"). |
 | Three corpus files (with an outline, with labels, with annotations): `qpdf --check` passes, annotations visible in all three engines, internal links work | Yes, for generated files in CI and for real files locally. **CI** (`run.py phase4`, 51 checks): a file with a 3-level outline, a file with labels, and a file with a highlight and links (explicit, named, web), combined whole, combined picked (reordered, turned, a link target left out) and inserted. qpdf is clean; PDFium and pdf.js read the expected pages, labels, bookmarks and link targets; the highlight is visible in MuPDF, PDFium and pdf.js and the engines agree. **Local corpus** (`run.py phase4-local`, 206 checks): `08-calibre-made` (outline, links), `24-rotated-some` (labels, 64 bookmarks, 575 internal links, rotated pages) and `03-annot-highlight` (28 highlights made by another app). qpdf is clean, although one source has qpdf warnings. In PDFium and pdf.js every page keeps its label, each file's bookmarks are nested with their targets moved along, and all 775 links (582 internal) lead where they led in the sources. All 28 highlights are visible in the three engines. |
-| Two 500-page files: progress bar, can be cancelled without partial files | Yes, end-to-end test `combine-progress`: two generated 500-page files combine into one 1,000-page file while the progress bar moves (70 values, then "Writing the file…"). A second combine, stopped halfway, writes nothing, and an existing file with the target's name keeps its contents. No temporary file is left. Rust tests cover stopping while copying and while writing. Unslowed, these two files combine in well under a second, too fast to press Stop, so the test slows copying by 3 ms per page (`FOLIO_COMBINE_PAGE_DELAY_MS`). |
+| Two 500-page files: progress bar, can be cancelled without partial files | Yes, end-to-end test `combine-progress`: two generated 500-page files combine into one 1,000-page file while the progress bar moves (70 values, then "Writing the file…"). A second combine, stopped halfway, writes nothing, and an existing file with the target's name keeps its contents. No temporary file is left. Rust tests cover stopping while copying and while writing. Unslowed, these two files combine in well under a second, too fast to press Stop, so the test slows copying by 3 ms per page (`LECTRIX_COMBINE_PAGE_DELAY_MS`). |
 
 ### What was built
 
 - **pdf-core.** A new engine in `merge/`. MuPDF's page graft (used in Phase 0) copies a
   page's contents and resources but leaves out its annotations, so links, notes and form
-  widgets were lost. Folio now copies pages with its own copier (`merge/copy.rs`), which
+  widgets were lost. Lectrix now copies pages with its own copier (`merge/copy.rs`), which
   maps every picked page to its new page first and never copies the catalog, the page
   tree or pages that were not picked. Annotations keep their `/P`, `/Popup` and `/IRT`
   links. Links and bookmarks to pages left out are removed (a bookmark with children stays
@@ -719,8 +719,8 @@ you (files below). One question about signed files is under "Decisions needed".
   dialog. A document's page count can now change, so the doc store handles that.
 - **pdf-cli.** `merge --pages 2:1-3,1:5@90` (pick, reorder, turn) prints what was renamed or
   left out. `insert` inserts pages through a session, as the app does.
-- **Automation.** `FOLIO_DIALOG` answers the app's file dialogs from the environment (like
-  `FOLIO_OPEN`; paths never come from the webview), and `FOLIO_COMBINE_PAGE_DELAY_MS` slows
+- **Automation.** `LECTRIX_DIALOG` answers the app's file dialogs from the environment (like
+  `LECTRIX_OPEN`; paths never come from the webview), and `LECTRIX_COMBINE_PAGE_DELAY_MS` slows
   combining for the progress test. Both are for tests only.
 - No new dependencies.
 
@@ -734,7 +734,7 @@ page whose merge is quadratic as well. Now the new pages join the page tree as o
 `/Pages` node (the existing tree changes in two places), the data of objects created in
 the step is written with the journal set aside (undo removes those objects whole, so
 nothing is lost; a small FFI wrapper with a test), and new bookmarks are written whole.
-Folio's own name-tree lookup also searched leaves one name at a time, which made reading
+Lectrix's own name-tree lookup also searched leaves one name at a time, which made reading
 a combined file's bookmarks slow; it now searches by halves.
 
 | `pdf-cli insert` into a 3-page document: open, insert as one undo step, save | Before | After |
@@ -770,7 +770,7 @@ a combined file's bookmarks slow; it now searches by halves.
 ### Performance
 
 Section 2 targets (`measure.ps1 -Pdf big1000.pdf`, 3 runs): window visible 60 to 140 ms,
-first page visible 104 to 105 ms, `folio.exe` 63 to 64 MB idle, whole tree 627 to 647 MB.
+first page visible 104 to 105 ms, `lectrix.exe` 63 to 64 MB idle, whole tree 627 to 647 MB.
 No change from Phase 3.
 
 Combining (`pdf-cli merge`, release build; time from start to the file written):
@@ -784,7 +784,7 @@ Combining (`pdf-cli merge`, release build; time from start to the file written):
 | `15-largest-file` + `20-repaired` (two scans, 338 MB) | 684 pages, 323 MB | 1.0 s | 337 MB |
 
 Peak memory is about the size of the result: copied page data stays in memory until the
-file is written. Combining two very large scans therefore briefly raises `folio.exe` by
+file is written. Combining two very large scans therefore briefly raises `lectrix.exe` by
 that much.
 
 ### Please check in Acrobat
@@ -795,7 +795,7 @@ annotations and form fields.
 
 | File | What to see |
 | --- | --- |
-| `app-combined.pdf` (8 pages, made in the app by the E2E test) | Page 1 has a yellow highlight; page 2 is turned 90°. Labels 1, 1, 2, 3, ii, iii, iv, 2. Bookmarks: three "Folio sample" items (pages 1, 2, 5), the second with "Chapter A" (page 3). |
+| `app-combined.pdf` (8 pages, made in the app by the E2E test) | Page 1 has a yellow highlight; page 2 is turned 90°. Labels 1, 1, 2, 3, ii, iii, iv, 2. Bookmarks: three "Lectrix sample" items (pages 1, 2, 5), the second with "Chapter A" (page 3). |
 | `merged.pdf` (14 pages) | Labels 1–6, i, ii, 1–3, 1–3. Bookmarks "Outline sample" (Front > Preface, Chapter > Section), "Labels sample", "annotated". On page 12: a highlight with a note, and three links: to page 14, to page 13 (through the named destination "chap2"), and a web link. |
 | `picked.pdf` (5 pages) | Page 1 is turned and keeps its highlight. Its link to the left-out page was removed; its other page link leads to page 2. "Front" is a heading without a target, with "Preface" below it. |
 | `inserted.pdf` (8 pages) | Pages 3–5 were inserted from the annotated file: labels i–v, then 1–3; its links lead to pages 4 and 5. |
@@ -824,7 +824,7 @@ annotations and form fields.
   pages were arranged but not combined. After combining, the result opens in a new tab and
   the Combine tab stays open for another try.
 - Combining reads files as they are saved on disk. If one is open in a tab with unsaved
-  changes, Folio offers "Save and combine", "Use saved version" or "Cancel".
+  changes, Lectrix offers "Save and combine", "Use saved version" or "Cancel".
 - Files whose security settings forbid copying content are not added (Acrobat also
   refuses page extraction from them), with a plain message. Encrypted files that allow it
   ask for their password; the combined file is not encrypted.
@@ -862,7 +862,7 @@ annotations and form fields.
 
 1. **CI:** the Phase 4 commits are pushed.
 2. **Signed source files: option (b).** Before combining files that are signed, or
-   inserting pages from one, Folio asks: "The signature in X will not be valid in the
+   inserting pages from one, Lectrix asks: "The signature in X will not be valid in the
    combined file" (or "in this document"), with "Combine anyway" / "Insert anyway" and
    Cancel. The signature fields are still copied as they are. Covered by Vitest and by an
    E2E flow with a signed file (Cancel writes nothing; "Combine anyway" combines).
@@ -922,14 +922,14 @@ manual checklist is yours to do. Four questions are under "Decisions needed".
   drawn at the size of `/Rect` so every reader shows them the same size; on rotated pages
   PDFium and pdf.js still turn the icon with the page, which no file can change. MuPDF
   writes a `/CL` callout line on every new text box and no margin; it drops `/CA` at
-  opacity 1; it gives notes `/F 28`. Folio corrects each after synthesis. No type has a
-  drawing of Folio's own.
+  opacity 1; it gives notes `/F 28`. Lectrix corrects each after synthesis. No type has a
+  drawing of Lectrix's own.
 - **The app crate's test binary stopped starting** (`STATUS_ENTRYPOINT_NOT_FOUND`). With
   the Phase 5 code, the linker keeps message-box code in the test binary (test binaries
   from earlier phases lack it), which imports `TaskDialogIndirect`, a function only Common
   Controls v6 has; only the app binary carried the manifest asking for v6. `src-tauri/build.rs` now has the linker write the
   same dependency into every binary of the crate (in place of tauri-build's copy, which
-  held nothing else; two would clash). `folio.exe`'s manifest is unchanged apart from the
+  held nothing else; two would clash). `lectrix.exe`'s manifest is unchanged apart from the
   linker's standard "run as invoker" entry.
 
 ### Tests
@@ -954,7 +954,7 @@ manual checklist is yours to do. Four questions are under "Decisions needed".
 ### Performance
 
 Section 2 targets (`measure.ps1 -Pdf big1000.pdf`, 3 runs): window visible 29 to 162 ms,
-first page visible 86 to 113 ms, `folio.exe` 64 MB idle, whole tree 638 to 656 MB.
+first page visible 86 to 113 ms, `lectrix.exe` 64 MB idle, whole tree 638 to 656 MB.
 No change from Phase 4 beyond run-to-run spread.
 
 ### Please check
@@ -973,7 +973,7 @@ with the files in `target/test-output/manual/phase5/`.
    text box, though, `/C` is the background fill (PDF 32000-1 12.5.6.6); the text colour
    lives in `/DA`. Options:
    - (a) Write `/C []` (no background) and the chosen colour as the text colour in `/DA`.
-     This is what Folio does now, and what the spec describes.
+     This is what Lectrix does now, and what the spec describes.
    - (b) Write the chosen colour in `/C` too. Readers would then fill the box with the
      text's colour, making the text unreadable.
    - (c) Offer a background colour for text boxes as well (`/C` = background, `/DA` =
@@ -1042,10 +1042,10 @@ tests (now 16 flows). Three things are still open:
 
 | Item | Result |
 | --- | --- |
-| Crash recovery, recent files and per-file view memory work | Yes. **Crash recovery:** every 2 minutes, each document with unsaved changes gets a recovery copy in `%LOCALAPPDATA%\org.folio.pdf\recovery` (only when its content changed since the last copy). Saving, reloading or closing a document deletes its copy, and so does quitting normally (after "Save" or "Don't save"). At the next start, copies a crash left behind are offered: "Restore unsaved changes?" with the file names and times, and Restore, Discard… (asks once more) or Not now (asked again next time). A restored document opens in a tab for its own file, marked unsaved. Save writes onto the file incrementally, so its original bytes stay intact (section 5.4). If another program changed the file since the copy was made, the usual "changed on disk" banner appears. Encrypted files ask for their password again. **Recent files and remembered views** (built in Phase 1) now have an end-to-end test: a closed document reopens from the start screen's list on the same page and zoom. |
-| NSIS and MSI installers build in CI; `.pdf` association can be chosen at install | Built locally; the CI step is written but has not run. Both installers have a "PDF files" page after the folder page: "Open PDF files with Folio", checked by default. When it is chosen, Folio is registered for PDFs: it appears in Open with and in Settings > Default apps, and Windows asks which app to use at the next PDF. Windows 10 and 11 let no installer take over the default itself (ADR 0007, proposed). For silent installs, `/NOPDF` (NSIS) or `FOLIO_ASSOCIATE_PDF=0` (MSI) leaves the registration out. `tests/installer/check.ps1` installs and uninstalls both silently, with and without the registration, checks the registry and files, and checks that the `.pdf` default is never touched. It installs software, so it runs on CI runners only; I have not run it on your machine. I checked the built MSI's tables instead (feature, condition, registry rows, the dialog's events). Both installers now also install `LICENSE.txt` and the license notices. |
+| Crash recovery, recent files and per-file view memory work | Yes. **Crash recovery:** every 2 minutes, each document with unsaved changes gets a recovery copy in `%LOCALAPPDATA%\org.lectrix.pdf\recovery` (only when its content changed since the last copy). Saving, reloading or closing a document deletes its copy, and so does quitting normally (after "Save" or "Don't save"). At the next start, copies a crash left behind are offered: "Restore unsaved changes?" with the file names and times, and Restore, Discard… (asks once more) or Not now (asked again next time). A restored document opens in a tab for its own file, marked unsaved. Save writes onto the file incrementally, so its original bytes stay intact (section 5.4). If another program changed the file since the copy was made, the usual "changed on disk" banner appears. Encrypted files ask for their password again. **Recent files and remembered views** (built in Phase 1) now have an end-to-end test: a closed document reopens from the start screen's list on the same page and zoom. |
+| NSIS and MSI installers build in CI; `.pdf` association can be chosen at install | Built locally; the CI step is written but has not run. Both installers have a "PDF files" page after the folder page: "Open PDF files with Lectrix", checked by default. When it is chosen, Lectrix is registered for PDFs: it appears in Open with and in Settings > Default apps, and Windows asks which app to use at the next PDF. Windows 10 and 11 let no installer take over the default itself (ADR 0007, proposed). For silent installs, `/NOPDF` (NSIS) or `LECTRIX_ASSOCIATE_PDF=0` (MSI) leaves the registration out. `tests/installer/check.ps1` installs and uninstalls both silently, with and without the registration, checks the registry and files, and checks that the `.pdf` default is never touched. It installs software, so it runs on CI runners only; I have not run it on your machine. I checked the built MSI's tables instead (feature, condition, registry rows, the dialog's events). Both installers now also install `LICENSE.txt` and the license notices. |
 | Performance targets met, or gaps documented | Met on the generated 1,000-page file and on most real files (table below). One gap: scanned books stored as JPEG 2000 (decision 2). |
-| Large JPEG 2000 pages: look into decoding at the resolution shown, and report | Done (section below). Partly fixed in Folio: that page now shows in 1.05 s instead of 1.85 s. Decoding at the shown resolution needs a change inside MuPDF: decision 2. |
+| Large JPEG 2000 pages: look into decoding at the resolution shown, and report | Done (section below). Partly fixed in Lectrix: that page now shows in 1.05 s instead of 1.85 s. Decoding at the shown resolution needs a change inside MuPDF: decision 2. |
 | Accessibility pass (keyboard-only walkthrough, contrast check) | Done, with fixes (below). An end-to-end test walks every Tab stop in every panel and dialog, and a keyboard-only session reaches a saved file. Contrast is checked by a test against `app.css` in both themes and for all 48 Windows accent colours. |
 | macOS and Linux build-only CI jobs; platform gaps listed | The jobs are written: they build the workspace, its tests and the app, and run the tests without failing the job. They have not run, because nothing is pushed. WSL here has no compilers and needs a password for `sudo`, so I could not build for Linux locally. Platform gaps are listed below. |
 
@@ -1065,10 +1065,10 @@ tests (now 16 flows). Three things are still open:
     replaced only once the copy is complete. A restored document's copy is kept while the
     document reads from it.
   - New commands: `list_recovered`, `restore_recovered`, `discard_recovered`.
-  - Recovery is off for test and measurement runs (`FOLIO_EPHEMERAL`).
-    `FOLIO_RECOVERY_DIR` and `FOLIO_RECOVERY_INTERVAL_MS` exist for tests only.
+  - Recovery is off for test and measurement runs (`LECTRIX_EPHEMERAL`).
+    `LECTRIX_RECOVERY_DIR` and `LECTRIX_RECOVERY_INTERVAL_MS` exist for tests only.
 - **Installers.** `src-tauri/windows/installer.nsi` is Tauri 2.12.1's NSIS template plus
-  the page, with every change marked `Folio:`. `src-tauri/windows/pdf-association.wxs` is
+  the page, with every change marked `Lectrix:`. `src-tauri/windows/pdf-association.wxs` is
   a WiX fragment with the registration as an optional feature and the page as a dialog.
   ADR 0007 explains the approach.
 - **Accessibility fixes**, from the walkthrough and the contrast test:
@@ -1091,7 +1091,7 @@ tests (now 16 flows). Three things are still open:
     edits in flight before saving.
 - **Viewer.** Thumbnails wait while pages on screen render (see the JPEG 2000 section).
 - **Licenses.** `tests/licenses/notices.py` lists every Rust crate compiled into
-  `folio.exe` and every npm package bundled into the frontend (260 in all). It checks
+  `lectrix.exe` and every npm package bundled into the frontend (260 in all). It checks
   that each license is AGPL-compatible and writes `THIRD_PARTY_LICENSES.md` with their
   texts. CI runs it with `--check`.
 - **pdf-cli:** new `recovery` command (write a copy, time it, restore it).
@@ -1137,7 +1137,7 @@ stream). The app draws it at 1421 × 1902.
   around every decode (`fz_opj_lock`, shared with FreeType). In the app, the thumbnail of
   page 1 often started first and held the lock for its own 0.9 s decode, so the page
   showed after 1.85 s.
-- **Fixed in Folio:** thumbnails now wait while pages on screen render. The page shows in
+- **Fixed in Lectrix:** thumbnails now wait while pages on screen render. The page shows in
   1.05 to 1.07 s. A heavy non-JPEG page elsewhere (`01-annot-caret`) went from 644 to
   445 ms.
 - **What decoding at the shown resolution would gain**, measured with OpenJPEG 2.5.4
@@ -1157,7 +1157,7 @@ stream). The app draws it at 1421 × 1902.
   | Fast, 6,000 px/s | 142 | 79 | 404 ms |
   | Random jumps | 28 | 26 | 413 ms |
 
-  `folio.exe` reached 252 MB after this scroll, from decoded images in flight. Idle with
+  `lectrix.exe` reached 252 MB after this scroll, from decoded images in flight. Idle with
   the book open it uses 101 MB.
 - Both remedies, reduced-resolution decoding and multithreaded decoding without the global
   lock, are changes inside MuPDF (`source/fitz/load-jpx.c`, `image.c`, and how
@@ -1203,7 +1203,7 @@ Same machine as before, release build, PNG.
 | Window visible < 1 s | 30 to 99 ms | Yes |
 | First page of a large PDF visible < 1 s | 1,000-page file 73 to 80 ms; 2,881-page dictionary 137 ms; JPEG 2000 scan 1.05 to 1.07 s | Yes, except the JPEG 2000 page (decision 2) |
 | No blank page > 200 ms while scrolling | 1,000-page file: steady none, fast worst 18 ms, jumps worst 46 to 54 ms. JPEG 2000 book: see above | Yes, except JPEG 2000 scans |
-| `folio.exe` < 200 MB idle (ADR 0002) | 63 to 64 MB with the 1,000-page file, 101 MB with the JPEG 2000 book | Yes |
+| `lectrix.exe` < 200 MB idle (ADR 0002) | 63 to 64 MB with the 1,000-page file, 101 MB with the JPEG 2000 book | Yes |
 | WebView2 (ADR 0002 rule) | Whole tree 635 to 647 MB idle (Phase 5: 638 to 656 MB). Not re-measured against the one-page baseline, as nothing this phase changes what the webview holds | Unchanged |
 
 ### Platform gaps (macOS and Linux)
@@ -1223,7 +1223,7 @@ fallbacks, and the file-stream shim has a POSIX branch. None of this has been ru
   memory target has no equivalent.
 - **Installers and file association:** Windows only. `.dmg`, `.deb`/AppImage and their
   associations are not configured. Crash recovery, the single-instance hand-off and
-  `FOLIO_DIALOG` are platform-neutral but untested there.
+  `LECTRIX_DIALOG` are platform-neutral but untested there.
 - **Tests:** some are Windows-only by design (DirectWrite fonts, locked files, the
   `qpdf.exe` lookup). The informational test step will show the rest.
 
@@ -1256,7 +1256,7 @@ Task Manager, and a short Narrator walk. About 20 minutes.
    decoding at the resolution shown (about 30 lines in `load-jpx.c` and `image.c`), and
    decoding several images at once (OpenJPEG built with threads and MuPDF's global lock
    lifted, which is a larger change). Options:
-   - (a) Carry the reduced-resolution patch in a Folio fork of `mupdf-sys` (a git
+   - (a) Carry the reduced-resolution patch in a Lectrix fork of `mupdf-sys` (a git
      dependency, like the vendored `mupdf` crate), and offer it to Artifex upstream.
    - (b) Offer it upstream only, and wait for a MuPDF release.
    - (c) Accept the gap for JPEG 2000 books and record it.
@@ -1275,7 +1275,7 @@ Task Manager, and a short Narrator walk. About 20 minutes.
 - Recovery copies are written only when the content changed since the last copy. They
   are deleted as soon as nothing is unsaved, including after undoing back to the saved
   state.
-- The restore question comes before the files Folio was started with, so a recovered file
+- The restore question comes before the files Lectrix was started with, so a recovered file
   opens with its changes rather than without them. Escape means "Not now", never
   "Discard", and discarding asks once more.
 - A restored document's tab has its own file's name and is unsaved. If its file was moved
@@ -1284,7 +1284,7 @@ Task Manager, and a short Narrator walk. About 20 minutes.
 - Undo after a restore starts at the restored state (finding 1).
 - Encrypted documents are recovered too: the copy keeps their encryption, and restoring
   asks for the password.
-- The installers' PDF box is checked by default, and silent installs register Folio
+- The installers' PDF box is checked by default, and silent installs register Lectrix
   unless told not to.
 - Muted text in the light theme is now `#575757` (was `#5c5c5c`). The system accent may
   be shown a little darker (light theme) or lighter (dark theme) than Windows shows it,
@@ -1296,21 +1296,21 @@ Task Manager, and a short Narrator walk. About 20 minutes.
    first runs of the macOS and Linux jobs and the installer check) and does the manual
    checklist.
 2. **JPEG 2000 scans: option (a).** The reduced-resolution decoding patch is carried in a
-   Folio fork of `mupdf-sys` and offered upstream; lifting MuPDF's global JPEG 2000 lock
+   Lectrix fork of `mupdf-sys` and offered upstream; lifting MuPDF's global JPEG 2000 lock
    is left to upstream.
 3. **ADR 0007:** accepted, with the PDF box checked by default.
 4. **AGPL source offer:** an About dialog in the app with a link to the source.
 
 ### After the review (2026-10-04)
 
-- **About dialog (decision 4).** Help > About Folio shows the version, the AGPL notice,
+- **About dialog (decision 4).** Help > About Lectrix shows the version, the AGPL notice,
   MuPDF's credit, where the license files are installed, and the source code address with
-  a Copy button (Folio stays offline, so the address is shown, not opened). The address is
+  a Copy button (Lectrix stays offline, so the address is shown, not opened). The address is
   one constant, `SOURCE_URL` in `src/lib/config.ts`: `https://github.com/pan4ratte/sci-pdf`.
   **That repository is private**, so the link only works for others once it is public or
   the constant names another public copy. The accessibility E2E flow covers the dialog.
 - **JPEG 2000 at the resolution drawn (decision 2, option (a)), ADR 0008.** MuPDF is now
-  built from Folio's fork of `mupdf-rs` (`pan4ratte/mupdf-rs`, branch
+  built from Lectrix's fork of `mupdf-rs` (`pan4ratte/mupdf-rs`, branch
   `folio-mupdf-1.27.2`), which patches MuPDF's JPEG 2000 decoding at build time. The same
   change as a plain diff for Artifex is in `docs/upstream/`, for you to send.
   - `29-slow-first-page`, first page in the app: 1.05 s → **376 to 382 ms** (target met).

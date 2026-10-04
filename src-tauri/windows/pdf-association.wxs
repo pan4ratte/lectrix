@@ -1,30 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Folio's MSI: registering Folio for PDF files, chosen at install (AGENTS.md section 10,
+  Lectrix's MSI: registering Lectrix for PDF files, chosen at install (AGENTS.md section 10,
   Phase 6; ADR 0007). Tauri's own main.wxs stays as it is; this fragment adds
 
   - the registration as an optional feature (PdfAssociation). It joins the apps Windows
     offers for .pdf (Open with, Default apps) without taking over the default: Windows asks
     the user which app to use the next time they open a PDF, and keeps their choice;
-  - a page after the folder page with an "Open PDF files with Folio" checkbox, which adds
+  - a page after the folder page with an "Open PDF files with Lectrix" checkbox, which adds
     or removes the feature.
 
-  Silent installs register Folio unless FOLIO_ASSOCIATE_PDF=0 is passed
-  (msiexec /i Folio.msi /qn FOLIO_ASSOCIATE_PDF=0). The registry entries mirror the NSIS
+  Silent installs register Lectrix unless LECTRIX_ASSOCIATE_PDF=0 is passed
+  (msiexec /i Lectrix.msi /qn LECTRIX_ASSOCIATE_PDF=0). The registry entries mirror the NSIS
   installer's (windows/installer.nsi), under HKLM because the MSI installs per machine.
 -->
 <Wix xmlns="http://schemas.microsoft.com/wix/2006/wi">
   <Fragment>
-    <Property Id="FOLIO_ASSOCIATE_PDF" Value="1" Secure="yes" />
+    <Property Id="LECTRIX_ASSOCIATE_PDF" Value="1" Secure="yes" />
 
-    <!-- folio.exe is the app's main binary (the Cargo package name). It cannot be named
+    <!-- lectrix.exe is the app's main binary (the Cargo package name). It cannot be named
          through its file entry ([#Path]): that belongs to another feature (ICE69). -->
     <DirectoryRef Id="INSTALLDIR">
       <Component Id="PdfAssociationEntries" Guid="6B0F3C52-8E1D-4C7A-9F2B-3D5E7A1C9B40">
         <RegistryKey Root="HKLM" Key="Software\Classes\[ProductName].Document">
           <RegistryValue Type="string" Value="PDF Document" KeyPath="yes" />
-          <RegistryValue Key="DefaultIcon" Type="string" Value="&quot;[INSTALLDIR]folio.exe&quot;,0" />
-          <RegistryValue Key="shell\open\command" Type="string" Value="&quot;[INSTALLDIR]folio.exe&quot; &quot;%1&quot;" />
+          <RegistryValue Key="DefaultIcon" Type="string" Value="&quot;[INSTALLDIR]lectrix.exe&quot;,0" />
+          <RegistryValue Key="shell\open\command" Type="string" Value="&quot;[INSTALLDIR]lectrix.exe&quot; &quot;%1&quot;" />
         </RegistryKey>
         <RegistryValue Root="HKLM" Key="Software\Classes\.pdf\OpenWithProgids" Name="[ProductName].Document" Type="string" Value="" />
         <RegistryKey Root="HKLM" Key="Software\[ProductName]\Capabilities">
@@ -36,17 +36,17 @@
       </Component>
     </DirectoryRef>
 
-    <Feature Id="PdfAssociation" Title="Open PDF files with Folio" Level="1" Display="hidden" AllowAdvertise="no">
+    <Feature Id="PdfAssociation" Title="Open PDF files with Lectrix" Level="1" Display="hidden" AllowAdvertise="no">
       <ComponentRef Id="PdfAssociationEntries" />
-      <!-- Command line: FOLIO_ASSOCIATE_PDF=0 leaves it out. -->
-      <Condition Level="0"><![CDATA[FOLIO_ASSOCIATE_PDF = "0"]]></Condition>
+      <!-- Command line: LECTRIX_ASSOCIATE_PDF=0 leaves it out. -->
+      <Condition Level="0"><![CDATA[LECTRIX_ASSOCIATE_PDF = "0"]]></Condition>
     </Feature>
 
     <UI>
       <Dialog Id="PdfAssociationDlg" Width="370" Height="270" Title="!(loc.InstallDirDlg_Title)">
         <Control Id="Next" Type="PushButton" X="236" Y="243" Width="56" Height="17" Default="yes" Text="!(loc.WixUINext)">
-          <Publish Event="AddLocal" Value="PdfAssociation" Order="1"><![CDATA[FOLIO_ASSOCIATE_PDF = "1"]]></Publish>
-          <Publish Event="Remove" Value="PdfAssociation" Order="2"><![CDATA[NOT (FOLIO_ASSOCIATE_PDF = "1")]]></Publish>
+          <Publish Event="AddLocal" Value="PdfAssociation" Order="1"><![CDATA[LECTRIX_ASSOCIATE_PDF = "1"]]></Publish>
+          <Publish Event="Remove" Value="PdfAssociation" Order="2"><![CDATA[NOT (LECTRIX_ASSOCIATE_PDF = "1")]]></Publish>
           <Publish Event="NewDialog" Value="VerifyReadyDlg" Order="3">1</Publish>
         </Control>
         <Control Id="Back" Type="PushButton" X="180" Y="243" Width="56" Height="17" Text="!(loc.WixUIBack)">
@@ -60,7 +60,7 @@
         <Control Id="BottomLine" Type="Line" X="0" Y="234" Width="370" Height="0" />
         <Control Id="Title" Type="Text" X="15" Y="6" Width="200" Height="15" Transparent="yes" NoPrefix="yes" Text="{\WixUI_Font_Title}PDF files" />
         <Control Id="Description" Type="Text" X="25" Y="23" Width="280" Height="15" Transparent="yes" NoPrefix="yes" Text="Choose whether [ProductName] opens PDF files." />
-        <Control Id="Associate" Type="CheckBox" X="20" Y="60" Width="330" Height="18" Property="FOLIO_ASSOCIATE_PDF" CheckBoxValue="1" Text="&amp;Open PDF files with [ProductName]" />
+        <Control Id="Associate" Type="CheckBox" X="20" Y="60" Width="330" Height="18" Property="LECTRIX_ASSOCIATE_PDF" CheckBoxValue="1" Text="&amp;Open PDF files with [ProductName]" />
         <Control Id="Explanation" Type="Text" X="37" Y="82" Width="313" Height="50" NoPrefix="yes" Text="[ProductName] is added to the apps that can open PDF files. Windows asks which app to use the next time you open one, and you can change it later in Settings &gt; Apps &gt; Default apps." />
       </Dialog>
 

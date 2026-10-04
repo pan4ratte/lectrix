@@ -42,14 +42,14 @@ fn picked_path(picked: tauri_plugin_dialog::FilePath) -> Result<PathBuf, AppErro
     })
 }
 
-/// Answers file dialogs from the FOLIO_DIALOG environment variable instead of showing
-/// them, for automation (tests/e2e), like FOLIO_OPEN: answers separated by `;`, one per
+/// Answers file dialogs from the LECTRIX_DIALOG environment variable instead of showing
+/// them, for automation (tests/e2e), like LECTRIX_OPEN: answers separated by `;`, one per
 /// dialog in order, several files separated by `|`, an empty answer for Cancel. The paths
 /// come from the environment the app was started with, never from the webview.
 fn scripted_answer() -> Option<Option<Vec<PathBuf>>> {
     static ANSWERS: OnceLock<Option<Mutex<VecDeque<String>>>> = OnceLock::new();
     let answers = ANSWERS.get_or_init(|| {
-        std::env::var("FOLIO_DIALOG")
+        std::env::var("LECTRIX_DIALOG")
             .ok()
             .map(|v| Mutex::new(v.split(';').map(str::to_owned).collect()))
     });
@@ -138,7 +138,7 @@ pub fn open_with_dialog(
         .collect())
 }
 
-/// Opens the PDFs given on the command line (file association or `folio a.pdf b.pdf`),
+/// Opens the PDFs given on the command line (file association or `lectrix a.pdf b.pdf`),
 /// once.
 #[tauri::command(async)]
 pub fn open_startup_documents(state: State<'_, AppState>) -> Vec<OpenResult> {
@@ -358,7 +358,7 @@ fn author(state: &AppState) -> Result<String, AppError> {
 fn default_author(platform: &dyn Platform) -> String {
     platform
         .user_name()
-        .unwrap_or_else(|| "Folio user".to_owned())
+        .unwrap_or_else(|| "Lectrix user".to_owned())
 }
 
 /// Counts the problems "Repair annotations" would fix (section 5.3).
@@ -544,7 +544,7 @@ pub fn execute_merge(
             .map_err(|_| AppError::bad_state())?;
         if current.is_some() {
             return Err(AppError::new(
-                "Folio is already combining files.",
+                "Lectrix is already combining files.",
                 Some("Wait for it to finish, or stop it."),
             ));
         }
@@ -719,16 +719,16 @@ pub fn app_ready() -> StartupInfo {
             platform::Backdrop::Solid => Backdrop::Solid,
         },
         accent_color: platform.accent_color(),
-        perf_mode: std::env::var_os("FOLIO_PERF").is_some(),
-        perf_scroll_only: std::env::var("FOLIO_PERF").as_deref() == Ok("scroll"),
-        image_format: match std::env::var("FOLIO_IMAGE_FORMAT").as_deref() {
+        perf_mode: std::env::var_os("LECTRIX_PERF").is_some(),
+        perf_scroll_only: std::env::var("LECTRIX_PERF").as_deref() == Ok("scroll"),
+        image_format: match std::env::var("LECTRIX_IMAGE_FORMAT").as_deref() {
             Ok("rgba") => ImageFormat::Rgba,
             _ => ImageFormat::Png,
         },
     }
 }
 
-/// Prints a frontend timing to stdout as `[folio-metric] name=value`, for scripted
+/// Prints a frontend timing to stdout as `[lectrix-metric] name=value`, for scripted
 /// performance measurements (section 2 targets).
 #[tauri::command]
 pub fn log_metric(name: String, ms: f64) {
@@ -737,7 +737,7 @@ pub fn log_metric(name: String, ms: f64) {
         .filter(|c| c.is_ascii_alphanumeric() || *c == '_')
         .take(64)
         .collect();
-    println!("[folio-metric] {name}={ms:.1}");
+    println!("[lectrix-metric] {name}={ms:.1}");
 }
 
 /// Records a frontend error in the app log (the user sees a plain message instead).

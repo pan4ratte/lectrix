@@ -1,5 +1,5 @@
 /*
- * Folio FFI shim: MuPDF calls the `mupdf` crate does not wrap.
+ * Lectrix FFI shim: MuPDF calls the `mupdf` crate does not wrap.
  *
  * MuPDF reports errors with setjmp/longjmp. A longjmp must never unwind through Rust
  * frames, so every call that can throw is wrapped here in fz_try/fz_catch and turned
@@ -17,12 +17,12 @@
 #include "mupdf/fitz.h"
 #include "mupdf/pdf.h"
 
-typedef struct folio_error {
+typedef struct lectrix_error {
 	int code;
 	char message[256];
-} folio_error;
+} lectrix_error;
 
-static int folio_caught(fz_context *ctx, folio_error *err)
+static int lectrix_caught(fz_context *ctx, lectrix_error *err)
 {
 	err->code = fz_caught(ctx);
 	fz_strlcpy(err->message, fz_caught_message(ctx), sizeof err->message);
@@ -30,7 +30,7 @@ static int folio_caught(fz_context *ctx, folio_error *err)
 	return err->code ? err->code : -1;
 }
 
-const char *folio_mupdf_version(void)
+const char *lectrix_mupdf_version(void)
 {
 	return FZ_VERSION;
 }
@@ -39,7 +39,7 @@ const char *folio_mupdf_version(void)
  * 1 if these headers match the linked library. fz_new_context passes the header
  * FZ_VERSION, and the library refuses (returns NULL) when it differs from its own.
  */
-int folio_mupdf_headers_match_library(void)
+int lectrix_mupdf_headers_match_library(void)
 {
 	fz_context *ctx = fz_new_context(NULL, NULL, FZ_STORE_UNLIMITED);
 	if (!ctx)
@@ -48,30 +48,30 @@ int folio_mupdf_headers_match_library(void)
 	return 1;
 }
 
-int folio_pdf_enable_journal(fz_context *ctx, pdf_document *doc, folio_error *err)
+int lectrix_pdf_enable_journal(fz_context *ctx, pdf_document *doc, lectrix_error *err)
 {
 	fz_try(ctx)
 		pdf_enable_journal(ctx, doc);
 	fz_catch(ctx)
-		return folio_caught(ctx, err);
+		return lectrix_caught(ctx, err);
 	return 0;
 }
 
-int folio_pdf_undo(fz_context *ctx, pdf_document *doc, folio_error *err)
+int lectrix_pdf_undo(fz_context *ctx, pdf_document *doc, lectrix_error *err)
 {
 	fz_try(ctx)
 		pdf_undo(ctx, doc);
 	fz_catch(ctx)
-		return folio_caught(ctx, err);
+		return lectrix_caught(ctx, err);
 	return 0;
 }
 
-int folio_pdf_redo(fz_context *ctx, pdf_document *doc, folio_error *err)
+int lectrix_pdf_redo(fz_context *ctx, pdf_document *doc, lectrix_error *err)
 {
 	fz_try(ctx)
 		pdf_redo(ctx, doc);
 	fz_catch(ctx)
-		return folio_caught(ctx, err);
+		return lectrix_caught(ctx, err);
 	return 0;
 }
 
@@ -80,27 +80,27 @@ int folio_pdf_redo(fz_context *ctx, pdf_document *doc, folio_error *err)
  * step when it ends, or kept out of the history when there is none: they are not an undo
  * step of their own. End it with pdf_end_operation.
  */
-int folio_pdf_begin_implicit_operation(fz_context *ctx, pdf_document *doc, folio_error *err)
+int lectrix_pdf_begin_implicit_operation(fz_context *ctx, pdf_document *doc, lectrix_error *err)
 {
 	fz_try(ctx)
 		pdf_begin_implicit_operation(ctx, doc);
 	fz_catch(ctx)
-		return folio_caught(ctx, err);
+		return lectrix_caught(ctx, err);
 	return 0;
 }
 
 /* Writes the current position (0 = original document) and the step count. */
-int folio_pdf_undoredo_state(fz_context *ctx, pdf_document *doc, int *current, int *steps, folio_error *err)
+int lectrix_pdf_undoredo_state(fz_context *ctx, pdf_document *doc, int *current, int *steps, lectrix_error *err)
 {
 	fz_try(ctx)
 		*current = pdf_undoredo_state(ctx, doc, steps);
 	fz_catch(ctx)
-		return folio_caught(ctx, err);
+		return lectrix_caught(ctx, err);
 	return 0;
 }
 
 /* Copies the name of journal step `step` into `buf` (empty if the step has no name). */
-int folio_pdf_undoredo_step(fz_context *ctx, pdf_document *doc, int step, char *buf, size_t len, folio_error *err)
+int lectrix_pdf_undoredo_step(fz_context *ctx, pdf_document *doc, int step, char *buf, size_t len, lectrix_error *err)
 {
 	fz_try(ctx)
 	{
@@ -108,7 +108,7 @@ int folio_pdf_undoredo_step(fz_context *ctx, pdf_document *doc, int step, char *
 		fz_strlcpy(buf, name ? name : "", len);
 	}
 	fz_catch(ctx)
-		return folio_caught(ctx, err);
+		return lectrix_caught(ctx, err);
 	return 0;
 }
 
@@ -123,7 +123,7 @@ int folio_pdf_undoredo_step(fz_context *ctx, pdf_document *doc, int step, char *
  * record of later changes: undo removes it whole, with its stream. So the journal is set
  * aside for this one write.
  */
-int folio_pdf_set_new_stream(fz_context *ctx, pdf_document *doc, int num, const unsigned char *data, size_t len, folio_error *err)
+int lectrix_pdf_set_new_stream(fz_context *ctx, pdf_document *doc, int num, const unsigned char *data, size_t len, lectrix_error *err)
 {
 	pdf_journal *journal = doc->journal;
 	fz_buffer *buf = NULL;
@@ -144,7 +144,7 @@ int folio_pdf_set_new_stream(fz_context *ctx, pdf_document *doc, int num, const 
 		fz_drop_buffer(ctx, buf);
 	}
 	fz_catch(ctx)
-		return folio_caught(ctx, err);
+		return lectrix_caught(ctx, err);
 	return 0;
 }
 
@@ -153,12 +153,12 @@ int folio_pdf_set_new_stream(fz_context *ctx, pdf_document *doc, int num, const 
  * Without this, an annotation that has no appearance only gets a local one for display,
  * which is never saved (repair needs a saved one, AGENTS.md section 5.3).
  */
-int folio_pdf_dirty_annot(fz_context *ctx, pdf_annot *annot, folio_error *err)
+int lectrix_pdf_dirty_annot(fz_context *ctx, pdf_annot *annot, lectrix_error *err)
 {
 	fz_try(ctx)
 		pdf_dirty_annot(ctx, annot);
 	fz_catch(ctx)
-		return folio_caught(ctx, err);
+		return lectrix_caught(ctx, err);
 	return 0;
 }
 
@@ -166,12 +166,12 @@ int folio_pdf_dirty_annot(fz_context *ctx, pdf_annot *annot, folio_error *err)
  * A read-only fz_stream over an operating-system file handle that the caller opened.
  *
  * MuPDF's own file stream (fz_open_file) opens files without FILE_SHARE_DELETE on
- * Windows, so the file cannot be replaced while the document is open. Folio opens the
+ * Windows, so the file cannot be replaced while the document is open. Lectrix opens the
  * handle itself with read and delete sharing (crates/pdf-core/src/ffi/stream.rs), which
  * lets an atomic save rename the new file over the open one (ADR 0003). The callbacks
  * mirror MuPDF's file stream (source/fitz/stream-open.c).
  */
-typedef struct folio_os_stream
+typedef struct lectrix_os_stream
 {
 #ifdef _WIN32
 	HANDLE handle;
@@ -179,11 +179,11 @@ typedef struct folio_os_stream
 	int fd;
 #endif
 	unsigned char buffer[65536];
-} folio_os_stream;
+} lectrix_os_stream;
 
-static int folio_os_next(fz_context *ctx, fz_stream *stm, size_t max)
+static int lectrix_os_next(fz_context *ctx, fz_stream *stm, size_t max)
 {
-	folio_os_stream *state = stm->state;
+	lectrix_os_stream *state = stm->state;
 	size_t n;
 	(void)max; /* only a hint */
 #ifdef _WIN32
@@ -209,9 +209,9 @@ static int folio_os_next(fz_context *ctx, fz_stream *stm, size_t max)
 }
 
 /* fz_seek has already turned SEEK_CUR into SEEK_SET, so whence is 0 or 2 here. */
-static void folio_os_seek(fz_context *ctx, fz_stream *stm, int64_t offset, int whence)
+static void lectrix_os_seek(fz_context *ctx, fz_stream *stm, int64_t offset, int whence)
 {
-	folio_os_stream *state = stm->state;
+	lectrix_os_stream *state = stm->state;
 #ifdef _WIN32
 	LARGE_INTEGER distance, position;
 	DWORD method = whence == SEEK_END ? FILE_END : whence == SEEK_CUR ? FILE_CURRENT : FILE_BEGIN;
@@ -229,7 +229,7 @@ static void folio_os_seek(fz_context *ctx, fz_stream *stm, int64_t offset, int w
 	stm->wp = state->buffer;
 }
 
-static void folio_os_close(intptr_t handle)
+static void lectrix_os_close(intptr_t handle)
 {
 #ifdef _WIN32
 	CloseHandle((HANDLE)handle);
@@ -238,13 +238,13 @@ static void folio_os_close(intptr_t handle)
 #endif
 }
 
-static void folio_os_drop(fz_context *ctx, void *state_)
+static void lectrix_os_drop(fz_context *ctx, void *state_)
 {
-	folio_os_stream *state = state_;
+	lectrix_os_stream *state = state_;
 #ifdef _WIN32
-	folio_os_close((intptr_t)state->handle);
+	lectrix_os_close((intptr_t)state->handle);
 #else
-	folio_os_close((intptr_t)state->fd);
+	lectrix_os_close((intptr_t)state->fd);
 #endif
 	fz_free(ctx, state);
 }
@@ -254,9 +254,9 @@ static void folio_os_drop(fz_context *ctx, void *state_)
  * reading). Ownership of the handle always passes to this function: it is closed when
  * the document is dropped, or here on failure.
  */
-int folio_pdf_open_os_handle(fz_context *ctx, intptr_t handle, pdf_document **out, folio_error *err)
+int lectrix_pdf_open_os_handle(fz_context *ctx, intptr_t handle, pdf_document **out, lectrix_error *err)
 {
-	folio_os_stream *state = NULL;
+	lectrix_os_stream *state = NULL;
 	fz_stream *stm = NULL;
 	int stream_owns_handle = 0;
 	fz_var(state);
@@ -265,17 +265,17 @@ int folio_pdf_open_os_handle(fz_context *ctx, intptr_t handle, pdf_document **ou
 	*out = NULL;
 	fz_try(ctx)
 	{
-		state = fz_malloc_struct(ctx, folio_os_stream);
+		state = fz_malloc_struct(ctx, lectrix_os_stream);
 #ifdef _WIN32
 		state->handle = (HANDLE)handle;
 #else
 		state->fd = (int)handle;
 #endif
-		/* From here on the state (and the handle) is released by folio_os_drop, even if
+		/* From here on the state (and the handle) is released by lectrix_os_drop, even if
 		 * fz_new_stream fails. */
 		stream_owns_handle = 1;
-		stm = fz_new_stream(ctx, state, folio_os_next, folio_os_drop);
-		stm->seek = folio_os_seek;
+		stm = fz_new_stream(ctx, state, lectrix_os_next, lectrix_os_drop);
+		stm->seek = lectrix_os_seek;
 		*out = pdf_open_document_with_stream(ctx, stm);
 	}
 	fz_always(ctx)
@@ -283,19 +283,19 @@ int folio_pdf_open_os_handle(fz_context *ctx, intptr_t handle, pdf_document **ou
 	fz_catch(ctx)
 	{
 		if (!stream_owns_handle)
-			folio_os_close(handle);
-		return folio_caught(ctx, err);
+			lectrix_os_close(handle);
+		return lectrix_caught(ctx, err);
 	}
 	return 0;
 }
 
 /* 1 if MuPDF had to repair the file's cross-reference table when opening it. */
-int folio_pdf_was_repaired(fz_context *ctx, pdf_document *doc, int *repaired, folio_error *err)
+int lectrix_pdf_was_repaired(fz_context *ctx, pdf_document *doc, int *repaired, lectrix_error *err)
 {
 	fz_try(ctx)
 		*repaired = pdf_was_repaired(ctx, doc);
 	fz_catch(ctx)
-		return folio_caught(ctx, err);
+		return lectrix_caught(ctx, err);
 	return 0;
 }
 
@@ -312,21 +312,21 @@ int folio_pdf_was_repaired(fz_context *ctx, pdf_document *doc, int *repaired, fo
  * pdf_add_journal_fragment only appends to a pending operation, so the first change throws
  * "Can't add a journal fragment absent an operation". ADR 0001 has the details.
  */
-int folio_pdf_save_snapshot(fz_context *ctx, pdf_document *doc, const char *path, folio_error *err)
+int lectrix_pdf_save_snapshot(fz_context *ctx, pdf_document *doc, const char *path, lectrix_error *err)
 {
 	fz_try(ctx)
 		pdf_save_snapshot(ctx, doc, path);
 	fz_catch(ctx)
-		return folio_caught(ctx, err);
+		return lectrix_caught(ctx, err);
 	return 0;
 }
 
 /* 1 if the document has changes that a save would write. */
-int folio_pdf_has_unsaved_changes(fz_context *ctx, pdf_document *doc, int *changed, folio_error *err)
+int lectrix_pdf_has_unsaved_changes(fz_context *ctx, pdf_document *doc, int *changed, lectrix_error *err)
 {
 	fz_try(ctx)
 		*changed = pdf_has_unsaved_changes(ctx, doc);
 	fz_catch(ctx)
-		return folio_caught(ctx, err);
+		return lectrix_caught(ctx, err);
 	return 0;
 }

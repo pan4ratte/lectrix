@@ -16,7 +16,7 @@ const host = process.env.TAURI_DEV_HOST;
  */
 function bundledPackages(): Plugin {
 	return {
-		name: 'folio-bundled-packages',
+		name: 'lectrix-bundled-packages',
 		apply: 'build',
 		generateBundle() {
 			if (this.environment.config.consumer !== 'client') return;

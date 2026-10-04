@@ -17,11 +17,11 @@ use pdf_core::{Error, Result};
 /// Progress is reported at most this often (and always for the last page).
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(50);
 
-/// FOLIO_COMBINE_PAGE_DELAY_MS slows combining down by that much per page, so automated
+/// LECTRIX_COMBINE_PAGE_DELAY_MS slows combining down by that much per page, so automated
 /// tests can watch the progress bar and press Stop (combining is usually too fast for
-/// that). For tests only, like FOLIO_PERF.
+/// that). For tests only, like LECTRIX_PERF.
 fn page_delay() -> Option<Duration> {
-    std::env::var("FOLIO_COMBINE_PAGE_DELAY_MS")
+    std::env::var("LECTRIX_COMBINE_PAGE_DELAY_MS")
         .ok()?
         .parse()
         .ok()
@@ -191,7 +191,7 @@ mod tests {
             .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
             .collect();
         assert!(
-            names.iter().all(|n| !n.ends_with(".folio-tmp")),
+            names.iter().all(|n| !n.ends_with(".lectrix-tmp")),
             "no temporary file left: {names:?}"
         );
     }

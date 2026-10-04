@@ -1,6 +1,6 @@
 # Annotation interoperability profile
 
-This mirrors AGENTS.md section 5 and must be kept in sync with it. Every annotation Folio
+This mirrors AGENTS.md section 5 and must be kept in sync with it. Every annotation Lectrix
 writes must display, print and be editable in Acrobat Reader, PDFium-based viewers (Edge,
 Chrome), pdf.js (Firefox) and Foxit. Write conservatively, read leniently, and never weaken
 these rules to make a test pass: report the conflict instead.
@@ -10,11 +10,11 @@ these rules to make a test pass: report the conflict instead.
 | # | Rule | Where it is enforced | Test |
 | --- | --- | --- | --- |
 | 1 | Standard subtypes only (Highlight, Underline, StrikeOut, Squiggly, Text, Ink, FreeText); no custom subtypes or private keys | `annot::Kind` (closed enum), `annot::create` | type system; `annotations::every_type_has_every_profile_key_on_every_page_geometry` |
-| 2 | Normal appearance `/AP /N` on every annotation, regenerated after every edit, by MuPDF synthesis; the corrections Folio applies are in ADR 0006 | `annot::write::synthesize` (every create, edit and repair ends there; it fails if MuPDF draws nothing) | round trip, interop harness `phase5` |
+| 2 | Normal appearance `/AP /N` on every annotation, regenerated after every edit, by MuPDF synthesis; the corrections Lectrix applies are in ADR 0006 | `annot::write::synthesize` (every create, edit and repair ends there; it fails if MuPDF draws nothing) | round trip, interop harness `phase5` |
 | 3 | QuadPoints in Acrobat order (UL, UR, LL, LR) in PDF user space, written by one function. Selected text becomes quads in Rust, from MuPDF's character quads, so they follow the text's direction | `annot::quads::quad_points_array`; `text::range_quads` | `quads` unit tests, `annotations::selected_text_becomes_quads_in_the_text_direction` |
 | 4 | `/Rect` = union of content + stroke width + 1 pt margin, grown together with the appearance `/BBox` when MuPDF's bounds are tighter. Text boxes keep the margin in `/RD [1 1 1 1]` | `annot::write::finalize_rect`, `synthesize` | round trip (every type, every page geometry) |
 | 5 | Highlights blend with Multiply; opacity in `/CA` on the annotation (also at 1) and in the appearance | MuPDF `pdf_write_highlight_appearance`; `annot::write::set_opacity` | round trip checks the ExtGState of every markup type |
-| 6 | `/NM` (UUID), `/T`, `/CreationDate`, `/M` (with time zone), `/F 4`, `/C`, `/P`; notes and markup with a note get a `/Popup` with `/Parent` (the popup also gets `/P` and `/F 28`, as Acrobat writes). **Text boxes:** `/C` is the background fill for FreeText (PDF 32000-1 12.5.6.6), so Folio writes `/C []` (no background) and the text colour in `/DA` (decided by the user on 2026-10-04: `/C` as the type defines it) | `annot::write::write_metadata`, `set_color`, `ensure_popup` | round trip |
+| 6 | `/NM` (UUID), `/T`, `/CreationDate`, `/M` (with time zone), `/F 4`, `/C`, `/P`; notes and markup with a note get a `/Popup` with `/Parent` (the popup also gets `/P` and `/F 28`, as Acrobat writes). **Text boxes:** `/C` is the background fill for FreeText (PDF 32000-1 12.5.6.6), so Lectrix writes `/C []` (no background) and the text colour in `/DA` (decided by the user on 2026-10-04: `/C` as the type defines it) | `annot::write::write_metadata`, `set_color`, `ensure_popup` | round trip |
 | 7 | FreeText: Helvetica via `/DA` (`/Helv`), one size and colour, plain `/Contents`, no `/RC`, no `/CL`; the box grows to fit its text, measured with MuPDF's Helvetica widths and line breaks | `annot::create`, `annot::text_box` | round trip; `text_box` unit tests |
 | 8 | All screen/PDF coordinate conversions through `geometry.rs` (Rotate, offset CropBox, UserUnit) | `geometry::PageGeometry` (annotation keys are written in user space, never through MuPDF's page transform) | unit tests + `roundtrip::geometry_matches_mupdf_page_transform`; every annotation test runs on 7 page geometries |
 | 9 | Ink simplified with Ramer–Douglas–Peucker, 0.5 pt (in view space, so in points whatever the UserUnit) | `annot::ink::simplify` | `ink` unit tests; round trip checks every input point is within 0.5 pt |
@@ -24,7 +24,7 @@ Dates are written in UTC as `D:YYYYMMDDHHmmSS+00'00'`.
 
 ## Reading other apps' annotations
 
-- Every standard type MuPDF supports is displayed (MuPDF renders them; Folio draws its own
+- Every standard type MuPDF supports is displayed (MuPDF renders them; Lectrix draws its own
   overlay only for the selection).
 - The annotation list reads `/Annots` from the page dictionaries without loading pages
   (1,316 notes in 29 ms). Popups, links and form widgets are not listed.
@@ -68,9 +68,9 @@ permission).
   correctly placed relative to page content in all three engines.
 - Sticky notes (`/Text`) on rotated pages: Acrobat and MuPDF keep the icon upright at the
   upper-left corner of `/Rect` (text annotations behave as NoZoom and NoRotate, PDF
-  32000-1 12.5.6.4); PDFium and pdf.js turn it with the page, one icon-width away. Folio
+  32000-1 12.5.6.4); PDFium and pdf.js turn it with the page, one icon-width away. Lectrix
   writes notes for Acrobat's model (ADR 0006); the harness accepts either place.
-- MuPDF 1.27 writes a `/CL` callout line on every new FreeText; Folio removes it.
+- MuPDF 1.27 writes a `/CL` callout line on every new FreeText; Lectrix removes it.
 - Thin lines (underline, strikeout, squiggly are under 1 pt): the rasterizers spread their
   anti-aliased edges differently, which at 2x render scale outweighed the line in the
   harness's colour comparison (a strikeout on a 180° page: distance 76 against the limit

@@ -29,7 +29,7 @@ not what the user sees.
 - The app requests PNG by default. Rust renders to RGBA, caches the RGBA image, and
   encodes PNG from it per request (`render::encode_rgba_png`, RGB, fastest compression),
   so tiles and whole pages both work and the cache is shared.
-- Raw RGBA stays available (`fmt=rgba` in the protocol, or `FOLIO_IMAGE_FORMAT=rgba` for
+- Raw RGBA stays available (`fmt=rgba` in the protocol, or `LECTRIX_IMAGE_FORMAT=rgba` for
   the whole app) so that `tests/perf/measure.ps1 -Format rgba` can repeat the comparison.
 
 ## Alternatives considered

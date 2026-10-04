@@ -23,10 +23,10 @@ already patches that copy (`patch_mupdf_sources` in its `build.rs`).
 ## Decision
 
 1. **Fork `mupdf-rs`, not MuPDF.** `https://github.com/pan4ratte/mupdf-rs`, branch
-   `folio-mupdf-1.27.2`, based on the upstream commit Folio already used (`537d505`). The
+   `folio-mupdf-1.27.2`, based on the upstream commit Lectrix already used (`537d505`). The
    fork adds `mupdf-sys/folio_patches.rs` and calls it after upstream's own patch step
    (three lines in `build.rs`). Its MuPDF submodule still points at Artifex's repository.
-2. **Folio uses the fork through `[patch]`** in the workspace `Cargo.toml`, pinned to a
+2. **Lectrix uses the fork through `[patch]`** in the workspace `Cargo.toml`, pinned to a
    commit, so the vendored `mupdf` crate and `pdf-core` keep naming the upstream source.
 3. **The patch** (`load-jpx.c`, `image.c`), as exact text replacements that must each
    match once, so a MuPDF update that moves the code fails the build instead of silently
@@ -79,5 +79,5 @@ down; the pdf-core tests and the local corpus pass with the fork.
 - **Fork MuPDF itself** and point the submodule at it: a 1.1 GB repository to keep in step
   with Artifex for a 100-line change.
 - **Wait for upstream** (option (b)): no gain until a MuPDF release takes it.
-- **Folio-side workarounds** (a larger image store, rendering thumbnails from page
+- **Lectrix-side workarounds** (a larger image store, rendering thumbnails from page
   images): they avoid repeated decodes but never the first full one.

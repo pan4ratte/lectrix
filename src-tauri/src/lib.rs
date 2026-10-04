@@ -1,4 +1,4 @@
-//! Folio app crate: a thin layer of IPC commands, the page-image protocol, windowing and
+//! Lectrix app crate: a thin layer of IPC commands, the page-image protocol, windowing and
 //! file handling over `pdf-core`.
 
 mod annotations;
@@ -28,10 +28,10 @@ use recovery::Recovery;
 use store::Store;
 
 /// Working product name. Change it here, in `src/lib/config.ts` and in tauri.conf.json.
-pub const APP_NAME: &str = "Folio";
+pub const APP_NAME: &str = "Lectrix";
 
 /// Memory for rendered page images kept for reuse (AGENTS.md section 3). Override with
-/// the FOLIO_IMAGE_CACHE_MB environment variable.
+/// the LECTRIX_IMAGE_CACHE_MB environment variable.
 const IMAGE_CACHE_MB: usize = 64;
 
 /// MuPDF's own resource store (decoded images, fonts). Its default is 256 MB, more than
@@ -150,7 +150,7 @@ fn watch_files(app: AppHandle) {
 /// Writes recovery copies of documents with unsaved changes, every two minutes
 /// (section 7).
 fn write_recovery_copies(app: AppHandle) {
-    let interval = std::env::var("FOLIO_RECOVERY_INTERVAL_MS")
+    let interval = std::env::var("LECTRIX_RECOVERY_INTERVAL_MS")
         .ok()
         .and_then(|v| v.parse().ok())
         .map(std::time::Duration::from_millis)
@@ -167,13 +167,13 @@ fn write_recovery_copies(app: AppHandle) {
         .unwrap_or_else(|e| applog::error(format!("crash recovery is off: {e}")));
 }
 
-/// Where recovery copies go: the app's local data folder, or FOLIO_RECOVERY_DIR (for
-/// tests). Off for measurement and test runs (FOLIO_EPHEMERAL) unless that is set.
+/// Where recovery copies go: the app's local data folder, or LECTRIX_RECOVERY_DIR (for
+/// tests). Off for measurement and test runs (LECTRIX_EPHEMERAL) unless that is set.
 fn recovery_dir(app: &AppHandle) -> Option<PathBuf> {
-    if let Some(dir) = std::env::var_os("FOLIO_RECOVERY_DIR") {
+    if let Some(dir) = std::env::var_os("LECTRIX_RECOVERY_DIR") {
         return Some(PathBuf::from(dir));
     }
-    if std::env::var_os("FOLIO_EPHEMERAL").is_some() {
+    if std::env::var_os("LECTRIX_EPHEMERAL").is_some() {
         return None;
     }
     app.path()
@@ -209,7 +209,8 @@ fn env_mb(name: &str, default: usize) -> usize {
 
 pub fn run() {
     MAIN_START.get_or_init(Instant::now);
-    if let Err(e) = mupdf::set_store_max_size(env_mb("FOLIO_MUPDF_STORE_MB", MUPDF_STORE_MB) << 20)
+    if let Err(e) =
+        mupdf::set_store_max_size(env_mb("LECTRIX_MUPDF_STORE_MB", MUPDF_STORE_MB) << 20)
     {
         eprintln!("could not limit MuPDF's store: {e}");
     }
@@ -218,10 +219,10 @@ pub fn run() {
 
     let cwd = std::env::current_dir().unwrap_or_default();
     let mut startup_paths = pdf_args(std::env::args().skip(1), &cwd);
-    // FOLIO_OPEN (paths separated by ';') opens files like command-line arguments. For
+    // LECTRIX_OPEN (paths separated by ';') opens files like command-line arguments. For
     // automation: under tauri-driver on Windows, launch arguments go to WebView2, not to
     // the app (tests/e2e).
-    if let Some(list) = std::env::var_os("FOLIO_OPEN") {
+    if let Some(list) = std::env::var_os("LECTRIX_OPEN") {
         let list = list.to_string_lossy().into_owned();
         startup_paths.extend(pdf_args(
             list.split(';').filter(|s| !s.is_empty()).map(str::to_owned),
@@ -243,9 +244,9 @@ pub fn run() {
                 applog::init(&dir);
             }
             applog::info(format!("{APP_NAME} {} starting", env!("CARGO_PKG_VERSION")));
-            // FOLIO_EPHEMERAL (used by tests/perf/measure.ps1) keeps measurement runs out
+            // LECTRIX_EPHEMERAL (used by tests/perf/measure.ps1) keeps measurement runs out
             // of the user's recent files and remembered views.
-            let store_file = if std::env::var_os("FOLIO_EPHEMERAL").is_some() {
+            let store_file = if std::env::var_os("LECTRIX_EPHEMERAL").is_some() {
                 None
             } else {
                 app.path()
@@ -258,7 +259,9 @@ pub fn run() {
             app.manage(AppState {
                 documents: Documents::new(recovery),
                 store: Mutex::new(Store::load(store_file)),
-                image_cache: ImageCache::new(env_mb("FOLIO_IMAGE_CACHE_MB", IMAGE_CACHE_MB) << 20),
+                image_cache: ImageCache::new(
+                    env_mb("LECTRIX_IMAGE_CACHE_MB", IMAGE_CACHE_MB) << 20,
+                ),
                 render_gate: RenderGate::new(),
                 startup_paths: Mutex::new(startup_paths.clone()),
                 platform: platform::current(),
@@ -310,7 +313,7 @@ pub fn run() {
             }
             _ => {}
         })
-        .register_asynchronous_uri_scheme_protocol("folio", |ctx, request, responder| {
+        .register_asynchronous_uri_scheme_protocol("lectrix", |ctx, request, responder| {
             let app = ctx.app_handle().clone();
             // Rendering is CPU-bound: keep it off the webview's thread.
             tauri::async_runtime::spawn_blocking(move || {

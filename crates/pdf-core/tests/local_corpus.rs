@@ -210,7 +210,7 @@ fn check_file(file: &Path, survey: &Value, out: &Path) -> Result<Vec<String>, St
         rules.push(LabelRule {
             start_page: pages - 1,
             style: LabelStyle::UpperLetters,
-            prefix: "Folio-".into(),
+            prefix: "Lectrix-".into(),
             first_number: 27,
         });
         let expected = normalize_rules(rules.clone(), pages).map_err(|e| fail("rules", e))?;
@@ -225,7 +225,7 @@ fn check_file(file: &Path, survey: &Value, out: &Path) -> Result<Vec<String>, St
             return Err("edited labels did not read back as written".into());
         }
         let last = doc.page_label(pages - 1).map_err(|e| format!("{e}"))?;
-        if last != "Folio-AA" || last != labels_for_pages(&expected, pages)[pages - 1] {
+        if last != "Lectrix-AA" || last != labels_for_pages(&expected, pages)[pages - 1] {
             return Err(format!("last page label after the edit: {last:?}"));
         }
         notes.push("label edit ok".into());

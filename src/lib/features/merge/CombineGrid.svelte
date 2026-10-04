@@ -371,7 +371,7 @@
 				<span class="flex max-w-full items-center gap-1 px-1 text-xs text-fg-muted">
 					<span
 						class="size-2 shrink-0 rounded-full"
-						style:background="var(--folio-source-{source?.color ?? 1})"
+						style:background="var(--lectrix-source-{source?.color ?? 1})"
 						aria-hidden="true"
 					></span>
 					<span class="truncate">{source?.name ?? ''}</span>

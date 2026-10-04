@@ -59,7 +59,7 @@ pub struct AnnotationInfo {
     pub id: u32,
     pub page: usize,
     pub subtype: String,
-    /// Set for the types Folio creates.
+    /// Set for the types Lectrix creates.
     pub kind: Option<Kind>,
     pub rect: Rect,
     /// What moving and resizing act on: text-markup quads, ink strokes, a text box without

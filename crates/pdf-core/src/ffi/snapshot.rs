@@ -15,21 +15,21 @@ use mupdf::Context;
 use mupdf::pdf::PdfDocument;
 use mupdf_sys::{fz_context, pdf_document};
 
-use super::{FolioError, check};
+use super::{LectrixError, check};
 use crate::error::{Error, Result};
 
 unsafe extern "C" {
-    fn folio_pdf_save_snapshot(
+    fn lectrix_pdf_save_snapshot(
         ctx: *mut fz_context,
         doc: *mut pdf_document,
         path: *const c_char,
-        err: *mut FolioError,
+        err: *mut LectrixError,
     ) -> c_int;
-    fn folio_pdf_has_unsaved_changes(
+    fn lectrix_pdf_has_unsaved_changes(
         ctx: *mut fz_context,
         doc: *mut pdf_document,
         changed: *mut c_int,
-        err: *mut FolioError,
+        err: *mut LectrixError,
     ) -> c_int;
 }
 
@@ -41,11 +41,12 @@ pub fn save_snapshot(doc: &mut PdfDocument, path: &Path) -> Result<()> {
     })?;
     let path = CString::new(s).map_err(|_| Error::InvalidArgument(format!("NUL in {s}")))?;
     let ctx = Context::get().as_raw_ptr();
-    let mut err = FolioError::new();
+    let mut err = LectrixError::new();
     // SAFETY: `ctx` is this thread's context, from the family that opened `doc`; `doc` is
     // mutably borrowed for the call (PdfDocument is not Send, so this is its owning
-    // thread); `path` is a live NUL-terminated string; `err` is a live FolioError.
-    let rc = unsafe { folio_pdf_save_snapshot(ctx, doc.as_raw_pdf_ptr(), path.as_ptr(), &mut err) };
+    // thread); `path` is a live NUL-terminated string; `err` is a live LectrixError.
+    let rc =
+        unsafe { lectrix_pdf_save_snapshot(ctx, doc.as_raw_pdf_ptr(), path.as_ptr(), &mut err) };
     check(rc, err)
 }
 
@@ -53,10 +54,11 @@ pub fn save_snapshot(doc: &mut PdfDocument, path: &Path) -> Result<()> {
 pub fn has_unsaved_changes(doc: &PdfDocument) -> Result<bool> {
     let ctx = Context::get().as_raw_ptr();
     let mut changed: c_int = 0;
-    let mut err = FolioError::new();
+    let mut err = LectrixError::new();
     // SAFETY: as in `save_snapshot` (the document is only read); `changed` is a live local.
-    let rc =
-        unsafe { folio_pdf_has_unsaved_changes(ctx, doc.as_raw_pdf_ptr(), &mut changed, &mut err) };
+    let rc = unsafe {
+        lectrix_pdf_has_unsaved_changes(ctx, doc.as_raw_pdf_ptr(), &mut changed, &mut err)
+    };
     check(rc, err)?;
     Ok(changed != 0)
 }

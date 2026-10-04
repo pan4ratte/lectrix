@@ -1,5 +1,5 @@
 //! The app log: details behind the plain-language errors the user sees (AGENTS.md
-//! section 8). A small rotating file in the app's log folder: `folio.log`, rotated at
+//! section 8). A small rotating file in the app's log folder: `lectrix.log`, rotated at
 //! 1 MiB, keeping three older files. Nothing leaves the machine.
 
 use std::fs::{self, File, OpenOptions};
@@ -57,7 +57,7 @@ fn write(level: Level, message: &str) {
         .unwrap_or(0.0);
     let line = format!("{secs:.3} {level:?} {message}\n");
     if cfg!(debug_assertions) {
-        eprint!("[folio] {line}");
+        eprint!("[lectrix] {line}");
     }
     let Some(log) = LOG.get() else {
         return;
@@ -71,9 +71,9 @@ fn write(level: Level, message: &str) {
 impl Log {
     fn path(&self, index: usize) -> PathBuf {
         if index == 0 {
-            self.dir.join("folio.log")
+            self.dir.join("lectrix.log")
         } else {
-            self.dir.join(format!("folio.{index}.log"))
+            self.dir.join(format!("lectrix.{index}.log"))
         }
     }
 

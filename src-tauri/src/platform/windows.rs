@@ -209,9 +209,9 @@ mod tests {
     #[test]
     fn compares_paths_case_insensitively() {
         let dir = std::env::temp_dir();
-        let upper = dir.join("FOLIO-SAME-FILE-TEST.tmp");
+        let upper = dir.join("LECTRIX-SAME-FILE-TEST.tmp");
         std::fs::write(&upper, b"x").unwrap();
-        let lower = dir.join("folio-same-file-test.tmp");
+        let lower = dir.join("lectrix-same-file-test.tmp");
         assert!(Windows.same_file(&upper, &lower));
         assert_eq!(Windows.file_key(&upper), Windows.file_key(&lower));
         let _ = std::fs::remove_file(&upper);

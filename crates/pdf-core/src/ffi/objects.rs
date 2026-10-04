@@ -6,17 +6,17 @@ use mupdf::Context;
 use mupdf::pdf::{PdfDocument, PdfObject};
 use mupdf_sys::{fz_context, pdf_document};
 
-use super::{FolioError, check};
+use super::{LectrixError, check};
 use crate::error::{Error, Result};
 
 unsafe extern "C" {
-    fn folio_pdf_set_new_stream(
+    fn lectrix_pdf_set_new_stream(
         ctx: *mut fz_context,
         doc: *mut pdf_document,
         num: c_int,
         data: *const c_uchar,
         len: usize,
-        err: *mut FolioError,
+        err: *mut LectrixError,
     ) -> c_int;
 }
 
@@ -32,12 +32,12 @@ pub fn set_new_stream(doc: &mut PdfDocument, stream: &PdfObject, data: &[u8]) ->
     }
     let num = stream.as_indirect()?;
     let ctx = Context::get().as_raw_ptr();
-    let mut err = FolioError::new();
+    let mut err = LectrixError::new();
     // SAFETY: `ctx` is this thread's context and `doc` belongs to this thread (PdfDocument
     // is not Send); `data` is valid for `len` bytes and only read (the shim copies it);
     // `err` is a live local. The shim restores the document's journal before returning.
     let rc = unsafe {
-        folio_pdf_set_new_stream(
+        lectrix_pdf_set_new_stream(
             ctx,
             doc.as_raw_pdf_ptr(),
             num,

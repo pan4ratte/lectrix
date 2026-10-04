@@ -1,4 +1,4 @@
-# 0006: Corrections Folio makes to MuPDF's annotation appearances and keys
+# 0006: Corrections Lectrix makes to MuPDF's annotation appearances and keys
 
 - Status: accepted (Phase 5; approved by the user on 2026-10-04)
 - Date: 2026-10-04
@@ -8,11 +8,11 @@
 AGENTS.md section 5.1 rule 2 says every annotation gets its normal appearance from
 MuPDF's synthesis, and that a type whose MuPDF appearance fails the interop tests gets a
 custom appearance stream, documented in an ADR. In Phase 5, MuPDF's synthesis is used for
-all seven types Folio creates, and for repairs. But for two types, what MuPDF writes
+all seven types Lectrix creates, and for repairs. But for two types, what MuPDF writes
 around the drawing either breaks a profile rule or puts the annotation in a different
-place in different readers. This ADR records the small corrections Folio applies after
+place in different readers. This ADR records the small corrections Lectrix applies after
 synthesis (`crates/pdf-core/src/annot/write.rs`, `synthesize`). No type gets a drawing of
-Folio's own: the shapes are MuPDF's.
+Lectrix's own: the shapes are MuPDF's.
 
 ## Findings
 
@@ -46,11 +46,11 @@ Folio's own: the shapes are MuPDF's.
   turn it with the page (their behaviour, not something a file can change). The harness
   accepts the icon in either place: `/Rect`, or `/Rect` turned about its upper-left
   corner (`display_area` in `tests/interop/run.py`).
-- **Text boxes:** `/CL` is removed when a text box is created (Folio makes no callouts),
+- **Text boxes:** `/CL` is removed when a text box is created (Lectrix makes no callouts),
   and after each synthesis `/Rect` and the appearance `/BBox` grow by 1 pt together,
   recorded in `/RD [1 1 1 1]`, so the next synthesis finds the same text box. A text box
   that is a callout (from another app, `/IT /FreeTextCallout`) can't be moved or
-  resized in Folio, because its line would need moving too.
+  resized in Lectrix, because its line would need moving too.
 - **`/CA` is always written,** also at 1.
 - **`/F 4` for every type,** notes too (they are kept upright as above).
 

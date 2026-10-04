@@ -5,105 +5,105 @@
  * bg-surface, text-fg, border-line, or the component classes below); never hard-coded
  * colors. Spacing follows an 8 px grid (4 px for tight spots); radii 6 to 8 px.
  *
- * The system accent color arrives at startup as --folio-system-accent (set by
- * src/lib/theme.ts); --folio-accent-fg is chosen there for contrast.
+ * The system accent color arrives at startup as --lectrix-system-accent (set by
+ * src/lib/theme.ts); --lectrix-accent-fg is chosen there for contrast.
  */
 :root {
 	color-scheme: light dark;
-	--folio-bg: #f3f3f3;
-	--folio-chrome: #f3f3f3;
-	--folio-surface: #fbfbfb;
-	--folio-surface-raised: #ffffff;
-	--folio-canvas: #e6e6e6;
-	--folio-hover: rgb(0 0 0 / 0.05);
-	--folio-pressed: rgb(0 0 0 / 0.08);
-	--folio-fg: #1b1b1b;
-	--folio-fg-muted: #575757;
-	--folio-line: #e0e0e0;
+	--lectrix-bg: #f3f3f3;
+	--lectrix-chrome: #f3f3f3;
+	--lectrix-surface: #fbfbfb;
+	--lectrix-surface-raised: #ffffff;
+	--lectrix-canvas: #e6e6e6;
+	--lectrix-hover: rgb(0 0 0 / 0.05);
+	--lectrix-pressed: rgb(0 0 0 / 0.08);
+	--lectrix-fg: #1b1b1b;
+	--lectrix-fg-muted: #575757;
+	--lectrix-line: #e0e0e0;
 	/* The bottom edge of text fields: 3:1 against the surface, so a field can be told
 	   apart from plain text (WCAG 1.4.11), as Windows 11 text boxes do. */
-	--folio-field-stroke: #868686;
-	--folio-accent: var(--folio-system-accent, #005fb8);
-	--folio-accent-fg: var(--folio-system-accent-fg, #ffffff);
-	--folio-focus: var(--folio-accent);
-	--folio-danger: #c42b1c;
-	--folio-danger-bg: #fde7e9;
-	--folio-info-bg: #f0f6fc;
-	--folio-page-shadow: rgb(0 0 0 / 0.14);
-	--folio-overlay: rgb(0 0 0 / 0.3);
-	--folio-selection: color-mix(in srgb, var(--folio-accent) 32%, transparent);
-	--folio-search-hit: rgb(255 196 0 / 0.38);
-	--folio-search-current: rgb(255 120 0 / 0.5);
-	--folio-row-selected: color-mix(in srgb, var(--folio-accent) 16%, transparent);
-	--folio-close-hover: #c42b1c;
-	--folio-close-hover-fg: #ffffff;
+	--lectrix-field-stroke: #868686;
+	--lectrix-accent: var(--lectrix-system-accent, #005fb8);
+	--lectrix-accent-fg: var(--lectrix-system-accent-fg, #ffffff);
+	--lectrix-focus: var(--lectrix-accent);
+	--lectrix-danger: #c42b1c;
+	--lectrix-danger-bg: #fde7e9;
+	--lectrix-info-bg: #f0f6fc;
+	--lectrix-page-shadow: rgb(0 0 0 / 0.14);
+	--lectrix-overlay: rgb(0 0 0 / 0.3);
+	--lectrix-selection: color-mix(in srgb, var(--lectrix-accent) 32%, transparent);
+	--lectrix-search-hit: rgb(255 196 0 / 0.38);
+	--lectrix-search-current: rgb(255 120 0 / 0.5);
+	--lectrix-row-selected: color-mix(in srgb, var(--lectrix-accent) 16%, transparent);
+	--lectrix-close-hover: #c42b1c;
+	--lectrix-close-hover-fg: #ffffff;
 	/* Marks telling files apart in the Combine view (3:1 against the chrome). */
-	--folio-source-1: #0f6cbd;
-	--folio-source-2: #c239b3;
-	--folio-source-3: #107c10;
-	--folio-source-4: #ca5010;
-	--folio-source-5: #8764b8;
-	--folio-source-6: #038387;
+	--lectrix-source-1: #0f6cbd;
+	--lectrix-source-2: #c239b3;
+	--lectrix-source-3: #107c10;
+	--lectrix-source-4: #ca5010;
+	--lectrix-source-5: #8764b8;
+	--lectrix-source-6: #038387;
 }
 
 /* Dark: the system's choice unless Settings forces light, or forced (data-theme). */
 @media (prefers-color-scheme: dark) {
 	:root:not([data-theme='light']) {
-		--folio-bg: #202020;
-		--folio-chrome: #202020;
-		--folio-surface: #2b2b2b;
-		--folio-surface-raised: #2c2c2c;
-		--folio-canvas: #1a1a1a;
-		--folio-hover: rgb(255 255 255 / 0.06);
-		--folio-pressed: rgb(255 255 255 / 0.09);
-		--folio-fg: #ffffff;
-		--folio-fg-muted: #c5c5c5;
-		--folio-line: #3a3a3a;
-		--folio-field-stroke: #9a9a9a;
+		--lectrix-bg: #202020;
+		--lectrix-chrome: #202020;
+		--lectrix-surface: #2b2b2b;
+		--lectrix-surface-raised: #2c2c2c;
+		--lectrix-canvas: #1a1a1a;
+		--lectrix-hover: rgb(255 255 255 / 0.06);
+		--lectrix-pressed: rgb(255 255 255 / 0.09);
+		--lectrix-fg: #ffffff;
+		--lectrix-fg-muted: #c5c5c5;
+		--lectrix-line: #3a3a3a;
+		--lectrix-field-stroke: #9a9a9a;
 		/* Windows uses a lighter shade of the accent on dark backgrounds (theme.ts). */
-		--folio-accent: var(--folio-system-accent-dark, color-mix(in srgb, #0078d4 55%, white));
-		--folio-accent-fg: var(--folio-system-accent-dark-fg, #000000);
-		--folio-danger: #ff99a4;
-		--folio-danger-bg: #442726;
-		--folio-info-bg: #1f2a35;
-		--folio-page-shadow: rgb(0 0 0 / 0.5);
-		--folio-overlay: rgb(0 0 0 / 0.5);
-		--folio-source-1: #479ef5;
-		--folio-source-2: #e370d9;
-		--folio-source-3: #54b054;
-		--folio-source-4: #f7894a;
-		--folio-source-5: #b59ae6;
-		--folio-source-6: #4fb7b9;
+		--lectrix-accent: var(--lectrix-system-accent-dark, color-mix(in srgb, #0078d4 55%, white));
+		--lectrix-accent-fg: var(--lectrix-system-accent-dark-fg, #000000);
+		--lectrix-danger: #ff99a4;
+		--lectrix-danger-bg: #442726;
+		--lectrix-info-bg: #1f2a35;
+		--lectrix-page-shadow: rgb(0 0 0 / 0.5);
+		--lectrix-overlay: rgb(0 0 0 / 0.5);
+		--lectrix-source-1: #479ef5;
+		--lectrix-source-2: #e370d9;
+		--lectrix-source-3: #54b054;
+		--lectrix-source-4: #f7894a;
+		--lectrix-source-5: #b59ae6;
+		--lectrix-source-6: #4fb7b9;
 	}
 }
 
 :root[data-theme='dark'] {
 	color-scheme: dark;
-	--folio-bg: #202020;
-	--folio-chrome: #202020;
-	--folio-surface: #2b2b2b;
-	--folio-surface-raised: #2c2c2c;
-	--folio-canvas: #1a1a1a;
-	--folio-hover: rgb(255 255 255 / 0.06);
-	--folio-pressed: rgb(255 255 255 / 0.09);
-	--folio-fg: #ffffff;
-	--folio-fg-muted: #c5c5c5;
-	--folio-line: #3a3a3a;
-	--folio-field-stroke: #9a9a9a;
+	--lectrix-bg: #202020;
+	--lectrix-chrome: #202020;
+	--lectrix-surface: #2b2b2b;
+	--lectrix-surface-raised: #2c2c2c;
+	--lectrix-canvas: #1a1a1a;
+	--lectrix-hover: rgb(255 255 255 / 0.06);
+	--lectrix-pressed: rgb(255 255 255 / 0.09);
+	--lectrix-fg: #ffffff;
+	--lectrix-fg-muted: #c5c5c5;
+	--lectrix-line: #3a3a3a;
+	--lectrix-field-stroke: #9a9a9a;
 	/* Windows uses a lighter shade of the accent on dark backgrounds (theme.ts). */
-	--folio-accent: var(--folio-system-accent-dark, color-mix(in srgb, #0078d4 55%, white));
-	--folio-accent-fg: var(--folio-system-accent-dark-fg, #000000);
-	--folio-danger: #ff99a4;
-	--folio-danger-bg: #442726;
-	--folio-info-bg: #1f2a35;
-	--folio-page-shadow: rgb(0 0 0 / 0.5);
-	--folio-overlay: rgb(0 0 0 / 0.5);
-	--folio-source-1: #479ef5;
-	--folio-source-2: #e370d9;
-	--folio-source-3: #54b054;
-	--folio-source-4: #f7894a;
-	--folio-source-5: #b59ae6;
-	--folio-source-6: #4fb7b9;
+	--lectrix-accent: var(--lectrix-system-accent-dark, color-mix(in srgb, #0078d4 55%, white));
+	--lectrix-accent-fg: var(--lectrix-system-accent-dark-fg, #000000);
+	--lectrix-danger: #ff99a4;
+	--lectrix-danger-bg: #442726;
+	--lectrix-info-bg: #1f2a35;
+	--lectrix-page-shadow: rgb(0 0 0 / 0.5);
+	--lectrix-overlay: rgb(0 0 0 / 0.5);
+	--lectrix-source-1: #479ef5;
+	--lectrix-source-2: #e370d9;
+	--lectrix-source-3: #54b054;
+	--lectrix-source-4: #f7894a;
+	--lectrix-source-5: #b59ae6;
+	--lectrix-source-6: #4fb7b9;
 }
 
 :root[data-theme='light'] {
@@ -112,27 +112,27 @@
 
 /* With Mica, the chrome is transparent and the system material shows through. */
 :root[data-backdrop='mica'] {
-	--folio-bg: transparent;
-	--folio-chrome: transparent;
+	--lectrix-bg: transparent;
+	--lectrix-chrome: transparent;
 }
 
 @theme inline {
-	--color-bg: var(--folio-bg);
-	--color-chrome: var(--folio-chrome);
-	--color-surface: var(--folio-surface);
-	--color-surface-raised: var(--folio-surface-raised);
-	--color-canvas: var(--folio-canvas);
-	--color-hover: var(--folio-hover);
-	--color-fg: var(--folio-fg);
-	--color-fg-muted: var(--folio-fg-muted);
-	--color-line: var(--folio-line);
-	--color-accent: var(--folio-accent);
-	--color-accent-fg: var(--folio-accent-fg);
-	--color-focus: var(--folio-focus);
-	--color-danger: var(--folio-danger);
-	--color-danger-bg: var(--folio-danger-bg);
-	--color-info-bg: var(--folio-info-bg);
-	--color-page-shadow: var(--folio-page-shadow);
+	--color-bg: var(--lectrix-bg);
+	--color-chrome: var(--lectrix-chrome);
+	--color-surface: var(--lectrix-surface);
+	--color-surface-raised: var(--lectrix-surface-raised);
+	--color-canvas: var(--lectrix-canvas);
+	--color-hover: var(--lectrix-hover);
+	--color-fg: var(--lectrix-fg);
+	--color-fg-muted: var(--lectrix-fg-muted);
+	--color-line: var(--lectrix-line);
+	--color-accent: var(--lectrix-accent);
+	--color-accent-fg: var(--lectrix-accent-fg);
+	--color-focus: var(--lectrix-focus);
+	--color-danger: var(--lectrix-danger);
+	--color-danger-bg: var(--lectrix-danger-bg);
+	--color-info-bg: var(--lectrix-info-bg);
+	--color-page-shadow: var(--lectrix-page-shadow);
 	--font-sans: 'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
 	--radius-control: 6px;
 	--radius-panel: 8px;
@@ -142,8 +142,8 @@ html,
 body {
 	height: 100%;
 	margin: 0;
-	background: var(--folio-bg);
-	color: var(--folio-fg);
+	background: var(--lectrix-bg);
+	color: var(--lectrix-fg);
 	font-family: var(--font-sans);
 	font-size: 14px;
 	overflow: hidden;
@@ -166,33 +166,33 @@ button {
 }
 
 :focus-visible {
-	outline: 2px solid var(--folio-focus);
+	outline: 2px solid var(--lectrix-focus);
 	outline-offset: 2px;
 }
 
 /* SVG overlays on pages. */
 .fill-selection {
-	fill: var(--folio-selection);
+	fill: var(--lectrix-selection);
 }
 .fill-search-hit {
-	fill: var(--folio-search-hit);
+	fill: var(--lectrix-search-hit);
 }
 .fill-search-current {
-	fill: var(--folio-search-current);
+	fill: var(--lectrix-search-current);
 }
 
 /* Annotations on the page canvas. */
 .annotation-outline {
 	fill: none;
-	stroke: var(--folio-accent);
+	stroke: var(--lectrix-accent);
 	stroke-width: 1.5px;
 }
 .annotation-outline-draft {
 	stroke-dasharray: 4 3;
 }
 .annotation-handle {
-	fill: var(--folio-surface-raised);
-	stroke: var(--folio-accent);
+	fill: var(--lectrix-surface-raised);
+	stroke: var(--lectrix-accent);
 	stroke-width: 1.5px;
 }
 .annotation-editor {
@@ -205,14 +205,14 @@ button {
 	background: rgb(255 255 255 / 0.85);
 	font-family: Helvetica, Arial, sans-serif;
 	line-height: 1.2;
-	outline: 1.5px dashed var(--folio-accent);
+	outline: 1.5px dashed var(--lectrix-accent);
 	resize: none;
 	white-space: pre-wrap;
 	overflow-wrap: normal;
 }
 
 .viewer-scroll:focus-visible {
-	outline: 2px solid var(--folio-focus);
+	outline: 2px solid var(--lectrix-focus);
 	outline-offset: -2px;
 }
 
@@ -229,10 +229,10 @@ button {
 	background: transparent;
 }
 .icon-button:hover:not(:disabled) {
-	background: var(--folio-hover);
+	background: var(--lectrix-hover);
 }
 .icon-button:active:not(:disabled) {
-	background: var(--folio-pressed);
+	background: var(--lectrix-pressed);
 }
 .icon-button:disabled {
 	opacity: 0.4;
@@ -245,49 +245,49 @@ button {
 	align-items: center;
 	justify-content: center;
 	padding: 0 12px;
-	border: 1px solid var(--folio-line);
+	border: 1px solid var(--lectrix-line);
 	border-radius: var(--radius-control);
-	background: var(--folio-surface-raised);
+	background: var(--lectrix-surface-raised);
 }
 .button:hover:not(:disabled) {
-	background: color-mix(in srgb, var(--folio-surface-raised), var(--folio-fg) 4%);
+	background: color-mix(in srgb, var(--lectrix-surface-raised), var(--lectrix-fg) 4%);
 }
 .button:disabled {
 	opacity: 0.45;
 }
 .button-primary {
 	border-color: transparent;
-	background: var(--folio-accent);
-	color: var(--folio-accent-fg);
+	background: var(--lectrix-accent);
+	color: var(--lectrix-accent-fg);
 }
 .button-primary:hover {
-	background: color-mix(in srgb, var(--folio-accent), var(--folio-bg) 10%);
+	background: color-mix(in srgb, var(--lectrix-accent), var(--lectrix-bg) 10%);
 }
 
 .field {
 	padding: 0 8px;
-	border: 1px solid var(--folio-line);
-	border-bottom-color: var(--folio-field-stroke);
+	border: 1px solid var(--lectrix-line);
+	border-bottom-color: var(--lectrix-field-stroke);
 	border-radius: var(--radius-control);
-	background: var(--folio-surface);
-	color: var(--folio-fg);
+	background: var(--lectrix-surface);
+	color: var(--lectrix-fg);
 	outline: none;
 }
 /* Focus: an accent border with a 2 px accent bottom edge (Windows 11 text boxes). */
 .field:focus {
-	border-color: var(--folio-accent);
-	box-shadow: inset 0 -1px 0 var(--folio-accent);
+	border-color: var(--lectrix-accent);
+	box-shadow: inset 0 -1px 0 var(--lectrix-accent);
 }
 .field[readonly] {
-	color: var(--folio-fg-muted);
+	color: var(--lectrix-fg-muted);
 }
 
 /* ----- annotation tools ----- */
 
 .tool-button[aria-pressed='true'] {
-	background: var(--folio-row-selected);
-	color: var(--folio-fg);
-	box-shadow: inset 0 -2px 0 var(--folio-accent);
+	background: var(--lectrix-row-selected);
+	color: var(--lectrix-fg);
+	box-shadow: inset 0 -2px 0 var(--lectrix-accent);
 }
 .swatch {
 	display: inline-flex;
@@ -296,48 +296,48 @@ button {
 	flex-shrink: 0;
 	align-items: center;
 	justify-content: center;
-	border: 1px solid color-mix(in srgb, var(--folio-fg) 25%, transparent);
+	border: 1px solid color-mix(in srgb, var(--lectrix-fg) 25%, transparent);
 	border-radius: 50%;
 	background: var(--swatch);
 	cursor: default;
 }
 .swatch[aria-checked='true'],
 .swatch-custom-on {
-	outline: 2px solid var(--folio-accent);
+	outline: 2px solid var(--lectrix-accent);
 	outline-offset: 1px;
 }
 /* The custom colour's input is hidden inside its swatch: show its focus on the swatch. */
 .swatch-custom:has(input:focus-visible) {
-	outline: 2px solid var(--folio-focus);
+	outline: 2px solid var(--lectrix-focus);
 	outline-offset: 3px;
 }
 .swatch-custom {
 	background: conic-gradient(#e53935, #ffd400, #5fd35f, #33a7ff, #b04ad6, #e53935);
 }
 .swatch-custom:focus-within {
-	outline: 2px solid var(--folio-focus);
+	outline: 2px solid var(--lectrix-focus);
 	outline-offset: 2px;
 }
 .toolbar-select {
 	height: 28px;
 	margin-left: 4px;
 	padding: 0 4px;
-	border: 1px solid var(--folio-line);
+	border: 1px solid var(--lectrix-line);
 	border-radius: var(--radius-control);
-	background: var(--folio-surface);
-	color: var(--folio-fg);
+	background: var(--lectrix-surface);
+	color: var(--lectrix-fg);
 	font-size: 12px;
 }
 .annotation-dot {
 	width: 10px;
 	height: 10px;
 	flex-shrink: 0;
-	border: 1px solid color-mix(in srgb, var(--folio-fg) 25%, transparent);
+	border: 1px solid color-mix(in srgb, var(--lectrix-fg) 25%, transparent);
 	border-radius: 50%;
 	background: var(--swatch);
 }
 .annotation-list:focus-visible {
-	outline: 2px solid var(--folio-focus);
+	outline: 2px solid var(--lectrix-focus);
 	outline-offset: -2px;
 }
 .annotation-row {
@@ -350,10 +350,10 @@ button {
 	contain-intrinsic-size: auto 52px;
 }
 .annotation-row:hover {
-	background: var(--folio-hover);
+	background: var(--lectrix-hover);
 }
 .annotation-row[aria-selected='true'] {
-	background: var(--folio-row-selected);
+	background: var(--lectrix-row-selected);
 }
 .repair-badge {
 	display: inline-flex;
@@ -363,8 +363,8 @@ button {
 	margin-left: auto;
 	padding: 0 6px;
 	border-radius: 8px;
-	background: var(--folio-danger-bg);
-	color: var(--folio-danger);
+	background: var(--lectrix-danger-bg);
+	color: var(--lectrix-danger);
 	font-size: 11px;
 	line-height: 18px;
 }
@@ -374,18 +374,18 @@ button {
 	height: 18px;
 	align-items: center;
 	justify-content: center;
-	border: 1px solid var(--folio-fg-muted);
+	border: 1px solid var(--lectrix-fg-muted);
 	border-radius: 50%;
-	background: var(--folio-surface);
+	background: var(--lectrix-surface);
 }
 .radio[data-state='checked'] {
-	border-color: var(--folio-accent);
+	border-color: var(--lectrix-accent);
 }
 .radio-dot {
 	width: 8px;
 	height: 8px;
 	border-radius: 50%;
-	background: var(--folio-accent);
+	background: var(--lectrix-accent);
 }
 
 /* ----- menus (bits-ui) ----- */
@@ -394,10 +394,10 @@ button {
 	z-index: 50;
 	min-width: 220px;
 	padding: 4px;
-	border: 1px solid var(--folio-line);
+	border: 1px solid var(--lectrix-line);
 	border-radius: var(--radius-panel);
-	background: var(--folio-surface-raised);
-	box-shadow: 0 8px 16px var(--folio-page-shadow);
+	background: var(--lectrix-surface-raised);
+	box-shadow: 0 8px 16px var(--lectrix-page-shadow);
 	outline: none;
 }
 .menu-item {
@@ -410,11 +410,11 @@ button {
 	outline: none;
 }
 .menu-item[data-highlighted] {
-	background: var(--folio-hover);
+	background: var(--lectrix-hover);
 }
 /* Reached with the keyboard: the hover tint alone is too faint to show focus. */
 .menu-item:focus-visible {
-	outline: 2px solid var(--folio-focus);
+	outline: 2px solid var(--lectrix-focus);
 	outline-offset: -2px;
 }
 .menu-item[data-disabled] {
@@ -423,13 +423,13 @@ button {
 .menu-shortcut {
 	margin-left: auto;
 	padding-left: 24px;
-	color: var(--folio-fg-muted);
+	color: var(--lectrix-fg-muted);
 	font-size: 12px;
 }
 .menu-separator {
 	height: 1px;
 	margin: 4px 0;
-	background: var(--folio-line);
+	background: var(--lectrix-line);
 }
 .menubar-trigger {
 	height: 28px;
@@ -440,7 +440,7 @@ button {
 }
 .menubar-trigger:hover,
 .menubar-trigger[data-state='open'] {
-	background: var(--folio-hover);
+	background: var(--lectrix-hover);
 }
 
 /* ----- dialogs ----- */
@@ -449,7 +449,7 @@ button {
 	position: fixed;
 	inset: 0;
 	z-index: 40;
-	background: var(--folio-overlay);
+	background: var(--lectrix-overlay);
 }
 .dialog-content {
 	position: fixed;
@@ -459,10 +459,10 @@ button {
 	max-width: calc(100vw - 32px);
 	transform: translate(-50%, -50%);
 	padding: 24px;
-	border: 1px solid var(--folio-line);
+	border: 1px solid var(--lectrix-line);
 	border-radius: var(--radius-panel);
-	background: var(--folio-surface-raised);
-	box-shadow: 0 16px 32px var(--folio-page-shadow);
+	background: var(--lectrix-surface-raised);
+	box-shadow: 0 16px 32px var(--lectrix-page-shadow);
 }
 
 /* ----- sidebar ----- */
@@ -478,14 +478,14 @@ button {
 	border: 0;
 	border-radius: var(--radius-control);
 	background: transparent;
-	color: var(--folio-fg-muted);
+	color: var(--lectrix-fg-muted);
 }
 .sidebar-tab:hover {
-	background: var(--folio-hover);
+	background: var(--lectrix-hover);
 }
 .sidebar-tab[data-state='active'] {
-	background: var(--folio-row-selected);
-	color: var(--folio-fg);
+	background: var(--lectrix-row-selected);
+	color: var(--lectrix-fg);
 }
 
 /* ----- bookmarks tree ----- */
@@ -505,18 +505,18 @@ button {
 	border-radius: 4px;
 }
 .tree-row:hover {
-	background: var(--folio-hover);
+	background: var(--lectrix-hover);
 }
 .tree-row[aria-selected='true'] {
-	background: var(--folio-row-selected);
+	background: var(--lectrix-row-selected);
 }
 .tree:focus-visible .tree-row[aria-selected='true'] {
-	outline: 2px solid var(--folio-focus);
+	outline: 2px solid var(--lectrix-focus);
 	outline-offset: -2px;
 }
 /* Focused with nothing selected yet: ring the list itself. */
 .tree:focus-visible:not(:has(.tree-row[aria-selected='true'])) {
-	outline: 2px solid var(--folio-focus);
+	outline: 2px solid var(--lectrix-focus);
 	outline-offset: -2px;
 }
 .tree-toggle {
@@ -527,20 +527,20 @@ button {
 	align-items: center;
 	justify-content: center;
 	border-radius: 4px;
-	color: var(--folio-fg-muted);
+	color: var(--lectrix-fg-muted);
 	transition: transform 100ms;
 }
 .tree-toggle:hover {
-	background: var(--folio-pressed);
+	background: var(--lectrix-pressed);
 }
 .tree-rename {
 	min-width: 0;
 	height: 24px;
 	flex: 1;
 	padding: 0 4px;
-	border: 1px solid var(--folio-accent);
+	border: 1px solid var(--lectrix-accent);
 	border-radius: 4px;
-	background: var(--folio-surface);
+	background: var(--lectrix-surface);
 	outline: none;
 }
 .bookmark-color {
@@ -551,14 +551,14 @@ button {
 	border-radius: 50%;
 }
 .tree-drop-inside {
-	box-shadow: inset 0 0 0 2px var(--folio-accent);
+	box-shadow: inset 0 0 0 2px var(--lectrix-accent);
 }
 .tree-drop-line {
 	position: absolute;
 	right: 8px;
 	height: 2px;
 	border-radius: 1px;
-	background: var(--folio-accent);
+	background: var(--lectrix-accent);
 	pointer-events: none;
 }
 .drag-ghost {
@@ -567,10 +567,10 @@ button {
 	max-width: 240px;
 	padding: 4px 8px;
 	overflow: hidden;
-	border: 1px solid var(--folio-line);
+	border: 1px solid var(--lectrix-line);
 	border-radius: var(--radius-control);
-	background: var(--folio-surface-raised);
-	box-shadow: 0 4px 12px var(--folio-page-shadow);
+	background: var(--lectrix-surface-raised);
+	box-shadow: 0 4px 12px var(--lectrix-page-shadow);
 	pointer-events: none;
 	text-overflow: ellipsis;
 	white-space: nowrap;
@@ -583,41 +583,41 @@ button {
 	background: transparent;
 }
 .thumb:hover > span:first-child {
-	outline: 2px solid var(--folio-line);
+	outline: 2px solid var(--lectrix-line);
 }
 .thumb-current > span:first-child {
-	outline: 2px solid var(--folio-accent);
+	outline: 2px solid var(--lectrix-accent);
 	outline-offset: 2px;
 }
 
 /* ----- combine view ----- */
 
 .combine-grid:focus-visible {
-	outline: 2px solid var(--folio-focus);
+	outline: 2px solid var(--lectrix-focus);
 	outline-offset: -2px;
 }
 .combine-cell:hover {
-	background: var(--folio-hover);
+	background: var(--lectrix-hover);
 }
 .combine-cell-selected,
 .combine-cell-selected:hover {
-	background: var(--folio-row-selected);
+	background: var(--lectrix-row-selected);
 }
 .combine-thumb {
-	box-shadow: 0 1px 2px var(--folio-page-shadow);
+	box-shadow: 0 1px 2px var(--lectrix-page-shadow);
 }
 .combine-cell-selected .combine-thumb {
-	outline: 2px solid var(--folio-accent);
+	outline: 2px solid var(--lectrix-accent);
 	outline-offset: 2px;
 }
 .combine-grid:focus-visible .combine-cell-focus {
-	box-shadow: inset 0 0 0 2px var(--folio-focus);
+	box-shadow: inset 0 0 0 2px var(--lectrix-focus);
 }
 .combine-drop-line {
 	position: absolute;
 	width: 3px;
 	border-radius: 2px;
-	background: var(--folio-accent);
+	background: var(--lectrix-accent);
 	pointer-events: none;
 }
 .progress-indeterminate {
@@ -642,5 +642,5 @@ button {
 /* Thin, quiet scrollbars, as in Windows 11 apps. */
 * {
 	scrollbar-width: thin;
-	scrollbar-color: color-mix(in srgb, var(--folio-fg) 35%, transparent) transparent;
+	scrollbar-color: color-mix(in srgb, var(--lectrix-fg) 35%, transparent) transparent;
 }

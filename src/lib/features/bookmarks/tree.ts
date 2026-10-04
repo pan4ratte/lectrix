@@ -197,7 +197,7 @@ export function describeTarget(target: BookmarkTarget, labels: readonly string[]
 		case 'file':
 			return target.file ? `Opens another file: ${target.file}` : 'Opens another file';
 		case 'action':
-			return `Runs a ${target.action || 'custom'} action, which Folio doesn’t do`;
+			return `Runs a ${target.action || 'custom'} action, which Lectrix doesn’t do`;
 		case 'none':
 			return 'No destination (a heading)';
 	}

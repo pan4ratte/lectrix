@@ -11,7 +11,7 @@ import { cli, sample } from '../lib/pdfcli.mjs';
 
 const DIR = join(OUT, 'recovery');
 // Copies every half second instead of every two minutes.
-const env = { FOLIO_RECOVERY_DIR: DIR, FOLIO_RECOVERY_INTERVAL_MS: '500' };
+const env = { LECTRIX_RECOVERY_DIR: DIR, LECTRIX_RECOVERY_INTERVAL_MS: '500' };
 
 const recoveryFiles = () => (existsSync(DIR) ? readdirSync(DIR) : []);
 
@@ -135,7 +135,7 @@ test('discarding recovered changes deletes them; quitting without saving leaves 
 	}
 
 	// Quitting normally with "Don't save" deletes this run's copy too.
-	// Copies are deleted only at the very end of quitting, so wait for Folio to exit.
+	// Copies are deleted only at the very end of quitting, so wait for Lectrix to exit.
 	({ browser, exitedByItself } = await launch([path], { env }));
 	let quit = false;
 	try {
@@ -145,7 +145,7 @@ test('discarding recovered changes deletes them; quitting without saving leaves 
 	} finally {
 		quit = await exitedByItself();
 	}
-	assert.ok(quit, 'Folio quit after "Don’t save"');
+	assert.ok(quit, 'Lectrix quit after "Don’t save"');
 	assert.deepEqual(recoveryFiles(), [], 'a normal quit leaves no recovery copies');
 	assert.doesNotMatch(cli('info', path), /rotated pages/);
 });

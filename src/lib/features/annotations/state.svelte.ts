@@ -4,7 +4,7 @@
 
 import { DEFAULT_STYLES, type DrawTool, type Tool, type ToolStyle } from './tools.ts';
 
-const STORAGE_KEY = 'folio.annotationStyles';
+const STORAGE_KEY = 'lectrix.annotationStyles';
 
 function loadStyles(): Record<DrawTool, ToolStyle> {
 	const styles = structuredClone(DEFAULT_STYLES) as Record<DrawTool, ToolStyle>;

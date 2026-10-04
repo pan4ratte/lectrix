@@ -16,7 +16,7 @@ id: number, page: number,
  */
 subtype: string, 
 /**
- * Set for the types Folio creates.
+ * Set for the types Lectrix creates.
  */
 kind: AnnotationKind | null, 
 /**

@@ -103,7 +103,7 @@
 		{#if !tab.flags.canAnnotate}
 			<p class="text-xs text-fg-muted">This document’s security settings don’t allow changing annotations.</p>
 		{:else if a.id === 0}
-			<p class="text-xs text-fg-muted">This annotation is stored in a way Folio can show but not change.</p>
+			<p class="text-xs text-fg-muted">This annotation is stored in a way Lectrix can show but not change.</p>
 		{/if}
 
 		{#if parent}

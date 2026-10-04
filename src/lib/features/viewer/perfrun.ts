@@ -1,5 +1,5 @@
-// Scripted performance measurements, run when the app starts with FOLIO_PERF set
-// (tests/perf/measure.ps1). Results are printed as [folio-metric] lines by Rust.
+// Scripted performance measurements, run when the app starts with LECTRIX_PERF set
+// (tests/perf/measure.ps1). Results are printed as [lectrix-metric] lines by Rust.
 
 import { logMetric, pageUrl } from '#lib/ipc/index.ts';
 import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -56,9 +56,9 @@ async function compareFormats(tab: DocTab, samples = 16) {
 			const t0 = performance.now();
 			if (format === 'rgba') {
 				const response = await fetch(url);
-				const timing = response.headers.get('X-Folio-Timing');
-				const width = Number(response.headers.get('X-Folio-Width'));
-				const height = Number(response.headers.get('X-Folio-Height'));
+				const timing = response.headers.get('X-Lectrix-Timing');
+				const width = Number(response.headers.get('X-Lectrix-Width'));
+				const height = Number(response.headers.get('X-Lectrix-Height'));
 				const buffer = await response.arrayBuffer();
 				canvas.width = width;
 				canvas.height = height;
@@ -68,7 +68,7 @@ async function compareFormats(tab: DocTab, samples = 16) {
 				rgbaBytes.push(buffer.byteLength);
 			} else {
 				const response = await fetch(url);
-				const timing = response.headers.get('X-Folio-Timing');
+				const timing = response.headers.get('X-Lectrix-Timing');
 				const blob = await response.blob();
 				const bitmap = await createImageBitmap(blob);
 				canvas.width = bitmap.width;

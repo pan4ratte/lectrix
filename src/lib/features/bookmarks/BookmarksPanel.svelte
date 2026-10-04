@@ -317,7 +317,7 @@
 	{#if tab.outline.damaged}
 		<p class="mx-2 mb-2 flex gap-2 rounded-control bg-danger-bg p-2 text-xs" role="note">
 			<TriangleAlert size={14} class="mt-0.5 shrink-0" aria-hidden="true" />
-			These bookmarks are damaged. Folio shows them as far as it can, but can’t change them.
+			These bookmarks are damaged. Lectrix shows them as far as it can, but can’t change them.
 		</p>
 	{/if}
 

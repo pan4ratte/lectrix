@@ -33,7 +33,7 @@ import {
 	type CombinePage
 } from './pages.ts';
 
-/** Distinct colors that tell files apart in the grid (`--folio-source-N` tokens). */
+/** Distinct colors that tell files apart in the grid (`--lectrix-source-N` tokens). */
 export const SOURCE_COLORS = 6;
 
 export interface CombineSource {
@@ -47,7 +47,7 @@ export interface CombineSource {
 	revision: number;
 	/** Holds a signature, which will not be valid in the combined file. */
 	signed: boolean;
-	/** Which `--folio-source-N` color marks its pages (1-based). */
+	/** Which `--lectrix-source-N` color marks its pages (1-based). */
 	color: number;
 }
 

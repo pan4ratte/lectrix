@@ -28,7 +28,7 @@ use pdf_core::testgen::{self, SampleSpec};
 use pdf_core::{Error, Result};
 
 #[derive(Parser)]
-#[command(name = "pdf-cli", version, about = "Headless Folio PDF engine")]
+#[command(name = "pdf-cli", version, about = "Headless Lectrix PDF engine")]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -48,7 +48,7 @@ enum Command {
         crop: Option<Rect>,
         #[arg(long)]
         user_unit: Option<f64>,
-        #[arg(long, default_value = "Folio sample")]
+        #[arg(long, default_value = "Lectrix sample")]
         title: String,
     },
     /// Print page count, page labels, outline and annotations.
@@ -214,7 +214,7 @@ enum AnnotAction {
         color: Rgb,
         #[arg(long, default_value_t = 1.0)]
         opacity: f32,
-        #[arg(long, default_value = "Folio")]
+        #[arg(long, default_value = "Lectrix")]
         author: String,
         #[arg(long)]
         note: Option<String>,
@@ -309,7 +309,7 @@ struct StyleArgs {
     color: Rgb,
     #[arg(long, default_value_t = 1.0)]
     opacity: f32,
-    #[arg(long, default_value = "Folio")]
+    #[arg(long, default_value = "Lectrix")]
     author: String,
 }
 

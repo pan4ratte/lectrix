@@ -27,7 +27,7 @@ pub fn open(path: &Path) -> PdfDocument {
 /// Windows. A child process spawned while such a handle is open (`qpdf` in another test
 /// thread) inherits it and keeps the file open, so a rename or share-delete open of that
 /// file fails until the child exits. Writes take the lock shared; [`qpdf_check`] takes it
-/// exclusively. (Folio itself spawns no child processes; see ADR 0003.)
+/// exclusively. (Lectrix itself spawns no child processes; see ADR 0003.)
 static SPAWN_LOCK: RwLock<()> = RwLock::new(());
 
 /// Runs `f`, which writes files through MuPDF, without racing a child process spawn.

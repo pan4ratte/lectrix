@@ -115,7 +115,7 @@ fn temp_path_for(target: &Path) -> Result<PathBuf> {
         .ok_or_else(|| Error::InvalidArgument(format!("not a file path: {}", target.display())))?;
     let n = TEMP_COUNTER.fetch_add(1, Ordering::Relaxed);
     let temp_name = format!(
-        ".{}.{}-{n}.folio-tmp",
+        ".{}.{}-{n}.lectrix-tmp",
         name.to_string_lossy(),
         std::process::id()
     );
@@ -149,7 +149,7 @@ mod tests {
         assert_eq!(t.parent(), Some(Path::new("C:/docs")));
         let name = t.file_name().unwrap().to_string_lossy().into_owned();
         assert!(name.starts_with(".report.pdf."));
-        assert!(name.ends_with(".folio-tmp"));
+        assert!(name.ends_with(".lectrix-tmp"));
         assert_ne!(t, temp_path_for(Path::new("C:/docs/report.pdf")).unwrap());
     }
 

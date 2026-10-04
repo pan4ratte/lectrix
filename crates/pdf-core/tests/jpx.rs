@@ -1,4 +1,4 @@
-//! JPEG 2000 images drawn smaller than they are decode at a reduced resolution (Folio's
+//! JPEG 2000 images drawn smaller than they are decode at a reduced resolution (Lectrix's
 //! `mupdf-sys` fork, ADR 0008), and still look like the full decode, scaled down.
 
 mod common;

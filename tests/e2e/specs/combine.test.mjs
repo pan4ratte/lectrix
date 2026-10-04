@@ -123,10 +123,10 @@ test('combine three files after removing, turning and moving pages', async () =>
 	assert.match(report, /annotation p1: Highlight/);
 	// Bookmarks nested under each file, in the order their pages come.
 	assert.deepEqual(bookmarks(out), [
-		'Folio sample -> page 1',
-		'Folio sample -> page 2',
+		'Lectrix sample -> page 1',
+		'Lectrix sample -> page 2',
 		'Chapter A -> page 3',
-		'Folio sample -> page 5'
+		'Lectrix sample -> page 5'
 	]);
 });
 
@@ -165,11 +165,11 @@ test('insert pages from a file, undo, redo and save', async () => {
 	}
 	const report = info(doc);
 	assert.match(report, /^pages: 5$/m);
-	assert.deepEqual(bookmarks(doc), ['Folio sample -> page 2']);
+	assert.deepEqual(bookmarks(doc), ['Lectrix sample -> page 2']);
 });
 
 /** A one-page PDF with a signed signature field (a /Sig field with a value), written by
- * hand: enough for Folio to see the document as signed. */
+ * hand: enough for Lectrix to see the document as signed. */
 function signedPdf(path) {
 	const text = 'BT /F1 24 Tf 72 700 Td (Signed page) Tj ET';
 	const objects = [

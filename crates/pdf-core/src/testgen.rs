@@ -32,7 +32,7 @@ impl Default for SampleSpec {
             rotate: 0,
             crop_box: None,
             user_unit: None,
-            title: "Folio sample".into(),
+            title: "Lectrix sample".into(),
         }
     }
 }
@@ -89,7 +89,7 @@ pub fn sample_document(spec: &SampleSpec) -> Result<PdfDocument> {
 
     let mut info = doc.new_dict()?;
     info.dict_put("Title", objects::text_string(&doc, &spec.title)?)?;
-    info.dict_put("Producer", PdfObject::new_string("Folio testgen")?)?;
+    info.dict_put("Producer", PdfObject::new_string("Lectrix testgen")?)?;
     let info = doc.add_object(&info)?;
     doc.trailer()?.dict_put("Info", info)?;
     Ok(doc)

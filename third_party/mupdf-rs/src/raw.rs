@@ -1,8 +1,8 @@
-//! FOLIO PATCH: raw-pointer accessors for downstream FFI.
+//! LECTRIX PATCH: raw-pointer accessors for downstream FFI.
 //!
 //! Upstream keeps every raw handle `pub(crate)`, which leaves no way to call MuPDF APIs the
 //! safe wrapper does not cover yet (for example journalling). These accessors expose the
-//! handles without transferring ownership. See `../FOLIO_PATCHES.md`.
+//! handles without transferring ownership. See `../LECTRIX_PATCHES.md`.
 //!
 //! Every pointer returned here is borrowed: it stays valid only while the wrapper it came
 //! from is alive, must be used with a context of the same family (the calling thread's

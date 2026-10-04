@@ -1,13 +1,13 @@
 [package]
-name = "folio"
+name = "lectrix"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "Folio PDF editor"
+description = "Lectrix PDF editor"
 
 [lib]
-name = "folio_lib"
+name = "lectrix_lib"
 crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]

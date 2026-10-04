@@ -22,7 +22,7 @@ function refuseEdit(tab: DocTab): boolean {
 	if (tab.outline.damaged) {
 		app.notify({
 			kind: 'error',
-			message: 'This document’s bookmarks are damaged, so Folio can show them but not change them.'
+			message: 'This document’s bookmarks are damaged, so Lectrix can show them but not change them.'
 		});
 		return true;
 	}
@@ -144,7 +144,7 @@ export async function keyboardMoveBookmark(tab: DocTab, id: number, move: Keyboa
 }
 
 /** Follows a bookmark. Only places in this document are followed; for the rest, the user
- * is told what the bookmark does (Folio stays offline and runs no actions). */
+ * is told what the bookmark does (Lectrix stays offline and runs no actions). */
 export function goToBookmark(tab: DocTab, id: number) {
 	const bookmark = locate(tab.outline.items, id)?.bookmark;
 	if (!bookmark) return;
@@ -157,7 +157,7 @@ export function goToBookmark(tab: DocTab, id: number) {
 			app.notify({
 				kind: 'info',
 				message: `This bookmark is a web link: ${target.uri}`,
-				suggestion: 'Folio doesn’t open links. Copy it to open it in your browser.',
+				suggestion: 'Lectrix doesn’t open links. Copy it to open it in your browser.',
 				action: { label: 'Copy link', run: () => void copyLink(target.uri) }
 			});
 			return;
@@ -172,13 +172,13 @@ export function goToBookmark(tab: DocTab, id: number) {
 			app.notify({
 				kind: 'info',
 				message: `This bookmark opens another file${target.file ? `: ${target.file}` : ''}.`,
-				suggestion: 'Folio doesn’t follow links to other files.'
+				suggestion: 'Lectrix doesn’t follow links to other files.'
 			});
 			return;
 		case 'action':
 			app.notify({
 				kind: 'info',
-				message: `This bookmark runs a ${target.action || 'custom'} action, which Folio doesn’t do.`
+				message: `This bookmark runs a ${target.action || 'custom'} action, which Lectrix doesn’t do.`
 			});
 			return;
 		case 'none':

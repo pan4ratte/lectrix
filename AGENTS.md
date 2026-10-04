@@ -6,7 +6,7 @@ Oct 2, 2026 · @Mark
 
 Build a lightweight, open-source PDF editor for Windows, designed to go cross-platform later, whose annotations, bookmarks and page labels open correctly in Acrobat and every other mainstream reader. Interoperability is the product's core promise: a feature that works only inside this app is a failed feature.
 
-This document is the single source of truth for the build. Read it in full at the start of every session. The working name is **Folio**; keep it in one config constant so it can be renamed.
+This document is the single source of truth for the build. Read it in full at the start of every session. The working name is **Lectrix**; keep it in one config constant so it can be renamed.
 
 **In scope for v1:**
 
@@ -60,7 +60,7 @@ Down-arrows carry typed operations and calls; up-arrows carry page images, revis
 
 **Rendering pipeline.**
 
-- The frontend requests pages through a custom URI protocol: `folio://page/{docId}/{pageIndex}?scale={s}&rev={r}`. Including the document revision in the URL makes cache invalidation automatic.
+- The frontend requests pages through a custom URI protocol: `lectrix://page/{docId}/{pageIndex}?scale={s}&rev={r}`. Including the document revision in the URL makes cache invalidation automatic.
 - Rust renders the page with MuPDF and returns an image. Start with PNG at the fastest compression level; if encoding exceeds about 30% of render time, switch to raw RGBA drawn into a `<canvas>`.
 - Above a zoom threshold, render 512 px tiles instead of whole pages.
 - Keep an LRU cache of rendered images keyed by document, page, scale bucket and revision, with a configurable memory cap.
@@ -75,7 +75,7 @@ Down-arrows carry typed operations and calls; up-arrows carry page images, revis
 Use a Cargo workspace plus a SvelteKit app at the root. Keep this structure unless an ADR justifies a change.
 
 ```
-folio/
+lectrix/
 ├─ AGENTS.md                 # this document
 ├─ LICENSE                   # AGPL-3.0-or-later
 ├─ THIRD_PARTY_NOTICES.md
@@ -325,7 +325,7 @@ Goal: prove the risky parts before building UI.
 
 - [ ] Tauri 2 + SvelteKit (static, SSR off) + Tailwind skeleton builds and runs on Windows.
 - [ ] MuPDF linked through the `mupdf` crate; MuPDF version pinned and recorded.
-- [ ] A page renders in the window through the `folio://` protocol; render and encode times measured on a 500-page file.
+- [ ] A page renders in the window through the `lectrix://` protocol; render and encode times measured on a 500-page file.
 - [ ] `pdf-cli` can write page labels, write an outline, merge two files, and add a highlight with an appearance stream.
 - [ ] Those four outputs pass `qpdf --check` and display correctly in the interop harness (all three engines).
 - [ ] Journalling (undo/redo) works on at least one operation, through the crate or `ffi/`.

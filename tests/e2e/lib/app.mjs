@@ -1,8 +1,8 @@
-// Launches Folio under tauri-driver and returns a WebdriverIO browser for its webview.
+// Launches Lectrix under tauri-driver and returns a WebdriverIO browser for its webview.
 //
 // Needs: the release app (`npx tauri build --no-bundle`), `tauri-driver` (cargo install
 // tauri-driver --locked) and an msedgedriver matching the installed WebView2 runtime
-// (tests/e2e/fetch-edgedriver.ps1). FOLIO_APP, TAURI_DRIVER and MSEDGEDRIVER override
+// (tests/e2e/fetch-edgedriver.ps1). LECTRIX_APP, TAURI_DRIVER and MSEDGEDRIVER override
 // the default locations.
 
 import { spawn, spawnSync } from 'node:child_process';
@@ -17,7 +17,7 @@ export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
 export const OUT = join(ROOT, 'target', 'test-output', 'e2e');
 const PORT = 4444;
 
-const app = process.env.FOLIO_APP ?? join(ROOT, 'target', 'release', 'folio.exe');
+const app = process.env.LECTRIX_APP ?? join(ROOT, 'target', 'release', 'lectrix.exe');
 const tauriDriver = process.env.TAURI_DRIVER ?? 'tauri-driver';
 const edgeDriver = process.env.MSEDGEDRIVER ?? join(ROOT, 'target', 'e2e-tools', 'msedgedriver.exe');
 
@@ -69,16 +69,16 @@ function verboseDriver() {
 }
 
 /**
- * Ends any Folio still running. Folio is single-instance: a leftover process would take
+ * Ends any Lectrix still running. Lectrix is single-instance: a leftover process would take
  * over the next launch, which then exits before WebDriver can attach.
  */
 function killStrayApps() {
-	spawnSync('taskkill', ['/IM', 'folio.exe', '/F', '/T'], { stdio: 'ignore' });
+	spawnSync('taskkill', ['/IM', 'lectrix.exe', '/F', '/T'], { stdio: 'ignore' });
 }
 
 function appRunning() {
-	const list = spawnSync('tasklist', ['/FI', 'IMAGENAME eq folio.exe', '/NH'], { encoding: 'utf8' });
-	return list.stdout.toLowerCase().includes('folio.exe');
+	const list = spawnSync('tasklist', ['/FI', 'IMAGENAME eq lectrix.exe', '/NH'], { encoding: 'utf8' });
+	return list.stdout.toLowerCase().includes('lectrix.exe');
 }
 
 /**
@@ -91,12 +91,12 @@ async function killDriver(driver, exited) {
 }
 
 /**
- * Starts Folio with `files` (PDF paths) open and returns `{ browser, stop }`. Recent
- * files and remembered views stay out of the user's app data (FOLIO_EPHEMERAL).
+ * Starts Lectrix with `files` (PDF paths) open and returns `{ browser, stop }`. Recent
+ * files and remembered views stay out of the user's app data (LECTRIX_EPHEMERAL).
  *
- * The files go through FOLIO_OPEN: on Windows, tauri-driver hands launch arguments to
+ * The files go through LECTRIX_OPEN: on Windows, tauri-driver hands launch arguments to
  * WebView2 instead of the app. `dialogs` answers the app's file dialogs in order
- * (FOLIO_DIALOG): each answer is a path, a list of paths, or null for Cancel. `env` adds
+ * (LECTRIX_DIALOG): each answer is a path, a list of paths, or null for Cancel. `env` adds
  * environment variables.
  */
 export async function launch(files = [], { dialogs, env = {} } = {}) {
@@ -113,9 +113,9 @@ export async function launch(files = [], { dialogs, env = {} } = {}) {
 	const driver = spawn(tauriDriver, driverArgs, {
 		env: {
 			...process.env,
-			FOLIO_EPHEMERAL: '1',
-			FOLIO_OPEN: files.join(';'),
-			...(dialogs ? { FOLIO_DIALOG: dialogs.map((a) => [a ?? []].flat().join('|')).join(';') } : {}),
+			LECTRIX_EPHEMERAL: '1',
+			LECTRIX_OPEN: files.join(';'),
+			...(dialogs ? { LECTRIX_DIALOG: dialogs.map((a) => [a ?? []].flat().join('|')).join(';') } : {}),
 			...env
 		},
 		stdio: ['ignore', 'inherit', 'inherit']
@@ -143,15 +143,15 @@ export async function launch(files = [], { dialogs, env = {} } = {}) {
 				killStrayApps();
 			}
 		};
-		/** Ends Folio the way a crash would: no chance to clean up. */
+		/** Ends Lectrix the way a crash would: no chance to clean up. */
 		const crash = async () => {
 			killStrayApps();
 			await browser.deleteSession().catch(() => {});
 			await killDriver(driver, exited);
 		};
 		/**
-		 * Waits for Folio to finish quitting by itself, then cleans up (the session is
-		 * already gone). Resolves to whether Folio quit in time; it is ended either way.
+		 * Waits for Lectrix to finish quitting by itself, then cleans up (the session is
+		 * already gone). Resolves to whether Lectrix quit in time; it is ended either way.
 		 */
 		const exitedByItself = async () => {
 			const deadline = Date.now() + 15_000;
@@ -173,7 +173,7 @@ export async function launch(files = [], { dialogs, env = {} } = {}) {
 const APP_URL = 'http://tauri.localhost/';
 
 /**
- * msedgedriver navigates the webview to about:blank when a session starts. Usually Folio's
+ * msedgedriver navigates the webview to about:blank when a session starts. Usually Lectrix's
  * own navigation to its page comes after that, but on a slow machine (CI) it can come
  * first and be wiped out. Then load the page again: the frontend picks up the documents
  * Rust already has open (list_open_documents).

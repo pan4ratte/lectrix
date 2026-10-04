@@ -63,7 +63,7 @@ pub mod quad;
 /// Rectangle types
 pub mod rect;
 
-// FOLIO PATCH: raw-pointer accessors, see FOLIO_PATCHES.md.
+// LECTRIX PATCH: raw-pointer accessors, see LECTRIX_PATCHES.md.
 pub mod raw;
 /// Separations
 pub mod separations;

@@ -30,7 +30,7 @@ Three problems came up with the latest release, `mupdf` 0.8.0 (MuPDF 1.27.2):
 - **Vendor the `mupdf` crate (Rust source only)** at upstream commit
   `537d50556ee8e4abf2435f81357dfef3c145d883` into `third_party/mupdf-rs/`. This picks up
   the #258 fix and the per-thread context work (#263, #264). The patches are listed in
-  `third_party/mupdf-rs/FOLIO_PATCHES.md`:
+  `third_party/mupdf-rs/LECTRIX_PATCHES.md`:
   - a new `src/raw.rs` that adds `as_raw_ptr` accessors (borrowed, no ownership
     transfer) to the types above;
   - a standalone manifest with features trimmed to `base14-fonts`, `system-fonts` and
@@ -38,7 +38,7 @@ Three problems came up with the latest release, `mupdf` 0.8.0 (MuPDF 1.27.2):
     are out of v1 scope and only add build time and binary size.
 - **`mupdf-sys` comes from upstream git at the same commit.** We do not vendor it,
   because it carries the full MuPDF and third-party C source tree. Since Phase 6 it comes
-  from Folio's fork of `mupdf-rs` at that commit plus one build-time patch (JPEG 2000
+  from Lectrix's fork of `mupdf-rs` at that commit plus one build-time patch (JPEG 2000
   decoded at the resolution drawn), through `[patch]` in the workspace (ADR 0008).
 - **Vendor MuPDF 1.27.2's public headers** (`third_party/mupdf-include/`, about 1 MB) so
   `crates/pdf-core/build.rs` can compile `src/ffi/shim.c` with the `cc` crate. Every
@@ -55,7 +55,7 @@ public raw access, we drop the vendored copy and depend on crates.io again.
 
 ## Coverage (MuPDF 1.27.2, crate @ 537d505)
 
-| Need | Crate API | Folio |
+| Need | Crate API | Lectrix |
 | --- | --- | --- |
 | Open, page count, page load, bounds | `Document`, `PdfDocument::open`, `load_pdf_page` | crate |
 | Render | `Page::to_display_list`, `DisplayList::to_pixmap` | crate |
@@ -69,10 +69,10 @@ public raw access, we drop the vendored copy and depend on crates.io again.
 | Journalling: enable, undo, redo, state, step names, implicit operations | none | `ffi/journal.rs` plus the shim (implicit operations write expanded bookmark states at save without an undo step, Phase 2) |
 | Copy pages between documents (combine, insert) | `insert_pdf` / `pdf_graft_mapped_page` copy contents, resources and boxes only: annotations (and links, widgets) are left out, and `/Group` too | own copier in `merge/copy.rs` on the crate's `PdfObject` API (Phase 4, below); the Phase 0 graft wrapper is gone |
 | Write the stream of an object created in the current undo step, at a cost that does not grow with the step | `write_raw_stream_buffer` (MuPDF scans the step's records on every change) | `ffi::set_new_stream`: shim sets the journal aside for that one write (Phase 4, below) |
-| Header/library version check | none | shim `folio_mupdf_headers_match_library` (test) |
-| Open from a share-delete OS handle (ADR 0003) | `PdfDocument::open` only takes a path | `ffi/stream.rs` + shim `folio_pdf_open_os_handle`; crate patch 3 (`from_raw_owned`) |
+| Header/library version check | none | shim `lectrix_mupdf_headers_match_library` (test) |
+| Open from a share-delete OS handle (ADR 0003) | `PdfDocument::open` only takes a path | `ffi/stream.rs` + shim `lectrix_pdf_open_os_handle`; crate patch 3 (`from_raw_owned`) |
 | Was the file repaired on open | none | `ffi::was_repaired` (shim around `pdf_was_repaired`) |
-| Font lookup hook | `set_font_loader` | crate (`fonts/`: base-14 names go to MuPDF's built-in fonts, other names to Folio's installed-font index; the `system-fonts` feature is off since Phase 2, ADR 0005) |
+| Font lookup hook | `set_font_loader` | crate (`fonts/`: base-14 names go to MuPDF's built-in fonts, other names to Lectrix's installed-font index; the `system-fonts` feature is off since Phase 2, ADR 0005) |
 | Render into a pixmap with an origin (tiles) | `Pixmap::new`, `Device::from_pixmap_with_clip`, `DisplayList::run` | crate |
 | Text geometry, search | `DisplayList::to_text_page`, `TextPage::search_cb` | crate |
 | Signature detection | `pdf_count_signatures` counts unsigned fields too | own walk of `/AcroForm /Fields` in `docinfo.rs` |
@@ -96,7 +96,7 @@ Other findings from Phase 0:
 Phase 4 (combining files, inserting pages): `pdf_graft_mapped_page` copies only a page's
 contents, resources, boxes, `/Rotate` and `/UserUnit`, so annotations, links and form
 widgets would be lost, and grafting an annotation directly would copy the whole source
-document (its `/P` leads to the page, whose `/Parent` leads to the page tree). Folio's
+document (its `/P` leads to the page, whose `/Parent` leads to the page tree). Lectrix's
 copier keeps its own map: picked pages are mapped to their new pages first, and the
 catalog, page tree nodes and unpicked pages are marked never to be copied. It copies
 through a queue rather than by recursion, and raw stream data (decrypted, still encoded)

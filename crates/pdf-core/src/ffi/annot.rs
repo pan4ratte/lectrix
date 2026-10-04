@@ -6,14 +6,14 @@ use mupdf::Context;
 use mupdf::pdf::PdfAnnotation;
 use mupdf_sys::{fz_context, pdf_annot};
 
-use super::{FolioError, check};
+use super::{LectrixError, check};
 use crate::error::Result;
 
 unsafe extern "C" {
-    fn folio_pdf_dirty_annot(
+    fn lectrix_pdf_dirty_annot(
         ctx: *mut fz_context,
         annot: *mut pdf_annot,
-        err: *mut FolioError,
+        err: *mut LectrixError,
     ) -> c_int;
 }
 
@@ -21,11 +21,11 @@ unsafe extern "C" {
 /// this, MuPDF gives an annotation that has no appearance a local one for display only.
 pub fn request_appearance(annot: &mut PdfAnnotation) -> Result<()> {
     let ctx = Context::get().as_raw_ptr();
-    let mut err = FolioError::new();
+    let mut err = LectrixError::new();
     // SAFETY: `ctx` is this thread's context; `annot` is a live annotation of a document
     // owned by this thread (PdfAnnotation is not Send) and is only borrowed for the call;
     // `err` is a live local.
-    let rc = unsafe { folio_pdf_dirty_annot(ctx, annot.as_raw_ptr(), &mut err) };
+    let rc = unsafe { lectrix_pdf_dirty_annot(ctx, annot.as_raw_ptr(), &mut err) };
     check(rc, err)
 }
 

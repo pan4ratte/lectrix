@@ -1,5 +1,5 @@
 {
-  "name": "folio-interop-harness",
+  "name": "lectrix-interop-harness",
   "private": true,
   "license": "AGPL-3.0-or-later",
   "type": "module",

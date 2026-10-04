@@ -39,8 +39,8 @@ export function recoveryQuestion(found: RecoveredDocument[], now: number = Date.
 	return {
 		title: 'Restore unsaved changes?',
 		message: one
-			? `Folio closed before you saved your changes to ${one.name}.`
-			: `Folio closed before you saved your changes to ${found.length} documents.`,
+			? `Lectrix closed before you saved your changes to ${one.name}.`
+			: `Lectrix closed before you saved your changes to ${found.length} documents.`,
 		detail: one
 			? `The changes are from ${describeWhen(one.savedAt, now)}${one.exists ? '' : ', and the file was moved or deleted since'}. Restoring opens the document with them; save it to keep them.`
 			: `${found.map((d) => describeOne(d, now)).join(', ')}. Restoring opens the documents with them; save them to keep them.`,

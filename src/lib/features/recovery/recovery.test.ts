@@ -23,7 +23,7 @@ describe('describeWhen', () => {
 describe('recoveryQuestion', () => {
 	it('names a single document and when its changes are from', () => {
 		const q = recoveryQuestion([doc('report.pdf', now - 60_000)], now);
-		expect(q.message).toBe('Folio closed before you saved your changes to report.pdf.');
+		expect(q.message).toBe('Lectrix closed before you saved your changes to report.pdf.');
 		expect(q.detail).toMatch(/^The changes are from today at /);
 		expect(q.detail).not.toMatch(/moved or deleted/);
 		expect(q.buttons.map((b) => b.id)).toEqual(['restore', 'discard', 'later']);
@@ -32,7 +32,7 @@ describe('recoveryQuestion', () => {
 
 	it('lists several documents and says when a file is gone', () => {
 		const q = recoveryQuestion([doc('a.pdf', now), doc('b.pdf', now - 2 * 86_400_000, false)], now);
-		expect(q.message).toBe('Folio closed before you saved your changes to 2 documents.');
+		expect(q.message).toBe('Lectrix closed before you saved your changes to 2 documents.');
 		expect(q.detail).toMatch(/^a\.pdf \(today at [^)]*\), b\.pdf \(on .+; its file was moved or deleted\)\./);
 	});
 

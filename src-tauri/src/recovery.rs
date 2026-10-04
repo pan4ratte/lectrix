@@ -21,7 +21,7 @@ use serde::{Deserialize, Serialize};
 
 use crate::documents::FileStamp;
 
-/// How often recovery copies are written (section 7). FOLIO_RECOVERY_INTERVAL_MS
+/// How often recovery copies are written (section 7). LECTRIX_RECOVERY_INTERVAL_MS
 /// overrides it, for tests.
 pub const INTERVAL: Duration = Duration::from_secs(120);
 
@@ -83,7 +83,7 @@ struct Inner {
 }
 
 /// The recovery folder and the slots of the open documents. Without a folder (measurement
-/// and test runs, FOLIO_EPHEMERAL), recovery is off.
+/// and test runs, LECTRIX_EPHEMERAL), recovery is off.
 #[derive(Default)]
 pub struct Recovery {
     dir: Option<PathBuf>,

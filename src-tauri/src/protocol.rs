@@ -1,11 +1,11 @@
 //! The page-image protocol:
-//! `folio://page/{docId}/{pageIndex}?scale={s}&rev={r}[&tile={x},{y},{w},{h}][&fmt=png]`.
+//! `lectrix://page/{docId}/{pageIndex}?scale={s}&rev={r}[&tile={x},{y},{w},{h}][&fmt=png]`.
 //!
-//! On Windows (WebView2) the same URL is served as `http://folio.localhost/page/...`. The
+//! On Windows (WebView2) the same URL is served as `http://lectrix.localhost/page/...`. The
 //! revision is part of the URL, so a URL always means the same pixels.
 //!
 //! Without `fmt`, the response is raw RGBA (`application/octet-stream`, 4 bytes per pixel,
-//! size in the `X-Folio-Width` and `X-Folio-Height` headers). `fmt=png` returns the same
+//! size in the `X-Lectrix-Width` and `X-Lectrix-Height` headers). `fmt=png` returns the same
 //! cached pixels as PNG, which the app uses by default because it reaches the screen about
 //! three times faster through WebView2 (ADR 0004).
 
@@ -230,16 +230,16 @@ fn respond(
         // Rendered pixels are cached in Rust (`ImageCache`) and drawn into canvases; a
         // browser cache would only hold a second copy of every image.
         .header(header::CACHE_CONTROL, "no-store")
-        // The app page (tauri.localhost or the dev server) fetches from folio.localhost.
+        // The app page (tauri.localhost or the dev server) fetches from lectrix.localhost.
         .header(header::ACCESS_CONTROL_ALLOW_ORIGIN, "*")
         .header(
             header::ACCESS_CONTROL_EXPOSE_HEADERS,
-            "X-Folio-Width, X-Folio-Height, X-Folio-Revision, X-Folio-Timing",
+            "X-Lectrix-Width, X-Lectrix-Height, X-Lectrix-Revision, X-Lectrix-Timing",
         )
-        .header("X-Folio-Width", width)
-        .header("X-Folio-Height", height)
-        .header("X-Folio-Revision", revision)
-        .header("X-Folio-Timing", timing)
+        .header("X-Lectrix-Width", width)
+        .header("X-Lectrix-Height", height)
+        .header("X-Lectrix-Revision", revision)
+        .header("X-Lectrix-Timing", timing)
         .body(Cow::Owned(body))
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "response failed"))
 }

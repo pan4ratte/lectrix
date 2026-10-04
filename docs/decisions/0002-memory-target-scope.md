@@ -6,14 +6,14 @@
 ## Context
 
 AGENTS.md section 2 sets "idle memory under 200 MB with one large document open", but does
-not say which processes count. In Phase 0, Folio's own process (`folio.exe`: MuPDF, the
+not say which processes count. In Phase 0, Lectrix's own process (`lectrix.exe`: MuPDF, the
 document, render caches) used about 60 MB. The WebView2 runtime adds its own browser, GPU,
 renderer and utility processes, about 440 MB in total. Most of that is the cost of
 embedding a Chromium webview at all, and it barely changes with the document.
 
 ## Decision
 
-- **The 200 MB target applies to `folio.exe`'s working set.** That process holds
+- **The 200 MB target applies to `lectrix.exe`'s working set.** That process holds
   everything that grows with documents (MuPDF objects, display lists, the image cache), so
   it is the number our design choices control.
 - **The whole process tree (including WebView2) is measured and reported every phase** by
@@ -54,8 +54,8 @@ Measured on the generated 1,000-page file, Windows 11, 1.5x display scaling
 - **Scrolling.** Memory after scrolling plateaus at about 1.0 GB for the whole tree,
   the same after one or three rounds of the scroll tests: a bounded pool, not a leak.
   The Phase 1 figure of 1.6 to 2.0 GB included about 800 MB from the image-format
-  comparison that ran first; `FOLIO_PERF=scroll` now leaves it out.
-- **Minimized.** Folio sets WebView2's memory target level to Low while the window is
+  comparison that ran first; `LECTRIX_PERF=scroll` now leaves it out.
+- **Minimized.** Lectrix sets WebView2's memory target level to Low while the window is
   minimized (planned for Phase 6, done now): the renderer drops from about 126 MB to
   8 MB; the GPU process keeps most of its pool.
 

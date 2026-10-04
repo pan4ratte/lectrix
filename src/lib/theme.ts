@@ -93,9 +93,9 @@ export function applyTheme(info: StartupInfo) {
 	root.dataset.backdrop = info.backdrop;
 	if (info.accentColor) {
 		const shades = accentShades(info.accentColor);
-		root.style.setProperty('--folio-system-accent', shades.light);
-		root.style.setProperty('--folio-system-accent-fg', shades.lightFg);
-		root.style.setProperty('--folio-system-accent-dark', shades.dark);
-		root.style.setProperty('--folio-system-accent-dark-fg', shades.darkFg);
+		root.style.setProperty('--lectrix-system-accent', shades.light);
+		root.style.setProperty('--lectrix-system-accent-fg', shades.lightFg);
+		root.style.setProperty('--lectrix-system-accent-dark', shades.dark);
+		root.style.setProperty('--lectrix-system-accent-dark-fg', shades.darkFg);
 	}
 }

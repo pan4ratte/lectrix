@@ -351,7 +351,7 @@ def phase0(report: Report) -> None:
     for name, extra in variants.items():
         src, dst = p(f"gen-{name}.pdf"), work / f"highlight-{name}.pdf"
         run([cli, "gen", src, "--pages", "2"] + extra)
-        run([cli, "annot", "markup", src, str(dst), "--page", "1", "--text", "quick brown fox", "--opacity", "0.6", "--author", "Folio Harness", "--note", "Harness note"])
+        run([cli, "annot", "markup", src, str(dst), "--page", "1", "--text", "quick brown fox", "--opacity", "0.6", "--author", "Lectrix Harness", "--note", "Harness note"])
         print(dst.name)
         qpdf_check(dst, report)
         case = work / name
@@ -500,7 +500,7 @@ def label_checks(pdf: Path, report: Report, expected: list[str] | None) -> None:
 def phase3(report: Report) -> None:
     """Page labels set the way the app sets them (pdf-cli labels edit goes through the same
     session and journal), read back by PDFium (Edge, Chrome) and pdf.js (Firefox). The
-    expected labels are written out here, not computed with Folio's code."""
+    expected labels are written out here, not computed with Lectrix's code."""
     work = OUT / "phase3"
     shutil.rmtree(work, ignore_errors=True)
     work.mkdir(parents=True, exist_ok=True)
@@ -596,7 +596,7 @@ def phase4(report: Report) -> None:
     run([cli, "gen", p("labels-base.pdf"), "--pages", "5", "--title", "Labels sample"])
     run([cli, "labels", "set", p("labels-base.pdf"), p("labels.pdf"), "--rule", "1:roman-lower", "--rule", "3:decimal"])
     (work / "links.pdf").write_bytes(links_fixture())
-    run([cli, "annot", "markup", p("links.pdf"), p("annotated.pdf"), "--page", "1", "--text", "quick brown fox", "--opacity", "0.6", "--author", "Folio Harness", "--note", "Harness note"])
+    run([cli, "annot", "markup", p("links.pdf"), p("annotated.pdf"), "--page", "1", "--text", "quick brown fox", "--opacity", "0.6", "--author", "Lectrix Harness", "--note", "Harness note"])
     sources = [p("outline.pdf"), p("labels.pdf"), p("annotated.pdf")]
 
     # 1. Everything, in order, with the default options.
@@ -776,14 +776,14 @@ def annotate_every_type(cli: str, src: Path, work: Path, name: str) -> Path:
         ["annot", "ink", "--page", "6", "--width", "2.5", "--color", "1A73E8", "--opacity", "0.8",
          "--stroke", ";".join(f"{100 + x},{220 + round(25 * __import__('math').sin(x / 12), 2)}" for x in range(0, 200, 2)),
          "--stroke", "120,300;160,340;200,300"],
-        ["annot", "text", "--page", "7", "--rect", "72,200,300,210", "--text", "Text box written by Folio\nSecond line", "--size", "14", "--color", "C62828"],
+        ["annot", "text", "--page", "7", "--rect", "72,200,300,210", "--text", "Text box written by Lectrix\nSecond line", "--size", "14", "--color", "C62828"],
         ["annot", "markup", "--page", "8", "--kind", "highlight", "--rect", "60,60,260,160", "--opacity", "0.5"],
     ]
     current = src
     for k, step in enumerate(steps):
         nxt = work / f"{name}-step{k + 1}.pdf"
         # Every command takes INPUT OUTPUT right after the subcommand.
-        run([cli, step[0], step[1], str(current), str(nxt)] + step[2:] + ["--author", "Folio Harness"])
+        run([cli, step[0], step[1], str(current), str(nxt)] + step[2:] + ["--author", "Lectrix Harness"])
         current = nxt
     final = work / f"{name}.pdf"
     shutil.copyfile(current, final)

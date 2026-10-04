@@ -13,7 +13,7 @@
  		fz_throw(ctx, FZ_ERROR_LIBRARY, "Failed to read JPX header");
  	}
  
-+	/* Folio: decode at a reduced resolution when asked to (*reduce halvings), as far as
++	/* Lectrix: decode at a reduced resolution when asked to (*reduce halvings), as far as
 +	 * the codestream's resolution levels allow; *reduce becomes what was applied. */
 +	if (reduce)
 +	{
@@ -48,7 +48,7 @@
  
  	w = state->width = jpx->x1 - jpx->x0;
  	h = state->height = jpx->y1 - jpx->y0;
-+	/* Folio: a reduced decode is smaller (OpenJPEG keeps the full reference grid). */
++	/* Lectrix: a reduced decode is smaller (OpenJPEG keeps the full reference grid). */
 +	if (reduce && *reduce > 0 && w > 0 && h > 0)
 +	{
 +		w = (int)(((OPJ_UINT32)w + (1u << *reduce) - 1) >> *reduce);
@@ -70,7 +70,7 @@
  	return pix;
  }
  
-+/* Folio: like fz_load_jpx, decoded *reduce halvings smaller where the codestream
++/* Lectrix: like fz_load_jpx, decoded *reduce halvings smaller where the codestream
 + * allows; *reduce becomes the reduction applied (0 to *reduce). */
 +fz_pixmap *fz_load_jpx_reduced(fz_context *ctx, const unsigned char *data, size_t size, fz_colorspace *defcs, int *reduce);
 +
@@ -144,7 +144,7 @@
  	return 0;
  }
  
-+/* Folio: load-jpx.c */
++/* Lectrix: load-jpx.c */
 +fz_pixmap *fz_load_jpx_reduced(fz_context *ctx, const unsigned char *data, size_t size, fz_colorspace *defcs, int *reduce);
 +
  static fz_pixmap *
@@ -156,7 +156,7 @@
  	case FZ_IMAGE_JPX:
 -		tile = fz_load_jpx(ctx, image->buffer->buffer->data, image->buffer->buffer->len, image->super.colorspace);
 +		{
-+			/* Folio: decode as reduced as asked, where the codestream allows; the caller
++			/* Lectrix: decode as reduced as asked, where the codestream allows; the caller
 +			 * subsamples what remains in *l2factor. */
 +			int reduce = l2factor ? *l2factor : 0;
 +			tile = fz_load_jpx_reduced(ctx, image->buffer->buffer->data, image->buffer->buffer->len, image->super.colorspace, &reduce);

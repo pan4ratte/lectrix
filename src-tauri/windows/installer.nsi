@@ -1,10 +1,10 @@
-; Folio's NSIS installer template: Tauri's own template from @tauri-apps/cli 2.12.1
+; Lectrix's NSIS installer template: Tauri's own template from @tauri-apps/cli 2.12.1
 ; (crates/tauri-bundler/src/bundle/windows/nsis/installer.nsi at tag tauri-cli-v2.12.1),
-; plus a page that asks whether Folio should open PDF files (AGENTS.md section 10,
-; Phase 6; ADR 0007). Every change is marked "Folio:". When the Tauri CLI is upgraded,
+; plus a page that asks whether Lectrix should open PDF files (AGENTS.md section 10,
+; Phase 6; ADR 0007). Every change is marked "Lectrix:". When the Tauri CLI is upgraded,
 ; take its new template and apply the marked changes again.
 ;
-; Silent and passive installs register Folio for PDF files unless /NOPDF is given.
+; Silent and passive installs register Lectrix for PDF files unless /NOPDF is given.
 Unicode true
 ManifestDPIAware true
 ; Add in `dpiAwareness` `PerMonitorV2` to manifest for Windows 10 1607+ (note this should not affect lower versions since they should be able to ignore this and pick up `dpiAware` `true` set by `ManifestDPIAware true`)
@@ -83,36 +83,36 @@ Var UpdateMode
 Var NoShortcutMode
 Var WixMode
 Var OldMainBinaryName
-; Folio: 1 to register Folio for PDF files, and the checkbox that sets it.
+; Lectrix: 1 to register Lectrix for PDF files, and the checkbox that sets it.
 Var AssociatePdf
 Var AssociatePdfCheckbox
 
-; Folio: how Folio is registered for PDF files. It joins the apps Windows offers for
+; Lectrix: how Lectrix is registered for PDF files. It joins the apps Windows offers for
 ; .pdf (Open with, Default apps) without taking over the default: Windows asks the user
 ; which app to use the next time they open a PDF, and keeps their choice.
-!define FOLIO_PROGID "${PRODUCTNAME}.Document"
-!define FOLIO_CAPABILITIES "Software\${PRODUCTNAME}\Capabilities"
+!define LECTRIX_PROGID "${PRODUCTNAME}.Document"
+!define LECTRIX_CAPABILITIES "Software\${PRODUCTNAME}\Capabilities"
 
-!macro FOLIO_REGISTER_PDF
-  WriteRegStr SHCTX "Software\Classes\${FOLIO_PROGID}" "" "PDF Document"
-  WriteRegStr SHCTX "Software\Classes\${FOLIO_PROGID}\DefaultIcon" "" "$\"$INSTDIR\${MAINBINARYNAME}.exe$\",0"
-  WriteRegStr SHCTX "Software\Classes\${FOLIO_PROGID}\shell\open\command" "" "$\"$INSTDIR\${MAINBINARYNAME}.exe$\" $\"%1$\""
-  WriteRegStr SHCTX "Software\Classes\.pdf\OpenWithProgids" "${FOLIO_PROGID}" ""
-  WriteRegStr SHCTX "${FOLIO_CAPABILITIES}" "ApplicationName" "${PRODUCTNAME}"
-  WriteRegStr SHCTX "${FOLIO_CAPABILITIES}" "ApplicationDescription" "View, annotate and combine PDF files."
-  WriteRegStr SHCTX "${FOLIO_CAPABILITIES}\FileAssociations" ".pdf" "${FOLIO_PROGID}"
-  WriteRegStr SHCTX "Software\RegisteredApplications" "${PRODUCTNAME}" "${FOLIO_CAPABILITIES}"
+!macro LECTRIX_REGISTER_PDF
+  WriteRegStr SHCTX "Software\Classes\${LECTRIX_PROGID}" "" "PDF Document"
+  WriteRegStr SHCTX "Software\Classes\${LECTRIX_PROGID}\DefaultIcon" "" "$\"$INSTDIR\${MAINBINARYNAME}.exe$\",0"
+  WriteRegStr SHCTX "Software\Classes\${LECTRIX_PROGID}\shell\open\command" "" "$\"$INSTDIR\${MAINBINARYNAME}.exe$\" $\"%1$\""
+  WriteRegStr SHCTX "Software\Classes\.pdf\OpenWithProgids" "${LECTRIX_PROGID}" ""
+  WriteRegStr SHCTX "${LECTRIX_CAPABILITIES}" "ApplicationName" "${PRODUCTNAME}"
+  WriteRegStr SHCTX "${LECTRIX_CAPABILITIES}" "ApplicationDescription" "View, annotate and combine PDF files."
+  WriteRegStr SHCTX "${LECTRIX_CAPABILITIES}\FileAssociations" ".pdf" "${LECTRIX_PROGID}"
+  WriteRegStr SHCTX "Software\RegisteredApplications" "${PRODUCTNAME}" "${LECTRIX_CAPABILITIES}"
   System::Call "shell32::SHChangeNotify(i 0x08000000, i 0x1000, p 0, p 0)"
 !macroend
 
-; Removes only what FOLIO_REGISTER_PDF wrote. "Software\${PRODUCTNAME}" may also be the
+; Removes only what LECTRIX_REGISTER_PDF wrote. "Software\${PRODUCTNAME}" may also be the
 ; installer's own MANUKEY (registry keys ignore case), so only an empty one is removed.
-!macro FOLIO_UNREGISTER_PDF
+!macro LECTRIX_UNREGISTER_PDF
   DeleteRegValue SHCTX "Software\RegisteredApplications" "${PRODUCTNAME}"
-  DeleteRegKey SHCTX "${FOLIO_CAPABILITIES}"
+  DeleteRegKey SHCTX "${LECTRIX_CAPABILITIES}"
   DeleteRegKey /ifempty SHCTX "Software\${PRODUCTNAME}"
-  DeleteRegValue SHCTX "Software\Classes\.pdf\OpenWithProgids" "${FOLIO_PROGID}"
-  DeleteRegKey SHCTX "Software\Classes\${FOLIO_PROGID}"
+  DeleteRegValue SHCTX "Software\Classes\.pdf\OpenWithProgids" "${LECTRIX_PROGID}"
+  DeleteRegKey SHCTX "Software\Classes\${LECTRIX_PROGID}"
   System::Call "shell32::SHChangeNotify(i 0x08000000, i 0x1000, p 0, p 0)"
 !macroend
 
@@ -428,7 +428,7 @@ FunctionEnd
 !define MUI_PAGE_CUSTOMFUNCTION_PRE SkipIfPassive
 !insertmacro MUI_PAGE_DIRECTORY
 
-; Folio: 5b. Ask whether Folio should open PDF files
+; Lectrix: 5b. Ask whether Lectrix should open PDF files
 Page custom PageAssociation PageLeaveAssociation
 
 Function PageAssociation
@@ -557,7 +557,7 @@ Function .onInit
     StrCpy $UpdateMode 1
   ${EndIf}
 
-  ; Folio: register for PDF files unless /NOPDF is given (the page can still change it).
+  ; Lectrix: register for PDF files unless /NOPDF is given (the page can still change it).
   StrCpy $AssociatePdf 1
   ${GetOptions} $CMDLINE "/NOPDF" $R0
   ${IfNot} ${Errors}
@@ -741,12 +741,12 @@ Section Install
     {{/each}}
   {{/each}}
 
-  ; Folio: register for PDF files as chosen; a reinstall without it removes an earlier
+  ; Lectrix: register for PDF files as chosen; a reinstall without it removes an earlier
   ; registration.
   ${If} $AssociatePdf = 1
-    !insertmacro FOLIO_REGISTER_PDF
+    !insertmacro LECTRIX_REGISTER_PDF
   ${Else}
-    !insertmacro FOLIO_UNREGISTER_PDF
+    !insertmacro LECTRIX_UNREGISTER_PDF
   ${EndIf}
 
   ; Register deep links
@@ -884,8 +884,8 @@ Section Uninstall
     {{/each}}
   {{/each}}
 
-  ; Folio: remove the PDF registration (nothing happens if there is none).
-  !insertmacro FOLIO_UNREGISTER_PDF
+  ; Lectrix: remove the PDF registration (nothing happens if there is none).
+  !insertmacro LECTRIX_UNREGISTER_PDF
 
   ; Delete deep links
   {{#each deep_link_protocols as |protocol| ~}}
@@ -949,7 +949,7 @@ Section Uninstall
   ${If} $UpdateMode <> 1
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PRODUCTNAME}"
 
-    ; Folio: forget the install location even when app data is kept. The MSI reads this
+    ; Lectrix: forget the install location even when app data is kept. The MSI reads this
     ; value to pick its folder, so a later MSI install would otherwise land in the old
     ; per-user folder instead of Program Files.
     DeleteRegValue SHCTX "${MANUPRODUCTKEY}" ""

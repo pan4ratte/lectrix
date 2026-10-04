@@ -1,12 +1,12 @@
 # Vendored copy of the `mupdf` crate from https://github.com/messense/mupdf-rs at
 # commit 537d50556ee8e4abf2435f81357dfef3c145d883, with the patches listed in
-# FOLIO_PATCHES.md. `mupdf-sys` (and the MuPDF C sources) still come from upstream
-# at the same commit. Feature list trimmed to what Folio uses.
+# LECTRIX_PATCHES.md. `mupdf-sys` (and the MuPDF C sources) still come from upstream
+# at the same commit. Feature list trimmed to what Lectrix uses.
 [package]
 name = "mupdf"
 version = "0.8.0"
 edition = "2021"
-description = "Safe Rust wrapper to MuPDF (Folio-patched vendored copy)"
+description = "Safe Rust wrapper to MuPDF (Lectrix-patched vendored copy)"
 license = "AGPL-3.0"
 repository = "https://github.com/messense/mupdf-rs"
 publish = false
@@ -16,7 +16,7 @@ default = ["base14-fonts", "system-fonts", "brotli"]
 base14-fonts = ["mupdf-sys/base14-fonts"]
 system-fonts = ["dep:font-kit"]
 brotli = ["mupdf-sys/brotli"]
-# Feature names referenced by cfg() in the upstream source; never enabled by Folio.
+# Feature names referenced by cfg() in the upstream source; never enabled by Lectrix.
 bundled-fonts-runtime = []
 bundled-fonts-droid = []
 bundled-fonts-noto = []

@@ -9,7 +9,7 @@ function describe(error: unknown): string {
 
 export const handleError: HandleClientError = ({ kind, error }) => {
 	void logError(`${kind} error: ${describe(error)}`).catch(() => {});
-	return { message: 'Something went wrong. Restart Folio; the app log has details.' };
+	return { message: 'Something went wrong. Restart Lectrix; the app log has details.' };
 };
 
 if (typeof window !== 'undefined') {

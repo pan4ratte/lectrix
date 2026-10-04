@@ -12,16 +12,16 @@ mainToReadyMs: number, backdrop: Backdrop,
  */
 accentColor: string | null, 
 /**
- * Set by the FOLIO_PERF environment variable: the frontend runs its scripted
+ * Set by the LECTRIX_PERF environment variable: the frontend runs its scripted
  * performance measurements (tests/perf/measure.ps1).
  */
 perfMode: boolean, 
 /**
- * FOLIO_PERF=scroll: only the scrolling measurements, without the image format
+ * LECTRIX_PERF=scroll: only the scrolling measurements, without the image format
  * comparison (which pushes large images through a canvas first).
  */
 perfScrollOnly: boolean, 
 /**
- * Page image format: PNG (ADR 0004); FOLIO_IMAGE_FORMAT=rgba switches to raw RGBA.
+ * Page image format: PNG (ADR 0004); LECTRIX_IMAGE_FORMAT=rgba switches to raw RGBA.
  */
 imageFormat: ImageFormat, };

@@ -14,25 +14,25 @@ use mupdf::Context;
 use mupdf::pdf::PdfDocument;
 use mupdf_sys::{fz_context, pdf_document};
 
-use super::{FolioError, check};
+use super::{LectrixError, check};
 use crate::error::Result;
 
 unsafe extern "C" {
-    fn folio_pdf_open_os_handle(
+    fn lectrix_pdf_open_os_handle(
         ctx: *mut fz_context,
         handle: isize,
         out: *mut *mut pdf_document,
-        err: *mut FolioError,
+        err: *mut LectrixError,
     ) -> c_int;
-    fn folio_pdf_was_repaired(
+    fn lectrix_pdf_was_repaired(
         ctx: *mut fz_context,
         doc: *mut pdf_document,
         repaired: *mut c_int,
-        err: *mut FolioError,
+        err: *mut LectrixError,
     ) -> c_int;
 }
 
-/// Opens `path` for reading so that other programs (and Folio's own atomic save) can still
+/// Opens `path` for reading so that other programs (and Lectrix's own atomic save) can still
 /// rename or delete it, but not write into it.
 fn open_shared(path: &Path) -> std::io::Result<File> {
     let mut options = OpenOptions::new();
@@ -67,11 +67,11 @@ pub fn open_pdf_shared(path: &Path) -> Result<PdfDocument> {
     let handle = into_raw(file);
     let ctx = Context::get().as_raw_ptr();
     let mut raw: *mut pdf_document = std::ptr::null_mut();
-    let mut err = FolioError::new();
+    let mut err = LectrixError::new();
     // SAFETY: `ctx` is this thread's context; `handle` is an owned, open, readable handle
     // whose ownership passes to the shim (it closes it on failure or when the document is
     // dropped); `raw` and `err` are live locals.
-    let rc = unsafe { folio_pdf_open_os_handle(ctx, handle, &mut raw, &mut err) };
+    let rc = unsafe { lectrix_pdf_open_os_handle(ctx, handle, &mut raw, &mut err) };
     check(rc, err)?;
     if raw.is_null() {
         return Err(crate::Error::NotPdf);
@@ -86,10 +86,11 @@ pub fn open_pdf_shared(path: &Path) -> Result<PdfDocument> {
 pub fn was_repaired(doc: &PdfDocument) -> Result<bool> {
     let ctx = Context::get().as_raw_ptr();
     let mut repaired: c_int = 0;
-    let mut err = FolioError::new();
+    let mut err = LectrixError::new();
     // SAFETY: `ctx` is this thread's context; `doc` is alive for the call (PdfDocument is
     // not Send, so this is its owning thread); out-pointers are live locals.
-    let rc = unsafe { folio_pdf_was_repaired(ctx, doc.as_raw_pdf_ptr(), &mut repaired, &mut err) };
+    let rc =
+        unsafe { lectrix_pdf_was_repaired(ctx, doc.as_raw_pdf_ptr(), &mut repaired, &mut err) };
     check(rc, err)?;
     Ok(repaired != 0)
 }

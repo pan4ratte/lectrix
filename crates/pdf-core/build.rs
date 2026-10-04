@@ -9,5 +9,5 @@ fn main() {
         .file("src/ffi/shim.c")
         .include(include)
         .warnings(true)
-        .compile("folio_mupdf_shim");
+        .compile("lectrix_mupdf_shim");
 }

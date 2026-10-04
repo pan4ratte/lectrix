@@ -1,8 +1,8 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Folio",
+  "productName": "Lectrix",
   "version": "0.1.0",
-  "identifier": "org.folio.pdf",
+  "identifier": "org.lectrix.pdf",
   "build": {
     "beforeDevCommand": "npm run dev",
     "devUrl": "http://localhost:1420",
@@ -15,7 +15,7 @@
       {
         "label": "main",
         "create": false,
-        "title": "Folio",
+        "title": "Lectrix",
         "width": 1200,
         "height": 800,
         "minWidth": 640,
@@ -33,8 +33,8 @@
     "security": {
       "csp": {
         "default-src": "'self'",
-        "img-src": "'self' folio: http://folio.localhost data: blob:",
-        "connect-src": "ipc: http://ipc.localhost folio: http://folio.localhost",
+        "img-src": "'self' lectrix: http://lectrix.localhost data: blob:",
+        "connect-src": "ipc: http://ipc.localhost lectrix: http://lectrix.localhost",
         "style-src": "'self' 'unsafe-inline'",
         "script-src": "'self'",
         "font-src": "'self'",

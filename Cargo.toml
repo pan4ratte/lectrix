@@ -10,9 +10,9 @@ license = "AGPL-3.0-or-later"
 rust-version = "1.99"
 
 [workspace.dependencies]
-# Vendored, patched copy of the mupdf crate; see third_party/mupdf-rs/FOLIO_PATCHES.md
+# Vendored, patched copy of the mupdf crate; see third_party/mupdf-rs/LECTRIX_PATCHES.md
 # and docs/decisions/0001-mupdf-binding-coverage.md.
-# Without `system-fonts`: Folio's own font index replaces font-kit (ADR 0005).
+# Without `system-fonts`: Lectrix's own font index replaces font-kit (ADR 0005).
 mupdf = { path = "third_party/mupdf-rs", default-features = false, features = ["base14-fonts", "brotli"] }
 mupdf-sys = { git = "https://github.com/messense/mupdf-rs", rev = "537d50556ee8e4abf2435f81357dfef3c145d883", default-features = false }
 thiserror = "=2.0.21"
@@ -22,7 +22,7 @@ thiserror = "=2.0.21"
 opt-level = 2
 
 
-# Folio's fork of mupdf-sys: the same MuPDF 1.27.2, with a build-time patch so JPEG 2000
+# Lectrix's fork of mupdf-sys: the same MuPDF 1.27.2, with a build-time patch so JPEG 2000
 # images are decoded at the resolution they are drawn at (ADR 0008). The fork changes only
 # mupdf-sys/build.rs and adds mupdf-sys/folio_patches.rs; MuPDF itself is not forked.
 [patch."https://github.com/messense/mupdf-rs"]

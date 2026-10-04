@@ -1,6 +1,6 @@
 //! Fonts for documents that do not embed them (Phase 0 review decision 1, ADR 0005).
 //!
-//! MuPDF asks Folio's font loader for every non-embedded font. Folio:
+//! MuPDF asks Lectrix's font loader for every non-embedded font. Lectrix:
 //!
 //! - sends the 14 standard font names, and the aliases of them that no installed font can
 //!   match (such as "TimesNewRoman,Bold"), straight to MuPDF's built-in, metric-compatible
@@ -167,17 +167,17 @@ fn load_face(face: &FontFace) -> Option<Font> {
     Font::from_static_bytes_with_index(face.family_name(), index, data).ok()
 }
 
-/// Folio's font loader: built-in fonts for the standard names, installed fonts for the
+/// Lectrix's font loader: built-in fonts for the standard names, installed fonts for the
 /// rest.
-struct FolioFonts;
+struct LectrixFonts;
 
-impl FolioFonts {
+impl LectrixFonts {
     fn cjk(&self, ordering: CjkFontOrdering, serif: bool) -> Option<Font> {
         load_face(installed_fonts().cjk(ordering, serif)?)
     }
 }
 
-impl FontLoader for FolioFonts {
+impl FontLoader for LectrixFonts {
     fn load_font(&self, name: &str, hints: FontHints) -> Option<Font> {
         if let Some(builtin) = builtin_for(name) {
             // `Font::new` loads the built-in font data for an exact base-14 name.
@@ -215,10 +215,10 @@ impl FontLoader for FolioFonts {
 
 static INSTALL: Once = Once::new();
 
-/// Installs Folio's font policy. Call once at startup, before opening documents; later
+/// Installs Lectrix's font policy. Call once at startup, before opening documents; later
 /// calls do nothing.
 pub fn install() {
-    INSTALL.call_once(|| mupdf::set_font_loader(FolioFonts));
+    INSTALL.call_once(|| mupdf::set_font_loader(LectrixFonts));
 }
 
 /// Builds the installed-font index on a background thread, so the first document that
@@ -308,7 +308,7 @@ mod tests {
 
     #[test]
     fn base14_names_load_builtin_fonts() {
-        let font = FolioFonts
+        let font = LectrixFonts
             .load_font("Helvetica-Bold", FontHints::default())
             .unwrap();
         assert!(font.name().contains("Helvetica"), "{}", font.name());
@@ -317,8 +317,8 @@ mod tests {
     #[test]
     fn unknown_names_find_nothing() {
         assert!(
-            FolioFonts
-                .load_font("FolioNoSuchFont-Regular", FontHints::default())
+            LectrixFonts
+                .load_font("LectrixNoSuchFont-Regular", FontHints::default())
                 .is_none()
         );
     }
@@ -346,12 +346,16 @@ mod tests {
         );
         assert_eq!(file("Arial", true, true).as_deref(), Some("arialbi.ttf"));
         assert_eq!(file("Tahoma", false, false).as_deref(), Some("tahoma.ttf"));
-        let font = FolioFonts
+        let font = LectrixFonts
             .load_font("ArialMT", FontHints::default())
             .unwrap();
         assert_eq!(font.name(), "Arial");
         // Japanese text: the Windows CJK families (MS Gothic or Yu Gothic) are installed.
-        assert!(FolioFonts.cjk(CjkFontOrdering::AdobeJapan, false).is_some());
+        assert!(
+            LectrixFonts
+                .cjk(CjkFontOrdering::AdobeJapan, false)
+                .is_some()
+        );
     }
 
     #[test]

@@ -99,7 +99,7 @@ impl Font {
 
     /// Like [`from_bytes_with_index`](Self::from_bytes_with_index) but shares
     /// `font_data` with MuPDF instead of copying it.
-    // Folio patch 4: public and not tied to `system-fonts`, for Folio's own font index.
+    // Lectrix patch 4: public and not tied to `system-fonts`, for Lectrix's own font index.
     pub fn from_static_bytes_with_index(
         name: &str,
         index: i32,

@@ -1,5 +1,5 @@
 //! IPC payloads. TypeScript types are generated from these by ts-rs into
-//! `src/lib/ipc/generated/` (run `cargo test -p folio`); never write them by hand.
+//! `src/lib/ipc/generated/` (run `cargo test -p lectrix`); never write them by hand.
 
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
@@ -517,11 +517,11 @@ pub enum BookmarkTarget {
     },
     /// The destination does not lead to a page of this document.
     Broken { named: Option<String> },
-    /// A web link. Folio shows it and offers to copy it; it never opens it.
+    /// A web link. Lectrix shows it and offers to copy it; it never opens it.
     Uri { uri: String },
     /// A link to another file.
     File { file: String },
-    /// An action Folio does not run (JavaScript, named actions...).
+    /// An action Lectrix does not run (JavaScript, named actions...).
     Action { action: String },
 }
 
@@ -896,13 +896,13 @@ pub struct StartupInfo {
     pub backdrop: Backdrop,
     /// The system accent color as #rrggbb, if any.
     pub accent_color: Option<String>,
-    /// Set by the FOLIO_PERF environment variable: the frontend runs its scripted
+    /// Set by the LECTRIX_PERF environment variable: the frontend runs its scripted
     /// performance measurements (tests/perf/measure.ps1).
     pub perf_mode: bool,
-    /// FOLIO_PERF=scroll: only the scrolling measurements, without the image format
+    /// LECTRIX_PERF=scroll: only the scrolling measurements, without the image format
     /// comparison (which pushes large images through a canvas first).
     pub perf_scroll_only: bool,
-    /// Page image format: PNG (ADR 0004); FOLIO_IMAGE_FORMAT=rgba switches to raw RGBA.
+    /// Page image format: PNG (ADR 0004); LECTRIX_IMAGE_FORMAT=rgba switches to raw RGBA.
     pub image_format: ImageFormat,
 }
 
@@ -999,7 +999,7 @@ impl AppError {
     }
 
     pub fn bad_state() -> Self {
-        AppError::new("The app is in a bad state.", Some("Restart Folio."))
+        AppError::new("The app is in a bad state.", Some("Restart Lectrix."))
     }
 }
 
@@ -1053,7 +1053,7 @@ impl From<pdf_core::Error> for AppError {
             )
             .with_code(ErrorCode::NotPermitted),
             E::DamagedOutline => AppError::new(
-                "This document’s bookmarks are damaged, so Folio can show them but not change them.",
+                "This document’s bookmarks are damaged, so Lectrix can show them but not change them.",
                 Some(
                     "Save a copy with File > Save as (optimized) in another app that can repair it, or leave the bookmarks as they are.",
                 ),

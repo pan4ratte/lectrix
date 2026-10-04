@@ -11,7 +11,7 @@ use pdf_core::geometry::{Point, Rect};
 
 use crate::ipc::AppError;
 
-/// The annotation types Folio creates.
+/// The annotation types Lectrix creates.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -81,7 +81,7 @@ pub struct Annotation {
     pub page: u32,
     /// The PDF subtype ("Highlight", "Square", "Stamp"...).
     pub subtype: String,
-    /// Set for the types Folio creates.
+    /// Set for the types Lectrix creates.
     pub kind: Option<AnnotationKind>,
     /// `/Rect`: x0, y0, x1, y1.
     pub rect: [f32; 4],

@@ -34,7 +34,7 @@ fn undo_and_redo_an_annotation() {
             quads: vec![Quad::from_view_rect(Rect::new(72.0, 100.0, 200.0, 112.0))],
             color: Rgb::YELLOW,
             opacity: 1.0,
-            author: "Folio".into(),
+            author: "Lectrix".into(),
             note: None,
         },
     )
@@ -88,7 +88,7 @@ fn incremental_save_keeps_original_bytes_as_prefix() {
     let leftovers: Vec<_> = fs::read_dir(&dir)
         .unwrap()
         .filter_map(|e| e.ok())
-        .filter(|e| e.file_name().to_string_lossy().ends_with(".folio-tmp"))
+        .filter(|e| e.file_name().to_string_lossy().ends_with(".lectrix-tmp"))
         .collect();
     assert!(leftovers.is_empty());
 }
@@ -119,7 +119,7 @@ fn locked_target_is_reported_and_left_untouched() {
     let leftovers = fs::read_dir(&dir)
         .unwrap()
         .filter_map(|e| e.ok())
-        .filter(|e| e.file_name().to_string_lossy().ends_with(".folio-tmp"))
+        .filter(|e| e.file_name().to_string_lossy().ends_with(".lectrix-tmp"))
         .count();
     assert_eq!(leftovers, 0);
 }

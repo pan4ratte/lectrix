@@ -54,7 +54,7 @@
 				<li class="group flex items-center gap-2 rounded-control py-1.5 pr-1 pl-2 hover:bg-hover">
 					<span
 						class="size-2.5 shrink-0 rounded-full"
-						style:background="var(--folio-source-{source.color})"
+						style:background="var(--lectrix-source-{source.color})"
 						aria-hidden="true"
 					></span>
 					<span class="min-w-0 flex-1">

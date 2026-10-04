@@ -45,11 +45,11 @@ impl FileStamp {
 struct OpenDoc {
     session: Session,
     path: PathBuf,
-    /// The file as Folio last read or wrote it.
+    /// The file as Lectrix last read or wrote it.
     stamp: Option<FileStamp>,
     /// The file state the user was last told about, so each change is reported once.
     reported: Option<Option<FileStamp>>,
-    /// A save is in progress: the file changing now is Folio's own doing.
+    /// A save is in progress: the file changing now is Lectrix's own doing.
     saving: bool,
     /// The password that opened the file, kept to copy its pages from it.
     password: Option<String>,
@@ -263,7 +263,7 @@ impl Documents {
                 name,
                 error: AppError::new(
                     "The file is open already, so its recovered changes were kept for later.",
-                    Some("Close it, then start Folio again to restore them."),
+                    Some("Close it, then start Lectrix again to restore them."),
                 ),
             };
         }
@@ -611,7 +611,7 @@ mod tests {
         };
         assert!(docs.poll_changes().is_empty());
 
-        // Folio's own save is not an outside change.
+        // Lectrix's own save is not an outside change.
         docs.session(document.id)
             .unwrap()
             .apply(Operation::RotatePages {

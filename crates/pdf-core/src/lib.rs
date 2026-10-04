@@ -1,4 +1,4 @@
-//! All PDF logic for Folio. No Tauri dependency.
+//! All PDF logic for Lectrix. No Tauri dependency.
 
 pub mod annot;
 pub mod docinfo;

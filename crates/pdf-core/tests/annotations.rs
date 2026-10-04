@@ -85,7 +85,7 @@ fn wave() -> Vec<Point> {
         .collect()
 }
 
-/// One of each type Folio creates, on `page` of `doc`.
+/// One of each type Lectrix creates, on `page` of `doc`.
 fn every_kind(doc: &PdfDocument, page: usize) -> Vec<NewAnnotation> {
     let quads = marker_quads(doc, i32::try_from(page).unwrap());
     assert!(!quads.is_empty(), "marker text not found");
@@ -121,7 +121,7 @@ fn every_kind(doc: &PdfDocument, page: usize) -> Vec<NewAnnotation> {
     }));
     out.push(new(Body::FreeText {
         rect: Rect::new(72.0, 330.0, 272.0, 340.0),
-        text: "Text box from Folio\nwith a second line that is long enough to wrap".into(),
+        text: "Text box from Lectrix\nwith a second line that is long enough to wrap".into(),
         font_size: 14.0,
     }));
     out

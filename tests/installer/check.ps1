@@ -1,9 +1,9 @@
-# Installs and uninstalls Folio's NSIS and MSI installers silently, with and without the
+# Installs and uninstalls Lectrix's NSIS and MSI installers silently, with and without the
 # PDF file registration, and checks the registry and files each time (AGENTS.md
 # section 10, Phase 6; ADR 0007).
 #
-# It really installs Folio, so it is meant for CI runners (MSI needs an elevated shell).
-# Run it on your own machine only if you are happy for Folio to be installed and removed
+# It really installs Lectrix, so it is meant for CI runners (MSI needs an elevated shell).
+# Run it on your own machine only if you are happy for Lectrix to be installed and removed
 # again. Needs the installers from `npx tauri build`.
 #
 #   powershell -ExecutionPolicy Bypass -File tests/installer/check.ps1
@@ -17,9 +17,9 @@ if (-not $nsis -or -not $msi) { throw "installers not found in $bundle; run npx 
 $logs = Join-Path $root 'target\test-output\installer'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
-$product = 'Folio'
-# Tauri's default manufacturer: the middle part of the identifier org.folio.pdf.
-$manufacturer = 'folio'
+$product = 'Lectrix'
+# Tauri's default manufacturer: the middle part of the identifier org.lectrix.pdf.
+$manufacturer = 'lectrix'
 $progId = "$product.Document"
 $failures = New-Object System.Collections.Generic.List[string]
 
@@ -42,13 +42,13 @@ function Check-Registration([string]$hive, [bool]$expected, [string]$exe) {
     if ($expected) {
         Check ($command -eq "`"$exe`" `"%1`"") "$hive open command is `"$exe`" `"%1`" (found: $command)"
         Check (Has-Value "$classes\.pdf\OpenWithProgids" $progId) "$hive .pdf lists $progId under OpenWithProgids"
-        Check ((Get-Value "${hive}:\Software\RegisteredApplications" $product) -eq "Software\$product\Capabilities") "$hive RegisteredApplications names Folio's capabilities"
+        Check ((Get-Value "${hive}:\Software\RegisteredApplications" $product) -eq "Software\$product\Capabilities") "$hive RegisteredApplications names Lectrix's capabilities"
         Check ((Get-Value "${hive}:\Software\$product\Capabilities\FileAssociations" '.pdf') -eq $progId) "$hive capabilities map .pdf to $progId"
     } else {
         Check ($null -eq $command) "$hive has no $progId"
         Check (-not (Has-Value "$classes\.pdf\OpenWithProgids" $progId)) "$hive .pdf does not list $progId"
-        Check (-not (Has-Value "${hive}:\Software\RegisteredApplications" $product)) "$hive RegisteredApplications has no Folio"
-        Check (-not (Test-Path "${hive}:\Software\$product\Capabilities")) "$hive has no Folio capabilities"
+        Check (-not (Has-Value "${hive}:\Software\RegisteredApplications" $product)) "$hive RegisteredApplications has no Lectrix"
+        Check (-not (Test-Path "${hive}:\Software\$product\Capabilities")) "$hive has no Lectrix capabilities"
     }
 }
 
@@ -57,7 +57,7 @@ function Run([string]$file, [string[]]$arguments) {
     if ($p.ExitCode -ne 0) { throw "$file $($arguments -join ' ') exited with $($p.ExitCode)" }
 }
 
-# Folio must never take over the user's default PDF app (ADR 0007).
+# Lectrix must never take over the user's default PDF app (ADR 0007).
 $pdfDefaultBefore = @(
     (Get-Value 'HKCU:\Software\Classes\.pdf' '(default)'),
     (Get-Value 'HKLM:\Software\Classes\.pdf' '(default)')
@@ -65,16 +65,16 @@ $pdfDefaultBefore = @(
 
 # --- NSIS (per user) -------------------------------------------------------------------
 $nsisDir = Join-Path $env:LOCALAPPDATA $product
-$nsisExe = Join-Path $nsisDir 'folio.exe'
+$nsisExe = Join-Path $nsisDir 'lectrix.exe'
 foreach ($case in @(@{ Args = @('/S'); Registered = $true }, @{ Args = @('/S', '/NOPDF'); Registered = $false })) {
     Write-Host "NSIS $($nsis.Name) $($case.Args -join ' ')"
     Run $nsis.FullName $case.Args
-    Check (Test-Path $nsisExe) "folio.exe installed in $nsisDir"
+    Check (Test-Path $nsisExe) "lectrix.exe installed in $nsisDir"
     Check (Test-Path (Join-Path $nsisDir 'THIRD_PARTY_LICENSES.md')) 'license notices installed'
     Check-Registration 'HKCU' $case.Registered $nsisExe
     # _?= runs the uninstaller in place, so Start-Process can wait for it.
     Run (Join-Path $nsisDir 'uninstall.exe') @('/S', "_?=$nsisDir")
-    Check (-not (Test-Path $nsisExe)) 'folio.exe removed'
+    Check (-not (Test-Path $nsisExe)) 'lectrix.exe removed'
     Check-Registration 'HKCU' $false $nsisExe
     # The MSI would otherwise read this and install into the per-user folder.
     Check ($null -eq (Get-Value "HKCU:\Software\$manufacturer\$product" '(default)')) 'install location forgotten'
@@ -82,14 +82,14 @@ foreach ($case in @(@{ Args = @('/S'); Registered = $true }, @{ Args = @('/S', '
 }
 
 # --- MSI (per machine) -----------------------------------------------------------------
-$msiExe = Join-Path $env:ProgramFiles "$product\folio.exe"
-foreach ($case in @(@{ Props = @(); Registered = $true; Log = 'msi-default' }, @{ Props = @('FOLIO_ASSOCIATE_PDF=0'); Registered = $false; Log = 'msi-no-pdf' })) {
+$msiExe = Join-Path $env:ProgramFiles "$product\lectrix.exe"
+foreach ($case in @(@{ Props = @(); Registered = $true; Log = 'msi-default' }, @{ Props = @('LECTRIX_ASSOCIATE_PDF=0'); Registered = $false; Log = 'msi-no-pdf' })) {
     Write-Host "MSI $($msi.Name) $($case.Props -join ' ')"
     Run 'msiexec.exe' (@('/i', "`"$($msi.FullName)`"", '/qn', '/norestart', '/l*v', "`"$logs\$($case.Log)-install.log`"") + $case.Props)
-    Check (Test-Path $msiExe) "folio.exe installed in $(Split-Path $msiExe)"
+    Check (Test-Path $msiExe) "lectrix.exe installed in $(Split-Path $msiExe)"
     Check-Registration 'HKLM' $case.Registered $msiExe
     Run 'msiexec.exe' @('/x', "`"$($msi.FullName)`"", '/qn', '/norestart', '/l*v', "`"$logs\$($case.Log)-uninstall.log`"")
-    Check (-not (Test-Path $msiExe)) 'folio.exe removed'
+    Check (-not (Test-Path $msiExe)) 'lectrix.exe removed'
     Check-Registration 'HKLM' $false $msiExe
 }
 

@@ -1,6 +1,6 @@
 // Combining two 500-page files (AGENTS.md section 10, Phase 4): it completes with a
 // progress bar, and stopping it leaves no file behind and an existing file untouched.
-// FOLIO_COMBINE_PAGE_DELAY_MS slows the copy down so the bar can be watched and Stop
+// LECTRIX_COMBINE_PAGE_DELAY_MS slows the copy down so the bar can be watched and Stop
 // pressed: unslowed, two generated 500-page files combine in well under a second.
 
 import assert from 'node:assert/strict';
@@ -37,7 +37,7 @@ test('two 500-page files combine with progress, and Stop writes nothing', async 
 
 	const { browser, stop } = await launch([], {
 		dialogs: [[a, b], done, stopped],
-		env: { FOLIO_COMBINE_PAGE_DELAY_MS: '3' }
+		env: { LECTRIX_COMBINE_PAGE_DELAY_MS: '3' }
 	});
 	try {
 		await (await browser.$('button*=Combine files')).click();
@@ -87,7 +87,7 @@ test('two 500-page files combine with progress, and Stop writes nothing', async 
 
 	assert.match(cli('info', done), /^pages: 1000$/m);
 	assert.equal(readFileSync(stopped, 'utf8'), 'previous contents', 'the existing file is untouched');
-	const leftovers = readdirSync(OUT).filter((n) => n.endsWith('.folio-tmp'));
+	const leftovers = readdirSync(OUT).filter((n) => n.endsWith('.lectrix-tmp'));
 	assert.deepEqual(leftovers, [], 'no partial file is left');
 	assert.ok(existsSync(done));
 });

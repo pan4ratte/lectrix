@@ -1,4 +1,4 @@
-//! Helpers for building PDF objects the way Folio's write profile requires.
+//! Helpers for building PDF objects the way Lectrix's write profile requires.
 
 use mupdf::pdf::{PdfDocument, PdfObject};
 

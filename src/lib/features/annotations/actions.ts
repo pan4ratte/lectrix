@@ -106,7 +106,7 @@ export async function repair(tab: DocTab) {
 			kind: 'info',
 			message:
 				summary.unfixable > 0
-					? `${plural(summary.unfixable, 'annotation has', 'annotations have')} problems Folio can’t fix, and nothing else needs repair.`
+					? `${plural(summary.unfixable, 'annotation has', 'annotations have')} problems Lectrix can’t fix, and nothing else needs repair.`
 					: 'No annotations need repair.'
 		});
 		return;

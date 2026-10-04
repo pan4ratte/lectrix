@@ -5,7 +5,7 @@
 
 ## Context
 
-When a PDF uses a font it does not embed, MuPDF asks a system font hook for it. Folio sends
+When a PDF uses a font it does not embed, MuPDF asks a system font hook for it. Lectrix sends
 the base-14 names and their unresolvable aliases straight to MuPDF's built-in fonts
 (`fonts.rs`, Phase 1). Every other name goes to the `mupdf` crate's `system-fonts`
 feature, which asks `font-kit`.
@@ -59,7 +59,7 @@ page.
   cost is building the index once at startup, off the UI thread.
 - Font data is read into memory and kept for the life of the process, as the crate did,
   so MuPDF can share the bytes. This is bounded by the distinct fonts documents ask for.
-- Windows 10 1709 or later is needed for the font set properties used (Folio supports
+- Windows 10 1709 or later is needed for the font set properties used (Lectrix supports
   1809 and later).
 - macOS and Linux builds render non-embedded, non-base-14 fonts with MuPDF's substitutes
   until Phase 6. This is listed as a platform gap.

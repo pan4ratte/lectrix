@@ -20,12 +20,12 @@ use std::ffi::{CStr, c_char};
 use crate::error::{Error, Result};
 
 #[repr(C)]
-pub(crate) struct FolioError {
+pub(crate) struct LectrixError {
     code: i32,
     message: [c_char; 256],
 }
 
-impl FolioError {
+impl LectrixError {
     pub(crate) fn new() -> Self {
         Self {
             code: 0,
@@ -46,14 +46,14 @@ impl FolioError {
 }
 
 unsafe extern "C" {
-    fn folio_mupdf_version() -> *const c_char;
-    fn folio_mupdf_headers_match_library() -> std::ffi::c_int;
+    fn lectrix_mupdf_version() -> *const c_char;
+    fn lectrix_mupdf_headers_match_library() -> std::ffi::c_int;
 }
 
 /// MuPDF version the shim was compiled against (the vendored headers).
 pub fn shim_mupdf_version() -> String {
     // SAFETY: returns a pointer to the static string literal FZ_VERSION.
-    unsafe { CStr::from_ptr(folio_mupdf_version()) }
+    unsafe { CStr::from_ptr(lectrix_mupdf_version()) }
         .to_string_lossy()
         .into_owned()
 }
@@ -61,7 +61,7 @@ pub fn shim_mupdf_version() -> String {
 /// Fails if the vendored headers do not match the linked MuPDF (from `mupdf-sys`).
 pub fn check_version() -> Result<()> {
     // SAFETY: creates and drops a standalone context; no preconditions.
-    if unsafe { folio_mupdf_headers_match_library() } == 1 {
+    if unsafe { lectrix_mupdf_headers_match_library() } == 1 {
         Ok(())
     } else {
         Err(Error::VersionMismatch {
@@ -72,7 +72,7 @@ pub fn check_version() -> Result<()> {
 }
 
 /// Turns a shim return code into a `Result`.
-pub(crate) fn check(rc: i32, err: FolioError) -> Result<()> {
+pub(crate) fn check(rc: i32, err: LectrixError) -> Result<()> {
     if rc == 0 {
         Ok(())
     } else {

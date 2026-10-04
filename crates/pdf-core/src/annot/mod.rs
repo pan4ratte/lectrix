@@ -1,7 +1,7 @@
 //! Annotations, written to the interoperability profile in AGENTS.md section 5.1
 //! (mirrored in `docs/interop-profile.md`).
 //!
-//! - [`create`] makes the seven types Folio offers (rule 1).
+//! - [`create`] makes the seven types Lectrix offers (rule 1).
 //! - [`edit`] changes style, note text, author or position; [`delete`] removes one with
 //!   its popup and replies.
 //! - [`read`] lists every annotation for the sidebar, with problems that need repair.
@@ -36,9 +36,9 @@ const POPUP_SIZE: (f64, f64) = (200.0, 100.0);
 pub const INK_TOLERANCE: f64 = 0.5;
 /// The icon sticky notes get (Acrobat's default).
 const NOTE_ICON: &str = "Comment";
-/// FreeText font sizes Folio writes, in points.
+/// FreeText font sizes Lectrix writes, in points.
 pub const FONT_SIZES: std::ops::RangeInclusive<f64> = 4.0..=144.0;
-/// Ink stroke widths Folio writes, in points.
+/// Ink stroke widths Lectrix writes, in points.
 pub const INK_WIDTHS: std::ops::RangeInclusive<f64> = 0.25..=48.0;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -60,7 +60,7 @@ impl MarkupKind {
     }
 }
 
-/// The annotation types Folio creates: standard subtypes only (rule 1).
+/// The annotation types Lectrix creates: standard subtypes only (rule 1).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Kind {
     Highlight,
@@ -436,7 +436,7 @@ impl AnnotationEdit {
     }
 }
 
-/// Identifies an annotation Folio created or edited.
+/// Identifies an annotation Lectrix created or edited.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AnnotationRef {
     pub page: usize,
@@ -557,7 +557,7 @@ pub fn create(doc: &mut PdfDocument, new: &NewAnnotation) -> Result<AnnotationRe
             )?;
             annot.set_contents(text)?;
             // MuPDF's create writes a callout line (/CL) on every text box; it means
-            // something only for callouts (/IT /FreeTextCallout), which Folio doesn't make.
+            // something only for callouts (/IT /FreeTextCallout), which Lectrix doesn't make.
             obj.dict_delete("CL")?;
             let fitted = text_box::fit(rect.normalized(), text, *font_size, false)?;
             write::put_text_box(doc, &mut obj, fitted, &geometry)?;

@@ -9,13 +9,13 @@ import { DARK_SURFACES, LIGHT_SURFACES, accentShades, contrast, mix } from './th
 
 const css = readFileSync(new URL('../app.css', import.meta.url), 'utf8');
 
-/** The `--folio-*` declarations of the first rule whose selector is exactly `selector`. */
+/** The `--lectrix-*` declarations of the first rule whose selector is exactly `selector`. */
 function tokens(selector: string): Record<string, string> {
 	const start = css.indexOf(`${selector} {`);
 	if (start < 0) throw new Error(`no rule ${selector}`);
 	const body = css.slice(start, css.indexOf('}', start));
 	const out: Record<string, string> = {};
-	for (const m of body.matchAll(/(--folio-[\w-]+):\s*([^;]+);/g)) out[m[1]!] = m[2]!.trim();
+	for (const m of body.matchAll(/(--lectrix-[\w-]+):\s*([^;]+);/g)) out[m[1]!] = m[2]!.trim();
 	return out;
 }
 
@@ -92,14 +92,14 @@ describe.each([
 	['light', light],
 	['dark', dark]
 ])('%s theme', (_name, vars) => {
-	const surfaces = ['--folio-bg', '--folio-chrome', '--folio-surface', '--folio-surface-raised', '--folio-canvas'];
+	const surfaces = ['--lectrix-bg', '--lectrix-chrome', '--lectrix-surface', '--lectrix-surface-raised', '--lectrix-canvas'];
 
 	it('text reads at 4.5:1 on every surface, also hovered or selected', () => {
 		for (const surface of surfaces) {
 			const bg = solid(surface, vars);
-			for (const text of ['--folio-fg', '--folio-fg-muted']) {
+			for (const text of ['--lectrix-fg', '--lectrix-fg-muted']) {
 				expect(contrast(solid(text, vars), bg), `${text} on ${surface}`).toBeGreaterThanOrEqual(4.5);
-				for (const state of ['--folio-hover', '--folio-pressed', '--folio-row-selected']) {
+				for (const state of ['--lectrix-hover', '--lectrix-pressed', '--lectrix-row-selected']) {
 					const stateBg = on(state, vars, bg);
 					expect(contrast(solid(text, vars), stateBg), `${text} on ${state} over ${surface}`).toBeGreaterThanOrEqual(4.5);
 				}
@@ -108,34 +108,34 @@ describe.each([
 	});
 
 	it('notices, errors and accent buttons read at 4.5:1', () => {
-		const fg = solid('--folio-fg', vars);
-		expect(contrast(fg, solid('--folio-info-bg', vars))).toBeGreaterThanOrEqual(4.5);
-		expect(contrast(fg, solid('--folio-danger-bg', vars))).toBeGreaterThanOrEqual(4.5);
-		for (const bg of ['--folio-surface', '--folio-surface-raised', '--folio-danger-bg']) {
-			expect(contrast(solid('--folio-danger', vars), solid(bg, vars)), `danger on ${bg}`).toBeGreaterThanOrEqual(4.5);
+		const fg = solid('--lectrix-fg', vars);
+		expect(contrast(fg, solid('--lectrix-info-bg', vars))).toBeGreaterThanOrEqual(4.5);
+		expect(contrast(fg, solid('--lectrix-danger-bg', vars))).toBeGreaterThanOrEqual(4.5);
+		for (const bg of ['--lectrix-surface', '--lectrix-surface-raised', '--lectrix-danger-bg']) {
+			expect(contrast(solid('--lectrix-danger', vars), solid(bg, vars)), `danger on ${bg}`).toBeGreaterThanOrEqual(4.5);
 		}
-		expect(contrast(solid('--folio-accent-fg', vars), solid('--folio-accent', vars))).toBeGreaterThanOrEqual(4.5);
-		expect(contrast(solid('--folio-close-hover-fg', vars), solid('--folio-close-hover', vars))).toBeGreaterThanOrEqual(4.5);
+		expect(contrast(solid('--lectrix-accent-fg', vars), solid('--lectrix-accent', vars))).toBeGreaterThanOrEqual(4.5);
+		expect(contrast(solid('--lectrix-close-hover-fg', vars), solid('--lectrix-close-hover', vars))).toBeGreaterThanOrEqual(4.5);
 	});
 
 	it('focus rings, accent marks, field edges and file marks stand out at 3:1', () => {
 		for (const surface of surfaces) {
 			const bg = solid(surface, vars);
-			expect(contrast(solid('--folio-focus', vars), bg), `focus on ${surface}`).toBeGreaterThanOrEqual(3);
+			expect(contrast(solid('--lectrix-focus', vars), bg), `focus on ${surface}`).toBeGreaterThanOrEqual(3);
 		}
-		for (const bg of ['--folio-surface', '--folio-surface-raised']) {
-			expect(contrast(solid('--folio-field-stroke', vars), solid(bg, vars)), `field edge on ${bg}`).toBeGreaterThanOrEqual(3);
+		for (const bg of ['--lectrix-surface', '--lectrix-surface-raised']) {
+			expect(contrast(solid('--lectrix-field-stroke', vars), solid(bg, vars)), `field edge on ${bg}`).toBeGreaterThanOrEqual(3);
 		}
 		for (let i = 1; i <= 6; i++) {
-			const bg = solid('--folio-surface', vars);
-			expect(contrast(solid(`--folio-source-${i}`, vars), bg), `source ${i}`).toBeGreaterThanOrEqual(3);
+			const bg = solid('--lectrix-surface', vars);
+			expect(contrast(solid(`--lectrix-source-${i}`, vars), bg), `source ${i}`).toBeGreaterThanOrEqual(3);
 		}
 	});
 });
 
 it('theme.ts knows the surfaces app.css paints', () => {
 	const surfaces = (vars: Record<string, string>) =>
-		['--folio-surface', '--folio-chrome', '--folio-surface-raised', '--folio-canvas'].map((n) => solid(n, vars));
+		['--lectrix-surface', '--lectrix-chrome', '--lectrix-surface-raised', '--lectrix-canvas'].map((n) => solid(n, vars));
 	expect(surfaces(light)).toEqual(LIGHT_SURFACES);
 	expect(surfaces(dark)).toEqual(DARK_SURFACES);
 });

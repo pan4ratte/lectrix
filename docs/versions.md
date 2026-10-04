@@ -19,8 +19,8 @@ Recorded at project start (2026-10-02). Versions are pinned exactly in `Cargo.to
 | Component | Version | Source |
 | --- | --- | --- |
 | MuPDF | 1.27.2 | built from source by `mupdf-sys` |
-| `mupdf-sys` | 0.8.0 @ `537d50556ee8e4abf2435f81357dfef3c145d883` + Folio patch | git, Folio's fork pan4ratte/mupdf-rs, branch `folio-mupdf-1.27.2` @ `460b796a88f2fa4ba617b07fbb7f73e5308f1417` (upstream commit plus `folio_patches.rs`: JPEG 2000 decoded at the resolution drawn, ADR 0008), via `[patch]` in `Cargo.toml` |
-| `mupdf` | 0.8.0 @ same commit, Folio-patched | vendored in `third_party/mupdf-rs` (ADR 0001); built without `system-fonts` since Phase 2 (ADR 0005), so `font-kit` is no longer in the build |
+| `mupdf-sys` | 0.8.0 @ `537d50556ee8e4abf2435f81357dfef3c145d883` + Lectrix patch | git, Lectrix's fork pan4ratte/mupdf-rs, branch `folio-mupdf-1.27.2` @ `460b796a88f2fa4ba617b07fbb7f73e5308f1417` (upstream commit plus `folio_patches.rs`: JPEG 2000 decoded at the resolution drawn, ADR 0008), via `[patch]` in `Cargo.toml` |
+| `mupdf` | 0.8.0 @ same commit, Lectrix-patched | vendored in `third_party/mupdf-rs` (ADR 0001); built without `system-fonts` since Phase 2 (ADR 0005), so `font-kit` is no longer in the build |
 
 ## Rust crates (direct)
 
@@ -80,20 +80,20 @@ explicit file extensions.
 | Pillow | 12.2.0 | MIT-CMU |
 
 `npm audit` reports 5 low-severity advisories, all in a `cookie` copy nested under
-bits-ui's own SvelteKit dependency (server-side cookie parsing). Folio ships a static
+bits-ui's own SvelteKit dependency (server-side cookie parsing). Lectrix ships a static
 SPA with no server, so the code is never reached. We will re-check when bits-ui updates.
 
 ## Installers (Phase 6)
 
 Downloaded by the Tauri CLI (2.12.1) on the first `npx tauri build` into
-`%LOCALAPPDATA%\tauri`, not pinned by Folio:
+`%LOCALAPPDATA%\tauri`, not pinned by Lectrix:
 
 | Tool | Version | Notes |
 | --- | --- | --- |
-| NSIS | 3.11 | with `nsis_tauri_utils` 0.5.3; Folio's template is a modified copy of the CLI's own (`src-tauri/windows/installer.nsi`, ADR 0007) |
+| NSIS | 3.11 | with `nsis_tauri_utils` 0.5.3; Lectrix's template is a modified copy of the CLI's own (`src-tauri/windows/installer.nsi`, ADR 0007) |
 | WiX Toolset | 3.14 | `src-tauri/windows/pdf-association.wxs` is added as a fragment (ADR 0007) |
 
-When the Tauri CLI is upgraded, re-apply the `Folio:` changes to its new NSIS template.
+When the Tauri CLI is upgraded, re-apply the `Lectrix:` changes to its new NSIS template.
 
 macOS and Linux CI jobs (build only): `macos-latest` with Xcode's libclang, and
 `ubuntu-24.04` with `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `librsvg2-dev`,
@@ -112,11 +112,11 @@ proxy-agent chain, used only to download browsers through a proxy). The suite ta
 local driver and downloads nothing, so the code is never reached.
 
 On Windows, tauri-driver passes `tauri:options.args` to WebView2 rather than to the app,
-so the tests open files through the `FOLIO_OPEN` environment variable (paths separated by
+so the tests open files through the `LECTRIX_OPEN` environment variable (paths separated by
 `;`), which the app treats like command-line arguments.
 
 msedgedriver turns on remote debugging through `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`.
 Tauri always passes its own default arguments through the WebView2 API, and some runtimes
 (153, on CI's Windows Server 2025) then ignore the variable, so no session could start.
-Folio creates its main window in code and, when the variable is set, passes Tauri's
+Lectrix creates its main window in code and, when the variable is set, passes Tauri's
 defaults and the variable's arguments merged (`platform/windows.rs`).

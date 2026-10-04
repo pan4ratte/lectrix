@@ -8,7 +8,7 @@
 //! annotation keys like `/Rect` and `/QuadPoints`: arbitrary origin, y pointing up, units
 //! of `/UserUnit` / 72 inch.
 //!
-//! Every conversion in Folio goes through this module (AGENTS.md section 5.1 rule 8). The
+//! Every conversion in Lectrix goes through this module (AGENTS.md section 5.1 rule 8). The
 //! transform mirrors MuPDF's `pdf_page_obj_transform_box`, and the integration tests
 //! check it against MuPDF's own page matrix for every rotation, an offset CropBox and a
 //! non-default UserUnit.

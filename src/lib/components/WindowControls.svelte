@@ -64,10 +64,10 @@
 		background: transparent;
 	}
 	.window-button:hover {
-		background: var(--folio-hover);
+		background: var(--lectrix-hover);
 	}
 	.window-close:hover {
-		background: var(--folio-close-hover);
-		color: var(--folio-close-hover-fg);
+		background: var(--lectrix-close-hover);
+		color: var(--lectrix-close-hover-fg);
 	}
 </style>

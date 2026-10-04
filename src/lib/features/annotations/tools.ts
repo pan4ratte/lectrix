@@ -145,7 +145,7 @@ export const PROBLEM_TEXT: Readonly<Record<AnnotationProblem, string>> = {
 	missingFlags: 'isn’t set to print',
 	missingModified: 'has no modification date',
 	missingPage: 'doesn’t say which page it is on',
-	malformedQuads: 'marks text with corner data that can’t be read (Folio can’t fix this)'
+	malformedQuads: 'marks text with corner data that can’t be read (Lectrix can’t fix this)'
 };
 
 /** Short form for the summary list. */

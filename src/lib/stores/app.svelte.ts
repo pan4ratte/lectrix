@@ -341,7 +341,7 @@ class AppStore {
 		const combine = this.combine;
 		if (!combine) return;
 		if (combine.running) {
-			this.notify({ kind: 'info', message: 'Folio is combining files.', suggestion: 'Stop it first, or wait for it to finish.' });
+			this.notify({ kind: 'info', message: 'Lectrix is combining files.', suggestion: 'Stop it first, or wait for it to finish.' });
 			return;
 		}
 		if (combine.pages.length > 0 && !combine.combinedAs) {
@@ -533,8 +533,8 @@ class AppStore {
 		if (this.combine?.running) {
 			// Closing now would leave the unfinished file behind; stop the merge first.
 			const choice = await this.ask({
-				title: 'Folio is combining files',
-				message: 'Stop combining and close Folio?',
+				title: 'Lectrix is combining files',
+				message: 'Stop combining and close Lectrix?',
 				detail: 'No file is written when combining is stopped.',
 				buttons: [
 					{ id: 'stop', label: 'Stop and close', primary: true },
@@ -586,7 +586,7 @@ class AppStore {
 			title: 'This document is signed',
 			message: 'Changes you make will show as edits made after it was signed.',
 			detail:
-				'The signature stays valid for the signed version, and Folio saves your changes after it without altering the signed part.',
+				'The signature stays valid for the signed version, and Lectrix saves your changes after it without altering the signed part.',
 			buttons: [
 				{ id: 'edit', label: 'Edit anyway', primary: true },
 				{ id: 'cancel', label: 'Cancel' }
@@ -669,7 +669,7 @@ class AppStore {
 			this.notify(
 				{
 					kind: 'info',
-					message: `${tab.name} was damaged, so Folio saved a complete, repaired copy instead of adding your changes to the end of the file.`,
+					message: `${tab.name} was damaged, so Lectrix saved a complete, repaired copy instead of adding your changes to the end of the file.`,
 					suggestion: 'Nothing else changed. The file now opens normally in other apps.'
 				},
 				15000
