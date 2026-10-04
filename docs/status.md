@@ -42,6 +42,10 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
   lock (`fz_opj_lock`). Lifting that is left to upstream MuPDF.
 - **Undo history restarts** after each save (ADR 0003) and after restoring a crash
   recovery copy: MuPDF 1.27.2 cannot load a saved journal (ADR 0001).
+- **Undoing an addition, then saving incrementally,** writes a trailer `/Size` larger than
+  the highest object number: the objects the undone step created are gone, but MuPDF keeps
+  counting them. Readers accept the file; `qpdf --check` warns ("reported number of objects
+  is not one plus the highest object number"). Found 2026-10-05; not fixed yet.
 - **Recovery copies of large damaged files** are full copies and take 1.2 to 1.5 s for
   165 to 173 MB files. That document renders nothing new meanwhile. Copies are written at
   most every 2 minutes, and only after a change.

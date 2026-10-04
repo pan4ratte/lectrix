@@ -285,6 +285,9 @@ enum AnnotAction {
         width: Option<f64>,
         #[arg(long)]
         size: Option<f64>,
+        /// Turn text markup into another text-markup type.
+        #[arg(long = "type", value_enum)]
+        kind: Option<KindArg>,
     },
     /// Delete annotation ID on PAGE with its popup and replies.
     Delete {
@@ -319,6 +322,17 @@ enum KindArg {
     Underline,
     Strikeout,
     Squiggly,
+}
+
+impl KindArg {
+    fn markup_kind(self) -> MarkupKind {
+        match self {
+            KindArg::Highlight => MarkupKind::Highlight,
+            KindArg::Underline => MarkupKind::Underline,
+            KindArg::Strikeout => MarkupKind::StrikeOut,
+            KindArg::Squiggly => MarkupKind::Squiggly,
+        }
+    }
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -540,12 +554,7 @@ fn run(command: Command) -> Result<()> {
                     )));
                 }
                 let spec = MarkupSpec {
-                    kind: match kind {
-                        KindArg::Highlight => MarkupKind::Highlight,
-                        KindArg::Underline => MarkupKind::Underline,
-                        KindArg::Strikeout => MarkupKind::StrikeOut,
-                        KindArg::Squiggly => MarkupKind::Squiggly,
-                    },
+                    kind: kind.markup_kind(),
                     page: index,
                     quads,
                     color,
@@ -1226,6 +1235,7 @@ fn annot_command(action: AnnotAction) -> Result<()> {
             bounds,
             width,
             size,
+            kind,
         } => {
             let op = Operation::UpdateAnnotation {
                 page: page_index(page)?,
@@ -1238,6 +1248,7 @@ fn annot_command(action: AnnotAction) -> Result<()> {
                     bounds,
                     width,
                     font_size: size,
+                    kind: kind.map(KindArg::markup_kind),
                 },
             };
             edit_in_session(&input, &out, vec![op])

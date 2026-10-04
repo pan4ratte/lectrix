@@ -380,6 +380,9 @@ pub struct AnnotationEdit {
     pub width: Option<f64>,
     /// FreeText font size.
     pub font_size: Option<f64>,
+    /// Turns a text-markup annotation into another text-markup type (Highlight,
+    /// Underline, StrikeOut, Squiggly); its quads, colour and note stay.
+    pub kind: Option<MarkupKind>,
 }
 
 impl AnnotationEdit {
@@ -658,6 +661,9 @@ pub fn edit(doc: &mut PdfDocument, page: usize, id: u32, edit: &AnnotationEdit) 
     if edit.font_size.is_some() && kind != Some(Kind::FreeText) {
         return refuse("the font size");
     }
+    if edit.kind.is_some() && !kind.is_some_and(Kind::is_text_markup) {
+        return refuse("the type");
+    }
     let callout = match obj.get_dict("IT")? {
         Some(it) if it.is_name()? => it.as_name()? == b"FreeTextCallout",
         _ => false,
@@ -692,6 +698,14 @@ pub fn edit(doc: &mut PdfDocument, page: usize, id: u32, edit: &AnnotationEdit) 
         let (font, _) = write::text_box_font(&obj)?;
         let color = read::text_box_color(&obj)?.unwrap_or(Rgb::BLACK);
         annot.set_default_appearance(&font, size as f32, Some(color.annotation_color()))?;
+    }
+    if let Some(new_kind) = edit.kind.map(MarkupKind::kind)
+        && Some(new_kind) != kind
+    {
+        obj.dict_put("Subtype", PdfObject::new_name(new_kind.subtype())?)?;
+        // The old look goes entirely: synthesis below writes /N, and a rollover or down
+        // appearance from another app would still show the old type.
+        obj.dict_delete("AP")?;
     }
     if let Some(text) = &edit.contents {
         if text.is_empty() && kind != Some(Kind::FreeText) {

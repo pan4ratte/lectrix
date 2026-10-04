@@ -708,6 +708,172 @@ fn edits_refuse_what_a_type_does_not_have() {
     );
 }
 
+/// The ExtGState blend modes of the normal appearance include Multiply.
+fn blends_multiply(obj: &PdfObject) -> bool {
+    let normal = get(&get(obj, "AP"), "N");
+    let Some(gs) = get(&normal, "Resources").get_dict("ExtGState").unwrap() else {
+        return false;
+    };
+    gs.dict_iter().unwrap().any(|entry| {
+        let (_, state) = entry.unwrap();
+        state
+            .get_dict("BM")
+            .unwrap()
+            .is_some_and(|bm| bm.as_name().unwrap() == b"Multiply")
+    })
+}
+
+#[test]
+fn text_markup_changes_type_and_keeps_everything_else() {
+    let dir = out_dir("annotations-change-type");
+    let kinds = [
+        MarkupKind::Highlight,
+        MarkupKind::Underline,
+        MarkupKind::StrikeOut,
+        MarkupKind::Squiggly,
+    ];
+    for (case, spec) in geometry_cases() {
+        let src = sample_file(&dir, &format!("{case}.pdf"), spec);
+        let mut doc = open(&src);
+        let specs = every_kind(&doc, 0);
+        let mut ids = Vec::new();
+        // Every type into every other: create one of each `from`, turn it into each `to` in
+        // turn, ending where it started.
+        for (i, from) in kinds.iter().enumerate() {
+            let made = annot::create(&mut doc, &specs[i]).unwrap();
+            let id = u32::try_from(made.xref).unwrap();
+            let obj = doc.new_indirect(made.xref, 0).unwrap();
+            let kept: Vec<(&str, Option<String>)> = [
+                "QuadPoints",
+                "C",
+                "CA",
+                "NM",
+                "T",
+                "Contents",
+                "CreationDate",
+                "F",
+                "Popup",
+            ]
+            .into_iter()
+            .map(|k| (k, raw(&obj, k)))
+            .collect();
+            let route: Vec<MarkupKind> = kinds
+                .iter()
+                .copied()
+                .filter(|k| k != from)
+                .chain([*from])
+                .collect();
+            for to in route {
+                let name = format!("{case}: {from:?} -> {to:?}");
+                annot::edit(
+                    &mut doc,
+                    0,
+                    id,
+                    &AnnotationEdit {
+                        kind: Some(to),
+                        ..AnnotationEdit::default()
+                    },
+                )
+                .unwrap();
+                let obj = doc.new_indirect(made.xref, 0).unwrap();
+                assert_eq!(
+                    get(&obj, "Subtype").as_name().unwrap(),
+                    to.kind().subtype().as_bytes(),
+                    "{name}"
+                );
+                for (key, value) in &kept {
+                    assert_eq!(&raw(&obj, key), value, "{name}: /{key} changed");
+                }
+                // Rule 2 and rule 5: a fresh appearance, blending only for highlights.
+                normal_appearance(&obj, &name);
+                assert!(
+                    obj.get_dict("AP")
+                        .unwrap()
+                        .unwrap()
+                        .get_dict("D")
+                        .unwrap()
+                        .is_none(),
+                    "{name}"
+                );
+                assert_eq!(
+                    blends_multiply(&obj),
+                    to == MarkupKind::Highlight,
+                    "{name}: blend"
+                );
+                let quads =
+                    quads_from_array(&objects::numbers(&get(&obj, "QuadPoints")).unwrap().unwrap())
+                        .unwrap();
+                let content = quads
+                    .iter()
+                    .map(Quad::bounds)
+                    .reduce(|a, b| a.union(&b))
+                    .unwrap()
+                    .expand(1.0);
+                assert!(contains(rect_of(&obj), content), "{name}: /Rect");
+            }
+            ids.push((id, *from));
+        }
+        let reopened = save_and_reopen(&doc, &src, &dir.join(format!("{case}-changed.pdf")));
+        let listed = read_page(&reopened, 0).unwrap();
+        for (id, kind) in ids {
+            let a = listed.iter().find(|a| a.id == id).unwrap();
+            assert_eq!(a.kind, Some(kind.kind()), "{case}");
+            assert!(a.problems.is_empty(), "{case}: {:?}", a.problems);
+        }
+    }
+
+    // Another app's highlight: only /Subtype, /M and the appearance (with the /Rect it
+    // needs) change; its unknown look is replaced.
+    let src = other_app_file(&dir);
+    let mut doc = open(&src);
+    let before = doc.new_indirect(6, 0).unwrap();
+    let before: Vec<(String, Option<String>)> = keys(&before)
+        .into_iter()
+        .map(|k| (k.clone(), raw(&before, &k)))
+        .collect();
+    annot::edit(
+        &mut doc,
+        0,
+        6,
+        &AnnotationEdit {
+            kind: Some(MarkupKind::Underline),
+            ..AnnotationEdit::default()
+        },
+    )
+    .unwrap();
+    let underline = doc.new_indirect(6, 0).unwrap();
+    assert_eq!(get(&underline, "Subtype").as_name().unwrap(), b"Underline");
+    let allowed: BTreeSet<&str> = ["Subtype", "M", "AP", "Rect"].into();
+    for (key, value) in &before {
+        if !allowed.contains(key.as_str()) {
+            assert_eq!(&raw(&underline, key), value, "/{key} changed");
+        }
+    }
+    for key in keys(&underline) {
+        assert!(
+            before.iter().any(|(k, _)| *k == key) || allowed.contains(key.as_str()),
+            "/{key} added"
+        );
+    }
+
+    // Only text markup changes type.
+    let src = sample_file(&dir, "refuse.pdf", SampleSpec::default());
+    let mut doc = open(&src);
+    let specs = every_kind(&doc, 0);
+    for spec in &specs[4..] {
+        let made = annot::create(&mut doc, spec).unwrap();
+        let edit = AnnotationEdit {
+            kind: Some(MarkupKind::Highlight),
+            ..AnnotationEdit::default()
+        };
+        assert!(
+            annot::edit(&mut doc, 0, u32::try_from(made.xref).unwrap(), &edit).is_err(),
+            "{:?}",
+            spec.body.kind()
+        );
+    }
+}
+
 #[test]
 fn deleting_removes_the_popup_and_replies_only() {
     let dir = out_dir("annotations-delete");
@@ -914,6 +1080,46 @@ fn annotations_are_undoable_steps_through_the_session() {
         recolored.state.undo_name.as_deref(),
         Some("Change highlight")
     );
+    let retyped = session
+        .apply(Operation::UpdateAnnotation {
+            page: 1,
+            id,
+            edit: AnnotationEdit {
+                kind: Some(MarkupKind::Underline),
+                ..AnnotationEdit::default()
+            },
+        })
+        .unwrap();
+    assert_eq!(
+        retyped.state.undo_name.as_deref(),
+        Some("Change highlight to underline")
+    );
+    assert_eq!(retyped.annotations[0].1[0].kind, Some(Kind::Underline));
+    let back = session.undo().unwrap();
+    assert_eq!(back.annotations[0].1[0].kind, Some(Kind::Highlight));
+    assert_eq!(
+        back.state.redo_name.as_deref(),
+        Some("Change highlight to underline")
+    );
+    // Redone and changed back, so the saved file ends on a step that was kept: undoing a
+    // step that made objects and then saving leaves a trailer /Size qpdf warns about
+    // (docs/status.md).
+    let redone = session.redo().unwrap();
+    assert_eq!(redone.annotations[0].1[0].kind, Some(Kind::Underline));
+    let restored = session
+        .apply(Operation::UpdateAnnotation {
+            page: 1,
+            id,
+            edit: AnnotationEdit {
+                kind: Some(MarkupKind::Highlight),
+                ..AnnotationEdit::default()
+            },
+        })
+        .unwrap();
+    assert_eq!(
+        restored.state.undo_name.as_deref(),
+        Some("Change underline to highlight")
+    );
     let deleted = session
         .apply(Operation::DeleteAnnotation { page: 1, id })
         .unwrap();
@@ -922,7 +1128,7 @@ fn annotations_are_undoable_steps_through_the_session() {
 
     let undone = session.undo().unwrap();
     assert_eq!(undone.annotations[0].1.len(), 2);
-    assert_eq!(undone.state.revision, recolored.state.revision);
+    assert_eq!(undone.state.revision, restored.state.revision);
     let redone = session.redo().unwrap();
     assert_eq!(redone.annotations[0].1.len(), 1);
 

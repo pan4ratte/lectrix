@@ -157,10 +157,15 @@ impl Operation {
             })
         };
         match self {
-            Operation::UpdateAnnotation { page, id, edit } => match label(*page, *id) {
-                Some(l) => format!("{} {l}", edit.verb()),
-                None => self.name(),
-            },
+            Operation::UpdateAnnotation { page, id, edit } => {
+                match (label(*page, *id), edit.kind) {
+                    (Some(l), Some(k)) if k.kind().label() != l => {
+                        format!("Change {l} to {}", k.kind().label())
+                    }
+                    (Some(l), _) => format!("{} {l}", edit.verb()),
+                    (None, _) => self.name(),
+                }
+            }
             Operation::DeleteAnnotation { page, id } => match label(*page, *id) {
                 Some(l) => format!("Delete {l}"),
                 None => self.name(),

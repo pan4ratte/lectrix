@@ -821,12 +821,15 @@ def phase5(report: Report) -> None:
         if name in ("normal", "rot90", "crop", "userunit"):
             shutil.copyfile(out, MANUAL / f"types-{name}.pdf")
 
-    # 2. Edits on the normal file: recolour and re-note the highlight, move the note,
-    # resize the drawing, retype the text box, delete the strikeout.
+    # 2. Edits on the normal file: recolour and re-note the highlight, turn the underline
+    # into a highlight and the squiggly into an underline, move the note, resize the
+    # drawing, retype the text box, delete the strikeout.
     src = work / "types-normal.pdf"
     ids = {a["subtype"]: a for a in list_annotations(src) if a["page"] != 8}
     edits = [
         ["--page", "1", "--id", str(ids["Highlight"]["id"]), "--color", "FF80AB", "--contents", "Edited note"],
+        ["--page", "2", "--id", str(ids["Underline"]["id"]), "--type", "highlight"],
+        ["--page", "4", "--id", str(ids["Squiggly"]["id"]), "--type", "underline"],
         ["--page", "5", "--id", str(ids["Text"]["id"]), "--bounds", "300,400,320,420"],
         ["--page", "6", "--id", str(ids["Ink"]["id"]), "--bounds", "80,400,400,560", "--width", "4"],
         ["--page", "7", "--id", str(ids["FreeText"]["id"]), "--contents", "Retyped, and longer: it wraps onto more lines than before in this box", "--size", "16"],
@@ -843,6 +846,8 @@ def phase5(report: Report) -> None:
     after = list_annotations(edited)
     report.check(len(after) == 7 and not any(a["subtype"] == "StrikeOut" for a in after), f"{edited.name}: the strikeout is gone, 7 annotations left")
     report.check(any(a["text"] == "Edited note" for a in after), f"{edited.name}: the highlight's note was edited")
+    retyped = {a["page"]: a["subtype"] for a in after if a["page"] in (2, 4)}
+    report.check(retyped == {2: "Highlight", 4: "Underline"}, f"{edited.name}: the underline became a highlight and the squiggly an underline (got {retyped})")
     case = work / "edited"
     case.mkdir(exist_ok=True)
     annotation_checks(edited, report, case)

@@ -14,7 +14,7 @@ Run `python tests/interop/run.py phase5` and the end-to-end tests (`npm test` in
 | `types-rot90.pdf` | The same on pages turned 90°. The four text markups follow the text, so they turn with it. The note, drawing, text box and area highlight were placed the way you place them in the app on a turned page: at the same spot on screen as in `types-normal.pdf` (top left of the page as shown), upright as you see it. Relative to the text they are therefore elsewhere than in `types-normal.pdf`, and not turned with it. |
 | `types-crop.pdf` | The same on pages with a cropped, offset visible area. |
 | `types-userunit.pdf` | The same on pages with a UserUnit of 2 (pages twice the usual size). |
-| `edited.pdf` | `types-normal.pdf` after edits: the highlight is pink with the note "Edited note", the note moved to the lower middle, the drawing resized to a wide box with 4 pt strokes, the text box retyped at 16 pt, and the strikeout deleted. |
+| `edited.pdf` | `types-normal.pdf` after edits: the highlight is pink with the note "Edited note", the green underline on page 2 is now a green highlight, the blue squiggly on page 4 is now a blue underline, the note moved to the lower middle, the drawing resized to a wide box with 4 pt strokes, the text box retyped at 16 pt, and the strikeout deleted. |
 | `app-annotations.pdf` | Made in the app by the end-to-end test: a highlight, a note ("Hello from the note"), a drawing, a text box ("Typed in a box") on page 1, and a highlight by "E2E Tester" on page 2. |
 | `problems-before-repair.pdf` | Eight annotations "another app" wrote with problems (no appearance, corners in the wrong order, too-small bounds, missing keys). Several are invisible in some readers. |
 | `problems-repaired.pdf`, `app-repaired.pdf` | The same after Repair annotations (the second one repaired in the app). |
@@ -47,6 +47,8 @@ Expected differences, not failures:
 ## `edited.pdf`, `app-annotations.pdf`
 
 - [ ] Everything listed above shows, with the edits, in every reader.
+- [ ] In `edited.pdf`, the comments list calls the annotation on page 2 a highlight and the
+      one on page 4 an underline (types changed in Lectrix), and each can be edited there.
 - [ ] Nothing was lost: count the annotations in each reader's comments list (7 and 5).
 
 ## Repair

@@ -282,6 +282,9 @@ pub struct AnnotationEditInput {
     pub width: Option<f32>,
     #[ts(optional)]
     pub font_size: Option<f32>,
+    /// Turn text markup into another text-markup type.
+    #[ts(optional)]
+    pub kind: Option<AnnotationKind>,
 }
 
 fn rect_from(v: [f32; 4]) -> Rect {
@@ -302,17 +305,22 @@ fn points(values: &[f32]) -> Vec<Point> {
         .collect()
 }
 
+/// The text-markup kind `kind` is, if it is one.
+fn markup_kind(kind: AnnotationKind) -> Option<MarkupKind> {
+    Some(match kind {
+        AnnotationKind::Highlight => MarkupKind::Highlight,
+        AnnotationKind::Underline => MarkupKind::Underline,
+        AnnotationKind::StrikeOut => MarkupKind::StrikeOut,
+        AnnotationKind::Squiggly => MarkupKind::Squiggly,
+        _ => return None,
+    })
+}
+
 impl NewAnnotationInput {
     /// The annotation, written by `author` (the name from Settings).
     pub fn into_core(self, author: &str) -> Result<core::NewAnnotation, AppError> {
         let bad = || AppError::new("That annotation can't be made.", None);
-        let markup_kind = |kind| match kind {
-            AnnotationKind::Highlight => Ok(MarkupKind::Highlight),
-            AnnotationKind::Underline => Ok(MarkupKind::Underline),
-            AnnotationKind::StrikeOut => Ok(MarkupKind::StrikeOut),
-            AnnotationKind::Squiggly => Ok(MarkupKind::Squiggly),
-            _ => Err(bad()),
-        };
+        let markup_kind = |kind| markup_kind(kind).ok_or_else(bad);
         let body = match self.body {
             AnnotationBody::TextMarkup { kind, ranges, note } => core::Body::TextMarkup {
                 kind: markup_kind(kind)?,
@@ -376,6 +384,14 @@ impl AnnotationEditInput {
             bounds: self.bounds.map(rect_from),
             width: self.width.map(f64::from),
             font_size: self.font_size.map(f64::from),
+            kind: self
+                .kind
+                .map(|k| {
+                    markup_kind(k).ok_or_else(|| {
+                        AppError::new("Only text markup can be turned into another type.", None)
+                    })
+                })
+                .transpose()?,
         })
     }
 }
