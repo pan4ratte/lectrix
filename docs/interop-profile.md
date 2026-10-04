@@ -9,41 +9,70 @@ these rules to make a test pass: report the conflict instead.
 
 | # | Rule | Where it is enforced | Test |
 | --- | --- | --- | --- |
-| 1 | Standard subtypes only (Highlight, Underline, StrikeOut, Squiggly, Text, Ink, FreeText); no custom subtypes or private keys | `annot::MarkupKind` (closed enum) | type system |
-| 2 | Normal appearance `/AP /N` on every annotation, regenerated after every edit, by MuPDF synthesis unless an ADR says otherwise | `annot::add_text_markup` calls `update()` | `roundtrip::highlight_has_every_profile_key`, interop harness |
-| 3 | QuadPoints in Acrobat order (UL, UR, LL, LR) in PDF user space, written by one function | `annot::quads::quad_points_array` | `quads` unit tests, round trip |
-| 4 | `/Rect` = union of content + stroke width + 1 pt margin, grown together with the appearance `/BBox` when MuPDF's bounds are tighter | `annot::finalize_rect` | round trip |
-| 5 | Highlights blend with Multiply; opacity in `/CA` on the annotation and in the appearance | MuPDF `pdf_write_highlight_appearance`; `set_opacity` | round trip checks the ExtGState |
-| 6 | `/NM` (UUID), `/T`, `/CreationDate`, `/M` (with time zone), `/F 4`, `/C`, `/P`; notes get a `/Popup` with `/Parent` (popup also gets `/P` and `/F 28`, as Acrobat writes) | `annot::write_metadata`, `annot::finish_popup` | round trip |
-| 7 | FreeText: Helvetica via `/DA`, one size and colour, plain `/Contents`, no `/RC` | Phase 5 | Phase 5 |
-| 8 | All screen/PDF coordinate conversions through `geometry.rs` (Rotate, offset CropBox, UserUnit) | `geometry::PageGeometry` | unit tests + `roundtrip::geometry_matches_mupdf_page_transform` |
-| 9 | Ink simplified with Ramer–Douglas–Peucker, about 0.5 pt | Phase 5 | Phase 5 |
-| 10 | Never rewrite, reorder or drop annotations the user did not touch; edits change only edited keys plus the appearance | incremental saves; edit path in Phase 5 | Phase 5 |
+| 1 | Standard subtypes only (Highlight, Underline, StrikeOut, Squiggly, Text, Ink, FreeText); no custom subtypes or private keys | `annot::Kind` (closed enum), `annot::create` | type system; `annotations::every_type_has_every_profile_key_on_every_page_geometry` |
+| 2 | Normal appearance `/AP /N` on every annotation, regenerated after every edit, by MuPDF synthesis; the corrections Folio applies are in ADR 0006 | `annot::write::synthesize` (every create, edit and repair ends there; it fails if MuPDF draws nothing) | round trip, interop harness `phase5` |
+| 3 | QuadPoints in Acrobat order (UL, UR, LL, LR) in PDF user space, written by one function. Selected text becomes quads in Rust, from MuPDF's character quads, so they follow the text's direction | `annot::quads::quad_points_array`; `text::range_quads` | `quads` unit tests, `annotations::selected_text_becomes_quads_in_the_text_direction` |
+| 4 | `/Rect` = union of content + stroke width + 1 pt margin, grown together with the appearance `/BBox` when MuPDF's bounds are tighter. Text boxes keep the margin in `/RD [1 1 1 1]` | `annot::write::finalize_rect`, `synthesize` | round trip (every type, every page geometry) |
+| 5 | Highlights blend with Multiply; opacity in `/CA` on the annotation (also at 1) and in the appearance | MuPDF `pdf_write_highlight_appearance`; `annot::write::set_opacity` | round trip checks the ExtGState of every markup type |
+| 6 | `/NM` (UUID), `/T`, `/CreationDate`, `/M` (with time zone), `/F 4`, `/C`, `/P`; notes and markup with a note get a `/Popup` with `/Parent` (the popup also gets `/P` and `/F 28`, as Acrobat writes). **Text boxes:** `/C` is the background fill for FreeText (PDF 32000-1 12.5.6.6), so Folio writes `/C []` (no background) and the text colour in `/DA` (decision pending, see `docs/progress.md`) | `annot::write::write_metadata`, `set_color`, `ensure_popup` | round trip |
+| 7 | FreeText: Helvetica via `/DA` (`/Helv`), one size and colour, plain `/Contents`, no `/RC`, no `/CL`; the box grows to fit its text, measured with MuPDF's Helvetica widths and line breaks | `annot::create`, `annot::text_box` | round trip; `text_box` unit tests |
+| 8 | All screen/PDF coordinate conversions through `geometry.rs` (Rotate, offset CropBox, UserUnit) | `geometry::PageGeometry` (annotation keys are written in user space, never through MuPDF's page transform) | unit tests + `roundtrip::geometry_matches_mupdf_page_transform`; every annotation test runs on 7 page geometries |
+| 9 | Ink simplified with Ramer–Douglas–Peucker, 0.5 pt (in view space, so in points whatever the UserUnit) | `annot::ink::simplify` | `ink` unit tests; round trip checks every input point is within 0.5 pt |
+| 10 | Never rewrite, reorder or drop annotations the user did not touch; edits change only edited keys plus `/M` and the appearance (and the geometry keys synthesis draws from: `/Rect`, `/RD`, `/BS`). Editing a note's text removes `/RC` (rich text), which readers would otherwise show instead | `annot::edit`; incremental saves | `annotations::editing_another_apps_annotation_changes_only_the_edited_keys` (unknown keys kept; other annotations keep their bytes) |
 
 Dates are written in UTC as `D:YYYYMMDDHHmmSS+00'00'`.
 
 ## Reading other apps' annotations
 
-- Display every standard type MuPDF supports.
-- Missing appearance or malformed quads: draw from properties for display, write nothing,
-  and show a "needs repair" badge.
-- Replies (`/IRT`) appear under their parent, read-only in v1.
+- Every standard type MuPDF supports is displayed (MuPDF renders them; Folio draws its own
+  overlay only for the selection).
+- The annotation list reads `/Annots` from the page dictionaries without loading pages
+  (1,316 notes in 29 ms). Popups, links and form widgets are not listed.
+- Missing appearance or unreadable quads: MuPDF draws them from their properties for
+  display only (a local appearance, never saved); the list shows a "needs repair" badge.
+- Replies (`/IRT`) appear under their parent, read-only. Deleting an annotation deletes its
+  replies (after asking) and its popup.
 
 ## Repair
 
-Scan, summarize problems, and on confirmation fix them in one undoable operation: missing
-appearances, QuadPoints order, `/Rect` not containing the content, missing `/NM`, `/F 4`,
-`/M`, `/P`. Never change content, colour, author or position. Log every change with the
-object number.
+Scan, summarize problems, and on confirmation fix them in one undoable operation
+(`annot::repair`):
+
+- missing appearances (for the types MuPDF can draw), generated by MuPDF synthesis
+  written into the document (`ffi::request_appearance`; without it MuPDF only draws a
+  display-only appearance);
+- QuadPoints into Acrobat order: other apps' orders are tried first (the spec's
+  counter-clockwise order, clockwise from the upper left, bottom edge first), then the
+  corners as they appear on screen;
+- `/Rect` grown where the content lies more than the 1 pt margin outside it (Acrobat's own
+  highlights miss skewed quads by a fraction of a point, harmlessly); the appearance
+  `/BBox` grows with it, or a new appearance is drawn when its `/Matrix` makes that
+  impossible;
+- missing `/NM`, `/F 4` (only when `/F` is absent), `/M`, `/P`.
+
+Unreadable QuadPoints are reported and left alone. Content, colour, author and position
+never change; every change is written to the app log with the object number.
 
 ## Saving
 
 Incremental by default. Repaired-on-open files get a full save, and the user is told why,
-once. "Save As (optimized)" does garbage collection and compression. Signed files: warn
-before the first edit and always save incrementally. Encrypted files keep their encryption,
-and permission flags are respected.
+once. "Save As (optimized)" does garbage collection and compression (objects are
+renumbered; the app then takes the new bookmark and annotation ids). Signed files: warn
+before the first edit and always save incrementally. Encrypted files keep their
+encryption, and permission flags are respected (no annotation tools without the annotate
+permission).
 
 ## Engine notes (from the interop harness)
 
 - PDFium ignores `/UserUnit` when sizing pages; MuPDF and pdf.js honour it. Annotations stay
   correctly placed relative to page content in all three engines.
+- Sticky notes (`/Text`) on rotated pages: Acrobat and MuPDF keep the icon upright at the
+  upper-left corner of `/Rect` (text annotations behave as NoZoom and NoRotate, PDF
+  32000-1 12.5.6.4); PDFium and pdf.js turn it with the page, one icon-width away. Folio
+  writes notes for Acrobat's model (ADR 0006); the harness accepts either place.
+- MuPDF 1.27 writes a `/CL` callout line on every new FreeText; Folio removes it.
+- Thin lines (underline, strikeout, squiggly are under 1 pt): the rasterizers spread their
+  anti-aliased edges differently, which at 2x render scale outweighed the line in the
+  harness's colour comparison (a strikeout on a 180° page: distance 76 against the limit
+  60, while the line's own colour matched). The Phase 5 suite renders at 4x (worst
+  distance 49).

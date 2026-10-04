@@ -867,3 +867,136 @@ annotations and form fields.
    Cancel. The signature fields are still copied as they are. Covered by Vitest and by an
    E2E flow with a signed file (Cancel writes nothing; "Combine anyway" combines).
 3. **Acrobat:** checked by the user; the combined and inserted files show correctly.
+
+## Phase 5: Annotations and repair (report, 2026-10-04)
+
+**Status: ready for review, not yet complete.** Every annotation type can be created,
+edited, moved and deleted in the app, repair works, and every local check is green: the
+Rust tests, Vitest, all interop suites (`phase5`: 528 checks) and the end-to-end tests
+(now 9 flows). Three things are still open: CI has not run on these commits (they are
+not pushed); the repair box needs your problem files, which I don't have yet; and the
+manual checklist is yours to do. Four questions are under "Decisions needed".
+
+### Checklist
+
+| Item | Result |
+| --- | --- |
+| Every type in 6.5 can be created, edited, moved and deleted, with undo/redo | Yes. A floating toolbar holds Select, Highlight, Underline, Strikeout, Squiggly, Note, Pen and Text box (Esc/H/U/N/P/T), six preset colours, a custom picker, opacity, pen width and font size; the last style of each tool is remembered. Text markup is made from the selection on mouse-up (the viewer sends the selected characters, Rust makes the quads from MuPDF's character quads, so turned or vertical text gets quads in its own direction); a selection across pages makes one annotation per page in one undo step. Alt-drag makes an area highlight. Notes are placed with a click and typed in the inspector; text boxes are typed in place (double-click edits one). Select, move and resize (drawings, text boxes, notes) with handles; Delete. Every change is one named undo step ("Move note"). The **Annotations panel** groups by page, filters by type and author, jumps on click, edits note text, deletes, shows replies under their parent and "needs repair" badges. The **inspector** shows colour, opacity, width or size, note text, author, dates, replies and problems. Covered by Rust tests and the E2E flow "create, edit, delete, undo, save and reopen annotations". |
+| Every rule in 5.1 enforced and covered by a round-trip test | Yes. `docs/interop-profile.md` lists, per rule, where it is enforced and which test covers it. The main round trip (`every_type_has_every_profile_key_on_every_page_geometry`) creates all seven types on seven page geometries (normal, rotated 90/180/270, cropped with an offset origin, cropped and rotated, UserUnit 2), saves, reopens and checks every required key and value. Rule 10 has its own test: editing another app's annotation changes only the edited keys, keeps unknown keys, and leaves the other annotations' bytes alone. Two rules needed corrections after MuPDF's appearance synthesis (ADR 0006), and one reading of rule 6 needs your decision (text box colour, below). |
+| Interop harness passes for every type on rotated, cropped and normal pages | Yes, `run.py phase5` (528 checks, in CI): all seven types plus an area highlight, on normal, rotated (90, 180, 270), cropped, cropped and rotated, and UserUnit pages, then after edits and a delete. Every annotation is visible in MuPDF, PDFium and pdf.js, the engines agree, and qpdf is clean. The suite renders at 4x: at 2x, the anti-aliased edges of sub-point lines outweighed the line itself in the colour comparison. |
+| The repair command fixes the user-supplied problem files so they pass the harness, without changing content, colour, author or position | **Not yet: no problem files from you so far** (section 9 says you'll supply them). In their place: (1) a file with eight annotations written by hand the way broken apps write them (no appearance, quads in each wrong order seen in the wild, a `/Rect` too small, missing `/NM`, `/F`, `/M`, `/P`). Before repair, several are invisible in at least one engine; after repair all are visible in all three, with the same text, colour, author and place (`phase5`, and the E2E flow "repair annotations another app wrote", with undo). (2) The two local-corpus files that need repair, an Acrobat highlight whose `/Rect` misses its quads and a stamp without `/NM` and `/P` (`phase5-local`, 15 checks). |
+| The manual checklist in section 9 is prepared | Yes: `docs/manual-checklist.md`, with the files in `target/test-output/manual/phase5/` (about 30 minutes). |
+| Settings dialog: author name, appearance System/Light/Dark, applied at once and remembered | Yes. File > Settings (Ctrl+,). The author defaults to the Windows user name (through the platform trait). The appearance applies at once and at startup, stored in app data. A forced theme also retints Mica, which otherwise follows the system theme and left light chrome behind dark text. Covered by the first annotation E2E flow: it sets the author and Dark, checks that the dark theme applies at once, and finds the author in the saved file. |
+
+### What was built
+
+- **pdf-core** (`annot/`). `create` writes the seven types to the write profile: MuPDF's
+  appearance synthesis, then `/Rect` with content, stroke and the 1 pt margin, ink
+  simplified with Ramer–Douglas–Peucker, text boxes sized to their text with MuPDF's
+  Helvetica widths. `edit` changes only the edited keys plus `/M` and the appearance;
+  `delete` also removes the popup and replies. `read` lists annotations from the page
+  dictionaries without loading pages (1,316 notes in 29 ms) with the problems repair
+  would fix; `repair` fixes them. Operations `AddAnnotation(s)`, `UpdateAnnotation`,
+  `DeleteAnnotation`, `RepairAnnotations`; the annotate permission is respected.
+  `ffi::request_appearance` (`pdf_dirty_annot`) makes repair write a real appearance
+  instead of MuPDF's display-only one.
+- **App.** Annotation payloads in `DocumentInfo`, and the changed pages' annotations in
+  every change and save result (an optimized save renumbers objects, so the ids are sent
+  again). `scan_annotations_for_repair` and `repair_annotations`, which logs every change
+  with the object number. Settings storage, `get_settings` / `set_settings`.
+- **Frontend** (`src/lib/features/annotations/`): toolbar, page interactions, panel,
+  inspector, repair dialog; Settings dialog; sidebar tabs are now icons with tooltips and
+  accessible names (Phase 3 review).
+- **pdf-cli:** `annot note / ink / text / list / edit / delete / repair` and
+  `markup --rect`, all through a session as the app does.
+- No new dependencies.
+
+### Findings
+
+- **MuPDF's appearances needed small corrections** (ADR 0006, proposed): sticky notes are
+  drawn at the size of `/Rect` so every reader shows them the same size; on rotated pages
+  PDFium and pdf.js still turn the icon with the page, which no file can change. MuPDF
+  writes a `/CL` callout line on every new text box and no margin; it drops `/CA` at
+  opacity 1; it gives notes `/F 28`. Folio corrects each after synthesis. No type has a
+  drawing of Folio's own.
+- **The app crate's test binary stopped starting** (`STATUS_ENTRYPOINT_NOT_FOUND`). With
+  the Phase 5 code, the linker keeps message-box code in the test binary (test binaries
+  from earlier phases lack it), which imports `TaskDialogIndirect`, a function only Common
+  Controls v6 has; only the app binary carried the manifest asking for v6. `src-tauri/build.rs` now has the linker write the
+  same dependency into every binary of the crate (in place of tauri-build's copy, which
+  held nothing else; two would clash). `folio.exe`'s manifest is unchanged apart from the
+  linker's standard "run as invoker" entry.
+
+### Tests
+
+- `cargo test --workspace`: 200 (Phase 4: 164), plus 2 ignored local-corpus tests. New:
+  every type on every page geometry with every profile key; edits that change only their
+  keys; moving notes, resizing drawings, refitting text boxes; edits a type does not
+  support are refused; deleting removes popups and replies only; repair of other apps'
+  problems without changing content; annotations and repair as undo steps through the
+  session; selected text to quads in the text's direction, and across pages in one undo
+  step; quads, ink simplification and text box measuring unit tests; the app's
+  annotation payloads.
+- Vitest: 64 (Phase 4: 54): tools, page geometry, annotation actions.
+- E2E: 9 flows (Phase 4: 7), plus the page-reload check, all passed. New: create, edit,
+  delete, undo, save and reopen annotations (with the Settings author); repair annotations
+  another app wrote, with undo. These two first waited for the status bar to stop saying
+  "Unsaved", which "Saving…" already does, so the app was closed mid-save and the check
+  of the file on disk failed; they now wait for "All changes saved", as the other flows do.
+- Interop: phase0 78, phase2 15, phase3 11, phase4 51, phase5 528, phase5-local 15, all
+  passed. `cargo clippy -D warnings`, `cargo fmt`, `svelte-check`: clean.
+
+### Performance
+
+Section 2 targets (`measure.ps1 -Pdf big1000.pdf`, 3 runs): window visible 29 to 162 ms,
+first page visible 86 to 113 ms, `folio.exe` 64 MB idle, whole tree 638 to 656 MB.
+No change from Phase 4 beyond run-to-run spread.
+
+### Please check
+
+The manual checklist, `docs/manual-checklist.md`: Acrobat Reader, Edge, Firefox and Foxit,
+with the files in `target/test-output/manual/phase5/`.
+
+### Decisions needed
+
+1. **Push to GitHub** so CI runs on these commits (it now also runs interop `phase5` and
+   the two new E2E flows)?
+2. **Problem files.** Please put the PDFs whose annotations display wrongly in Acrobat
+   somewhere I can read them (they can stay out of git, like the local corpus). I'll add
+   them to the harness as a local suite and report what repair does to each.
+3. **Text box colour (rule 6).** Rule 6 lists `/C` (colour) for every annotation. For a
+   text box, though, `/C` is the background fill (PDF 32000-1 12.5.6.6); the text colour
+   lives in `/DA`. Options:
+   - (a) Write `/C []` (no background) and the chosen colour as the text colour in `/DA`.
+     This is what Folio does now, and what the spec describes.
+   - (b) Write the chosen colour in `/C` too. Readers would then fill the box with the
+     text's colour, making the text unreadable.
+   - (c) Offer a background colour for text boxes as well (`/C` = background, `/DA` =
+     text): a second colour control in the inspector.
+   - **Recommendation: (a)**, with rule 6 read as "`/C` as the type defines it". (c) can
+     come later if you want filled boxes.
+4. **ADR 0006** (the corrections above) is "proposed": approve it, or tell me what to
+   change.
+
+### Behavior choices made without explicit guidance
+
+- Notes are placed with one click and their text is typed in the inspector, which opens
+  focused on the note field. Text boxes are typed in place where you click; Ctrl+Enter or
+  a click outside finishes, Esc discards. An empty new box is not created; emptying an
+  existing one deletes it (one undo step).
+- The inspector's colour for a text box is the text colour (see decision 3).
+- Deleting an annotation that has replies asks first, then deletes the replies and the
+  popup with it.
+- A text box from another app that has a callout line can be edited but not moved or
+  resized, because its line would need moving too.
+- The Annotations panel lists markup, notes, drawings, text boxes, shapes, stamps and
+  attachments; popups, links and form widgets are not listed.
+- Repair counts `/Rect` as too small only past the 1 pt margin: Acrobat's own highlights
+  miss skewed quads by a fraction of a point. Unreadable QuadPoints are reported and left
+  alone.
+- Settings is under the File menu (Ctrl+,), as in most Windows apps.
+
+### Not verified
+
+- Acrobat, Foxit, Edge and Firefox by a person (the manual checklist).
+- Touch and stylus input: the pen tool was tested with scripted mouse input (E2E) only.
