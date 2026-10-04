@@ -6,6 +6,7 @@ import {
 	cancelUnlock,
 	closeDocument,
 	discardRecovered,
+	exitConfirmed,
 	listOpenDocuments,
 	listRecentFiles,
 	listRecovered,
@@ -571,6 +572,7 @@ class AppStore {
 			}
 		}
 		for (const tab of this.tabs) this.rememberView(tab);
+		await exitConfirmed().catch(() => {});
 		this.exiting = true;
 		return true;
 	}

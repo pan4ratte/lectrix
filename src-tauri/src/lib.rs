@@ -327,6 +327,7 @@ pub fn run() {
             commands::list_recovered,
             commands::restore_recovered,
             commands::discard_recovered,
+            commands::exit_confirmed,
             commands::unlock_document,
             commands::cancel_unlock,
             commands::close_document,
@@ -360,7 +361,8 @@ pub fn run() {
         .map(|app| {
             app.run(|app, event| {
                 // Quitting normally: the user saved or chose not to save, so this run's
-                // recovery copies go. Only a crash leaves them behind.
+                // recovery copies go. Only a crash leaves them behind. The window's close
+                // prompt already deleted them (exit_confirmed); this covers other exits.
                 if let RunEvent::Exit = event {
                     app.state::<AppState>().documents.recovery().close();
                 }

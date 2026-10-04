@@ -9,6 +9,7 @@ const COMMANDS: &[&str] = &[
     "list_recovered",
     "restore_recovered",
     "discard_recovered",
+    "exit_confirmed",
     "unlock_document",
     "cancel_unlock",
     "close_document",

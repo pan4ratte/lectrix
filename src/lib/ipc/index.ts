@@ -102,6 +102,8 @@ export const listRecentFiles = () => invoke<RecentFile[]>('list_recent_files');
 export const listRecovered = () => invoke<RecoveredDocument[]>('list_recovered');
 export const restoreRecovered = (slots: string[]) => invoke<OpenResult[]>('restore_recovered', { slots });
 export const discardRecovered = (slots: string[]) => invoke<void>('discard_recovered', { slots });
+/** The user agreed to quit: this run's recovery copies are deleted. */
+export const exitConfirmed = () => invoke<void>('exit_confirmed');
 export const unlockDocument = (token: number, password: string) =>
 	invoke<OpenResult>('unlock_document', { token, password });
 export const cancelUnlock = (token: number) => invoke<void>('cancel_unlock', { token });

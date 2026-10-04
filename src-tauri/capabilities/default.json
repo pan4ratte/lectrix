@@ -20,6 +20,7 @@
     "allow-list-recovered",
     "allow-restore-recovered",
     "allow-discard-recovered",
+    "allow-exit-confirmed",
     "allow-unlock-document",
     "allow-cancel-unlock",
     "allow-close-document",

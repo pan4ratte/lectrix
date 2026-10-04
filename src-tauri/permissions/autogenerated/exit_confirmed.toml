@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-exit-confirmed"
+description = "Enables the exit_confirmed command without any pre-configured scope."
+commands.allow = ["exit_confirmed"]
+
+[[permission]]
+identifier = "deny-exit-confirmed"
+description = "Denies the exit_confirmed command without any pre-configured scope."
+commands.deny = ["exit_confirmed"]

@@ -238,6 +238,13 @@ pub fn discard_recovered(state: State<'_, AppState>, slots: Vec<String>) {
     state.documents.recovery().discard_pending(&slots);
 }
 
+/// The user agreed to quit (saved or chose not to save): this run's recovery copies go now,
+/// not only when the event loop ends, so a quit cut short does not bring them back.
+#[tauri::command]
+pub fn exit_confirmed(state: State<'_, AppState>) {
+    state.documents.recovery().close();
+}
+
 /// Retries an encrypted document with the password the user typed.
 #[tauri::command(async)]
 pub fn unlock_document(
