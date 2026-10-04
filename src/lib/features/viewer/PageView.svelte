@@ -347,6 +347,7 @@
 			{@const b = textDraft.box}
 			<textarea
 				data-annotation-editor
+				rows="1"
 				class="annotation-editor absolute"
 				style:left="{b[0] * k}px"
 				style:top="{b[1] * k}px"

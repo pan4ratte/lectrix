@@ -196,7 +196,8 @@ button {
 	padding: 0;
 	overflow: hidden;
 	border: 0;
-	background: rgb(255 255 255 / 0.6);
+	/* Pages are white in both appearances; the text under the box stays faintly visible. */
+	background: rgb(255 255 255 / 0.85);
 	font-family: Helvetica, Arial, sans-serif;
 	line-height: 1.2;
 	outline: 1.5px dashed var(--folio-accent);
