@@ -1,4 +1,4 @@
-//! Fonts for documents that do not embed them (Phase 0 review decision 1, ADR 0005).
+//! Fonts for documents that do not embed them (ADR 0005).
 //!
 //! MuPDF asks Lectrix's font loader for every non-embedded font. Lectrix:
 //!

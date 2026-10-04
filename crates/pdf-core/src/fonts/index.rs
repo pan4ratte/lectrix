@@ -233,7 +233,7 @@ pub fn cjk_ordering(script: u32, language: u32) -> Option<CjkFontOrdering> {
 
 /// The families MuPDF's own Windows port substitutes for each CJK ordering, then the
 /// fonts newer Windows versions ship instead (the crate's Windows table). Other platforms
-/// get their lists with their font sources (Phase 6).
+/// get their lists with their font sources (docs/status.md, platform gaps).
 fn cjk_families(ordering: CjkFontOrdering, serif: bool) -> &'static [&'static str] {
     use CjkFontOrdering::*;
     match (ordering, serif) {

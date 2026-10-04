@@ -1,4 +1,4 @@
-// Recent files and the remembered view of each file (AGENTS.md section 6.1, Phase 6).
+// Recent files and the remembered view of each file (AGENTS.md section 6.1).
 // E2E runs keep app state in memory (LECTRIX_EPHEMERAL), so this happens in one session:
 // close a document, open it again from the start screen's recent list.
 

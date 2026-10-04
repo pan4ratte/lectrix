@@ -1,4 +1,4 @@
-// Combining two 500-page files (AGENTS.md section 10, Phase 4): it completes with a
+// Combining two 500-page files (AGENTS.md section 6.4): it completes with a
 // progress bar, and stopping it leaves no file behind and an existing file untouched.
 // LECTRIX_COMBINE_PAGE_DELAY_MS slows the copy down so the bar can be watched and Stop
 // pressed: unslowed, two generated 500-page files combine in well under a second.

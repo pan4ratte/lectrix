@@ -41,7 +41,7 @@
 				if (canvas.width !== image.width) canvas.width = image.width;
 				if (canvas.height !== image.height) canvas.height = image.height;
 				// A CPU-backed canvas: Chromium keeps an accelerated canvas's pixels in the GPU process
-				// as well, which doubled the memory of every page on screen (Phase 2 investigation).
+				// as well, which doubled the memory of every page on screen (ADR 0002).
 				const ctx = canvas.getContext('2d', { willReadFrequently: true });
 				if (ctx) image.draw(ctx);
 				drawnKey = key;

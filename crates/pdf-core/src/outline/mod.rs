@@ -198,7 +198,7 @@ pub struct ReadOutlineItem {
 }
 
 /// Reads the outline tree (explicit destinations only; named destinations resolve to
-/// `page: None` in Phase 0).
+/// `page: None`).
 pub fn read_outline(doc: &PdfDocument) -> Result<Vec<ReadOutlineItem>> {
     let catalog = doc.catalog()?;
     let Some(root) = catalog.get_dict("Outlines")? else {

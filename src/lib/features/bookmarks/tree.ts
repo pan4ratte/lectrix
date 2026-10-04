@@ -79,7 +79,7 @@ function compare(a: DocPoint, b: DocPoint): number {
 }
 
 /**
- * Where Ctrl+B puts a new bookmark (Phase 2 review): right after the selected bookmark,
+ * Where Ctrl+B puts a new bookmark: right after the selected bookmark,
  * as its sibling; with nothing selected, at the top level after the last bookmark that
  * leads to the new one's place or earlier, so the top level stays in page order.
  */

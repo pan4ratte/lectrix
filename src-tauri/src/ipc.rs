@@ -876,7 +876,7 @@ pub enum Backdrop {
     Solid,
 }
 
-/// How page images travel to the webview (docs/progress.md, Phase 1 measurements).
+/// How page images travel to the webview (ADR 0004).
 #[derive(Debug, Clone, Copy, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]

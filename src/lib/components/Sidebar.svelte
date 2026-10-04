@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Left sidebar (section 8): Pages (thumbnails), Bookmarks, Annotations and Page labels.
 	// Four tabs don't fit the sidebar's width as words, so they are icons with tooltips and
-	// accessible names (Phase 3 review).
+	// accessible names.
 	import { Bookmark, GalleryVertical, MessageSquareText, Tag } from '@lucide/svelte';
 	import { Tabs } from 'bits-ui';
 

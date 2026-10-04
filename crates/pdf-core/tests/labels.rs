@@ -1,4 +1,4 @@
-//! Page labels (AGENTS.md section 6.3, Phase 3): labels another app wrote are read exactly
+//! Page labels (AGENTS.md section 6.3): labels another app wrote are read exactly
 //! as stored, keep their bytes through edits that do not touch them, and an edit rewrites
 //! only the number tree, which MuPDF then reads back as written.
 

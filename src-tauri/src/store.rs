@@ -37,7 +37,7 @@ struct Data {
     settings: StoredSettings,
 }
 
-/// What the Settings dialog changes (section 6.5, Phase 5).
+/// What the Settings dialog changes (section 6.5).
 #[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 pub struct StoredSettings {
     /// The author name for new annotations; `None` uses the Windows user name.
@@ -225,7 +225,7 @@ mod tests {
         let reloaded = Store::load(Some(file.clone()));
         assert_eq!(reloaded.settings().author.as_deref(), Some("Ada Lovelace"));
         assert_eq!(reloaded.settings().appearance, Appearance::Dark);
-        // A state file from Phase 4 (no settings) still loads, with defaults.
+        // A state file from before Settings existed still loads, with defaults.
         fs::write(&file, br#"{"recent":[],"views":{}}"#).unwrap();
         assert_eq!(
             *Store::load(Some(file)).settings(),

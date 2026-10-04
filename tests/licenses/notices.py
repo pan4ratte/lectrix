@@ -21,7 +21,7 @@ OUT = ROOT / "THIRD_PARTY_LICENSES.md"
 TARGET = "x86_64-pc-windows-msvc"
 
 # AGPL-3.0-compatible licenses (SPDX ids). Anything else fails the check and needs a
-# decision (AGENTS.md section 11: licensing questions go to the user).
+# decision (AGENTS.md section 10: licensing questions go to the user).
 ALLOWED = {
     "MIT", "MIT-0", "Apache-2.0", "Apache-2.0 WITH LLVM-exception", "BSD-2-Clause",
     "BSD-3-Clause", "ISC", "Zlib", "0BSD", "Unlicense", "CC0-1.0", "BSL-1.0", "MPL-2.0",

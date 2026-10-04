@@ -1,14 +1,14 @@
-# PDF Editor — Build Instructions for Coding Agent
+# Lectrix — Instructions for Coding Agents
 
-Oct 2, 2026 · @Mark
+Oct 4, 2026 · @Mark
 
 ## 1. Mission and scope
 
-Build a lightweight, open-source PDF editor for Windows, designed to go cross-platform later, whose annotations, bookmarks and page labels open correctly in Acrobat and every other mainstream reader. Interoperability is the product's core promise: a feature that works only inside this app is a failed feature.
+Lectrix is a lightweight, open-source PDF editor for Windows, designed to go cross-platform later, whose annotations, bookmarks and page labels open correctly in Acrobat and every other mainstream reader. Interoperability is the product's core promise: a feature that works only inside this app is a failed feature.
 
-This document is the single source of truth for the build. Read it in full at the start of every session. The working name is **Lectrix**; keep it in one config constant so it can be renamed.
+This document is the single source of truth for the product and for how to work on it. Read it in full at the start of every session. v1 is complete (2026-10-04); `docs/status.md` lists its measurements and known gaps. The name is **Lectrix**; the frontend keeps it in one config constant (`APP_NAME` in `src/lib/config.ts`).
 
-**In scope for v1:**
+**v1 contains:**
 
 - **Viewer:** fast continuous scrolling, zoom, thumbnails, text selection, text search, tabs for multiple documents.
 - **Bookmarks:** create, rename, reorder, nest, delete, and retarget the document outline.
@@ -17,30 +17,30 @@ This document is the single source of truth for the build. Read it in full at th
 - **Annotations:** highlight, underline, strikeout, squiggly, sticky note, freehand ink, text box, plus an annotation list.
 - **Repair annotations:** normalize broken annotations written by other apps so they display everywhere.
 
-**Out of scope for v1** (do not build, even partially): form filling, digital signing, OCR, editing page text or images, redaction, converting other formats to PDF, cloud sync, mobile builds.
+**Not in v1** (do not build, even partially, without the user's go-ahead): form filling, digital signing, OCR, editing page text or images, redaction, converting other formats to PDF, cloud sync, mobile builds.
 
 ## 2. Tech stack and constraints
 
-The stack is fixed: Tauri 2, a Rust backend running MuPDF, and a Svelte 5 frontend styled with Tailwind. Use the latest stable release of each at project start, pin exact versions, and record them in `docs/versions.md`.
+The stack is fixed: Tauri 2, a Rust backend running MuPDF, and a Svelte 5 frontend styled with Tailwind. Versions are pinned exactly and recorded in `docs/versions.md`; upgrade deliberately and update that file.
 
 | Layer | Choice | Notes |
 | --- | --- | --- |
-| App shell | Tauri 2 | WebView2 on Windows. Bundle with the Tauri bundler (NSIS and MSI). |
+| App shell | Tauri 2 | WebView2 on Windows. Bundled with the Tauri bundler (NSIS and MSI). |
 | Backend language | Rust, stable toolchain | All PDF logic lives here. |
-| PDF engine | MuPDF (C library) | Via the `mupdf` Rust crate; call the C API directly through `mupdf-sys` where the crate lacks coverage. |
+| PDF engine | MuPDF (C library) | Via the `mupdf` Rust crate, vendored and patched in `third_party/mupdf-rs` (ADR 0001); `mupdf-sys` comes from Lectrix's fork (ADR 0008). The C API is called directly through `mupdf-sys` where the crate lacks coverage. |
 | Frontend | Svelte 5 (runes) on SvelteKit | `adapter-static`, SSR disabled, as Tauri's own SvelteKit guide recommends. TypeScript in strict mode. |
 | Styling | Tailwind CSS | Through its Vite plugin. Design tokens as CSS variables. |
-| UI primitives | A headless Svelte component library (e.g. Bits UI) and Lucide icons | Headless only, so the visual design stays ours. |
-| Rust/TS type sharing | `tauri-specta` or `ts-rs` | Generate TypeScript types for every IPC command and payload; never hand-write them. |
+| UI primitives | Bits UI (headless) and Lucide icons | Headless only, so the visual design stays ours. |
+| Rust/TS type sharing | `ts-rs` | TypeScript types for every IPC command and payload are generated (`cargo test -p lectrix`); never hand-write them. |
 | Testing | `cargo test`, Vitest, `tauri-driver` with WebdriverIO | See section 9. |
 
 **Hard constraints:**
 
-- **License:** the whole project is AGPL-3.0-or-later, because MuPDF is AGPL. Every new dependency must be AGPL-compatible (MIT, Apache-2.0, BSD, MPL-2.0 are fine). Maintain `THIRD_PARTY_NOTICES.md`.
+- **License:** the whole project is AGPL-3.0-or-later, because MuPDF is AGPL. Every new dependency must be AGPL-compatible (MIT, Apache-2.0, BSD, MPL-2.0 are fine). Maintain `THIRD_PARTY_NOTICES.md`; `tests/licenses/notices.py` checks every shipped package and regenerates `THIRD_PARTY_LICENSES.md`. The About dialog shows where the source is published (`SOURCE_URL` in `src/lib/config.ts`).
 - **Platforms:** Windows 10 (1809+) and Windows 11, x64 first. Anything Windows-specific goes in a `platform` module behind a trait, so macOS and Linux can be added without touching feature code.
-- **Offline:** no network access at runtime, no telemetry, no update checks in v1.
+- **Offline:** no network access at runtime, no telemetry, no update checks.
 - **Security:** minimal Tauri capabilities. File access only to paths the user picked through a dialog, drag-and-drop, or file association. Strict CSP, no remote content in the webview.
-- **Performance targets** (measure from Phase 0 and report): window visible in under 1 s; first page of a 500-page PDF visible in under 1 s; no blank page visible for more than 200 ms while scrolling; idle memory under 200 MB with one large document open.
+- **Performance targets** (a regression is a bug; the latest measurements are in `docs/status.md`): window visible in under 1 s; first page of a 500-page PDF visible in under 1 s; no blank page visible for more than 200 ms while scrolling; idle memory under 200 MB with one large document open (for `lectrix.exe`; WebView2 has its own rule, ADR 0002).
 
 ## 3. Architecture
 
@@ -52,83 +52,94 @@ Down-arrows carry typed operations and calls; up-arrows carry page images, revis
 
 **Three layers:**
 
-1. **`pdf-core` crate** (plain Rust library, no Tauri dependency). Owns document sessions, rendering, text geometry, the annotation write profile, outlines, page labels, merging, repair, undo/redo and saving. Everything in it must be testable headless.
-2. **`src-tauri` app crate.** A thin layer: IPC commands that call `pdf-core`, the page-image protocol, file dialogs, menus, window effects, file association, logging.
+1. **`pdf-core` crate** (plain Rust library, no Tauri dependency). Owns document sessions, rendering, text geometry, the annotation write profile, outlines, page labels, merging, repair, undo/redo, saving and crash-recovery copies. Everything in it must be testable headless.
+2. **`src-tauri` app crate.** A thin layer: IPC commands that call `pdf-core`, the page-image protocol, file dialogs, menus, window effects, file association, recovery slots, app state, logging.
 3. **SvelteKit frontend.** Views, editors, overlays and UI state only.
 
-**Threading.** MuPDF contexts and documents must not be shared across threads without care. Give each open document its own actor thread that exclusively owns its MuPDF document; commands reach it through a channel and get replies back. For parallel rendering, build a display list per page on the actor thread, then render display lists on a small worker pool with cloned contexts, as MuPDF's multi-threading guide describes. In Phase 0, check whether the Rust crate's types are `Send`/`Sync` and document the result in an ADR.
+**Threading.** MuPDF contexts and documents must not be shared across threads without care. Each open document has its own actor thread that exclusively owns its MuPDF document; commands reach it through a channel and get replies back. For parallel rendering, build a display list per page on the actor thread, then render display lists on a small worker pool with cloned contexts, as MuPDF's multi-threading guide describes. ADR 0001 records the crate's thread-safety findings.
 
 **Rendering pipeline.**
 
 - The frontend requests pages through a custom URI protocol: `lectrix://page/{docId}/{pageIndex}?scale={s}&rev={r}`. Including the document revision in the URL makes cache invalidation automatic.
-- Rust renders the page with MuPDF and returns an image. Start with PNG at the fastest compression level; if encoding exceeds about 30% of render time, switch to raw RGBA drawn into a `<canvas>`.
+- Rust renders the page with MuPDF and returns a PNG at the fastest compression level (ADR 0004). Raw RGBA drawn into a `<canvas>` stays available for measurement (`LECTRIX_IMAGE_FORMAT`).
 - Above a zoom threshold, render 512 px tiles instead of whole pages.
 - Keep an LRU cache of rendered images keyed by document, page, scale bucket and revision, with a configurable memory cap.
-- Render only pages within one screen of the viewport; show a sized placeholder for the rest.
+- Mount only pages near the viewport (a quarter screen above and below, ADR 0002); show a sized placeholder for the rest. Thumbnails wait while pages on screen render.
 
 **Text geometry.** For text selection and highlights, Rust extracts MuPDF's structured text per page (characters with their quads) and sends it to the frontend once per page and revision. The frontend does hit-testing and selection locally against that cached geometry, then sends the selected character range back with the highlight operation, so Rust computes the final quads.
 
-**IPC surface** (initial; extend as needed, all typed): `open_document`, `close_document`, `get_document_info` (page count, page sizes and rotation, outline, page labels, annotation list), `get_page_text`, `search_text`, `apply_operation`, `undo`, `redo`, `save`, `save_as`, `plan_merge`, `execute_merge`, `scan_annotations_for_repair`, `repair_annotations`. Every mutating command returns the new document revision plus the changed data, so the frontend never re-fetches everything.
+**IPC surface.** Commands live in `src-tauri/src/commands.rs`, all typed, among them `get_document_info` (page count, page sizes and rotation, outline, page labels, annotation list), `get_page_text`, `search_text`, `apply_operation`, `undo`, `redo`, `save`, `save_as`, `plan_merge`, `execute_merge`, `scan_annotations_for_repair` and `repair_annotations`. Every mutating command returns the new document revision plus the changed data, so the frontend never re-fetches everything.
 
 ## 4. Repository layout
 
-Use a Cargo workspace plus a SvelteKit app at the root. Keep this structure unless an ADR justifies a change.
+A Cargo workspace plus a SvelteKit app at the root. Keep this structure unless an ADR justifies a change.
 
 ```
 lectrix/
 ├─ AGENTS.md                 # this document
 ├─ LICENSE                   # AGPL-3.0-or-later
 ├─ THIRD_PARTY_NOTICES.md
+├─ THIRD_PARTY_LICENSES.md   # generated by tests/licenses/notices.py
 ├─ Cargo.toml                # workspace
 ├─ crates/
 │  ├─ pdf-core/              # all PDF logic, no Tauri dependency
 │  │  ├─ src/
-│  │  │  ├─ session.rs       # document actor, revisions
-│  │  │  ├─ render.rs        # display lists, tiles, cache
+│  │  │  ├─ session.rs       # document actor, revisions, recovery copies
+│  │  │  ├─ render.rs        # display lists, tiles
 │  │  │  ├─ text.rs          # structured text, search
 │  │  │  ├─ geometry.rs      # view <-> PDF user space transforms
 │  │  │  ├─ annot/           # write profile, appearance streams, repair
-│  │  │  ├─ outline.rs       # bookmarks
+│  │  │  ├─ outline/         # bookmarks
 │  │  │  ├─ labels.rs        # page labels
-│  │  │  ├─ merge.rs         # stitching
+│  │  │  ├─ merge/           # stitching
 │  │  │  ├─ save.rs          # incremental / full / atomic replace
 │  │  │  ├─ ops.rs           # operation enum, undo/redo
-│  │  │  └─ ffi/             # thin safe wrappers over mupdf-sys
+│  │  │  ├─ fonts/           # installed-font index (ADR 0005)
+│  │  │  ├─ platform/        # platform traits and their Windows implementations
+│  │  │  ├─ testgen.rs       # generated sample documents
+│  │  │  └─ ffi/             # thin safe wrappers over mupdf-sys, plus shim.c
 │  │  └─ tests/
-│  └─ pdf-cli/               # headless CLI over pdf-core (tests, debugging)
-├─ src-tauri/                # Tauri app crate
+│  └─ pdf-cli/               # headless CLI over pdf-core (tests, debugging, corpus survey)
+├─ src-tauri/                # Tauri app crate; windows/ holds the installer changes (ADR 0007)
 ├─ src/                      # SvelteKit frontend
 │  ├─ lib/components/
-│  ├─ lib/features/          # viewer/, bookmarks/, labels/, merge/, annotations/
+│  ├─ lib/features/          # viewer/, bookmarks/, labels/, merge/, annotations/, recovery/
 │  ├─ lib/ipc/               # generated types + typed invoke wrappers
 │  ├─ lib/stores/
 │  └─ routes/
+├─ third_party/              # vendored mupdf crate (LECTRIX_PATCHES.md) and MuPDF headers
 ├─ tests/
 │  ├─ corpus/                # real-world PDFs (Git LFS), read-only
+│  ├─ local-corpus/          # scripts for the user's private corpus (files git-ignored)
 │  ├─ interop/               # cross-renderer harness
-│  └─ e2e/
+│  ├─ e2e/                   # tauri-driver + WebdriverIO
+│  ├─ installer/             # silent install/uninstall check (CI only)
+│  ├─ licenses/              # dependency license check
+│  └─ perf/                  # performance measurements
 └─ docs/
    ├─ decisions/             # ADRs: NNNN-title.md
+   ├─ upstream/              # patches to offer upstream projects
    ├─ interop-profile.md     # the annotation write profile, kept in sync with section 5
+   ├─ manual-checklist.md    # the manual release checklist (section 9)
    ├─ versions.md
-   └─ progress.md            # phase reports
+   └─ status.md              # measurements, known gaps, platform gaps
 ```
 
 The `pdf-cli` tool exposes every `pdf-core` operation from the command line (for example `pdf-cli labels set in.pdf out.pdf --rule 0:roman-lower --rule 12:decimal`). Tests and the interop harness use it, and it makes engine bugs reproducible without the UI.
 
 ## 5. Annotation interoperability contract
 
-Every annotation this app writes must display, print and be editable in Acrobat Reader, PDFium-based viewers (Edge, Chrome), pdf.js (Firefox) and Foxit. Write conservatively, read leniently, and never weaken these rules to make a test pass: report the conflict instead. Mirror this section in `docs/interop-profile.md`.
+Every annotation this app writes must display, print and be editable in Acrobat Reader, PDFium-based viewers (Edge, Chrome), pdf.js (Firefox) and Foxit. Write conservatively, read leniently, and never weaken these rules to make a test pass: report the conflict instead. Mirror this section in `docs/interop-profile.md`, which also records where each rule is enforced and tested.
 
 ### 5.1 Write profile (mandatory for every annotation written or edited)
 
 1. **Standard subtypes only:** Highlight, Underline, StrikeOut, Squiggly, Text (sticky note), Ink, FreeText. No custom subtypes and no private keys.
-2. **Appearance stream always.** Every annotation gets a normal appearance (`/AP /N`), regenerated after every edit, using MuPDF's appearance synthesis. If MuPDF's appearance for a type fails the interop tests (section 9), write a custom appearance stream for that type in `annot/` and document why in an ADR.
+2. **Appearance stream always.** Every annotation gets a normal appearance (`/AP /N`), regenerated after every edit, using MuPDF's appearance synthesis with the corrections in ADR 0006. If MuPDF's appearance for a type fails the interop tests (section 9), write a custom appearance stream for that type in `annot/` and document why in an ADR.
 3. **QuadPoints in Acrobat order.** For text-markup types, each quad is written as upper-left, upper-right, lower-left, lower-right, in PDF user space. This is the de facto order Acrobat uses, not the counter-clockwise order the spec text describes. One function writes quads, with unit tests.
 4. **Rect contains everything.** `/Rect` is the union of all quads, ink paths, or the text box, plus the stroke width and a 1 pt margin.
 5. **Highlights blend.** Highlight appearance streams use an ExtGState with Multiply blend mode so text stays readable. Store opacity in `/CA` on the annotation as well as in the appearance.
-6. **Complete metadata:** `/NM` (a UUID), `/T` (author, from settings, defaulting to the Windows user name), `/CreationDate` and `/M` (PDF date strings with time zone), `/F 4` (Print flag), `/C` (color), `/P` (page reference). Sticky notes and markup with a note get a linked `/Popup` annotation with the `/Parent` back-reference.
-7. **Plain FreeText.** Use the base-14 Helvetica font through `/DA`, one font size and one color per box, plain-text `/Contents`, and an appearance stream. Do not write `/RC` rich text in v1.
+6. **Complete metadata:** `/NM` (a UUID), `/T` (author, from settings, defaulting to the Windows user name), `/CreationDate` and `/M` (PDF date strings with time zone), `/F 4` (Print flag), `/C` (color, as the type defines it: for FreeText `/C` is the background, so text boxes get `/C []` and their text color in `/DA`), `/P` (page reference). Sticky notes and markup with a note get a linked `/Popup` annotation with the `/Parent` back-reference.
+7. **Plain FreeText.** Use the base-14 Helvetica font through `/DA`, one font size and one color per box, plain-text `/Contents`, and an appearance stream. Do not write `/RC` rich text.
 8. **Correct coordinates.** All conversions between screen and PDF user space go through `geometry.rs`, which handles `/Rotate` (0, 90, 180, 270), a CropBox whose origin is not (0, 0), and `/UserUnit`. Test each case with fixtures.
 9. **Lean ink.** Simplify freehand strokes (Ramer–Douglas–Peucker, about 0.5 pt tolerance) before writing.
 10. **Leave others' work alone.** Never rewrite, reorder or drop annotations the user did not touch. When the user edits an annotation made by another app, change only the edited keys plus its appearance, and keep unknown keys.
@@ -137,7 +148,7 @@ Every annotation this app writes must display, print and be editable in Acrobat 
 
 - Display every standard annotation type MuPDF supports, including ones this app cannot create (shapes, stamps, links, file attachments).
 - If an annotation lacks an appearance stream or has malformed quads, draw it for display from its properties, but write nothing. Mark it in the annotation list with a "needs repair" badge.
-- Show replies (`/IRT`) under their parent in the list, read-only in v1.
+- Show replies (`/IRT`) under their parent in the list, read-only.
 
 ### 5.3 Repair annotations command
 
@@ -160,11 +171,11 @@ Repair must never change an annotation's content, color, author or position. Log
 
 ## 6. Feature specifications
 
-Each feature below defines behavior; section 10 defines when it counts as done.
+Each feature below defines behavior. The "settled details" were decided during the v1 build; change them only with the user's agreement.
 
 ### 6.1 Viewer
 
-- **Opening:** File > Open dialog, drag-and-drop onto the window, `.pdf` file association, and a path passed on the command line. Opening a file that is already open switches to its tab.
+- **Opening:** File > Open dialog, drag-and-drop onto the window, `.pdf` file association, and a path passed on the command line. Opening a file that is already open switches to its tab. Lectrix is single-instance: a second launch hands its files to the running window.
 - **Tabs:** one tab per document, reorderable, with a dirty marker and a close prompt for unsaved changes.
 - **Scrolling:** continuous vertical scroll, virtualized; only pages near the viewport are rendered.
 - **Zoom:** fit width, fit page, preset percentages, Ctrl+wheel and pinch, centered on the cursor.
@@ -172,6 +183,12 @@ Each feature below defines behavior; section 10 defines when it counts as done.
 - **Text:** selection and copy across lines and pages; search with match highlighting and next/previous.
 - **View rotation:** rotating the view does not modify the document. A separate "Rotate pages" command does modify it (sets `/Rotate`) and is undoable.
 - **Recent files** list and remembered per-file view position (page and zoom), stored in app data, not in the PDF.
+
+Settled details:
+
+- Fit width and fit page use the current page when applied, and re-fit only when the window size or the view rotation changes, not while scrolling past pages of other sizes.
+- Search is case-insensitive, starts at the current page and wraps. Search jumps are not recorded in back/forward history; page-box and thumbnail jumps are.
+- Copying respects the document's copy permission. Rotating pages respects the modify or assemble permission, and the signed-document warning.
 
 ### 6.2 Bookmarks (outline)
 
@@ -182,14 +199,36 @@ Each feature below defines behavior; section 10 defines when it counts as done.
 - Existing bookmarks the user did not edit keep their original destination or action exactly, including named destinations and URI actions.
 - Titles with non-ASCII characters are written as UTF-16BE with a byte-order mark.
 
+Settled details:
+
+- A click selects a bookmark and follows it; arrow keys only move the selection; Enter follows. The selection stays when the page is clicked, so repeated Ctrl+B builds a list in order.
+- Ctrl+B puts the new bookmark right after the selected one, as its sibling; with nothing selected, at the top level, in page order. Without selected text it is titled "Page <label>" and opens for renaming. Selected text is used only if the document allows copying.
+- A new or retargeted bookmark points at the top-left of what is visible on the page at the top of the view (in the page's own orientation), rounded to whole points.
+- Deleting a bookmark without children needs no confirmation (it can be undone).
+- Expanding or collapsing is not an edit: it neither dirties the document nor adds an undo step, and is written at the next save. It is not written for a signed document without other changes, or when permissions forbid outline changes.
+- Bookmarks untouched by an edit keep their bytes exactly; neighbours whose links change are rewritten by MuPDF with the same destination and action values.
+- Web links, other files and actions are described in a notice when clicked, never opened or run. A bookmark's own color shows as a dot, not as text color.
+- The inspector opens from the context menu (Properties), then follows the selection until closed. It floats over the page, so it never changes a fit-width zoom.
+
 ### 6.3 Page labels
 
 - Edited as a list of rules. Each rule has a start page, a style (none, 1 2 3, i ii iii, I II III, a b c, A B C), an optional prefix, and a start number (1 or higher).
 - A rule at the first page always exists (default: decimal from 1), because the format requires it.
-- **Live preview:** thumbnail captions and the page box update as rules change, before saving.
+- **Live preview:** the page box, the status bar and the rule list update while typing; thumbnail captions update when the edit is applied (Enter or leaving the field), before saving.
 - **Presets:** "Roman front matter, then arabic from this page" and "Remove all labels."
 - Letter styles follow the PDF convention: a…z, then aa…zz, then aaa…zzz.
 - Opening a file shows its existing labels as rules exactly as stored; saving writes the `/PageLabels` number tree in the document catalog.
+
+Settled details:
+
+- A new range starts as "1, 2, 3 from 1", like Acrobat's "Begin new section".
+- The roman front matter preset replaces every rule, later ones included, in one undo step. It is disabled on page 1.
+- Deleting a range adds its pages to the range before it. The first range can't be deleted.
+- Clicking a range selects it and shows its first page. Without a selection, the editor shows the range of the current page; focusing a field pins it.
+- An invalid value shows why next to the fields ("Another rule already starts at page 5") and is not applied; leaving the field puts the stored value back.
+- Stored rules that start after the last page have no effect: they are not listed, a note says so, and the next real change removes them. A file without a rule at page 1 shows "1, 2, 3 from page 1" there.
+- A document without labels gets no `/PageLabels` tree until something is changed.
+- Changing labels needs the same permission as rotating pages; in a signed document, the first change shows the signed-document warning.
 
 ### 6.4 Stitching (combine files)
 
@@ -201,6 +240,17 @@ Each feature below defines behavior; section 10 defines when it counts as done.
 - The result is always written to a new file via Save As. Source files are never modified.
 - Also expose "Insert pages from file" into an open document, using the same engine.
 
+Settled details:
+
+- The Combine view is a tab of its own. Closing it asks first if pages were arranged but not combined. The result opens in a new tab, and the Combine tab stays open.
+- Combining reads files as saved on disk. If one is open with unsaved changes, Lectrix offers "Save and combine", "Use saved version" or "Cancel".
+- Files that forbid copying content are not added, with a plain message. Encrypted files that allow it ask for their password; the combined file is not encrypted.
+- Before combining signed files, or inserting pages from one, Lectrix warns that the signature will not be valid in the result ("Combine anyway" / "Insert anyway", or Cancel). Signature fields are copied as they are.
+- The same file can be added twice. Renamed names get a prefix by source position ("src2_chap2"), or "inserted_" when inserting, plus a number if that is taken too.
+- Top-level bookmarks follow the order of each file's first page in the result. "Each page keeps its label" numbers unlabeled files 1, 2, 3… from their first page; when the result would be 1, 2, 3… throughout, no `/PageLabels` is written.
+- Insert pages: the default position is after the current page. The file's bookmark goes among the top-level bookmarks in page order, and the view goes to the first inserted page.
+- Not carried over: the structure tree, article threads, document-level JavaScript, open actions, viewer preferences and XMP metadata. The combined file is a plain full save.
+
 ### 6.5 Annotations (user interface)
 
 - **Toolbar tools:** Select, Highlight, Underline, Strikeout, Squiggly, Note, Pen, Text box.
@@ -211,13 +261,29 @@ Each feature below defines behavior; section 10 defines when it counts as done.
 - Annotations can be moved, resized (ink, text box, notes) and deleted; every change is undoable.
 - Author name is set in Settings, defaulting to the Windows user name.
 
+Settled details:
+
+- Notes are placed with one click; the inspector opens focused on the note field. Text boxes are typed in place; Ctrl+Enter or a click outside finishes, Esc discards. An empty new box is not created; emptying an existing one deletes it (one undo step).
+- The inspector's color for a text box is its text color (rule 6 in section 5.1).
+- Deleting an annotation that has replies asks first, then deletes the replies and the popup with it.
+- A text box from another app that has a callout line can be edited but not moved or resized.
+- The list shows markup, notes, drawings, text boxes, shapes, stamps and attachments; popups, links and form widgets are not listed.
+- Repair counts `/Rect` as too small only past the 1 pt margin. Unreadable QuadPoints are reported and left alone.
+- Annotating a turned page places notes, drawings, text boxes and area highlights upright as seen on screen (text boxes carry `/Rotate`, as Acrobat writes); text markup follows the text.
+
+### 6.6 Settings, About and installers
+
+- **Settings** (File menu, Ctrl+,): author name, and appearance (System by default, Light or Dark), applied at once and stored in app data.
+- **About** (Help menu): version, the AGPL notice, MuPDF's credit, where the license files are installed, and the source code address with a Copy button. The address is shown, never opened (Lectrix stays offline).
+- **Installers** (NSIS and MSI, ADR 0007): a "PDF files" page after the folder page, "Open PDF files with Lectrix", checked by default. It registers Lectrix for PDFs (Open with, Default apps); Windows asks which app to use at the next PDF, and the installer never takes over the default itself. For silent installs, `/NOPDF` (NSIS) or `LECTRIX_ASSOCIATE_PDF=0` (MSI) leaves the registration out. Both install `LICENSE.txt` and the license notices.
+
 ## 7. Document model, undo/redo and saving
 
 The Rust session is the single source of truth: the frontend holds only a view of it, and the undo history lives in Rust.
 
 **Operations.** Every change is a variant of one `Operation` enum in `ops.rs` (for example `AddAnnotation`, `UpdateAnnotation`, `DeleteAnnotation`, `SetOutline`, `SetPageLabels`, `RotatePages`, `InsertPages`, `RepairAnnotations`). Applying an operation increments the document revision and returns what changed.
 
-**Undo/redo.** Prefer MuPDF's built-in journalling (the begin/end operation and undo/redo functions in its PDF API), wrapping each `Operation` as one journal step with a human-readable name ("Add highlight", "Rename bookmark"). If the Rust crate does not expose journalling, wrap it in `ffi/`. Only if journalling proves unusable, implement inverse operations instead, and record that decision in an ADR. The Edit menu shows the name of the step being undone or redone.
+**Undo/redo.** Uses MuPDF's built-in journalling, wrapped in `ffi/journal.rs`; each `Operation` is one journal step with a human-readable name ("Add highlight", "Rename bookmark"). The Edit menu shows the name of the step being undone or redone. Saving reopens the file, so undo history starts again after each save (ADR 0003); after a crash restore it starts at the restored state (MuPDF cannot load a saved journal, ADR 0001).
 
 **Dirty state.** A document is dirty when its revision differs from the last saved revision. Show a dot in the tab, and prompt on close and on app exit.
 
@@ -228,9 +294,9 @@ The Rust session is the single source of truth: the frontend holds only a view o
 3. Replace the original in one rename on the same volume.
 4. On failure, delete the temp file and leave the original untouched.
 
-If the target is locked by another program (Acrobat locks files it has open), show a clear message naming the likely cause and offer Save As.
+Documents are opened through a file stream that allows that rename (ADR 0003). If the target is locked by another program (Acrobat locks files it has open), show a clear message naming the likely cause and offer Save As.
 
-**Crash recovery.** Every 2 minutes while dirty, write a recovery copy to the app's local data folder. On the next launch, offer to restore any recovery copies that exist, then delete them.
+**Crash recovery.** Every 2 minutes, each dirty document whose content changed since its last copy gets a recovery copy in the app's local data folder (a snapshot with the unsaved changes as an incremental update; damaged files are copied in full). Saving, reloading or closing a document deletes its copy, and so does quitting normally. On the next launch, before opening startup files, Lectrix offers to restore copies a crash left behind: Restore, Discard (asks once more) or Not now (asked again next time; Escape means Not now). A restored document opens in a tab for its own file, marked unsaved, and saves incrementally onto it. Encrypted files ask for their password again.
 
 **External changes.** Watch open files. If a file changes on disk and the document has no unsaved edits, offer to reload; if it has unsaved edits, warn and offer Save As.
 
@@ -241,7 +307,7 @@ The app should feel like a native Windows 11 app: calm, fast, and keyboard-frien
 **Layout.**
 
 - **Title bar:** custom (Tauri decorations off, explicit drag region), holding the document tabs and the standard window buttons.
-- **Left sidebar**, collapsible, with four panels: Thumbnails, Bookmarks, Annotations, Page labels.
+- **Left sidebar**, collapsible, with four panels: Pages (thumbnails), Bookmarks, Annotations, Page labels. The tabs are icons with tooltips and accessible names.
 - **Center:** the page canvas, with a floating annotation toolbar.
 - **Right inspector**, shown only when something is selected: properties of the selected annotation or bookmark.
 - **Status bar:** page label and physical page number (e.g. "iv (4 of 312)"), zoom level, save state.
@@ -249,7 +315,7 @@ The app should feel like a native Windows 11 app: calm, fast, and keyboard-frien
 **Visual style.**
 
 - Mica window background through Tauri's window effects, with a solid fallback where Mica is unavailable.
-- Follow the system light/dark setting and accent color by default; Settings can force light or dark (Phase 5).
+- Follow the system light/dark setting and accent color by default; Settings can force light or dark. The accent is shaded per theme where needed for 3:1 contrast.
 - Font stack: Segoe UI Variable, Segoe UI, then system UI fonts for other platforms.
 - Spacing on an 8 px grid (4 px for tight spots); corner radius 6–8 px; thin borders instead of heavy shadows.
 - All colors, sizes and radii as CSS variables (design tokens) consumed by Tailwind; no hard-coded colors in components.
@@ -261,9 +327,9 @@ The app should feel like a native Windows 11 app: calm, fast, and keyboard-frien
 - Errors in plain language with a suggested next step; never show raw error text or crash on bad input. Log details to a rotating log file.
 - Respect reduced-motion settings; keep animations under 150 ms.
 
-**Accessibility.** Every control is reachable by keyboard with a visible focus ring, has an accessible name, and meets WCAG AA contrast.
+**Accessibility.** Every control is reachable by keyboard with a visible focus ring, has an accessible name, and meets WCAG AA contrast (checked by `src/lib/contrast.test.ts` in both themes and for every Windows accent). Shift+F10 and the Menu key open the focused control's context menu. App-wide shortcuts such as Ctrl+S work while typing in panel fields.
 
-**Default shortcuts** (all rebindable later, not in v1):
+**Default shortcuts** (not rebindable in v1):
 
 | Action | Shortcut |
 | --- | --- |
@@ -277,6 +343,8 @@ The app should feel like a native Windows 11 app: calm, fast, and keyboard-frien
 | Select / Highlight / Underline / Note / Pen / Text box tool | Esc / H / U / N / P / T |
 | Rename bookmark | F2 |
 | Delete selection | Del |
+| Settings | Ctrl+, |
+| Context menu | Shift+F10 / Menu key |
 
 ## 9. Testing strategy and interop harness
 
@@ -291,7 +359,7 @@ Interoperability is verified by machines on every commit and by a person before 
 - files with existing outlines, existing page labels, and form fields;
 - annotations made by other apps, especially the ones that display wrongly in Acrobat (the user will supply these).
 
-Write test outputs to `target/test-output/`, never next to corpus files.
+The corpus is still empty (`docs/status.md`); the geometric cases come from generated files (`pdf-core/src/testgen.rs`). Write test outputs to `target/test-output/`, never next to corpus files.
 
 Real-world files the user owns but cannot publish (for example books from their Calibre library) form a **local corpus**: `tests/local-corpus/survey.py` profiles a library read-only, `select.py` copies one or two files per category into `tests/local-corpus/files/` and writes `manifest.json` (both git-ignored), and `crates/pdf-core/tests/local_corpus.rs` runs over them, skipping when they are absent (as in CI). The source library is only ever read, never written.
 
@@ -307,92 +375,32 @@ Real-world files the user owns but cannot publish (for example books from their 
 2. Inside each annotation's `/Rect`, compare the render against the same page rendered without annotations. If any engine shows no visible change, the test fails: that annotation is invisible in that engine.
 3. Compare engines against each other with a tolerance, and save diff images for any failure.
 
-SumatraPDF and similar apps are built on MuPDF and do not count as an independent check.
+The suites keep the names they got during the build: `phase0` (labels, outline, merge and highlight from `pdf-cli`), `phase2` (bookmarks), `phase3` (labels), `phase4` and `phase4-local` (combining), `phase5` and `phase5-local` (annotations and repair). SumatraPDF and similar apps are built on MuPDF and do not count as an independent check.
 
-**Manual release checklist** (performed by the user; the agent prepares the files and a checklist document): open the interop sample files in Acrobat Reader, Edge, Firefox and Foxit; for every annotation type confirm it is visible, has the right color and opacity, appears in the comments list, prints, and can be edited and deleted.
+**Manual release checklist** (`docs/manual-checklist.md`, performed by the user before every release; the agent prepares the files and keeps the checklist current): open the interop sample files in Acrobat Reader, Edge, Firefox and Foxit; for every annotation type confirm it is visible, has the right color and opacity, appears in the comments list, prints, and can be edited and deleted. Then the installers, a real crash, and a Narrator walk.
 
-**Frontend and end-to-end:** Vitest for stores and component logic; `tauri-driver` with WebdriverIO for the critical flows (open, highlight, add bookmark, set labels, combine, save, reopen).
+**Frontend and end-to-end:** Vitest for stores and component logic; `tauri-driver` with WebdriverIO for the critical flows (open, highlight, add bookmark, set labels, combine, save, reopen, crash recovery, recent files, and a keyboard-only accessibility walk).
 
-**CI** (GitHub Actions, `windows-latest`): `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, `svelte-check`, Vitest, the interop harness, and an installer build uploaded as an artifact. Add macOS and Linux build-only jobs once Phase 6 starts.
+**CI** (GitHub Actions, `windows-latest`): `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test`, `svelte-check`, Vitest, the interop harness, the end-to-end tests, the license check, an installer build uploaded as an artifact, and a silent install/uninstall check of both installers. macOS and Linux jobs build the app and its tests and run the tests without failing the job.
 
-## 10. Build phases
-
-Build in seven phases, in order. A phase is done only when every box below is checked and CI is green; then write a report in `docs/progress.md` and stop for the user's review before starting the next phase.
-
-### Phase 0: Feasibility spike
-
-Goal: prove the risky parts before building UI.
-
-- [ ] Tauri 2 + SvelteKit (static, SSR off) + Tailwind skeleton builds and runs on Windows.
-- [ ] MuPDF linked through the `mupdf` crate; MuPDF version pinned and recorded.
-- [ ] A page renders in the window through the `lectrix://` protocol; render and encode times measured on a 500-page file.
-- [ ] `pdf-cli` can write page labels, write an outline, merge two files, and add a highlight with an appearance stream.
-- [ ] Those four outputs pass `qpdf --check` and display correctly in the interop harness (all three engines).
-- [ ] Journalling (undo/redo) works on at least one operation, through the crate or `ffi/`.
-- [ ] ADR listing which MuPDF APIs the crate covers, which needed `ffi/` wrappers, and the thread-safety findings.
-- [ ] Performance numbers from section 2 measured and reported, even if not yet met.
-
-### Phase 1: Viewer
-
-- [ ] Everything in 6.1 works.
-- [ ] Scrolling a 1,000-page file shows no blank page for more than 200 ms on a mid-range laptop.
-- [ ] Atomic save, dirty state, close prompts and external-change detection (section 7) work.
-- [ ] Layout, theming and shortcuts from section 8 are in place for the viewer parts.
-
-### Phase 2: Bookmarks
-
-- [ ] Everything in 6.2 works, with undo/redo for each action.
-- [ ] A file with a 3-level outline edited in the app opens with the correct tree, titles and targets in Acrobat, Edge and Firefox.
-- [ ] Untouched bookmarks keep their original destinations byte-for-byte (verified by a test).
-- [ ] End-to-end tests (`tauri-driver` with WebdriverIO, section 9) run in CI for open, save and reopen, and for adding, renaming and saving a bookmark.
-- [ ] WebView2 memory (ADR 0002 growth rule, Phase 1 report) investigated: where the growth comes from (GPU process, renderer), what reduces it (fewer mounted pages, lower-resolution images while scrolling fast, `<img>` instead of `<canvas>`, WebView2's memory target level), and either a fix that meets the rule or a proposal to revise it.
-- [ ] Fast lookup of non-embedded fonts (Phase 1 local-corpus finding): an index of installed fonts built once on the background warm-up thread (DirectWrite on Windows, behind a platform trait; family, style and PostScript name without loading font files) replaces `font-kit` and the `mupdf` crate's `system-fonts` feature, including the CJK fallback families. ADR first. Local-corpus files with non-embedded fonts show their first page in under 1 s and render the same fonts as before.
-
-### Phase 3: Page labels
-
-- [ ] Everything in 6.3 works, with undo/redo.
-- [ ] Labels written by the app show correctly in Acrobat's page box and thumbnails.
-- [ ] Existing labels from corpus files round-trip unchanged when the user makes no label edits.
-
-### Phase 4: Stitching
-
-- [ ] Everything in 6.4 works.
-- [ ] Combining three corpus files (one with outline, one with labels, one with annotations) produces a file that passes `qpdf --check`, keeps the annotations visible in all three engines, and has working internal links.
-- [ ] Combining two 500-page files completes with a progress bar and can be canceled without leaving partial files.
-
-### Phase 5: Annotations and repair
-
-- [ ] Every annotation type in 6.5 can be created, edited, moved and deleted, with undo/redo.
-- [ ] Every rule in 5.1 is enforced and covered by a round-trip test.
-- [ ] The interop harness passes for every annotation type on rotated, cropped and normal pages.
-- [ ] The repair command (5.3) fixes the user-supplied problem files so they pass the harness, without changing content, color, author or position.
-- [ ] The manual checklist in section 9 is prepared for the user.
-- [ ] A Settings dialog (author name, 6.5) with an appearance choice: System (default), Light or Dark; the choice applies immediately and is remembered in app data.
-
-### Phase 6: Polish and release
-
-- [ ] Crash recovery, recent files and per-file view memory work.
-- [ ] NSIS and MSI installers build in CI; `.pdf` file association can be chosen at install.
-- [ ] Performance targets from section 2 met, or gaps documented with a plan.
-- [ ] Large JPEG 2000 pages (Phase 2 finding): a page holding a 33-megapixel JPEG 2000 scan takes about 1.8 s to appear, almost all of it decoding the full image. Look into decoding such images at the resolution shown, and report the result.
-- [ ] Accessibility pass done (keyboard-only walkthrough, contrast check).
-- [ ] macOS and Linux build-only CI jobs added; platform gaps listed in `docs/progress.md`.
-
-## 11. Working rules for the agent
+## 10. Working rules for the agent
 
 Follow these rules in every session; when a rule and a convenience conflict, the rule wins.
 
 **Process.**
 
-- Start each session by reading this document and `docs/progress.md`.
-- Work on one phase at a time; never start a phase before the previous one is reviewed.
+- Start each session by reading this document and `docs/status.md`.
+- Work on one change at a time. For a new feature or a larger change, propose a plan and wait for the user's go-ahead before building.
+- When a change is done and CI is green, report to the user: what was built, the tests, any measurements that changed, behavior choices made without explicit guidance, and decisions needed. Then stop for review.
+- Keep the docs current: `docs/status.md` (add gaps you find, remove gaps you close), `docs/versions.md`, `docs/interop-profile.md`, `docs/manual-checklist.md`, and this document when the product's behavior changes.
 - Make small commits using Conventional Commits (`feat:`, `fix:`, `test:`…). Every commit builds and passes tests.
 - When you deviate from this document, write an ADR in `docs/decisions/` first, explaining what, why, and the alternatives considered.
 
 **MuPDF.**
 
-- Never guess MuPDF function names or behavior. Check the pinned version's headers and documentation before using any API.
+- Never guess MuPDF function names or behavior. Check the pinned version's headers (`third_party/mupdf-include/`) and documentation before using any API.
 - Where the `mupdf` crate lacks an API, add the smallest safe wrapper in `pdf-core/src/ffi/`, with a `// SAFETY:` comment on every `unsafe` block and a test for the wrapper.
+- Changes to the vendored crate are listed in `third_party/mupdf-rs/LECTRIX_PATCHES.md`; changes to MuPDF itself go through the `mupdf-rs` fork (ADR 0008), with a plain patch in `docs/upstream/`.
 - Keep `pdf-core` free of any Tauri dependency.
 
 **Code standards.**
@@ -413,4 +421,4 @@ Follow these rules in every session; when a rule and a convenience conflict, the
 - a decision affects licensing or adds a non-trivial dependency;
 - a UI or behavior question is not answered by this document;
 - a request or idea falls outside the v1 scope in section 1;
-- an acceptance criterion seems impossible as written.
+- an acceptance criterion or target seems impossible as written.

@@ -1,5 +1,5 @@
-// WCAG AA contrast of the design tokens in src/app.css (AGENTS.md section 8, Phase 6
-// accessibility pass): text 4.5:1, marks and field edges 3:1 (WCAG 1.4.3 and 1.4.11), in
+// WCAG AA contrast of the design tokens in src/app.css (AGENTS.md section 8,
+// accessibility): text 4.5:1, marks and field edges 3:1 (WCAG 1.4.3 and 1.4.11), in
 // the light and the dark theme, for the default accent and every Windows accent preset.
 import { readFileSync } from 'node:fs';
 

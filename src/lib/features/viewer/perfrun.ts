@@ -31,7 +31,7 @@ function serverMs(header: string | null, keys: string[]): number {
 
 /**
  * Raw RGBA into a canvas versus PNG decoded by the browser, end to end (request to pixels
- * on a canvas), on the same pages at the current zoom (Phase 0 review, decision 3).
+ * on a canvas), on the same pages at the current zoom (ADR 0004).
  */
 async function compareFormats(tab: DocTab, samples = 16) {
 	const dpr = window.devicePixelRatio || 1;

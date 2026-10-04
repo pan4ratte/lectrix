@@ -1,4 +1,4 @@
-//! Stitching (AGENTS.md section 6.4, Phase 4): annotations travel with their pages, links
+//! Stitching (AGENTS.md section 6.4): annotations travel with their pages, links
 //! and named destinations follow the pages, colliding names and form fields are renamed,
 //! picked pages can be reordered and rotated, and inserting pages is one undo step.
 

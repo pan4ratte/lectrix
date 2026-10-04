@@ -1,4 +1,4 @@
-// Bookmarks (AGENTS.md section 6.2, Phase 2): add with Ctrl+B, rename inline and with F2,
+// Bookmarks (AGENTS.md section 6.2): add with Ctrl+B, rename inline and with F2,
 // nest by dragging, undo and redo, collapse, save, reopen.
 
 import assert from 'node:assert/strict';

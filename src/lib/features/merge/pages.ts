@@ -141,7 +141,7 @@ export function summary(pageCount: number, fileCount: number): string {
 }
 
 /**
- * The question asked before pages of signed files are copied (Phase 4 review): a
+ * The question asked before pages of signed files are copied: a
  * signature is valid only in the file it signed, so it shows as invalid where its pages
  * go. The fields are copied as they are; nothing is removed.
  */

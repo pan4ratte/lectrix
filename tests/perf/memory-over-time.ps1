@@ -1,4 +1,4 @@
-# How WebView2's memory develops after scrolling (Phase 2 investigation, ADR 0002):
+# How WebView2's memory develops after scrolling (ADR 0002):
 # starts Lectrix in LECTRIX_PERF mode on a document, waits for the scripted scroll tests, then
 # measures the process tree several times: right after, after a minute idle, and after
 # minimizing the window (WebView2 lowers its memory use for hidden windows).

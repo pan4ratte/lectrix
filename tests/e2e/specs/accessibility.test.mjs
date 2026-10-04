@@ -1,4 +1,4 @@
-// Accessibility pass (AGENTS.md section 8, Phase 6): every control is reachable by
+// Accessibility pass (AGENTS.md section 8): every control is reachable by
 // keyboard, shows where focus is, and has an accessible name; a whole session works with
 // the keyboard alone.
 

@@ -74,5 +74,5 @@ permission).
 - Thin lines (underline, strikeout, squiggly are under 1 pt): the rasterizers spread their
   anti-aliased edges differently, which at 2x render scale outweighed the line in the
   harness's colour comparison (a strikeout on a 180° page: distance 76 against the limit
-  60, while the line's own colour matched). The Phase 5 suite renders at 4x (worst
+  60, while the line's own colour matched). The annotation suite (`phase5`) renders at 4x (worst
   distance 49).

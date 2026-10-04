@@ -1,7 +1,6 @@
 ; Lectrix's NSIS installer template: Tauri's own template from @tauri-apps/cli 2.12.1
 ; (crates/tauri-bundler/src/bundle/windows/nsis/installer.nsi at tag tauri-cli-v2.12.1),
-; plus a page that asks whether Lectrix should open PDF files (AGENTS.md section 10,
-; Phase 6; ADR 0007). Every change is marked "Lectrix:". When the Tauri CLI is upgraded,
+; plus a page that asks whether Lectrix should open PDF files (ADR 0007). Every change is marked "Lectrix:". When the Tauri CLI is upgraded,
 ; take its new template and apply the marked changes again.
 ;
 ; Silent and passive installs register Lectrix for PDF files unless /NOPDF is given.

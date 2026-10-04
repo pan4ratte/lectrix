@@ -1,5 +1,5 @@
-// Keyboard and accessible-name checks for the accessibility pass (AGENTS.md section 8,
-// Phase 6): what Tab reaches, whether focus is visible there, and what assistive
+// Keyboard and accessible-name checks for the accessibility pass (AGENTS.md section 8):
+// what Tab reaches, whether focus is visible there, and what assistive
 // technology would call each control.
 
 /** Describes the focused element: tag, role, Chromium's accessible name, focus styles. */

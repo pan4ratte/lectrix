@@ -1,5 +1,5 @@
 <script lang="ts">
-	// Settings (Phase 5): the author name new annotations get (section 6.5) and the
+	// Settings: the author name new annotations get (section 6.5) and the
 	// appearance, System (default), Light or Dark (section 8). Stored in app data by Rust;
 	// the appearance applies at once.
 	import { Dialog, RadioGroup } from 'bits-ui';

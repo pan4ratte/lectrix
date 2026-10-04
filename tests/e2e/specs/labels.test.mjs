@@ -1,4 +1,4 @@
-// Page labels (AGENTS.md section 6.3, Phase 3): the roman front matter preset, a prefix
+// Page labels (AGENTS.md section 6.3): the roman front matter preset, a prefix
 // shown live before it is applied, a new range with another style, undo and redo, save,
 // reopen, and the page box finding a page by its label.
 

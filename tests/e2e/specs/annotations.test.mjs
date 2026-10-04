@@ -1,4 +1,4 @@
-// Annotations (AGENTS.md section 6.5, Phase 5): highlight selected text, place a note and
+// Annotations (AGENTS.md section 6.5): highlight selected text, place a note and
 // type its text, draw with the pen, type a text box, move the note, delete and undo from
 // the list, save, check on disk with pdf-cli, reopen; Settings (author, appearance); and
 // the repair command on annotations another app wrote with problems.

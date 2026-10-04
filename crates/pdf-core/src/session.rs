@@ -21,7 +21,7 @@
 //! starts at the restore (ADR 0001: MuPDF 1.27.2 cannot load a saved journal).
 //!
 //! **Expanded bookmarks** are not edits: expanding or collapsing a bookmark in the panel
-//! neither dirties the document nor adds an undo step (Phase 2 review). The actor keeps
+//! neither dirties the document nor adds an undo step. The actor keeps
 //! the panel's states and writes them into the outline when the document is next saved.
 
 use std::collections::{HashMap, VecDeque};

@@ -1,4 +1,4 @@
-//! Bookmark editing (AGENTS.md section 6.2, Phase 2): reading targets of every kind, edits
+//! Bookmark editing (AGENTS.md section 6.2): reading targets of every kind, edits
 //! through the session with undo/redo, expanded states saved without dirtying, damaged
 //! outlines refused, and untouched bookmarks keeping their destinations exactly.
 

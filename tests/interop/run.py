@@ -1,6 +1,6 @@
 """Cross-renderer interop harness (AGENTS.md section 9).
 
-    python tests/interop/run.py phase0      # build the Phase 0 outputs with pdf-cli and check them
+    python tests/interop/run.py phase0      # labels, outline, merge and highlight written by pdf-cli
     python tests/interop/run.py phase2      # bookmarks edited as the app edits them
     python tests/interop/run.py phase3      # page labels edited as the app edits them
     python tests/interop/run.py phase4      # files combined and pages inserted as the app does it
@@ -733,11 +733,11 @@ def phase4_local(report: Report) -> None:
     annotation_checks(out, report, case)
 
 
-# --- Phase 5: annotations -------------------------------------------------------------
+# --- Annotations -----------------------------------------------------------------------
 
 MANUAL = ROOT / "target" / "test-output" / "manual" / "phase5"
 
-# Page geometries every annotation type is checked on (AGENTS.md section 10, Phase 5).
+# Page geometries every annotation type is checked on (AGENTS.md sections 5.1 and 9).
 GEOMETRIES = {
     "normal": [],
     "rot90": ["--rotate", "90"],

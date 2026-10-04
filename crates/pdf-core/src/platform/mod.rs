@@ -25,7 +25,7 @@ pub fn system_fonts() -> &'static dyn SystemFonts {
     }
 }
 
-/// Platforms without a font source yet (Phase 6 adds fontconfig and Core Text):
+/// Platforms without a font source yet (fontconfig and Core Text would go here):
 /// non-embedded fonts other than the base 14 render with MuPDF's substitutes.
 #[cfg(not(windows))]
 struct NoSystemFonts;

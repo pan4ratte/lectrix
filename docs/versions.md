@@ -20,7 +20,7 @@ Recorded at project start (2026-10-02). Versions are pinned exactly in `Cargo.to
 | --- | --- | --- |
 | MuPDF | 1.27.2 | built from source by `mupdf-sys` |
 | `mupdf-sys` | 0.8.0 @ `537d50556ee8e4abf2435f81357dfef3c145d883` + Lectrix patch | git, Lectrix's fork pan4ratte/mupdf-rs, branch `folio-mupdf-1.27.2` @ `460b796a88f2fa4ba617b07fbb7f73e5308f1417` (upstream commit plus `folio_patches.rs`: JPEG 2000 decoded at the resolution drawn, ADR 0008), via `[patch]` in `Cargo.toml` |
-| `mupdf` | 0.8.0 @ same commit, Lectrix-patched | vendored in `third_party/mupdf-rs` (ADR 0001); built without `system-fonts` since Phase 2 (ADR 0005), so `font-kit` is no longer in the build |
+| `mupdf` | 0.8.0 @ same commit, Lectrix-patched | vendored in `third_party/mupdf-rs` (ADR 0001); built without `system-fonts` (ADR 0005), so `font-kit` is no longer in the build |
 
 ## Rust crates (direct)
 
@@ -29,11 +29,11 @@ Recorded at project start (2026-10-02). Versions are pinned exactly in `Cargo.to
 | tauri | 2.12.1 |
 | tauri-build | 2.7.1 |
 | tauri-plugin-dialog | 2.8.1 |
-| tauri-plugin-single-instance | 2.5.2 (Phase 1; forwards a second launch's files to the running window) |
-| windows-sys | 0.61.2 (Phase 1; Windows `platform` module; already in the tree through Tauri) |
-| windows | 0.62.2 (Phase 2; `pdf-core` DirectWrite font index, ADR 0005; already in the tree through Tauri's webview2-com) |
-| webview2-com | 0.39.1 (Phase 2; WebView2 memory target level while minimized; already in the tree through Tauri) |
-| windows-core | 0.62.2 (Phase 2; COM interface casts for the above; already in the tree) |
+| tauri-plugin-single-instance | 2.5.2 (forwards a second launch's files to the running window) |
+| windows-sys | 0.61.2 (Windows `platform` module; already in the tree through Tauri) |
+| windows | 0.62.2 (`pdf-core` DirectWrite font index, ADR 0005; already in the tree through Tauri's webview2-com) |
+| webview2-com | 0.39.1 (WebView2 memory target level while minimized; already in the tree through Tauri) |
+| windows-core | 0.62.2 (COM interface casts for the above; already in the tree) |
 | thiserror | 2.0.21 |
 | cc (build) | 1.5.1 |
 | uuid | 1.26.1 |
@@ -83,7 +83,7 @@ explicit file extensions.
 bits-ui's own SvelteKit dependency (server-side cookie parsing). Lectrix ships a static
 SPA with no server, so the code is never reached. We will re-check when bits-ui updates.
 
-## Installers (Phase 6)
+## Installers
 
 Downloaded by the Tauri CLI (2.12.1) on the first `npx tauri build` into
 `%LOCALAPPDATA%\tauri`, not pinned by Lectrix:
@@ -99,7 +99,7 @@ macOS and Linux CI jobs (build only): `macos-latest` with Xcode's libclang, and
 `ubuntu-24.04` with `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `librsvg2-dev`,
 `libayatana-appindicator3-dev` and `libclang-18-dev`.
 
-## End-to-end tests (tests/e2e, not shipped; Phase 2)
+## End-to-end tests (tests/e2e, not shipped)
 
 | Tool | Version | License |
 | --- | --- | --- |

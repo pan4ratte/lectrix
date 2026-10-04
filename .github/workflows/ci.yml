@@ -157,9 +157,9 @@ jobs:
             target/release/bundle/nsis/*.exe
             target/release/bundle/msi/*.msi
 
-  # Build-only jobs for macOS and Linux (AGENTS.md section 10, Phase 6): the app and its
-  # tests must compile there. The tests also run, without failing the job, to show what
-  # still differs on those platforms (docs/progress.md, platform gaps).
+  # Build-only jobs for macOS and Linux (AGENTS.md section 9): the app and its tests must
+  # compile there. The tests also run, without failing the job, to show what still
+  # differs on those platforms (docs/status.md, platform gaps).
   linux:
     runs-on: ubuntu-24.04
     env:

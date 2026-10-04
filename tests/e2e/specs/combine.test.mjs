@@ -1,4 +1,4 @@
-// Stitching (AGENTS.md section 6.4, Phase 4): combine three files (one with bookmarks, one
+// Stitching (AGENTS.md section 6.4): combine three files (one with bookmarks, one
 // with labels, one with a highlight) after removing, turning and moving pages, with undo;
 // then insert pages from a file into an open document, undo and redo it, and save.
 

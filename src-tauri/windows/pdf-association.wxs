@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  Lectrix's MSI: registering Lectrix for PDF files, chosen at install (AGENTS.md section 10,
-  Phase 6; ADR 0007). Tauri's own main.wxs stays as it is; this fragment adds
+  Lectrix's MSI: registering Lectrix for PDF files, chosen at install (ADR 0007). Tauri's own main.wxs stays as it is; this fragment adds
 
   - the registration as an optional feature (PdfAssociation). It joins the apps Windows
     offers for .pdf (Open with, Default apps) without taking over the default: Windows asks

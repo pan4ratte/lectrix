@@ -62,7 +62,7 @@ If you have PDFs whose annotations display wrongly in Acrobat, open one in Lectr
 Annotations panel marks the ones that need repair. Run Document > Repair annotations,
 save a copy, and check the copy in Acrobat.
 
-# Manual release checklist: installers, crash recovery, accessibility (Phase 6)
+# Manual release checklist: installers, crash recovery, accessibility
 
 About 20 minutes. The installers come from CI (the `installers` artifact) or from
 `npx tauri build` (`target/release/bundle/`). CI installs and uninstalls both silently and

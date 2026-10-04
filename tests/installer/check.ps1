@@ -1,6 +1,5 @@
 # Installs and uninstalls Lectrix's NSIS and MSI installers silently, with and without the
-# PDF file registration, and checks the registry and files each time (AGENTS.md
-# section 10, Phase 6; ADR 0007).
+# PDF file registration, and checks the registry and files each time (ADR 0007).
 #
 # It really installs Lectrix, so it is meant for CI runners (MSI needs an elevated shell).
 # Run it on your own machine only if you are happy for Lectrix to be installed and removed
