@@ -287,6 +287,22 @@ button {
 
 /* ----- annotation tools ----- */
 
+/* The annotation toolbar, centred; when shown only near its edge, it slides out of the way
+   but stays focusable, so the keyboard can still reach it (and focusing it shows it). */
+.annotation-toolbar {
+	transform: translateX(-50%);
+	transition:
+		opacity 140ms ease-out,
+		transform 140ms ease-out;
+}
+.annotation-toolbar-hidden {
+	opacity: 0;
+	pointer-events: none;
+	transform: translate(-50%, 12px);
+}
+.annotation-toolbar-top.annotation-toolbar-hidden {
+	transform: translate(-50%, -12px);
+}
 .tool-button[aria-pressed='true'] {
 	background: var(--lectrix-row-selected);
 	color: var(--lectrix-fg);
@@ -388,6 +404,22 @@ button {
 	width: 8px;
 	height: 8px;
 	border-radius: 50%;
+	background: var(--lectrix-accent);
+}
+.checkbox {
+	display: inline-flex;
+	width: 18px;
+	height: 18px;
+	flex-shrink: 0;
+	align-items: center;
+	justify-content: center;
+	border: 1px solid var(--lectrix-fg-muted);
+	border-radius: 4px;
+	background: var(--lectrix-surface);
+	color: var(--lectrix-accent-fg);
+}
+.checkbox[data-state='checked'] {
+	border-color: var(--lectrix-accent);
 	background: var(--lectrix-accent);
 }
 

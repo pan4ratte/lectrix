@@ -195,6 +195,104 @@ test('create, edit, delete, undo, save and reopen annotations', async () => {
 	assert.ok(onDisk(path).some((l) => l.startsWith('p2') && l.includes('author "E2E Tester"')), onDisk(path).join('\n'));
 });
 
+test('quick tools over selected text, the annotation bar, and where the toolbar sits', async () => {
+	const path = sample('quick-tools.pdf', 2);
+
+	const { browser, stop } = await launch([path]);
+	try {
+		await waitForDocument(browser);
+		await showAnnotations(browser);
+
+		// A double-click selects a word, which brings up the quick tools; Esc puts them away.
+		const word = await pagePoint(browser, 0, 40, 92);
+		await browser.action('pointer').move({ ...word, origin: 'viewport' }).down().up().pause(60).down().up().perform();
+		let quick = await browser.$('[role=toolbar][aria-label="Quick tools"]');
+		await quick.waitForDisplayed({ timeoutMsg: 'a double-click selected no word' });
+		await browser.keys('Escape');
+		await quick.waitForExist({ reverse: true, timeoutMsg: 'Esc left the quick tools' });
+
+		// Text selected with the Select tool brings up the quick tools; Highlight marks it.
+		await drag(browser, await pagePoint(browser, 0, 40, 92), await pagePoint(browser, 0, 200, 92), 1);
+		quick = await browser.$('[role=toolbar][aria-label="Quick tools"]');
+		await quick.waitForDisplayed({ timeoutMsg: 'no quick tools over the selection' });
+		await (await quick.$('button[aria-label="Highlight"]')).click();
+		await waitForRowCount(browser, 1, 'highlight from the quick tools');
+		await quick.waitForExist({ reverse: true, timeoutMsg: 'the quick tools stayed after marking' });
+
+		// The new highlight is selected: its bar, not the inspector. The bar turns it into an
+		// underline, then makes it pink.
+		const highlightBar = await browser.$('[role=toolbar][aria-label="Highlight actions"]');
+		await highlightBar.waitForDisplayed({ timeoutMsg: 'no bar for the new highlight' });
+		assert.equal(await (await browser.$('aside[aria-label="Annotation properties"]')).isExisting(), false);
+		await (await highlightBar.$('button[aria-label="Underline"]')).click();
+		const underlineBar = await browser.$('[role=toolbar][aria-label="Underline actions"]');
+		await underlineBar.waitForDisplayed({ timeoutMsg: 'the highlight did not become an underline' });
+		await (await underlineBar.$('button[aria-label="Pink"]')).click();
+		await browser.waitUntil(
+			async () => (await (await underlineBar.$('button[aria-label="Pink"]')).getAttribute('aria-checked')) === 'true',
+			{ timeoutMsg: 'the underline did not turn pink' }
+		);
+		assert.match((await listRows(browser))[0], /^Underline/);
+
+		// A double-click opens the inspector with the cursor in the note.
+		const on = await pagePoint(browser, 0, 120, 92);
+		await browser
+			.action('pointer')
+			.move({ ...on, origin: 'viewport' })
+			.down()
+			.up()
+			.pause(60)
+			.down()
+			.up()
+			.perform();
+		await browser.waitUntil(
+			() =>
+				browser.execute(
+					() => document.activeElement?.closest('aside[aria-label="Annotation properties"]') !== null && document.activeElement?.tagName === 'TEXTAREA'
+				),
+			{ timeoutMsg: 'the double-click did not focus the note' }
+		);
+		await browser.keys([...'Quick note']);
+		await browser.keys(['Control', 'Enter']);
+		await browser.keys(['Control', 's']);
+		await browser.waitUntil(async () => (await statusText(browser)).includes('All changes saved'), { timeoutMsg: 'not saved' });
+
+		// Settings: the annotation toolbar moves to the top, shown only near it.
+		await browser.keys(['Control', ',']);
+		await (await browser.$('label*=Top')).click();
+		await (await browser.$('label*=When the pointer is near')).click();
+		await (await browser.$('button=Save')).click();
+		const toolbar = await browser.$('[role=toolbar][aria-label="Annotation tools"]');
+		await browser.waitUntil(
+			() =>
+				browser.execute(() => {
+					const bar = document.querySelector('[role=toolbar][aria-label="Annotation tools"]');
+					const area = bar.parentElement.getBoundingClientRect();
+					return bar.getBoundingClientRect().top - area.top < 40;
+				}),
+			{ timeoutMsg: 'the toolbar did not move to the top' }
+		);
+		const middle = await pagePoint(browser, 0, 300, 400);
+		await browser.action('pointer').move({ ...middle, origin: 'viewport' }).perform();
+		await browser.waitUntil(async () => (await toolbar.getCSSProperty('opacity')).value === 0, {
+			timeoutMsg: 'the toolbar did not hide away from the top'
+		});
+		const top = await browser.execute(() => {
+			const area = document.querySelector('[role=toolbar][aria-label="Annotation tools"]').parentElement.getBoundingClientRect();
+			return { x: Math.round(area.left + area.width / 2 + 200), y: Math.round(area.top + 20) };
+		});
+		await browser.action('pointer').move({ ...top, origin: 'viewport' }).perform();
+		await browser.waitUntil(async () => (await toolbar.getCSSProperty('opacity')).value === 1, {
+			timeoutMsg: 'the toolbar did not show near the top'
+		});
+	} finally {
+		await stop();
+	}
+	const saved = onDisk(path);
+	assert.equal(saved.length, 1, saved.join('\n'));
+	assert.match(saved[0], /Underline .*text "Quick note"/);
+});
+
 /** A file written by hand, as another app might: a highlight with no appearance and its
  * corners in the spec's counter-clockwise order, and a note without /NM, /M or /P. */
 function problemsFile() {

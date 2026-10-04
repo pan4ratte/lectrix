@@ -1,6 +1,8 @@
 <script lang="ts">
 	// The floating annotation toolbar (sections 6.5 and 8): the tools, and the style the
-	// active tool draws with (remembered per tool).
+	// active tool draws with (remembered per tool). Settings put it at the bottom or the top
+	// of the page canvas, shown always or only while the pointer is near that edge (or the
+	// toolbar has focus, or a tool was just picked).
 	import {
 		Highlighter,
 		MousePointer2,
@@ -11,11 +13,13 @@
 		Type,
 		Underline
 	} from '@lucide/svelte';
-	import type { Component } from 'svelte';
+	import { onMount, type Component } from 'svelte';
 
+	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
 	import { refuseIfLocked } from './actions.ts';
+	import { nearEdge } from './bars.ts';
 	import { tools } from './state.svelte.ts';
 	import { FONT_SIZES, PEN_WIDTHS, PRESET_COLORS, TOOLS, type Tool } from './tools.ts';
 
@@ -45,12 +49,83 @@
 		tools.tool = tool;
 		tab.viewer?.focus();
 	}
+
+	// ----- showing on demand -----
+
+	/** How long a tool picked from the keyboard keeps the toolbar shown. */
+	const FLASH_MS = 1500;
+	/** How long the toolbar stays after the pointer leaves, so it doesn't flicker. */
+	const LINGER_MS = 300;
+
+	const position = $derived(app.settings?.toolbarPosition ?? 'bottom');
+	const onHover = $derived(app.settings?.toolbarVisibility === 'onHover');
+
+	let bar: HTMLDivElement | undefined = $state();
+	let near = $state(false);
+	let focused = $state(false);
+	let flash = $state(false);
+	let shown = $state(true);
+	const wanted = $derived(!onHover || near || focused || flash);
+
+	let lingerTimer: ReturnType<typeof setTimeout> | undefined;
+	$effect(() => {
+		if (wanted) {
+			clearTimeout(lingerTimer);
+			lingerTimer = undefined;
+			shown = true;
+		} else if (shown && lingerTimer === undefined) {
+			lingerTimer = setTimeout(() => {
+				lingerTimer = undefined;
+				shown = false;
+			}, LINGER_MS);
+		}
+	});
+
+	function onWindowPointerMove(event: PointerEvent) {
+		const area = bar?.parentElement?.getBoundingClientRect();
+		if (!onHover || !area) return;
+		const inside = nearEdge(area, event.clientX, event.clientY, position);
+		// A drag (selecting, drawing) reaching the edge doesn't bring the toolbar up.
+		if (inside && !near && event.buttons !== 0) return;
+		near = inside;
+	}
+
+	let flashTimer: ReturnType<typeof setTimeout> | undefined;
+	let lastTool = tools.tool;
+	$effect(() => {
+		const tool = tools.tool;
+		if (tool === lastTool) return;
+		lastTool = tool;
+		flash = true;
+		clearTimeout(flashTimer);
+		flashTimer = setTimeout(() => (flash = false), FLASH_MS);
+	});
+
+	onMount(() => {
+		// The pointer leaving the window over the toolbar's edge.
+		const leave = () => (near = false);
+		document.documentElement.addEventListener('mouseleave', leave);
+		return () => {
+			document.documentElement.removeEventListener('mouseleave', leave);
+			clearTimeout(lingerTimer);
+			clearTimeout(flashTimer);
+		};
+	});
 </script>
 
+<svelte:window onpointermove={onWindowPointerMove} />
+
 <div
-	class="absolute bottom-4 left-1/2 z-10 flex -translate-x-1/2 items-center gap-0.5 rounded-panel border border-line bg-surface-raised p-1 shadow-[0_4px_12px_var(--color-page-shadow)]"
+	bind:this={bar}
+	class="annotation-toolbar absolute left-1/2 z-20 flex items-center gap-0.5 rounded-panel border border-line bg-surface-raised p-1 shadow-[0_4px_12px_var(--color-page-shadow)]"
+	class:top-3={position === 'top'}
+	class:bottom-4={position === 'bottom'}
+	class:annotation-toolbar-top={position === 'top'}
+	class:annotation-toolbar-hidden={!shown}
 	role="toolbar"
 	aria-label="Annotation tools"
+	onfocusin={() => (focused = true)}
+	onfocusout={(e) => (focused = bar?.contains(e.relatedTarget as Node | null) ?? false)}
 >
 	{#each TOOLS as t (t.id)}
 		{@const Icon = ICONS[t.id]}

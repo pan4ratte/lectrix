@@ -35,6 +35,7 @@ import {
 	type PaneLayout,
 	type RecentFile,
 	type SaveResult,
+	type Settings,
 	type StartupInfo
 } from '#lib/ipc/index.ts';
 import { ANNOTATIONS_LIMITS, SIDEBAR_LIMITS, clampWidth } from '#lib/components/panes.ts';
@@ -102,10 +103,20 @@ class AppStore {
 	panesRestored = $state(false);
 	/** The inspector (properties of the selected bookmark) is open. */
 	inspectorOpen = $state(false);
+	/** The annotation inspector is open; it shows the selected annotation until closed or
+	 * until nothing is selected. A click on an annotation shows only its bar. */
+	annotationInspectorOpen = $state(false);
 	/** A note was just placed: the annotation inspector focuses its text. */
 	focusNoteText = $state(false);
 	/** The Settings dialog is open. */
 	settingsOpen = $state(false);
+	/** The stored settings, once loaded. */
+	settings = $state<Settings | null>(null);
+	/** Where the search bar and inspectors start, CSS pixels from the top of the page
+	 * canvas: below the annotation toolbar when it stays there. */
+	overlayTop = $derived(
+		this.settings?.toolbarPosition === 'top' && this.settings.toolbarVisibility === 'always' ? 64 : 12
+	);
 	/** The About dialog is open. */
 	aboutOpen = $state(false);
 	dialog = $state<DialogRequest | null>(null);

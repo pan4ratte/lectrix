@@ -1,15 +1,16 @@
 // Annotation tools and their styles (section 6.5), and the words the UI uses for
 // annotation types and problems.
 
-import type { Annotation, AnnotationKind, AnnotationProblem } from '#lib/ipc/index.ts';
+import type { Annotation, AnnotationKind, AnnotationProblem, QuickTool } from '#lib/ipc/index.ts';
 
 export type Tool = 'select' | 'highlight' | 'underline' | 'strikeOut' | 'squiggly' | 'note' | 'ink' | 'freeText';
 /** Tools that create something. */
 export type DrawTool = Exclude<Tool, 'select'>;
+export type MarkupKind = 'highlight' | 'underline' | 'strikeOut' | 'squiggly';
 
-export const MARKUP_TOOLS: readonly DrawTool[] = ['highlight', 'underline', 'strikeOut', 'squiggly'];
+export const MARKUP_TOOLS: readonly MarkupKind[] = ['highlight', 'underline', 'strikeOut', 'squiggly'];
 
-export function isMarkupTool(tool: Tool): tool is 'highlight' | 'underline' | 'strikeOut' | 'squiggly' {
+export function isMarkupTool(tool: Tool): tool is MarkupKind {
 	return (MARKUP_TOOLS as readonly Tool[]).includes(tool);
 }
 
@@ -29,6 +30,28 @@ export const TOOLS: readonly ToolInfo[] = [
 	{ id: 'note', label: 'Note', key: 'N' },
 	{ id: 'ink', label: 'Pen', key: 'P' },
 	{ id: 'freeText', label: 'Text box', key: 'T' }
+];
+
+/** The buttons the bar over selected text can have (Settings), in the order it shows them. */
+export const QUICK_TOOLS: readonly { id: QuickTool; label: string }[] = [
+	{ id: 'highlight', label: 'Highlight' },
+	{ id: 'underline', label: 'Underline' },
+	{ id: 'strikeOut', label: 'Strikeout' },
+	{ id: 'squiggly', label: 'Squiggly underline' },
+	{ id: 'highlightNote', label: 'Highlight with note' },
+	{ id: 'copy', label: 'Copy' },
+	{ id: 'bookmark', label: 'Add bookmark' }
+];
+
+/** The quick tools until Settings are loaded (mirrors QuickTool::DEFAULT in Rust). */
+export const DEFAULT_QUICK_TOOLS: readonly QuickTool[] = ['highlight', 'underline', 'strikeOut', 'highlightNote', 'copy'];
+
+/** Text-markup subtypes, which can be turned into one another. */
+export const MARKUP_SUBTYPES: readonly { subtype: string; kind: MarkupKind }[] = [
+	{ subtype: 'Highlight', kind: 'highlight' },
+	{ subtype: 'Underline', kind: 'underline' },
+	{ subtype: 'StrikeOut', kind: 'strikeOut' },
+	{ subtype: 'Squiggly', kind: 'squiggly' }
 ];
 
 /** Six preset colours (section 6.5), chosen to read well as highlights and as lines. */

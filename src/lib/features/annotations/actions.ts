@@ -12,8 +12,11 @@ import {
 import { app } from '#lib/stores/app.svelte.ts';
 import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
+import { ordered } from '#lib/features/viewer/selection.ts';
+
+import { selectionRanges } from './geometry.ts';
 import { tools } from './state.svelte.ts';
-import { PROBLEM_SUMMARY, type DrawTool } from './tools.ts';
+import { PROBLEM_SUMMARY, type DrawTool, type MarkupKind } from './tools.ts';
 
 /** Tells the user why nothing happens in a document that forbids annotating. */
 export function refuseIfLocked(tab: DocTab): boolean {
@@ -39,6 +42,26 @@ export async function create(tab: DocTab, tool: DrawTool, items: { page: number;
 	const change = await app.apply(tab, { kind: 'addAnnotation', annotations });
 	if (change?.created != null) tab.selectAnnotation(items[0]!.page, change.created);
 	return change;
+}
+
+/** Marks the selected text with `kind` (one undo step) and clears the selection. */
+export async function markSelection(tab: DocTab, kind: MarkupKind) {
+	const sel = tab.selection;
+	if (!sel) return null;
+	const [start, end] = ordered(sel.anchor, sel.focus);
+	const pages = selectionRanges(tab.textMap(), start, end);
+	tab.selection = null;
+	return create(
+		tab,
+		kind,
+		pages.map((p) => ({ page: p.page, body: { tool: 'textMarkup', kind, ranges: p.ranges, note: null } }))
+	);
+}
+
+/** Opens the inspector on the selected annotation; `focusNote` puts the cursor in its note. */
+export function openInspector(focusNote: boolean) {
+	app.annotationInspectorOpen = true;
+	if (focusNote) app.focusNoteText = true;
 }
 
 export async function update(tab: DocTab, page: number, id: number, edit: AnnotationEditInput) {

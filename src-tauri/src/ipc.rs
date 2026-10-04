@@ -944,6 +944,52 @@ pub enum Appearance {
     Dark,
 }
 
+/// Which edge of the page canvas the annotation toolbar sits on (Settings, section 6.6).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum ToolbarPosition {
+    #[default]
+    Bottom,
+    Top,
+}
+
+/// When the annotation toolbar is shown: always, or while the pointer is near its edge.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum ToolbarVisibility {
+    #[default]
+    Always,
+    OnHover,
+}
+
+/// A button of the bar shown over selected text (section 6.5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum QuickTool {
+    Highlight,
+    Underline,
+    StrikeOut,
+    Squiggly,
+    /// A highlight with the inspector open on its note.
+    HighlightNote,
+    Copy,
+    Bookmark,
+}
+
+impl QuickTool {
+    /// What the bar shows until the user picks.
+    pub const DEFAULT: [QuickTool; 5] = [
+        QuickTool::Highlight,
+        QuickTool::Underline,
+        QuickTool::StrikeOut,
+        QuickTool::HighlightNote,
+        QuickTool::Copy,
+    ];
+}
+
 /// The Settings dialog's values.
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -954,6 +1000,10 @@ pub struct Settings {
     /// What `author` is when the user has not set one (the Windows user name).
     pub default_author: String,
     pub appearance: Appearance,
+    pub toolbar_position: ToolbarPosition,
+    pub toolbar_visibility: ToolbarVisibility,
+    /// The buttons of the bar over selected text; empty: no bar.
+    pub quick_tools: Vec<QuickTool>,
 }
 
 #[derive(Debug, Clone, Deserialize, TS)]
@@ -963,6 +1013,9 @@ pub struct SettingsInput {
     /// Empty: use the default (the Windows user name).
     pub author: String,
     pub appearance: Appearance,
+    pub toolbar_position: ToolbarPosition,
+    pub toolbar_visibility: ToolbarVisibility,
+    pub quick_tools: Vec<QuickTool>,
 }
 
 /// Emitted as `file-changed` when an open document's file changes on disk.

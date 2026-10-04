@@ -4,6 +4,7 @@
 	import { ChevronDown, ChevronUp, X } from '@lucide/svelte';
 	import { onMount, untrack } from 'svelte';
 
+	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
 	let { tab }: { tab: DocTab } = $props();
@@ -61,7 +62,8 @@
 </script>
 
 <div
-	class="absolute top-3 right-6 z-10 flex items-center gap-1 rounded-panel border border-line bg-surface-raised p-1 shadow-[0_4px_12px_var(--color-page-shadow)]"
+	class="absolute right-6 z-10 flex items-center gap-1 rounded-panel border border-line bg-surface-raised p-1 shadow-[0_4px_12px_var(--color-page-shadow)]"
+	style:top="{app.overlayTop}px"
 	role="search"
 >
 	<input

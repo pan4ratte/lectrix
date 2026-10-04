@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Annotation } from '#lib/ipc/index.ts';
+import type { Annotation, DocumentFlags } from '#lib/ipc/index.ts';
 import { prepareText } from '#lib/features/viewer/selection.ts';
 
+import { BAR_GAP, barControls, nearEdge, placeBar, quickToolAllowed } from './bars.ts';
 import {
 	annotationAt,
 	boxQuad,
@@ -154,5 +155,71 @@ describe('what may change', () => {
 		expect(typeName('FreeText')).toBe('Text box');
 		expect(typeName('Text')).toBe('Note');
 		expect(typeName('Watermark')).toBe('Watermark');
+	});
+});
+
+describe('floating bars', () => {
+	const view = { x0: 0, y0: 1000, x1: 800, y1: 1600 };
+	const size = { w: 200, h: 40 };
+
+	it('goes on the preferred side, or the other one if only that fits', () => {
+		const line = { x0: 300, y0: 1300, x1: 500, y1: 1320 };
+		expect(placeBar(line, size, view, 800, 'below')).toEqual({ left: 300, top: 1320 + BAR_GAP });
+		expect(placeBar(line, size, view, 800, 'above')).toEqual({ left: 300, top: 1300 - BAR_GAP - 40 });
+		// Too close to the bottom of the view for below; too close to the top for above.
+		const low = { x0: 300, y0: 1570, x1: 500, y1: 1590 };
+		expect(placeBar(low, size, view, 800, 'below').top).toBe(1570 - BAR_GAP - 40);
+		const high = { x0: 300, y0: 1010, x1: 500, y1: 1030 };
+		expect(placeBar(high, size, view, 800, 'above').top).toBe(1030 + BAR_GAP);
+	});
+
+	it('stays inside the view and the content horizontally', () => {
+		const left = { x0: 0, y0: 1300, x1: 20, y1: 1320 };
+		expect(placeBar(left, size, view, 800, 'below').left).toBe(BAR_GAP);
+		const right = { x0: 780, y0: 1300, x1: 800, y1: 1320 };
+		expect(placeBar(right, size, view, 800, 'below').left).toBe(800 - BAR_GAP - 200);
+		// Content narrower than the view: the content's edge counts.
+		expect(placeBar(right, size, view, 600, 'below').left).toBe(600 - BAR_GAP - 200);
+		// Scrolled sideways: the view's edge counts.
+		expect(placeBar(left, size, { ...view, x0: 100, x1: 900 }, 1200, 'below').left).toBe(100 + BAR_GAP);
+	});
+
+	it('keeps the bar of a tall anchor on screen, and lets an off-screen one go', () => {
+		const tall = { x0: 300, y0: 900, x1: 500, y1: 1700 };
+		expect(placeBar(tall, size, view, 800, 'above').top).toBe(1000 + BAR_GAP);
+		const gone = { x0: 300, y0: 200, x1: 500, y1: 220 };
+		expect(placeBar(gone, size, view, 800, 'above').top).toBe(200 - BAR_GAP - 40);
+	});
+
+	it('reveals the toolbar near its own edge only', () => {
+		const area = { left: 100, top: 50, right: 900, bottom: 650 };
+		expect(nearEdge(area, 500, 600, 'bottom')).toBe(true);
+		expect(nearEdge(area, 500, 560, 'bottom')).toBe(false);
+		expect(nearEdge(area, 500, 600, 'top')).toBe(false);
+		expect(nearEdge(area, 500, 100, 'top')).toBe(true);
+		expect(nearEdge(area, 50, 600, 'bottom')).toBe(false);
+		expect(nearEdge(area, 500, 700, 'bottom')).toBe(false);
+	});
+
+	it('offers what the document and the annotation allow', () => {
+		const flags: DocumentFlags = {
+			encrypted: false,
+			signed: false,
+			repaired: false,
+			canAssemble: true,
+			canAnnotate: true,
+			canCopy: false
+		};
+		expect(quickToolAllowed('highlight', flags, true)).toBe(true);
+		expect(quickToolAllowed('highlightNote', { ...flags, canAnnotate: false }, true)).toBe(false);
+		expect(quickToolAllowed('copy', flags, true)).toBe(false);
+		expect(quickToolAllowed('bookmark', flags, false)).toBe(false);
+
+		expect(barControls(annotation({}), true).retype).toBe(true);
+		expect(barControls(annotation({ subtype: 'Squiggly', kind: 'squiggly' }), true).retype).toBe(true);
+		expect(barControls(annotation({ subtype: 'Ink', kind: 'ink' }), true).retype).toBe(false);
+		expect(barControls(annotation({ subtype: 'Square', kind: null }), true)).toMatchObject({ restyle: true, retype: false });
+		expect(barControls(annotation({}), false)).toMatchObject({ restyle: false, retype: false, delete: false });
+		expect(barControls(annotation({ id: 0 }), true).retype).toBe(false);
 	});
 });

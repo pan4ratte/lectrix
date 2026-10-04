@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Inspector for the selected annotation (sections 6.5 and 8): colour, opacity, note text,
-	// author and dates. It floats over the page canvas, like the bookmark inspector, and is
-	// shown while an annotation is selected.
+	// author and dates. It floats over the page canvas, like the bookmark inspector. It opens
+	// from the annotation's bar, a double-click, the context menu or the annotation list, and
+	// then follows the selection until closed or until nothing is selected.
 	import { Trash, TriangleAlert, Wrench, X } from '@lucide/svelte';
 
 	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
@@ -30,6 +31,10 @@
 	const label = $derived(a ? (tab.displayLabels?.[a.page] ?? String(a.page + 1)) : '');
 
 	let noteField: HTMLTextAreaElement | undefined = $state();
+
+	$effect(() => {
+		if (!tab.selectedAnnotation) app.annotationInspectorOpen = false;
+	});
 
 	// A note just placed with the Note tool: type its text right away.
 	$effect(() => {
@@ -77,15 +82,15 @@
 	}
 
 	function close() {
-		tab.selectedAnnotation = null;
+		app.annotationInspectorOpen = false;
 		tab.viewer?.focus();
 	}
 </script>
 
-{#if a && caps}
+{#if a && caps && app.annotationInspectorOpen}
 	<aside
 		class="absolute right-6 z-10 flex max-h-[calc(100%-24px)] w-72 flex-col gap-3 overflow-y-auto rounded-panel border border-line bg-surface-raised p-3 shadow-[0_4px_12px_var(--color-page-shadow)]"
-		style:top={tab.search.open ? '64px' : '12px'}
+		style:top="{app.overlayTop + (tab.search.open ? 52 : 0)}px"
 		aria-label="Annotation properties"
 	>
 		<div class="flex items-center gap-2">

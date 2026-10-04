@@ -53,9 +53,11 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
   article threads, document-level JavaScript, open actions, viewer preferences or XMP
   metadata. Signatures from signed sources are invalid in the result. Lectrix warns
   before combining or inserting from them.
-- **Accessibility.** Creating, moving and resizing annotations needs a pointer. Editing,
-  deleting and repairing work from the keyboard. Page text is not exposed to screen
-  readers, and Windows high-contrast themes are not handled specifically.
+- **Accessibility.** Creating, moving and resizing annotations needs a pointer, and so
+  does selecting text, which brings up the quick tools. Editing, deleting and repairing
+  work from the keyboard; the bar of a selected annotation is reached with Tab from the
+  page. Page text is not exposed to screen readers, and Windows high-contrast themes are
+  not handled specifically.
 - **Not covered by automated tests:** drag-and-drop from Explorer (an OLE drag can't be
   scripted), touch or stylus input, and touchpad pinch zoom.
 - **Touchscreen pinch** does not zoom: only touchpad pinch and Ctrl+wheel do. The app

@@ -255,6 +255,8 @@ Settled details:
 
 - **Toolbar tools:** Select, Highlight, Underline, Strikeout, Squiggly, Note, Pen, Text box.
 - **Text markup:** with a markup tool active, selecting text creates the annotation on mouse-up. Alt-drag creates an area highlight (one rectangular quad) for scanned pages without text.
+- **Quick tools:** with the Select tool, selected text gets a floating bar next to where the selection ended, with the tools chosen in Settings: Highlight, Underline, Strikeout, Squiggly, Highlight with note, Copy, Add bookmark.
+- **Annotation bar:** clicking an annotation selects it and shows a floating bar above it: color, type (text markup only: highlight, underline, strikeout, squiggly), note, delete. Double-clicking opens the inspector with the cursor in the note.
 - **Style:** six preset colors plus a custom picker, opacity, stroke width for the pen; the last-used style per tool is remembered.
 - **Inspector panel** for the selected annotation: color, opacity, note text, author, dates.
 - **Annotation list** in the right pane: grouped by page, filter by type and author, click to jump, edit note text, delete, "needs repair" badges.
@@ -263,6 +265,9 @@ Settled details:
 
 Settled details:
 
+- The quick tools' markup uses each tool's last-used style; "Highlight with note" makes a highlight and opens the inspector on its note; "Add bookmark" does what Ctrl+B does. Tools the document forbids are shown disabled; with none allowed or none chosen, no bar appears. The default set is Highlight, Underline, Strikeout, Highlight with note and Copy.
+- The inspector opens from the annotation bar, a double-click, Properties in the context menu or the annotation list, not from a single click. Once open it follows the selection; it closes with its button or when nothing is selected.
+- Changing an annotation's type keeps its quads, color, opacity, note and author (one undo step, "Change highlight to underline"). The bar of a text box edits its text in place, as a double-click does; an annotation Lectrix can't change gets a Properties button instead.
 - Notes are placed with one click; the inspector opens focused on the note field. Text boxes are typed in place; Ctrl+Enter or a click outside finishes, Esc discards. An empty new box is not created; emptying an existing one deletes it (one undo step).
 - The inspector's color for a text box is its text color (rule 6 in section 5.1).
 - Deleting an annotation that has replies asks first, then deletes the replies and the popup with it.
@@ -273,7 +278,7 @@ Settled details:
 
 ### 6.6 Settings, About and installers
 
-- **Settings** (File menu, Ctrl+,): author name, and appearance (System by default, Light or Dark), applied at once and stored in app data.
+- **Settings** (File menu, Ctrl+,): author name; appearance (System by default, Light or Dark); the annotation toolbar's place (bottom by default, or top) and when it shows (always by default, or only while the pointer is within about 72 px of that edge, while it has keyboard focus, and for 1.5 s after a tool is picked); and the quick tools for selected text. Applied at once and stored in app data.
 - **About** (Help menu): version, the AGPL notice, MuPDF's credit, where the license files are installed, and the source code address with a Copy button. The address is shown, never opened (Lectrix stays offline).
 - **Installers** (NSIS and MSI, ADR 0007): a "PDF files" page after the folder page, "Open PDF files with Lectrix", checked by default. It registers Lectrix for PDFs (Open with, Default apps); Windows asks which app to use at the next PDF, and the installer never takes over the default itself. For silent installs, `/NOPDF` (NSIS) or `LECTRIX_ASSOCIATE_PDF=0` (MSI) leaves the registration out. Both install `LICENSE.txt` and the license notices.
 
@@ -308,9 +313,9 @@ The app should feel like a native Windows 11 app: calm, fast, and keyboard-frien
 
 - **Title bar:** custom (Tauri decorations off, explicit drag region), holding the sidebar and annotation pane toggles, the document tabs and the standard window buttons.
 - **Left sidebar**, collapsible (open by default), with three panels: Pages (thumbnails), Bookmarks, Page labels. The tabs are icons with tooltips and accessible names.
-- **Center:** the page canvas, with a floating annotation toolbar.
+- **Center:** the page canvas, with a floating annotation toolbar at the bottom or the top (Settings). The search bar and inspectors move below a toolbar that stays at the top.
 - **Right pane**, collapsible (closed by default): the annotation list. Its toggle carries the "needs repair" dot.
-- **Inspector**, floating over the right edge of the page, shown only when something is selected: properties of the selected annotation or bookmark.
+- **Inspector**, floating over the right edge of the page: properties of the selected annotation or bookmark, shown when opened for it (sections 6.2 and 6.5).
 - **Side panes** resize by dragging their inner edge, or from the keyboard on that edge (arrows, Home, End); a double-click resets the width. Each takes at most 40% of the window. Which panes are open and their widths are remembered in app data. Opening and closing slides (140 ms); a fit-width or fit-page view re-fits as a pane moves and renders again once it stops.
 - **Status bar:** page label and physical page number (e.g. "iv (4 of 312)"), zoom level, save state.
 

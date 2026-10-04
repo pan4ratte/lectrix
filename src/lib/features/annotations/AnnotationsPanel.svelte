@@ -8,7 +8,7 @@
 	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
-	import { remove, repair, update } from './actions.ts';
+	import { openInspector, remove, repair, update } from './actions.ts';
 	import { PROBLEM_SUMMARY, capabilities, formatDate, typeName } from './tools.ts';
 
 	let { tab }: { tab: DocTab } = $props();
@@ -49,6 +49,7 @@
 	function show(a: Annotation) {
 		tab.selectAnnotation(a.page, a.id);
 		tab.viewer?.reveal(a.page, a.bounds);
+		openInspector(false);
 	}
 
 	function onListKey(event: KeyboardEvent) {

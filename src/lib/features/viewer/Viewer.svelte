@@ -5,7 +5,18 @@
 	import { onMount, tick, untrack } from 'svelte';
 
 	import { chain } from '#lib/components/chain.ts';
-	import { commitTextDraft, create, refuseIfLocked, remove, update } from '#lib/features/annotations/actions.ts';
+	import { ClickCounter } from '#lib/components/clicks.ts';
+	import {
+		commitTextDraft,
+		create,
+		markSelection,
+		openInspector,
+		refuseIfLocked,
+		remove,
+		update
+	} from '#lib/features/annotations/actions.ts';
+	import AnnotationBar from '#lib/features/annotations/AnnotationBar.svelte';
+	import { quickToolAllowed, type Area } from '#lib/features/annotations/bars.ts';
 	import {
 		annotationAt,
 		boxQuad,
@@ -14,12 +25,12 @@
 		moveBox,
 		normalizeBox,
 		resizeBox,
-		selectionRanges,
 		type Box,
 		type Handle
 	} from '#lib/features/annotations/geometry.ts';
+	import SelectionBar from '#lib/features/annotations/SelectionBar.svelte';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
-	import { capabilities, isMarkupTool } from '#lib/features/annotations/tools.ts';
+	import { DEFAULT_QUICK_TOOLS, capabilities, isMarkupTool } from '#lib/features/annotations/tools.ts';
 	import type { Annotation } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -37,7 +48,16 @@
 	} from './layout.ts';
 	import PageView from './PageView.svelte';
 	import SearchBar from './SearchBar.svelte';
-	import { compareCarets, hitTest, isOverText, lineAt, ordered, wordAt, type Caret } from './selection.ts';
+	import {
+		compareCarets,
+		hitTest,
+		isOverText,
+		lineAt,
+		ordered,
+		selectionRects,
+		wordAt,
+		type Caret
+	} from './selection.ts';
 	import { clampZoom, fitPageZoom, fitWidthZoom, wheelZoomFactor, type ZoomMode } from './zoom.ts';
 
 	let { tab }: { tab: DocTab } = $props();
@@ -335,6 +355,8 @@
 		| { kind: 'textbox'; page: number; start: [number, number] };
 
 	let gesture: Gesture | null = null;
+	/** A drag is under way: the floating bars wait until it ends. */
+	let dragging = $state(false);
 	let lastPointer = { x: 0, y: 0 };
 	let autoScroll = 0;
 
@@ -368,6 +390,7 @@
 
 	function begin(event: PointerEvent, g: Gesture) {
 		gesture = g;
+		dragging = true;
 		event.preventDefault();
 		scroller!.focus({ preventScroll: true });
 		scroller!.setPointerCapture(event.pointerId);
@@ -375,8 +398,9 @@
 		autoScroll = requestAnimationFrame(autoScrollStep);
 	}
 
-	/** Starts a text selection (any tool that works on text). */
-	function beginText(event: PointerEvent): boolean {
+	/** Starts a text selection (any tool that works on text): a double-click selects a word,
+	 * a triple-click a line. */
+	function beginText(event: PointerEvent, clicks: number): boolean {
 		const caret = caretAt(event.clientX, event.clientY, false);
 		if (!caret) {
 			tab.selection = null;
@@ -384,8 +408,8 @@
 		}
 		const text = tab.text(caret.page)!;
 		let anchor = caret;
-		if (event.detail === 2 || event.detail === 3) {
-			const [a, focus] = event.detail === 2 ? wordAt(text, caret) : lineAt(text, caret);
+		if (clicks === 2 || clicks === 3) {
+			const [a, focus] = clicks === 2 ? wordAt(text, caret) : lineAt(text, caret);
 			tab.selection = { anchor: a, focus };
 			anchor = a;
 		} else if (event.shiftKey && tab.selection) {
@@ -398,10 +422,13 @@
 		return true;
 	}
 
+	const clickCounter = new ClickCounter();
+
 	function onPointerDown(event: PointerEvent) {
 		if (event.button !== 0 || !scroller) return;
 		const target = event.target as HTMLElement;
-		if (target.closest('[data-annotation-editor]')) return;
+		if (target.closest('[data-annotation-editor], [data-floating-bar]')) return;
+		const clicks = clickCounter.count(event);
 		if (tab.draft?.kind === 'text') {
 			// A click outside the text box being typed finishes it.
 			void commitTextDraft(tab);
@@ -431,9 +458,12 @@
 			if (hit) {
 				tab.selectAnnotation(page, hit.id);
 				const caps = capabilities(hit, tab.flags.canAnnotate);
-				if (event.detail === 2 && hit.kind === 'freeText' && caps.text) {
-					openTextEditor(hit);
+				if (clicks === 2) {
+					// A double-click opens what the annotation says: a text box's text in place,
+					// anything else's note in the inspector.
 					event.preventDefault();
+					if (hit.kind === 'freeText' && caps.text) openTextEditor(hit);
+					else openInspector(caps.text);
 				} else if (caps.move) {
 					begin(event, { kind: 'move', page, id: hit.id, start: [x, y], box: [...hit.bounds], handle: null, moved: false });
 				} else {
@@ -443,7 +473,7 @@
 				return;
 			}
 			tab.selectedAnnotation = null;
-			beginText(event);
+			beginText(event, clicks);
 			return;
 		}
 
@@ -454,7 +484,7 @@
 				tab.draft = { kind: 'area', page, box: [x, y, x, y] };
 				begin(event, { kind: 'area', page, start: [x, y] });
 			} else {
-				beginText(event);
+				beginText(event, clicks);
 			}
 		} else if (tool === 'ink') {
 			tab.selection = null;
@@ -468,7 +498,7 @@
 			void create(tab, 'note', [{ page, body: { tool: 'note', x: at[0], y: at[1], text: '' } }]).then((change) => {
 				if (change) {
 					tools.tool = 'select';
-					app.focusNoteText = true;
+					openInspector(true);
 				}
 			});
 		} else if (tool === 'freeText') {
@@ -544,6 +574,7 @@
 		if (!g) return;
 		dragTo(event.clientX, event.clientY);
 		gesture = null;
+		dragging = false;
 		cancelAnimationFrame(autoScroll);
 		if (scroller?.hasPointerCapture(event.pointerId)) scroller.releasePointerCapture(event.pointerId);
 		const tool = tools.tool;
@@ -553,14 +584,7 @@
 				if (sel && compareCarets(sel.anchor, sel.focus) === 0) {
 					tab.selection = null;
 				} else if (sel && isMarkupTool(tool)) {
-					const [start, end] = ordered(sel.anchor, sel.focus);
-					const pages = selectionRanges(tab.textMap(), start, end);
-					tab.selection = null;
-					await create(
-						tab,
-						tool,
-						pages.map((p) => ({ page: p.page, body: { tool: 'textMarkup', kind: tool, ranges: p.ranges, note: null } }))
-					);
+					await markSelection(tab, tool);
 				}
 				break;
 			}
@@ -617,6 +641,47 @@
 		};
 	}
 
+	// ----- floating bars (section 6.5) -----
+
+	/** A rectangle in page points (unrotated) on page `index`, as an area of the content. */
+	function contentArea(index: number, r: readonly number[]): Area {
+		const b = pageBox(index);
+		const [ax, ay] = toBox(index, r[0]!, r[1]!);
+		const [bx, by] = toBox(index, r[2]!, r[3]!);
+		return {
+			x0: b.left + Math.min(ax, bx),
+			y0: b.top + Math.min(ay, by),
+			x1: b.left + Math.max(ax, bx),
+			y1: b.top + Math.max(ay, by)
+		};
+	}
+
+	const view: Area = $derived({ x0: scrollLeft, y0: scrollTop, x1: scrollLeft + viewportW, y1: scrollTop + viewportH });
+	const quickTools = $derived(app.settings?.quickTools ?? DEFAULT_QUICK_TOOLS);
+
+	/** The selection bar's line: where the selection ended, and which way it went. */
+	const selectionAnchor = $derived.by(() => {
+		if (dragging || tools.tool !== 'select') return null;
+		if (!quickTools.some((t) => quickToolAllowed(t, tab.flags, tab.canEditBookmarks))) return null;
+		void tab.textVersion;
+		const sel = tab.selection;
+		if (!sel) return null;
+		const order = compareCarets(sel.anchor, sel.focus);
+		const text = tab.text(sel.focus.page);
+		if (order === 0 || !text || !layout.pages[sel.focus.page]) return null;
+		const [start, end] = ordered(sel.anchor, sel.focus);
+		const rects = selectionRects(text, start, end);
+		const line = order < 0 ? rects.at(-1) : rects[0];
+		return line ? { area: contentArea(sel.focus.page, line), forward: order < 0 } : null;
+	});
+
+	/** The selected annotation, for its bar, while it isn't being dragged or typed in. */
+	const barAnnotation = $derived.by(() => {
+		const a = tab.selectedAnnotationInfo;
+		if (!a || dragging || tab.draft?.kind === 'text' || !layout.pages[a.page]) return null;
+		return { annotation: a, area: contentArea(a.page, a.bounds) };
+	});
+
 	/** Scrolls while something is dragged past the top or bottom edge. */
 	function autoScrollStep() {
 		if (!gesture || !scroller) return;
@@ -650,7 +715,16 @@
 
 	function onContextMenu(event: MouseEvent) {
 		contextPage = pageUnder(event.clientY);
+		// A right-click on an annotation selects it (unless text is selected, so Copy still
+		// acts on the text); from the keyboard, the menu is for what is already selected.
+		if (!tab.selection && (event.target as HTMLElement).closest('.page')) {
+			const [x, y] = toPage(contextPage, event.clientX, event.clientY);
+			const hit = annotationAt(tab.annotationsOn(contextPage), x, y, px(4));
+			if (hit) tab.selectAnnotation(contextPage, hit.id);
+		}
 	}
+
+	const contextAnnotation = $derived(tab.selectedAnnotationInfo);
 
 	// ----- lifecycle -----
 
@@ -768,12 +842,48 @@
 								priority={priority(index)}
 							/>
 						{/each}
+						{#if selectionAnchor}
+							<SelectionBar
+								{tab}
+								anchor={selectionAnchor.area}
+								forward={selectionAnchor.forward}
+								{view}
+								contentWidth={contentW}
+								chosen={quickTools}
+							/>
+						{/if}
+						{#if barAnnotation}
+							<AnnotationBar
+								{tab}
+								annotation={barAnnotation.annotation}
+								anchor={barAnnotation.area}
+								{view}
+								contentWidth={contentW}
+								onedittext={() => {
+									const a = tab.selectedAnnotationInfo;
+									if (a) openTextEditor(a);
+								}}
+							/>
+						{/if}
 					</div>
 				</div>
 			{/snippet}
 		</ContextMenu.Trigger>
 		<ContextMenu.Portal>
 			<ContextMenu.Content class="menu-content">
+				{#if contextAnnotation}
+					{@const caps = capabilities(contextAnnotation, tab.flags.canAnnotate)}
+					<ContextMenu.Item class="menu-item" onSelect={() => openInspector(false)}>Properties</ContextMenu.Item>
+					<ContextMenu.Item
+						class="menu-item"
+						disabled={!caps.delete}
+						onSelect={() => void remove(tab, contextAnnotation.page, contextAnnotation.id)}
+					>
+						Delete annotation
+						<span class="menu-shortcut">Del</span>
+					</ContextMenu.Item>
+					<ContextMenu.Separator class="menu-separator" />
+				{/if}
 				<ContextMenu.Item
 					class="menu-item"
 					disabled={!tab.selection}

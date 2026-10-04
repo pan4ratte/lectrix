@@ -56,7 +56,10 @@
 			app.restorePanes(info.panes);
 			applyTheme(info);
 			void getSettings()
-				.then((s) => applyAppearance(s.appearance))
+				.then((s) => {
+					app.settings = s;
+					applyAppearance(s.appearance);
+				})
 				.catch(() => {});
 			setImageFormat(info.imageFormat);
 			void logMetric('main_to_ready_ms', info.mainToReadyMs);

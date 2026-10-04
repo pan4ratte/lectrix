@@ -8,7 +8,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 
-use crate::ipc::{Appearance, PaneLayout, ViewState};
+use crate::ipc::{
+    Appearance, PaneLayout, QuickTool, ToolbarPosition, ToolbarVisibility, ViewState,
+};
 
 const MAX_RECENT: usize = 20;
 const MAX_VIEWS: usize = 500;
@@ -39,14 +41,49 @@ struct Data {
     panes: PaneLayout,
 }
 
-/// What the Settings dialog changes (section 6.5).
-#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
+/// What the Settings dialog changes (sections 6.5 and 6.6).
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 pub struct StoredSettings {
     /// The author name for new annotations; `None` uses the Windows user name.
     #[serde(default)]
     pub author: Option<String>,
     #[serde(default)]
     pub appearance: Appearance,
+    #[serde(default)]
+    pub toolbar_position: ToolbarPosition,
+    #[serde(default)]
+    pub toolbar_visibility: ToolbarVisibility,
+    #[serde(
+        default = "default_quick_tools",
+        deserialize_with = "known_quick_tools"
+    )]
+    pub quick_tools: Vec<QuickTool>,
+}
+
+impl Default for StoredSettings {
+    fn default() -> Self {
+        StoredSettings {
+            author: None,
+            appearance: Appearance::default(),
+            toolbar_position: ToolbarPosition::default(),
+            toolbar_visibility: ToolbarVisibility::default(),
+            quick_tools: default_quick_tools(),
+        }
+    }
+}
+
+fn default_quick_tools() -> Vec<QuickTool> {
+    QuickTool::DEFAULT.to_vec()
+}
+
+/// Skips tools this version does not know (written by a newer one), so they cannot make
+/// the whole state file unreadable.
+fn known_quick_tools<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<QuickTool>, D::Error> {
+    let values = Vec::<serde_json::Value>::deserialize(d)?;
+    Ok(values
+        .into_iter()
+        .filter_map(|v| serde_json::from_value(v).ok())
+        .collect())
 }
 
 pub struct Store {
@@ -231,19 +268,42 @@ mod tests {
         let file = temp_store("settings.json");
         let mut store = Store::load(Some(file.clone()));
         assert_eq!(*store.settings(), StoredSettings::default());
-        store.set_settings(StoredSettings {
+        let settings = StoredSettings {
             author: Some("Ada Lovelace".into()),
             appearance: Appearance::Dark,
-        });
+            toolbar_position: ToolbarPosition::Top,
+            toolbar_visibility: ToolbarVisibility::OnHover,
+            quick_tools: vec![QuickTool::Squiggly, QuickTool::Bookmark],
+        };
+        store.set_settings(settings.clone());
         let reloaded = Store::load(Some(file.clone()));
-        assert_eq!(reloaded.settings().author.as_deref(), Some("Ada Lovelace"));
-        assert_eq!(reloaded.settings().appearance, Appearance::Dark);
+        assert_eq!(*reloaded.settings(), settings);
         // A state file from before Settings existed still loads, with defaults.
         fs::write(&file, br#"{"recent":[],"views":{}}"#).unwrap();
         assert_eq!(
-            *Store::load(Some(file)).settings(),
+            *Store::load(Some(file.clone())).settings(),
             StoredSettings::default()
         );
+        // So does one from v1, before the toolbar settings.
+        fs::write(
+            &file,
+            br#"{"settings":{"author":"Ada","appearance":"light"}}"#,
+        )
+        .unwrap();
+        let v1 = Store::load(Some(file.clone()));
+        assert_eq!(v1.settings().author.as_deref(), Some("Ada"));
+        assert_eq!(v1.settings().quick_tools, QuickTool::DEFAULT.to_vec());
+        // Tools from a newer version are skipped, not fatal; an empty list stays empty.
+        fs::write(
+            &file,
+            br#"{"recent":[{"path":"c:/a.pdf","opened_at":1}],"settings":{"quick_tools":["copy","sparkle"]}}"#,
+        )
+        .unwrap();
+        let newer = Store::load(Some(file.clone()));
+        assert_eq!(newer.settings().quick_tools, vec![QuickTool::Copy]);
+        assert_eq!(newer.recent().len(), 1);
+        fs::write(&file, br#"{"settings":{"quick_tools":[]}}"#).unwrap();
+        assert!(Store::load(Some(file)).settings().quick_tools.is_empty());
     }
 
     #[test]
