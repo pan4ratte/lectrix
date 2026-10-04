@@ -5,6 +5,7 @@
 	import { MessageSquareText, Trash, TriangleAlert, Wrench } from '@lucide/svelte';
 
 	import type { Annotation } from '#lib/ipc/index.ts';
+	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
 	import { remove, repair, update } from './actions.ts';
@@ -74,7 +75,7 @@
 	}
 
 	function noteKey(a: Annotation, event: KeyboardEvent) {
-		event.stopPropagation();
+		stopUnlessShortcut(event);
 		if (event.key === 'Enter' && event.ctrlKey) {
 			event.preventDefault();
 			(event.currentTarget as HTMLElement).blur();

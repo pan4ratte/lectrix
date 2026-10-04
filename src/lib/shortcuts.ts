@@ -80,6 +80,18 @@ export function commandFor(event: KeyboardEvent, inInput: boolean): CommandName 
 	return null;
 }
 
+/**
+ * For key handlers of text fields inside lists and panels: keeps the key from reaching the
+ * list's own keys (Delete, arrows) and single-letter tool keys, but lets app-wide
+ * shortcuts that work in text fields (Ctrl+S, Ctrl+F...) through to the window.
+ */
+export function stopUnlessShortcut(event: KeyboardEvent) {
+	if (!commandFor(event, true)) event.stopPropagation();
+}
+
+/** Commands that act on the document as saved: a text field commits its edit first. */
+export const COMMIT_FIELD_FIRST: ReadonlySet<CommandName> = new Set(['save', 'saveAs', 'closeTab']);
+
 export function isBlocked(event: KeyboardEvent): boolean {
 	const ctrl = event.ctrlKey || event.metaKey;
 	return BLOCKED.some((b) => sameKey(b.key, event.key) && !!b.ctrl === ctrl && !!b.shift === event.shiftKey);

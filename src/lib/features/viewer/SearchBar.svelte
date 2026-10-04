@@ -69,7 +69,7 @@
 		bind:value
 		oninput={onInput}
 		onkeydown={onKeyDown}
-		class="h-8 w-56 rounded-control border border-line bg-surface px-2 text-fg outline-none focus:border-accent"
+		class="field h-8 w-56"
 		placeholder="Find in document"
 		aria-label="Find in document"
 		data-search-input

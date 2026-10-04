@@ -67,7 +67,7 @@
 		<input
 			bind:this={input}
 			id="page-box"
-			class="h-6 w-16 rounded-control border bg-surface px-1.5 text-center text-fg tabular-nums outline-none focus:border-accent"
+			class="field h-6 w-16 text-center tabular-nums"
 			class:border-line={!invalid}
 			class:border-danger={invalid}
 			value={editing ? draft : pageBoxText(tab.currentPage, tab.displayLabels)}

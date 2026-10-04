@@ -45,7 +45,7 @@
 				<form class="mt-4 flex flex-col gap-4" onsubmit={submit}>
 					<input
 						type="password"
-						class="h-8 rounded-control border bg-surface px-2 outline-none focus:border-accent"
+						class="field h-8"
 						class:border-line={!prompt.retry}
 						class:border-danger={prompt.retry}
 						bind:value={password}

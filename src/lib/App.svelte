@@ -6,6 +6,7 @@
 	import { onMount } from 'svelte';
 
 	import { commands } from '#lib/commands.ts';
+	import { isContextMenuKey, openContextMenu } from '#lib/components/contextmenu.ts';
 	import BookmarkInspector from '#lib/features/bookmarks/BookmarkInspector.svelte';
 	import DialogHost from '#lib/components/DialogHost.svelte';
 	import FileBanner from '#lib/components/FileBanner.svelte';
@@ -36,7 +37,7 @@
 		setImageFormat,
 		toAppError
 	} from '#lib/ipc/index.ts';
-	import { commandFor, isBlocked, isTextInput } from '#lib/shortcuts.ts';
+	import { COMMIT_FIELD_FIRST, commandFor, isBlocked, isTextInput } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import { applyAppearance, applyTheme } from '#lib/theme.ts';
 
@@ -74,9 +75,16 @@
 			return;
 		}
 		const inInput = isTextInput(event.target);
+		if (!inInput && isContextMenuKey(event) && openContextMenu(event.target)) {
+			event.preventDefault();
+			return;
+		}
 		const command = commandFor(event, inInput);
 		if (command) {
 			event.preventDefault();
+			// Saving or closing from a text field: the field commits its edit on blur, and
+			// the store waits for that edit before saving (app.settled).
+			if (inInput && COMMIT_FIELD_FIRST.has(command)) (event.target as HTMLElement).blur();
 			commands[command]();
 			return;
 		}

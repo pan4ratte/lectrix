@@ -5,6 +5,7 @@
 	// changes the zoom of a fit-width view.
 	import { ArrowRight, Copy, Crosshair, Trash, X } from '@lucide/svelte';
 
+	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -26,7 +27,7 @@
 	}
 
 	function onTitleKey(event: KeyboardEvent) {
-		event.stopPropagation();
+		stopUnlessShortcut(event);
 		if (event.key === 'Enter') {
 			event.preventDefault();
 			commit(event);
@@ -61,7 +62,7 @@
 			<span class="text-xs text-fg-muted">Title</span>
 			{#key b.id}
 				<input
-					class="h-8 rounded-control border border-line bg-surface px-2 text-sm text-fg outline-none focus:border-accent"
+					class="field h-8 text-sm"
 					value={b.title}
 					readonly={!editable}
 					onkeydown={onTitleKey}

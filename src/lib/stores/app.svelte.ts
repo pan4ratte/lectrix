@@ -505,6 +505,7 @@ class AppStore {
 		if (!tab) return;
 		this.activate(id);
 		if (this.insertRequest?.tabId === id) this.cancelInsert();
+		await this.settled();
 		if (!(await this.confirmDiscard(tab))) return;
 		this.rememberView(tab);
 		tab.search.cancel();
@@ -543,6 +544,7 @@ class AppStore {
 			combine.stop();
 			while (combine.running) await new Promise((r) => setTimeout(r, 50));
 		}
+		await this.settled();
 		const dirty = this.tabs.filter((t) => t.state.dirty);
 		if (dirty.length === 1) {
 			if (!(await this.confirmDiscard(dirty[0]!))) return false;
@@ -591,8 +593,24 @@ class AppStore {
 		return tab.signedWarningAccepted;
 	}
 
+	/** Edits on their way to Rust; saving and closing wait for them. */
+	private inFlight = new Set<Promise<unknown>>();
+
+	/** Resolves once every edit started so far has finished (or failed). */
+	async settled() {
+		while (this.inFlight.size > 0) await Promise.allSettled([...this.inFlight]);
+	}
+
 	/** Applies an operation. Returns what changed, or null if it was cancelled or failed. */
-	async apply(tab: DocTab, operation: OperationInput): Promise<DocumentChange | null> {
+	apply(tab: DocTab, operation: OperationInput): Promise<DocumentChange | null> {
+		const edit = this.applyNow(tab, operation);
+		this.inFlight.add(edit);
+		const done = () => void this.inFlight.delete(edit);
+		edit.then(done, done);
+		return edit;
+	}
+
+	private async applyNow(tab: DocTab, operation: OperationInput): Promise<DocumentChange | null> {
 		if (!(await this.allowEdit(tab))) return null;
 		try {
 			const change = await applyOperation(tab.id, operation);
@@ -659,6 +677,7 @@ class AppStore {
 	async save(tab: DocTab): Promise<SaveResult | null> {
 		if (tab.saving) return null;
 		tab.saving = true;
+		await this.settled();
 		try {
 			const result = await saveCommand(tab.id);
 			this.afterSave(tab, result);
@@ -679,6 +698,7 @@ class AppStore {
 	async saveAs(tab: DocTab, optimized = false): Promise<SaveResult | null> {
 		if (tab.saving) return null;
 		tab.saving = true;
+		await this.settled();
 		try {
 			const result = await saveAsCommand(tab.id, optimized);
 			if (result) {

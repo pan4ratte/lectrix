@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { commandFor, isBlocked } from './shortcuts';
+import { COMMIT_FIELD_FIRST, commandFor, isBlocked, stopUnlessShortcut } from './shortcuts';
 
 function key(k: string, mods: { ctrl?: boolean; shift?: boolean; alt?: boolean } = {}) {
 	return {
@@ -41,5 +41,20 @@ describe('shortcuts', () => {
 		expect(isBlocked(key('F5'))).toBe(true);
 		expect(isBlocked(key('p', { ctrl: true }))).toBe(true);
 		expect(isBlocked(key('s', { ctrl: true }))).toBe(false);
+	});
+
+	it('lets app-wide shortcuts out of panel text fields, and nothing else', () => {
+		const stopped = (event: KeyboardEvent) => {
+			let stop = false;
+			stopUnlessShortcut({ ...event, stopPropagation: () => (stop = true) } as KeyboardEvent);
+			return stop;
+		};
+		for (const k of [key('s', { ctrl: true }), key('f', { ctrl: true }), key('g', { ctrl: true })]) {
+			expect(stopped(k), k.key).toBe(false);
+		}
+		for (const k of [key('Delete'), key('ArrowDown'), key('h'), key('Escape'), key('z', { ctrl: true })]) {
+			expect(stopped(k), k.key).toBe(true);
+		}
+		expect([...COMMIT_FIELD_FIRST].sort()).toEqual(['closeTab', 'save', 'saveAs']);
 	});
 });

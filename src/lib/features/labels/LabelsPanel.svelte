@@ -203,7 +203,7 @@
 	}
 
 	const fieldClass =
-		'h-8 w-full min-w-0 rounded-control border border-line bg-surface px-2 text-sm text-fg outline-none focus:border-accent disabled:opacity-50';
+		'field h-8 w-full min-w-0 text-sm disabled:opacity-50';
 </script>
 
 <div class="flex h-full min-h-0 flex-col">

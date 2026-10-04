@@ -90,7 +90,7 @@
 							<input type="radio" bind:group={which} value="range" />
 							Pages
 							<input
-								class="h-7 flex-1 rounded-control border border-line bg-surface px-2 outline-none focus:border-accent"
+								class="field h-7 flex-1"
 								bind:value={rangeText}
 								onfocus={() => (which = 'range')}
 								placeholder="1-3, 7"
@@ -102,7 +102,7 @@
 						<legend class="mb-1 text-sm font-medium">Where</legend>
 						<div class="flex items-center gap-2">
 							<select
-								class="h-7 rounded-control border border-line bg-surface px-1 outline-none focus:border-accent"
+								class="field h-7"
 								bind:value={where}
 								aria-label="Before or after"
 							>
@@ -110,7 +110,7 @@
 								<option value="after">After page</option>
 							</select>
 							<input
-								class="h-7 w-20 rounded-control border border-line bg-surface px-2 outline-none focus:border-accent"
+								class="field h-7 w-20"
 								bind:value={pageText}
 								inputmode="numeric"
 								aria-label="Page number"
@@ -121,7 +121,7 @@
 					<fieldset class="flex flex-col gap-2">
 						<legend class="mb-1 text-sm font-medium">Bookmarks</legend>
 						<select
-							class="h-7 rounded-control border border-line bg-surface px-1 outline-none focus:border-accent"
+							class="field h-7"
 							bind:value={bookmarks}
 							aria-label="Bookmarks of the inserted file"
 						>

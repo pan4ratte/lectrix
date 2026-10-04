@@ -11,6 +11,7 @@
 	import { tick } from 'svelte';
 
 	import { chain } from '#lib/components/chain.ts';
+	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -268,7 +269,7 @@
 	}
 
 	function onRenameKey(event: KeyboardEvent, id: number) {
-		event.stopPropagation();
+		stopUnlessShortcut(event);
 		if (event.key === 'Enter') {
 			event.preventDefault();
 			void renameBookmark(tab, id, (event.currentTarget as HTMLInputElement).value);

@@ -4,6 +4,7 @@
 	// shown while an annotation is selected.
 	import { Trash, TriangleAlert, Wrench, X } from '@lucide/svelte';
 
+	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -52,7 +53,7 @@
 	}
 
 	function textKey(event: KeyboardEvent) {
-		event.stopPropagation();
+		stopUnlessShortcut(event);
 		if (event.key === 'Enter' && event.ctrlKey) {
 			event.preventDefault();
 			(event.currentTarget as HTMLElement).blur();
@@ -64,7 +65,7 @@
 	}
 
 	function authorKey(event: KeyboardEvent) {
-		event.stopPropagation();
+		stopUnlessShortcut(event);
 		if (event.key === 'Enter') {
 			event.preventDefault();
 			(event.currentTarget as HTMLElement).blur();

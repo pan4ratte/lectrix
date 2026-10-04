@@ -56,7 +56,7 @@
 						<input type="radio" bind:group={which} value="range" />
 						Pages
 						<input
-							class="h-7 flex-1 rounded-control border border-line bg-surface px-2 outline-none focus:border-accent"
+							class="field h-7 flex-1"
 							bind:value={rangeText}
 							onfocus={() => (which = 'range')}
 							placeholder="1-3, 7"
