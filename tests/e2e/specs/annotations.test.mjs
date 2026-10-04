@@ -126,7 +126,7 @@ test('create, edit, delete, undo, save and reopen annotations', async () => {
 		await waitForRowCount(browser, 4, 'undo delete');
 
 		await browser.keys(['Control', 's']);
-		await browser.waitUntil(async () => !(await statusText(browser)).includes('Unsaved'), {
+		await browser.waitUntil(async () => (await statusText(browser)).includes('All changes saved'), {
 			timeoutMsg: 'not saved'
 		});
 	} finally {
@@ -170,7 +170,7 @@ test('create, edit, delete, undo, save and reopen annotations', async () => {
 		await drag(browser, await pagePoint(browser, 1, 40, 92), await pagePoint(browser, 1, 200, 92), 1);
 		await waitForRowCount(browser, 5, 'highlight with the new author');
 		await browser.keys(['Control', 's']);
-		await browser.waitUntil(async () => !(await statusText(browser)).includes('Unsaved'), { timeoutMsg: 'not saved' });
+		await browser.waitUntil(async () => (await statusText(browser)).includes('All changes saved'), { timeoutMsg: 'not saved' });
 		await browser.saveScreenshot(join(OUT, 'annotations-dark.png'));
 	} finally {
 		await stop();
@@ -227,7 +227,7 @@ test('repair annotations another app wrote', async () => {
 		});
 		await browser.keys(['Control', 'y']);
 		await browser.keys(['Control', 's']);
-		await browser.waitUntil(async () => !(await statusText(browser)).includes('Unsaved'), { timeoutMsg: 'not saved' });
+		await browser.waitUntil(async () => (await statusText(browser)).includes('All changes saved'), { timeoutMsg: 'not saved' });
 	} finally {
 		await stop();
 	}
