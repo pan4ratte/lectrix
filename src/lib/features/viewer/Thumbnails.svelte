@@ -12,6 +12,7 @@
 
 	import { pageBoxText } from './pagebox.ts';
 	import RenderedImage from './RenderedImage.svelte';
+	import { BACKGROUND_PRIORITY } from './scheduler.ts';
 
 	let { tab }: { tab: DocTab } = $props();
 
@@ -152,7 +153,7 @@
 								<RenderedImage
 									imageKey="{tab.id}:{index}:{tab.state.revision}:{scale(index)}"
 									url={pageUrl(tab.id, index, scale(index), tab.state.revision)}
-									priority={1_000_000 + Math.abs(index - tab.currentPage)}
+									priority={BACKGROUND_PRIORITY + Math.abs(index - tab.currentPage)}
 									x={0}
 									y={0}
 									width={THUMB_WIDTH}

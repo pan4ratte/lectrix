@@ -19,6 +19,9 @@ interface Job {
 	started: boolean;
 }
 
+/** Priorities from here on are background work (thumbnails), behind every page on screen. */
+export const BACKGROUND_PRIORITY = 1_000_000;
+
 export class CancelledError extends Error {
 	constructor() {
 		super('cancelled');
@@ -36,6 +39,7 @@ export interface Ticket {
 export class RenderScheduler {
 	private queue = new Map<string, Job>();
 	private inFlight = 0;
+	private backgroundInFlight = 0;
 	private seq = 0;
 
 	constructor(private readonly maxInFlight = 3) {}
@@ -107,12 +111,21 @@ export class RenderScheduler {
 		while (this.inFlight < this.maxInFlight) {
 			const job = this.next();
 			if (!job) return;
+			// Thumbnails wait while pages on screen render, and leave a slot free for them:
+			// MuPDF decodes one JPEG 2000 image at a time across the whole app, and a page
+			// holding a large scan takes about a second, so a thumbnail decoding first would
+			// keep the page waiting that long.
+			const background = job.priority >= BACKGROUND_PRIORITY;
+			const foregroundInFlight = this.inFlight - this.backgroundInFlight;
+			if (background && (foregroundInFlight > 0 || this.backgroundInFlight >= this.maxInFlight - 1)) return;
 			job.started = true;
 			this.inFlight++;
+			if (background) this.backgroundInFlight++;
 			fetchPageImage(job.url)
 				.then(job.resolve, job.reject)
 				.finally(() => {
 					this.inFlight--;
+					if (background) this.backgroundInFlight--;
 					this.queue.delete(job.key);
 					this.pump();
 				});
