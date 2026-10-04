@@ -97,6 +97,15 @@ export function isBlocked(event: KeyboardEvent): boolean {
 	return BLOCKED.some((b) => sameKey(b.key, event.key) && !!b.ctrl === ctrl && !!b.shift === event.shiftKey);
 }
 
+/**
+ * The webview's own page zoom (Ctrl with +, =, -, _ or 0, main keyboard or keypad). It is
+ * switched on so touchpad pinches reach the viewer, and must never scale the app itself;
+ * the zoom commands still run through the bindings above.
+ */
+export function isBrowserZoomKey(event: KeyboardEvent): boolean {
+	return (event.ctrlKey || event.metaKey) && !event.altKey && ['=', '+', '-', '_', '0'].includes(event.key);
+}
+
 export function isTextInput(target: EventTarget | null): boolean {
 	if (!(target instanceof HTMLElement)) return false;
 	return target.isContentEditable || target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.tagName === 'SELECT';

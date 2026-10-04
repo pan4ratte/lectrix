@@ -149,6 +149,9 @@ body {
 	overflow: hidden;
 	user-select: none;
 	-webkit-user-select: none;
+	/* No touchscreen pinch-zoom of the whole app (the webview's pinch zoom is on for
+	   touchpads, which the viewer handles as Ctrl+wheel). */
+	touch-action: pan-x pan-y;
 }
 
 input,

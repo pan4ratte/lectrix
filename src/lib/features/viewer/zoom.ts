@@ -28,6 +28,17 @@ export function stepZoom(zoom: number, direction: 1 | -1): number {
 	return MIN_ZOOM;
 }
 
+/**
+ * Zoom factor for one Ctrl+wheel event. A touchpad pinch arrives as Ctrl+wheel with
+ * `deltaY = -100 ln(scale)` (Chromium), so small deltas follow the fingers exactly; a mouse
+ * wheel notch (100-150 px) zooms about 1.25x.
+ */
+export function wheelZoomFactor(deltaY: number, deltaMode: number): number {
+	const delta = deltaMode === 1 ? deltaY * 33 : deltaY;
+	const perPixel = Math.abs(delta) < 50 ? 0.01 : 0.0018;
+	return Math.exp(-delta * perPixel);
+}
+
 /** Width and height of a page in points after view rotation. */
 function rotatedSize(size: PageSize, rotation: Rotation) {
 	return rotation === 90 || rotation === 270

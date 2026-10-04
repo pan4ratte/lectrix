@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { COMMIT_FIELD_FIRST, commandFor, isBlocked, stopUnlessShortcut } from './shortcuts';
+import { COMMIT_FIELD_FIRST, commandFor, isBlocked, isBrowserZoomKey, stopUnlessShortcut } from './shortcuts';
 
 function key(k: string, mods: { ctrl?: boolean; shift?: boolean; alt?: boolean } = {}) {
 	return {
@@ -41,6 +41,16 @@ describe('shortcuts', () => {
 		expect(isBlocked(key('F5'))).toBe(true);
 		expect(isBlocked(key('p', { ctrl: true }))).toBe(true);
 		expect(isBlocked(key('s', { ctrl: true }))).toBe(false);
+	});
+
+	it('recognizes every key that zooms the webview itself', () => {
+		for (const k of ['=', '+', '-', '_', '0']) {
+			expect(isBrowserZoomKey(key(k, { ctrl: true }))).toBe(true);
+			expect(isBrowserZoomKey(key(k, { ctrl: true, shift: true }))).toBe(true);
+			expect(isBrowserZoomKey(key(k))).toBe(false);
+		}
+		expect(isBrowserZoomKey(key('0', { ctrl: true, alt: true }))).toBe(false);
+		expect(isBrowserZoomKey(key('s', { ctrl: true }))).toBe(false);
 	});
 
 	it('lets app-wide shortcuts out of panel text fields, and nothing else', () => {

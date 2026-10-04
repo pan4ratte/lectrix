@@ -38,7 +38,7 @@
 	import PageView from './PageView.svelte';
 	import SearchBar from './SearchBar.svelte';
 	import { compareCarets, hitTest, isOverText, lineAt, ordered, wordAt, type Caret } from './selection.ts';
-	import { clampZoom, fitPageZoom, fitWidthZoom, type ZoomMode } from './zoom.ts';
+	import { clampZoom, fitPageZoom, fitWidthZoom, wheelZoomFactor, type ZoomMode } from './zoom.ts';
 
 	let { tab }: { tab: DocTab } = $props();
 
@@ -286,15 +286,37 @@
 		}
 	}
 
+	// While a wheel or pinch zoom goes on, pages keep the pixels they have, stretched, and
+	// are rendered again once it pauses. Rendering at every step showed images of several
+	// zoom levels at once and queued renders that were stale before they started.
+	const ZOOM_SETTLE_MS = 200;
+	let heldRenderZoom: number | null = $state(null);
+	/** The zoom pages are rendered for: `tab.zoom`, or where a wheel zoom started. */
+	const renderZoom = $derived(heldRenderZoom ?? tab.zoom);
+	let settleTimer: ReturnType<typeof setTimeout> | undefined;
+	let wheelFactor = 1;
+	let wheelAnchor = { x: 0, y: 0 };
+	let wheelFrame = 0;
+
 	function onWheel(event: WheelEvent) {
 		if (!event.ctrlKey || !scroller) return;
-		// Ctrl+wheel and touchpad pinch (which arrives as Ctrl+wheel): zoom at the cursor.
+		// Ctrl+wheel and touchpad pinch (which arrives as Ctrl+wheel): zoom at the cursor,
+		// once per frame however many events arrive.
 		event.preventDefault();
 		const rect = scroller.getBoundingClientRect();
-		const delta = event.deltaMode === 1 ? event.deltaY * 33 : event.deltaY;
-		// About 1.25x per wheel notch (Chromium reports a notch as 100-150 px).
-		const factor = Math.exp(-delta * 0.0018);
-		void zoomAround(tab.zoom * factor, 'custom', event.clientX - rect.left, event.clientY - rect.top);
+		wheelFactor *= wheelZoomFactor(event.deltaY, event.deltaMode);
+		wheelAnchor = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+		heldRenderZoom ??= tab.zoom;
+		clearTimeout(settleTimer);
+		settleTimer = setTimeout(() => (heldRenderZoom = null), ZOOM_SETTLE_MS);
+		if (!wheelFrame) wheelFrame = requestAnimationFrame(applyWheelZoom);
+	}
+
+	function applyWheelZoom() {
+		wheelFrame = 0;
+		const factor = wheelFactor;
+		wheelFactor = 1;
+		void zoomAround(tab.zoom * factor, 'custom', wheelAnchor.x, wheelAnchor.y);
 	}
 
 	// ----- pointer: text selection and annotation tools (section 6.5) -----
@@ -663,6 +685,8 @@
 			tab.pendingPosition = position();
 			tab.viewer = null;
 			cancelAnimationFrame(autoScroll);
+			cancelAnimationFrame(wheelFrame);
+			clearTimeout(settleTimer);
 		};
 	});
 
@@ -727,6 +751,8 @@
 								width={b.width}
 								height={b.height}
 								zoom={tab.zoom}
+								{renderZoom}
+								zooming={heldRenderZoom !== null}
 								rotation={tab.rotation}
 								devicePixelRatio={dpr}
 								visibleRect={visibleRect(index)}

@@ -31,7 +31,8 @@ import {
 	fitWidthZoom,
 	pixelSize,
 	renderScale,
-	stepZoom
+	stepZoom,
+	wheelZoomFactor
 } from './zoom.ts';
 
 const letter = { width: 612, height: 792 };
@@ -95,6 +96,15 @@ describe('zoom', () => {
 		expect(renderScale(1.005, 1)).toBe(renderScale(1.01, 1));
 		expect(renderScale(2, 1)).toBeCloseTo(2 * renderScale(1, 1), 1);
 		expect(renderScale(1, 2)).toBe(renderScale(2, 1));
+	});
+
+	it('follows a touchpad pinch exactly and steps a wheel notch', () => {
+		// Chromium sends a pinch to scale s as deltaY = -100 ln(s).
+		expect(wheelZoomFactor(-100 * Math.log(1.1), 0)).toBeCloseTo(1.1);
+		expect(wheelZoomFactor(-100 * Math.log(0.95), 0)).toBeCloseTo(0.95);
+		expect(wheelZoomFactor(-120, 0)).toBeCloseTo(1.24, 2);
+		expect(wheelZoomFactor(100, 0)).toBeLessThan(1);
+		expect(wheelZoomFactor(-3, 1)).toBeCloseTo(wheelZoomFactor(-99, 0));
 	});
 
 	it('rounds pixel sizes like MuPDF', () => {

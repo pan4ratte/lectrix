@@ -51,6 +51,13 @@ pub trait Platform: Send + Sync {
         }))
     }
 
+    /// Whether the webview's zoom controls must be on for touchpad pinches to reach the
+    /// page (as Ctrl+wheel events, which the viewer turns into document zoom). The
+    /// frontend then keeps the webview from zooming the app itself.
+    fn webview_needs_zoom_controls(&self) -> bool {
+        false
+    }
+
     /// Browser arguments for the webview, when they must differ from Tauri's defaults.
     fn webview_browser_args(&self) -> Option<String> {
         None

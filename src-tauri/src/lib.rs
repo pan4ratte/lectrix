@@ -275,7 +275,8 @@ pub fn run() {
             // The main window is made here, not from tauri.conf.json, so it can get browser
             // arguments the platform needs (`create: false` in the config).
             if let Some(config) = app.config().app.windows.iter().find(|w| w.label == "main") {
-                let mut window = tauri::WebviewWindowBuilder::from_config(app.handle(), config)?;
+                let mut window = tauri::WebviewWindowBuilder::from_config(app.handle(), config)?
+                    .zoom_hotkeys_enabled(platform::current().webview_needs_zoom_controls());
                 if let Some(args) = platform::current().webview_browser_args() {
                     window = window.additional_browser_args(&args);
                 }

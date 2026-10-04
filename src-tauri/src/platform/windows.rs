@@ -139,6 +139,13 @@ impl Platform for Windows {
         }
     }
 
+    /// WebView2 drops touchpad pinches unless `IsPinchZoomEnabled` is on, which wry ties
+    /// to Tauri's zoom hotkeys setting. A change at runtime would only apply after the
+    /// next navigation, so it is set when the webview is made.
+    fn webview_needs_zoom_controls(&self) -> bool {
+        true
+    }
+
     /// Tauri always hands WebView2 its default arguments through the API. Some WebView2
     /// runtimes then ignore `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`, which is how
     /// msedgedriver turns on remote debugging (tests/e2e; seen on WebView2 153). When the

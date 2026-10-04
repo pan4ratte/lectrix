@@ -38,7 +38,7 @@
 		setImageFormat,
 		toAppError
 	} from '#lib/ipc/index.ts';
-	import { COMMIT_FIELD_FIRST, commandFor, isBlocked, isTextInput } from '#lib/shortcuts.ts';
+	import { COMMIT_FIELD_FIRST, commandFor, isBlocked, isBrowserZoomKey, isTextInput } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import { applyAppearance, applyTheme } from '#lib/theme.ts';
 
@@ -110,6 +110,17 @@
 		if (!isTextInput(event.target)) event.preventDefault();
 	}
 
+	// The webview's page zoom is on so touchpad pinches arrive (as Ctrl+wheel); it must never
+	// scale the app. Capturing listeners, so fields that stop their keys cannot bypass them.
+	// The viewer zooms the document from the same events.
+	function blockPageZoomKey(event: KeyboardEvent) {
+		if (isBrowserZoomKey(event)) event.preventDefault();
+	}
+
+	function blockPageZoomWheel(event: WheelEvent) {
+		if (event.ctrlKey) event.preventDefault();
+	}
+
 	// Remember where the user is, a moment after they stop moving.
 	let rememberTimer: ReturnType<typeof setTimeout> | undefined;
 	$effect(() => {
@@ -123,6 +134,8 @@
 	});
 
 	onMount(() => {
+		window.addEventListener('keydown', blockPageZoomKey, { capture: true });
+		window.addEventListener('wheel', blockPageZoomWheel, { capture: true, passive: false });
 		void startup();
 		const unlisteners = [
 			onDocumentsOpened((results) => app.handleOpenResults(results)),
@@ -144,6 +157,8 @@
 			})
 		];
 		return () => {
+			window.removeEventListener('keydown', blockPageZoomKey, { capture: true });
+			window.removeEventListener('wheel', blockPageZoomWheel, { capture: true });
 			clearTimeout(rememberTimer);
 			for (const u of unlisteners) void u.then((f) => f());
 		};

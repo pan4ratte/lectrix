@@ -2,6 +2,9 @@
 	// One page: its rendered pixels (whole, or tiles at high zoom), and overlays for the
 	// text selection and search hits. Inside, everything is laid out unrotated in page
 	// points scaled to CSS pixels; a CSS transform applies the view rotation.
+	import { untrack } from 'svelte';
+	import { SvelteSet } from 'svelte/reactivity';
+
 	import { cancelTextDraft, commitTextDraft } from '#lib/features/annotations/actions.ts';
 	import { HANDLES, handlePoint } from '#lib/features/annotations/geometry.ts';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
@@ -33,6 +36,10 @@
 		width: number;
 		height: number;
 		zoom: number;
+		/** The zoom to render pixels for; it lags `zoom` during a wheel or pinch zoom. */
+		renderZoom: number;
+		/** A wheel or pinch zoom is under way: request no new tiles. */
+		zooming: boolean;
 		rotation: Rotation;
 		devicePixelRatio: number;
 		/** The part of the page box that is on screen (plus a margin), CSS pixels relative
@@ -52,6 +59,8 @@
 		width,
 		height,
 		zoom,
+		renderZoom,
+		zooming,
 		rotation,
 		devicePixelRatio,
 		visibleRect,
@@ -74,12 +83,15 @@
 	);
 
 	const revision = $derived(tab.state.revision);
-	const scale = $derived(renderScale(zoom, devicePixelRatio));
+	const scale = $derived(renderScale(renderZoom, devicePixelRatio));
 	const pixels = $derived(pixelSize(size, scale));
 	const tiled = $derived(pixels.width * pixels.height > TILE_THRESHOLD_PIXELS);
 	const underlayScale = $derived(
 		Math.min(scale, Math.round(scaleForPixels(size, UNDERLAY_PIXELS) * 1000) / 1000)
 	);
+	const baseScale = $derived(tiled ? underlayScale : scale);
+	const baseKey = $derived(`${tab.id}:${index}:${revision}:${baseScale}`);
+	let drawnBase = $state('');
 
 	/** Maps a rectangle in the rotated page box (CSS px) to unrotated CSS px. */
 	function unrotate(r: { x0: number; y0: number; x1: number; y1: number }) {
@@ -104,8 +116,29 @@
 		return { x0: Math.min(...xs), y0: Math.min(...ys), x1: Math.max(...xs), y1: Math.max(...ys) };
 	}
 
-	/** Tiles intersecting the visible part of the page, in device pixels at `scale`. */
-	const tiles = $derived.by(() => {
+	interface Tile {
+		/** Unique across scales, so a tile's canvas never shows another scale's pixels. */
+		id: string;
+		scale: number;
+		x: number;
+		y: number;
+		w: number;
+		h: number;
+	}
+
+	let heldTiles: Tile[] = [];
+	/**
+	 * Tiles intersecting the visible part of the page, in device pixels at `scale`. During a
+	 * wheel or pinch zoom the set stays as it was: zooming out, the visible area grows in
+	 * pixels of the held scale, and those tiles would be replaced moments later.
+	 */
+	const tiles: Tile[] = $derived.by(() => {
+		if (zooming) return heldTiles;
+		heldTiles = visibleTiles();
+		return heldTiles;
+	});
+
+	function visibleTiles(): Tile[] {
 		if (!tiled || !visibleRect) return [];
 		const r = unrotate(visibleRect);
 		const f = scale / k; // device pixels per CSS pixel
@@ -120,11 +153,39 @@
 				const y = ty * TILE_SIZE;
 				const w = Math.min(TILE_SIZE, pixels.width - x);
 				const h = Math.min(TILE_SIZE, pixels.height - y);
-				out.push({ key: `${tx},${ty}`, x, y, w, h });
+				out.push({ id: `${scale}:${tx},${ty}`, scale, x, y, w, h });
 			}
 		}
 		return out;
+	}
+
+	// When the scale changes, the tiles drawn at the old one stay underneath the new ones
+	// until all of those have arrived, so the page does not fall back to the blurry underlay.
+	const drawnTiles = new SvelteSet<string>();
+	let underTiles: Tile[] = $state([]);
+	let lastScale = untrack(() => scale);
+	let lastTiles: Tile[] = [];
+	$effect.pre(() => {
+		const s = scale;
+		const current = tiles;
+		untrack(() => {
+			if (s !== lastScale) {
+				const drawn = lastTiles.filter((t) => drawnTiles.has(t.id));
+				// If none of the last scale's tiles arrived, the older layer is still the best.
+				if (drawn.length > 0) underTiles = drawn;
+				drawnTiles.clear();
+				lastScale = s;
+			}
+			lastTiles = current;
+		});
 	});
+	$effect(() => {
+		if (underTiles.length === 0) return;
+		const covered = tiled ? tiles.every((t) => drawnTiles.has(t.id)) : drawnBase === baseKey;
+		if (covered) underTiles = [];
+	});
+	/** Old tiles first, so the new ones are drawn over them. */
+	const shownTiles = $derived([...underTiles.filter((t) => t.scale !== scale), ...(tiled ? tiles : [])]);
 
 	// Pixels on screen for the current revision (the whole page, or the tile underlay).
 	let drawnRevision = $state(-1);
@@ -222,46 +283,34 @@
 		style:height="{innerH}px"
 		style:transform
 	>
-		{#if tiled}
+		<!-- The whole page, or the low-resolution underlay beneath tiles: one canvas either
+		     way, so crossing the tile threshold keeps the pixels already there. -->
+		<RenderedImage
+			imageKey={baseKey}
+			url={pageUrl(tab.id, index, baseScale, revision)}
+			{priority}
+			x={0}
+			y={0}
+			width={innerW}
+			height={innerH}
+			ondrawn={(key) => {
+				drawnBase = key;
+				drawnRevision = revision;
+				markPageDrawn();
+			}}
+		/>
+		{#each shownTiles as t (t.id)}
 			<RenderedImage
-				imageKey="{tab.id}:{index}:{revision}:{underlayScale}"
-				url={pageUrl(tab.id, index, underlayScale, revision)}
-				{priority}
-				x={0}
-				y={0}
-				width={innerW}
-				height={innerH}
-				ondrawn={() => {
-					drawnRevision = revision;
-					markPageDrawn();
-				}}
+				imageKey="{tab.id}:{index}:{revision}:{t.id}"
+				url={pageUrl(tab.id, index, t.scale, revision, { x: t.x, y: t.y, width: t.w, height: t.h })}
+				priority={priority + 0.5}
+				x={(t.x * k) / t.scale}
+				y={(t.y * k) / t.scale}
+				width={(t.w * k) / t.scale}
+				height={(t.h * k) / t.scale}
+				ondrawn={() => drawnTiles.add(t.id)}
 			/>
-			{#each tiles as t (t.key)}
-				<RenderedImage
-					imageKey="{tab.id}:{index}:{revision}:{scale}:{t.key}"
-					url={pageUrl(tab.id, index, scale, revision, { x: t.x, y: t.y, width: t.w, height: t.h })}
-					priority={priority + 0.5}
-					x={(t.x * k) / scale}
-					y={(t.y * k) / scale}
-					width={(t.w * k) / scale}
-					height={(t.h * k) / scale}
-				/>
-			{/each}
-		{:else}
-			<RenderedImage
-				imageKey="{tab.id}:{index}:{revision}:{scale}"
-				url={pageUrl(tab.id, index, scale, revision)}
-				{priority}
-				x={0}
-				y={0}
-				width={innerW}
-				height={innerH}
-				ondrawn={() => {
-					drawnRevision = revision;
-					markPageDrawn();
-				}}
-			/>
-		{/if}
+		{/each}
 
 		{#if selection.length || hits.length || showSelected || (draft && draft.kind !== 'text')}
 			<svg

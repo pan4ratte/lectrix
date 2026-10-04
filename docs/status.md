@@ -53,7 +53,9 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
   deleting and repairing work from the keyboard. Page text is not exposed to screen
   readers, and Windows high-contrast themes are not handled specifically.
 - **Not covered by automated tests:** drag-and-drop from Explorer (an OLE drag can't be
-  scripted), and touch or stylus input.
+  scripted), touch or stylus input, and touchpad pinch zoom.
+- **Touchscreen pinch** does not zoom: only touchpad pinch and Ctrl+wheel do. The app
+  blocks touchscreen pinch (`touch-action`) so it cannot scale the whole window.
 - **Test corpus.** `tests/corpus/` is still empty. Geometric cases come from generated
   files (`pdf-core/src/testgen.rs`), and real-world coverage comes from the local corpus,
   which lacks CJK text, signed files, UserUnit pages and annotations made by other apps
@@ -73,6 +75,8 @@ Nothing has been run interactively there.
 - **Window:** no Mica, accent colour or theme tint. A translucent window on macOS needs
   `macOSPrivateApi`, and the title bar's window buttons follow Windows (macOS puts them on
   the left).
+- **Touchpad pinch** is wired for WebView2 only (`webview_needs_zoom_controls`); WebKit
+  delivers pinches as gesture events, which the viewer does not handle.
 - **Platform services:** the default author comes from `USER`. WebView2's memory target
   has no equivalent.
 - **Installers and file association** are Windows-only. `.dmg`, `.deb` or AppImage and

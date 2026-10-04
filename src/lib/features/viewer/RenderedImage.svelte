@@ -17,7 +17,7 @@
 		y: number;
 		width: number;
 		height: number;
-		ondrawn?: () => void;
+		ondrawn?: (imageKey: string) => void;
 	}
 
 	let { imageKey, url, priority, x, y, width, height, ondrawn }: Props = $props();
@@ -37,7 +37,9 @@
 		ticket = current;
 		current.promise.then(
 			(image) => {
-				if (!canvas) return;
+				// A render that had started before the key changed still arrives; drawing it
+				// would put the wrong pixels where the new image belongs.
+				if (!canvas || ticket !== current) return;
 				if (canvas.width !== image.width) canvas.width = image.width;
 				if (canvas.height !== image.height) canvas.height = image.height;
 				// A CPU-backed canvas: Chromium keeps an accelerated canvas's pixels in the GPU process
@@ -46,7 +48,7 @@
 				if (ctx) image.draw(ctx);
 				drawnKey = key;
 				everDrawn = true;
-				ondrawn?.();
+				ondrawn?.(key);
 			},
 			(error: unknown) => {
 				if (isCancelled(error)) return;
