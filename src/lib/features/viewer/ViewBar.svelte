@@ -1,8 +1,7 @@
 <script lang="ts">
-	// The bar at the top of the document, as in Acrobat (section 8): the annotation tools
-	// when Settings dock them there, then previous and next page, the page box (label or
-	// number, then "(4 of 312)" or "of 312"), and zoom out, the zoom level and zoom in.
-	// With the annotation toolbar floating, the page and zoom controls sit in the middle.
+	// The bar at the top of the document, as in Acrobat (section 8), centered: previous and
+	// next page, the page box (label or number, then "(4 of 312)" or "of 312"), zoom out,
+	// the zoom level and zoom in, then the annotation tools when Settings dock them here.
 	import { ChevronDown, ChevronUp, Minus, Plus } from '@lucide/svelte';
 	import { DropdownMenu } from 'bits-ui';
 
@@ -67,20 +66,10 @@
 </script>
 
 <div
-	class="flex min-h-10 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface px-2 py-1 text-sm text-fg-muted"
+	class="flex min-h-10 shrink-0 flex-wrap items-center justify-center gap-x-2 gap-y-1 border-b border-line bg-surface px-2 py-1 text-sm text-fg-muted"
 	data-view-bar
 >
-	{#if docked}
-		<AnnotationToolbar {tab} />
-	{/if}
-
-	<div
-		class="flex items-center gap-1"
-		class:ml-auto={docked}
-		class:mx-auto={!docked}
-		role="toolbar"
-		aria-label="Page and zoom"
-	>
+	<div class="flex items-center gap-1" role="toolbar" aria-label="Page and zoom">
 		<button
 			type="button"
 			class="icon-button size-7"
@@ -121,7 +110,7 @@
 			data-page-box
 		/>
 		<!-- A minimum width, so the zoom controls don't shift as the text changes. -->
-		<span class="min-w-20 pl-1 whitespace-nowrap">
+		<span class="min-w-16 pl-1 whitespace-nowrap">
 			{#if invalid}
 				<span class="text-danger" role="alert">No such page</span>
 			{:else}
@@ -135,7 +124,7 @@
 			</span>
 		</span>
 
-		<span class="mx-2 h-5 w-px bg-line" aria-hidden="true"></span>
+		<span class="mx-1 h-5 w-px bg-line" aria-hidden="true"></span>
 
 		<button
 			type="button"
@@ -181,4 +170,9 @@
 			<Plus size={16} aria-hidden="true" />
 		</button>
 	</div>
+
+	{#if docked}
+		<span class="h-6 w-px bg-line" aria-hidden="true"></span>
+		<AnnotationToolbar {tab} />
+	{/if}
 </div>

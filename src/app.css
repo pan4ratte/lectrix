@@ -359,6 +359,12 @@ button {
 	outline: 2px solid var(--lectrix-focus);
 	outline-offset: 2px;
 }
+.toolbar-slider {
+	width: 72px;
+	height: 28px;
+	margin-left: 4px;
+	accent-color: var(--lectrix-accent);
+}
 .toolbar-select {
 	height: 28px;
 	margin-left: 4px;

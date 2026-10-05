@@ -259,7 +259,7 @@ Settled details:
 - **Text markup:** with a markup tool active, selecting text creates the annotation on mouse-up. Alt-drag creates an area highlight (one rectangular quad) for scanned pages without text.
 - **Quick tools:** with the Select tool, selected text gets a floating bar next to where the selection ended, with the tools chosen in Settings: Highlight, Underline, Strikeout, Squiggly, Highlight with note, Copy, Add bookmark.
 - **Annotation bar:** clicking an annotation selects it and shows a floating bar above it: color, type (text markup only: highlight, underline, strikeout, squiggly), note, delete. Double-clicking opens the inspector with the cursor in the note.
-- **Style:** six preset colors plus a custom picker, opacity, stroke width for the pen; the last-used style per tool is remembered.
+- **Style:** six preset colors plus a custom picker, opacity (a slider in the toolbar, 10% to 100%), stroke width for the pen; the last-used style per tool is remembered.
 - **Inspector panel** for the selected annotation: color, opacity, note text, author, dates.
 - **Annotation list** in the right pane: grouped by page, filter by type and author, click to jump, edit note text, delete, "needs repair" badges.
 - Annotations can be moved, resized (ink, text box, notes) and deleted; every change is undoable.
@@ -317,7 +317,7 @@ The app should feel like a native Windows 11 app: calm, fast, and keyboard-frien
 
 - **Title bar:** custom (Tauri decorations off, explicit drag region), holding the sidebar and annotation pane toggles, the document tabs and the standard window buttons.
 - **Left sidebar**, collapsible (open by default), with three panels: Pages (thumbnails), Bookmarks, Page labels. The tabs are icons with tooltips and accessible names.
-- **View bar**, one bar at the top of the document as in Acrobat: the annotation tools when docked there (Settings), then previous page, next page, the page box with the page label or number and the physical position after it ("iv" then "(4 of 312)", or "4" then "of 312"; screen readers hear "iv (4 of 312)"), then zoom out, the zoom level (a menu with fit width, fit page and the presets) and zoom in. With a floating annotation toolbar, the page and zoom controls are centered. Previous and next page go to the top of that page and are not recorded in back/forward history. In a narrow window the bar wraps onto a second row.
+- **View bar**, one bar at the top of the document as in Acrobat, its contents centered: previous page, next page, the page box with the page label or number and the physical position after it ("iv" then "(4 of 312)", or "4" then "of 312"; screen readers hear "iv (4 of 312)"), then zoom out, the zoom level (a menu with fit width, fit page and the presets) and zoom in, then the annotation tools when docked there (Settings). Previous and next page go to the top of that page and are not recorded in back/forward history. In a narrow window the bar wraps onto a second row.
 - **Center:** the page canvas, below the view bar, with the annotation toolbar floating at its bottom or top, or docked in the view bar (Settings). The search bar and inspectors move below a floating toolbar that stays at the top. The active tool has an accent border on every side.
 - **Right pane**, collapsible (closed by default): the annotation list. Its toggle carries the "needs repair" dot.
 - **Inspector**, floating over the right edge of the page: properties of the selected annotation or bookmark, shown when opened for it (sections 6.2 and 6.5).

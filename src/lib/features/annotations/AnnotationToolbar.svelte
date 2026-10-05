@@ -37,7 +37,8 @@
 		freeText: Type
 	};
 
-	const OPACITIES = [1, 0.8, 0.6, 0.4, 0.2];
+	/** The opacity slider's low end: below it, a mark is hard to find again. */
+	const MIN_OPACITY = 0.1;
 
 	const active = $derived(tools.tool);
 	const drawTool = $derived(active === 'select' ? null : active);
@@ -197,16 +198,17 @@
 				{/each}
 			</select>
 		{/if}
-		<select
-			class="toolbar-select"
+		<input
+			type="range"
+			class="toolbar-slider"
+			min={MIN_OPACITY}
+			max="1"
+			step="0.05"
 			aria-label="Opacity"
-			title="Opacity"
+			aria-valuetext="{Math.round(style.opacity * 100)}%"
+			title="Opacity {Math.round(style.opacity * 100)}%"
 			value={style.opacity}
-			onchange={(e) => tools.setStyle(drawTool, { opacity: Number(e.currentTarget.value) })}
-		>
-			{#each OPACITIES as o (o)}
-				<option value={o}>{Math.round(o * 100)}%</option>
-			{/each}
-		</select>
+			oninput={(e) => tools.setStyle(drawTool, { opacity: Number(e.currentTarget.value) })}
+		/>
 	{/if}
 </div>
