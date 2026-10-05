@@ -417,6 +417,16 @@ button {
 	flex-shrink: 0;
 	color: var(--lectrix-fg-muted);
 }
+/* A thread's replies, under the comment they answer. */
+.reply-thread {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin: 4px 0 0;
+	padding: 2px 0 2px 10px;
+	border-left: 2px solid var(--lectrix-line);
+	list-style: none;
+}
 /* The comment of the annotation under the pointer: plain text, up to 12 lines. */
 .comment-tip {
 	position: absolute;

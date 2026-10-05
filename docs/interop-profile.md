@@ -22,6 +22,20 @@ these rules to make a test pass: report the conflict instead.
 
 Dates are written in UTC as `D:YYYYMMDDHHmmSS+00'00'`.
 
+## Replies (ADR 0012)
+
+A reply is a `/Text` note answering another annotation through `/IRT`; readers show it in
+that annotation's thread, not on the page. Rules 2, 4 and 6 have these exceptions for
+replies, and only for them:
+
+| Rule | For a reply | Where | Tested by |
+| --- | --- | --- | --- |
+| 2 | An empty normal appearance (an empty form, `/BBox [0 0 0 0]`): nothing draws it, and pdf.js draws no icon of its own. Edits never redraw it; repair gives another app's reply without an appearance an empty one | `annot::reply::put_empty_appearance`, `add_reply`, `edit_reply`; `annot::repair` | `annotations::replies_are_threaded_notes_that_nothing_draws` (MuPDF draws the page pixel for pixel as without the reply, after adding, editing and repairing it); interop harness `phase5` (`replies.pdf`: MuPDF, PDFium and pdf.js change 0 pixels) |
+| 4 | `/Rect` of no area at the parent's top-left corner (user space): pdf.js's annotation layer skips it, so no element of the reply covers the parent and takes its hover | `annot::reply::add_reply` | same tests; the harness checks pdf.js reads a `/Rect` of no area |
+| 6 | No `/Popup`. `/IRT` (the parent), `/Name /Comment`, `/Open false`, the parent's `/C` (yellow without one), and the usual `/NM`, `/T`, `/CreationDate`, `/M`, `/F 4`, `/P` | `annot::reply::add_reply` | same tests; pdf.js links each reply to its parent |
+
+Only a reply's text and author can change (plus `/M`); emptying it deletes it in the app.
+
 ## Reading other apps' annotations
 
 - Every standard type MuPDF supports is displayed (MuPDF renders them; Lectrix draws its own
@@ -30,8 +44,9 @@ Dates are written in UTC as `D:YYYYMMDDHHmmSS+00'00'`.
   (1,316 notes in 29 ms). Popups, links and form widgets are not listed.
 - Missing appearance or unreadable quads: MuPDF draws them from their properties for
   display only (a local appearance, never saved); the list shows a "needs repair" badge.
-- Replies (`/IRT`) appear under their parent, read-only. Deleting an annotation deletes its
-  replies (after asking) and its popup.
+- Replies (`/IRT`) appear in their parent's thread in the list, where they can be edited and
+  deleted, and new ones written (see "Replies"). The viewer does not hit-test them. Deleting
+  an annotation deletes its replies (after asking) and its popup.
 
 ## Repair
 

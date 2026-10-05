@@ -232,6 +232,19 @@ enum AnnotAction {
         #[command(flatten)]
         style: StyleArgs,
     },
+    /// A reply to annotation --to (its object number), as the app writes it (ADR 0012).
+    Reply {
+        input: PathBuf,
+        out: PathBuf,
+        #[arg(long, default_value_t = 1)]
+        page: usize,
+        #[arg(long)]
+        to: u32,
+        #[arg(long)]
+        text: String,
+        #[arg(long, default_value = "Lectrix")]
+        author: String,
+    },
     /// A freehand drawing. Each --stroke is "x,y;x,y;..." in view space.
     Ink {
         input: PathBuf,
@@ -1195,6 +1208,22 @@ fn annot_command(action: AnnotAction) -> Result<()> {
             text,
             style,
         } => add(&input, &out, page, Body::Note { at, text }, style),
+        AnnotAction::Reply {
+            input,
+            out,
+            page,
+            to,
+            text,
+            author,
+        } => {
+            let op = Operation::AddReply {
+                page: page_index(page)?,
+                parent: to,
+                text,
+                author,
+            };
+            edit_in_session(&input, &out, vec![op])
+        }
         AnnotAction::Ink {
             input,
             out,

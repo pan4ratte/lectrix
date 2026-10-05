@@ -319,9 +319,20 @@ export class DocTab {
 		return this.annotations.get(page)?.find((a) => a.id === id) ?? null;
 	}
 
-	/** Replies to an annotation (shown under it, read-only: section 5.2). */
+	/** Replies to an annotation, shown in its thread (ADR 0012). */
 	repliesTo(page: number, id: number): Annotation[] {
 		return this.annotationsOn(page).filter((a) => a.replyTo === id && id !== 0);
+	}
+
+	/** Is `a` a reply to an annotation on its page (shown in that one's thread)? */
+	isThreadReply(a: Annotation): boolean {
+		return a.replyTo !== null && this.annotation(a.page, a.replyTo) !== null;
+	}
+
+	/** The annotations on a page the pointer can reach: replies in a thread are not drawn
+	 * on the page (ADR 0012). */
+	hitTargets(page: number): Annotation[] {
+		return this.annotationsOn(page).filter((a) => !this.isThreadReply(a));
 	}
 
 	selectAnnotation(page: number, id: number) {

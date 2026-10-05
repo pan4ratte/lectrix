@@ -69,6 +69,13 @@ export async function update(tab: DocTab, page: number, id: number, edit: Annota
 	return app.apply(tab, { kind: 'updateAnnotation', page, id, edit });
 }
 
+/** Replies to annotation `parent` on `page` (ADR 0012); the author is the name from
+ * Settings. One undo step, "Add reply". */
+export async function addReply(tab: DocTab, page: number, parent: number, text: string) {
+	if (refuseIfLocked(tab) || !text.trim()) return null;
+	return app.apply(tab, { kind: 'addReply', page, parent, text });
+}
+
 /** Copies an annotation's comment (its note text) to the clipboard. */
 export async function copyComment(text: string) {
 	if (!text) return;

@@ -20,7 +20,7 @@ installers that can register Lectrix for PDF files (ADR 0007).
 
 Since v1: releases on GitHub for Windows, Linux and macOS, built by the Release
 workflow with attested installers, and an in-app updater with a Settings switch
-(ADR 0011).
+(ADR 0011). Replies to annotations, written in the annotation list (ADR 0012).
 
 ## Performance
 
@@ -53,8 +53,13 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
   article threads, document-level JavaScript, open actions, viewer preferences or XMP
   metadata. Signatures from signed sources are invalid in the result. Lectrix warns
   before combining or inserting from them.
+- **Replies in Acrobat and Foxit** have not been checked by a person yet (ADR 0012): they
+  are meant to show in the parent's thread there, which no engine the harness runs can
+  confirm. The manual checklist covers it.
 - **Accessibility.** Creating, moving and resizing annotations needs a pointer, and so
-  does selecting text, which brings up the quick tools. Editing, deleting and repairing
+  does selecting text, which brings up the quick tools. A reply's own menu (Edit reply,
+  Delete reply) opens only with a right-click; Reply itself is in the row's menu, which
+  the keyboard reaches. Editing, deleting and repairing
   work from the keyboard; the bar of a selected annotation is reached with Tab from the
   page. Page text is not exposed to screen readers, and Windows high-contrast themes are
   not handled specifically.

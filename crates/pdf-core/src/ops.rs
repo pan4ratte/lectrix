@@ -113,6 +113,13 @@ pub enum Operation {
         page: usize,
         id: u32,
     },
+    /// Adds a reply by `author` to annotation `parent` on `page` (ADR 0012).
+    AddReply {
+        page: usize,
+        parent: u32,
+        text: String,
+        author: String,
+    },
     /// Fixes every problem the repair scan finds that can be fixed (section 5.3).
     RepairAnnotations,
 }
@@ -143,6 +150,7 @@ impl Operation {
             },
             Operation::UpdateAnnotation { edit, .. } => format!("{} annotation", edit.verb()),
             Operation::DeleteAnnotation { .. } => "Delete annotation".into(),
+            Operation::AddReply { .. } => "Add reply".into(),
             Operation::RepairAnnotations => "Repair annotations".into(),
         }
     }
@@ -157,6 +165,16 @@ impl Operation {
             })
         };
         match self {
+            Operation::UpdateAnnotation { page, id, .. }
+                if annot::reply::is_reply_at(doc, *page, *id) =>
+            {
+                "Edit reply".into()
+            }
+            Operation::DeleteAnnotation { page, id }
+                if annot::reply::is_reply_at(doc, *page, *id) =>
+            {
+                "Delete reply".into()
+            }
             Operation::UpdateAnnotation { page, id, edit } => {
                 match (label(*page, *id), edit.kind) {
                     (Some(l), Some(k)) if k.kind().label() != l => {
@@ -182,6 +200,7 @@ impl Operation {
                 | Operation::AddAnnotations { .. }
                 | Operation::UpdateAnnotation { .. }
                 | Operation::DeleteAnnotation { .. }
+                | Operation::AddReply { .. }
                 | Operation::RepairAnnotations
         )
     }
@@ -203,6 +222,7 @@ impl Operation {
             | Operation::AddAnnotations { .. }
             | Operation::UpdateAnnotation { .. }
             | Operation::DeleteAnnotation { .. }
+            | Operation::AddReply { .. }
             | Operation::RepairAnnotations => false,
         }
     }
@@ -268,6 +288,15 @@ impl Operation {
             Operation::DeleteAnnotation { page, .. } => {
                 if *page >= page_count {
                     return Err(Error::PageOutOfRange(*page));
+                }
+                Ok(())
+            }
+            Operation::AddReply { page, text, .. } => {
+                if *page >= page_count {
+                    return Err(Error::PageOutOfRange(*page));
+                }
+                if text.trim().is_empty() {
+                    return Err(Error::InvalidArgument("a reply needs some text".into()));
                 }
                 Ok(())
             }
@@ -349,6 +378,15 @@ impl Operation {
             }
             Operation::DeleteAnnotation { page, id } => {
                 annot::delete(doc, *page, *id).map(|()| None)
+            }
+            Operation::AddReply {
+                page,
+                parent,
+                text,
+                author,
+            } => {
+                let created = annot::reply::add_reply(doc, *page, *parent, text, author)?;
+                Ok(u32::try_from(created.xref).ok())
             }
             // Handled by `apply`.
             Operation::InsertPages { .. } | Operation::RepairAnnotations => Ok(None),

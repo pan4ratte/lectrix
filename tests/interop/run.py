@@ -198,9 +198,15 @@ def annotation_checks(pdf: Path, report: Report, work: Path, pages: set[int] | N
                 out = work / f"p{page}-{name}-{'on' if on else 'off'}.png"
                 renders[(name, page, on)] = load(fn(pdf, page, on, out))
 
+    # Replies (/IRT) are drawn by no engine (ADR 0012): `reply_checks` checks that.
+    # PDFium and pdf.js list a page's annotations in the same order.
+    replies = {n for n, a in enumerate(jsannots) if a.get("inReplyTo")}
     for n, a in enumerate(annots):
         page = a["page"]
         label = f"{pdf.name}: {a['subtype']} #{n + 1} on page {page}"
+        if n in replies:
+            print(f"  {label}: a reply, not drawn on the page (see reply_checks)")
+            continue
         stats = {}
         region = display_area(pdf, page - 1, a)
         for name in ENGINES:
@@ -235,6 +241,33 @@ def annotation_checks(pdf: Path, report: Report, work: Path, pages: set[int] | N
                     b_img = renders[(names[j], page, True)]
                     x0, y0, x1, y1 = ra
                     save_diff(work / f"engines-{n + 1}-{names[i]}-{names[j]}.png", a_img[y0:y1, x0:x1], b_img[y0:y1, x0:x1])
+
+
+def reply_checks(without: Path, with_replies: Path, parents: dict[int, int], report: Report, work: Path) -> None:
+    """Replies to the annotations `parents` names (page, 1-based, to object number) are in
+    `with_replies`, which is `without` plus those replies (ADR 0012). Every engine draws
+    those pages exactly as before; pdf.js links each reply to its parent, and its /Rect has
+    no area, so pdf.js's annotation layer gives it no element of its own (one over the
+    parent would take the parent's pop-up in Firefox)."""
+    js = [a for a in info_pdfjs(with_replies)["annotations"] if a.get("inReplyTo")]
+    for page, parent in parents.items():
+        found = [a for a in js if a["page"] == page]
+        report.check(
+            len(found) == 1 and found[0]["inReplyTo"] == f"{parent}R",
+            f"{with_replies.name}: pdf.js finds the reply on page {page}, linked to object {parent} (got {[a['inReplyTo'] for a in found]})",
+        )
+        for a in found:
+            x0, y0, x1, y1 = a["rect"]
+            report.check(x0 == x1 and y0 == y1, f"{with_replies.name}: the reply on page {page} has a /Rect of no area (got {a['rect']})")
+            report.check(bool(a.get("hasAppearance")), f"{with_replies.name}: pdf.js finds the reply's (empty) appearance on page {page}")
+        for name, fn in ENGINES.items():
+            before = load(fn(without, page, True, work / f"p{page}-{name}-before.png"))
+            after = load(fn(with_replies, page, True, work / f"p{page}-{name}-after.png"))
+            same_size = before.shape == after.shape
+            changed = int((np.abs(after - before).max(axis=2) > CHANGE_THRESHOLD).sum()) if same_size else -1
+            ok = report.check(same_size and changed == 0, f"{with_replies.name}: {name} draws page {page} as before the reply ({changed} pixels changed)")
+            if not ok and same_size:
+                save_diff(work / f"reply-p{page}-{name}.png", after, before)
 
 
 def display_area(pdf: Path, page_index: int, annot: dict) -> list[float]:
@@ -852,6 +885,26 @@ def phase5(report: Report) -> None:
     case.mkdir(exist_ok=True)
     annotation_checks(edited, report, case)
     shutil.copyfile(edited, MANUAL / "edited.pdf")
+
+    # 2b. Replies to the highlight and the sticky note, as the app writes them: nothing on
+    # the page changes, and both parents are still drawn.
+    parents = {1: ids["Highlight"]["id"], 5: ids["Text"]["id"]}
+    current = src
+    for k, (page, parent) in enumerate(parents.items()):
+        nxt = work / f"replies-step{k + 1}.pdf"
+        run([cli, "annot", "reply", str(current), str(nxt), "--page", str(page), "--to", str(parent), "--text", f"Reply on page {page} — ünïcödé", "--author", "Lectrix Harness"])
+        current = nxt
+    replied = work / "replies.pdf"
+    shutil.copyfile(current, replied)
+    print(replied.name)
+    qpdf_check(replied, report)
+    listed = list_annotations(replied)
+    report.check(len(listed) == 10 and not any(a["problems"] for a in listed), f"{replied.name}: 10 annotations (2 of them replies), none needs repair")
+    case = work / "replies"
+    case.mkdir(exist_ok=True)
+    reply_checks(src, replied, parents, report, case)
+    annotation_checks(replied, report, case)
+    shutil.copyfile(replied, MANUAL / "replies.pdf")
 
     # 3. Repair: annotations another app wrote with every problem repair fixes.
     broken = work / "problems.pdf"

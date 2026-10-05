@@ -150,7 +150,7 @@ Every annotation this app writes must display, print and be editable in Acrobat 
 
 - Display every standard annotation type MuPDF supports, including ones this app cannot create (shapes, stamps, links, file attachments).
 - If an annotation lacks an appearance stream or has malformed quads, draw it for display from its properties, but write nothing. Mark it in the annotation list with a "needs repair" badge.
-- Show replies (`/IRT`) under their parent in the list, read-only.
+- Show replies (`/IRT`) in their parent's thread in the list. Replies Lectrix writes are notes linked by `/IRT` that nothing draws on the page: an empty appearance, a `/Rect` of no area at the parent's corner, no `/Popup` (ADR 0012; `docs/interop-profile.md`, "Replies"). Only their text and author change.
 
 ### 5.3 Repair annotations command
 
@@ -261,7 +261,7 @@ Settled details:
 - **Annotation bar:** clicking an annotation selects it and shows a floating bar above it: color, type (text markup only: highlight, underline, strikeout, squiggly), note, delete. Double-clicking opens the inspector with the cursor in the note.
 - **Style:** six preset colors plus a custom picker, opacity (a slider in the toolbar, 10% to 100%), stroke width for the pen; the last-used style per tool is remembered.
 - **Inspector panel** for the selected annotation: color, opacity, note text, author, dates.
-- **Annotation list** in the right pane: grouped by page, filter by type and author, click to jump, edit note text, delete, "needs repair" badges. Each row shows the type as an icon in the annotation's colour, moved toward the text colour only as far as 3:1 contrast on the pane needs (its name as tooltip and accessible name), then the author and a short date, then the whole comment with its line breaks. Each page's group starts with a header under a dividing line. A right-click (or Shift+F10) offers Copy comment and Delete annotation.
+- **Annotation list** in the right pane: grouped by page, filter by type and author, click to jump, edit note text, delete, "needs repair" badges. Each row shows the type as an icon in the annotation's colour, moved toward the text colour only as far as 3:1 contrast on the pane needs (its name as tooltip and accessible name), then the author and a short date, then the whole comment with its line breaks. Each page's group starts with a header under a dividing line. A right-click (or Shift+F10) offers Reply, Copy comment and Delete annotation; on a reply in a thread, Edit reply, Copy comment and Delete reply.
 - Annotations can be moved, resized (ink, text box, notes) and deleted; every change is undoable.
 - Author name is set in Settings, defaulting to the Windows user name.
 
@@ -275,11 +275,12 @@ Settled details:
 - Deleting an annotation that has replies asks first, then deletes the replies and the popup with it.
 - A text box from another app that has a callout line can be edited but not moved or resized.
 - The list shows markup, notes, drawings, text boxes, shapes, stamps and attachments; popups, links and form widgets are not listed.
+- Reply opens a field under the thread; Ctrl+Enter or leaving it sends, Esc drops it, and an empty reply is not written. Edit reply edits in place the same way; emptying a reply deletes it. Replies are written only to annotations in the list's rows, not to replies, as Acrobat's list does; each is one undo step ("Add reply", "Edit reply", "Delete reply").
 - The list's date is the last change, as Acrobat shortens it: the time for today, day and month this year, with the year before that; the full date and time are in its tooltip and in the inspector.
 - A selected row edits its comment in place in a field as tall as the text, at the same text size; it has no Delete button (the menu and the Delete key delete).
 - Picking an annotation in the list scrolls the page to it with a 140 ms glide (Settings: "Smooth scrolling to annotations", on by default; reduced motion turns it off). A long way starts two screens from the annotation. Scrolling or clicking stops the glide.
 - Resting the pointer on an annotation shows its comment in a tooltip, text only with its line breaks, at most 12 lines. It follows the pointer, below and right of it like a Windows tooltip, shifting left or above to stay wholly inside the page area. The delay is a Settings slider (0 to 2 s, 0.3 s by default). Text boxes show none, since their text is on the page.
-- Comments' line breaks (CR, as Acrobat writes them, CR LF, LF, U+2028, U+2029) all show as breaks. A comment is written back only when its text was edited, so looking at one in a field changes nothing. Writing replies is not in v1 yet (planned as its own change).
+- Comments' line breaks (CR, as Acrobat writes them, CR LF, LF, U+2028, U+2029) all show as breaks. A comment is written back only when its text was edited, so looking at one in a field changes nothing.
 - Repair counts `/Rect` as too small only past the 1 pt margin. Unreadable QuadPoints are reported and left alone.
 - Annotating a turned page places notes, drawings, text boxes and area highlights upright as seen on screen (text boxes carry `/Rotate`, as Acrobat writes); text markup follows the text.
 

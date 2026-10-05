@@ -586,7 +586,7 @@
 					return;
 				}
 			}
-			const hit = annotationAt(tab.annotationsOn(page), x, y, px(4));
+			const hit = annotationAt(tab.hitTargets(page), x, y, px(4));
 			if (hit) {
 				tab.selectAnnotation(page, hit.id);
 				const caps = capabilities(hit, tab.flags.canAnnotate);
@@ -693,7 +693,7 @@
 			const page = pageUnder(lastPointer.y);
 			const [x, y] = toPage(page, lastPointer.x, lastPointer.y);
 			overAnnotation = null;
-			const hit = annotationAt(tab.annotationsOn(page), x, y, px(4));
+			const hit = annotationAt(tab.hitTargets(page), x, y, px(4));
 			if (hit && tools.tool === 'select') overAnnotation = capabilities(hit, tab.flags.canAnnotate).move ? 'move' : 'select';
 			hoverTip(hit);
 			const rect = scroller.getBoundingClientRect();
@@ -922,7 +922,7 @@
 		// acts on the text); from the keyboard, the menu is for what is already selected.
 		if (!tab.selection && (event.target as HTMLElement).closest('.page')) {
 			const [x, y] = toPage(contextPage, event.clientX, event.clientY);
-			const hit = annotationAt(tab.annotationsOn(contextPage), x, y, px(4));
+			const hit = annotationAt(tab.hitTargets(contextPage), x, y, px(4));
 			if (hit) tab.selectAnnotation(contextPage, hit.id);
 		}
 	}

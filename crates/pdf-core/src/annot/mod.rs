@@ -6,6 +6,7 @@
 //!   its popup and replies.
 //! - [`read`] lists every annotation for the sidebar, with problems that need repair.
 //! - [`repair`] fixes other apps' annotations (section 5.3).
+//! - [`reply`] adds replies, which are never drawn on the page (ADR 0012).
 //!
 //! Every write ends in [`write::synthesize`]: MuPDF's appearance synthesis (rule 2), then
 //! the profile's own corrections (`/Rect`, FreeText margin, upright note icons).
@@ -15,6 +16,7 @@ pub mod meta;
 pub mod quads;
 pub mod read;
 pub mod repair;
+pub mod reply;
 mod text_box;
 mod write;
 
@@ -641,6 +643,9 @@ pub fn edit(doc: &mut PdfDocument, page: usize, id: u32, edit: &AnnotationEdit) 
     let geometry = page_geometry(&pdf_page)?;
     let mut annot = find(&pdf_page, id)?;
     let mut obj = annot.object();
+    if reply::is_reply(&obj)? {
+        return reply::edit_reply(doc, &mut annot, edit);
+    }
     let subtype = subtype(&obj)?;
     let kind = Kind::from_subtype(&subtype);
     let refuse = |what: &str| {

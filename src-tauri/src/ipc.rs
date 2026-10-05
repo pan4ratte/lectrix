@@ -676,6 +676,12 @@ pub enum OperationInput {
         page: u32,
         id: u32,
     },
+    /// Reply to annotation `parent` on `page`; the author is the name from Settings.
+    AddReply {
+        page: u32,
+        parent: u32,
+        text: String,
+    },
 }
 
 impl OperationInput {
@@ -726,6 +732,12 @@ impl OperationInput {
                     _ => Op::AddAnnotations { annotations: all },
                 }
             }
+            OperationInput::AddReply { page, parent, text } => Op::AddReply {
+                page: page as usize,
+                parent,
+                text,
+                author: author.to_owned(),
+            },
             other => other.into_edit()?,
         })
     }
@@ -772,7 +784,9 @@ impl OperationInput {
                 id,
             },
             // Resolved by `into_operation`.
-            OperationInput::InsertPages { .. } | OperationInput::AddAnnotation { .. } => {
+            OperationInput::InsertPages { .. }
+            | OperationInput::AddAnnotation { .. }
+            | OperationInput::AddReply { .. } => {
                 return Err(AppError::bad_state());
             }
         })

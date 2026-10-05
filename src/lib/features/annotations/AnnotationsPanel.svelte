@@ -1,9 +1,9 @@
 <script lang="ts">
 	// The annotation list (section 6.5): grouped by page, filtered by type and author. Each
 	// row shows the type as an icon in the annotation's colour, the author and a short date,
-	// and the whole comment. Clicking one shows it; a right-click offers copying the comment
-	// and deleting. Replies sit under their parent, read-only (section 5.2); a badge marks
-	// annotations that need repair.
+	// and the whole comment, then its replies. Clicking one shows it; a right-click offers
+	// replying, copying the comment and deleting, and on a reply editing, copying and
+	// deleting it (ADR 0012). A badge marks annotations that need repair.
 	import { MessageSquareText, TriangleAlert, Wrench } from '@lucide/svelte';
 	import { ContextMenu } from 'bits-ui';
 	import { MediaQuery } from 'svelte/reactivity';
@@ -15,7 +15,7 @@
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 	import { legibleOnPane } from '#lib/theme.ts';
 
-	import { copyComment, openInspector, remove, repair, update } from './actions.ts';
+	import { addReply, copyComment, openInspector, remove, repair, update } from './actions.ts';
 	import { typeIcon } from './icons.ts';
 	import { PROBLEM_SUMMARY, capabilities, formatDate, shortDate, typeName } from './tools.ts';
 
@@ -29,15 +29,10 @@
 	const authors = $derived([...new Set(all.map((a) => a.author))].sort((a, b) => a.localeCompare(b)));
 	const needing = $derived(all.filter((a) => a.problems.length > 0).length);
 
-	/** Is `a` a reply to an annotation that is on its page (shown under it)? */
-	function isReply(a: Annotation) {
-		return a.replyTo !== null && tab.annotation(a.page, a.replyTo) !== null;
-	}
-
 	const shown = $derived(
 		all.filter(
 			(a) =>
-				!isReply(a) &&
+				!tab.isThreadReply(a) &&
 				(typeFilter === 'all' || a.subtype === typeFilter) &&
 				(authorFilter === 'all' || a.author === authorFilter)
 		)
@@ -90,12 +85,85 @@
 		}
 	}
 
-	/** A right-click selects the row it is on (without scrolling the page), so the menu acts
-	 * on it; from the keyboard, it arrives on the selected row. */
+	const keyOf = (a: Annotation) => `${a.page}:${a.id}`;
+
+	/** The annotation a `data-annotation-row` or `data-reply` attribute ("page:id") names. */
+	function named(key: string | undefined): Annotation | null {
+		const [page, id] = (key ?? '').split(':').map(Number);
+		return page !== undefined && id !== undefined && !Number.isNaN(id) ? tab.annotation(page, id) : null;
+	}
+
+	/** What the context menu acts on: the reply or the row under the pointer. */
+	let menuTarget = $state<Annotation | null>(null);
+
+	/** A right-click on a reply is for that reply; on a row, it selects the row (without
+	 * scrolling the page). From the keyboard, it arrives on the selected row. */
 	function onContextMenu(event: MouseEvent) {
-		const row = (event.target as HTMLElement).closest<HTMLElement>('[data-annotation-row]');
-		const [page, id] = (row?.dataset.annotationRow ?? '').split(':').map(Number);
-		if (row && page !== undefined && id !== undefined && `${page}:${id}` !== selectedKey) tab.selectAnnotation(page, id);
+		const target = event.target as HTMLElement;
+		const reply = named(target.closest<HTMLElement>('[data-reply]')?.dataset.reply);
+		const row = named(target.closest<HTMLElement>('[data-annotation-row]')?.dataset.annotationRow);
+		if (row && keyOf(row) !== selectedKey) tab.selectAnnotation(row.page, row.id);
+		menuTarget = reply ?? row ?? selected;
+	}
+
+	// ----- replies (ADR 0012) -----
+
+	/** The annotation a reply is being written to, and the reply being edited ("page:id"). */
+	let replyingTo = $state<string | null>(null);
+	let editingReply = $state<string | null>(null);
+
+	/** Puts the cursor at the end of a field that just appeared (after the menu that opened
+	 * it has handed focus back). */
+	function focusEnd(node: HTMLTextAreaElement) {
+		requestAnimationFrame(() => {
+			node.focus();
+			node.setSelectionRange(node.value.length, node.value.length);
+		});
+	}
+
+	function focusList() {
+		document.querySelector<HTMLElement>('.annotation-list')?.focus();
+	}
+
+	function startReply(a: Annotation) {
+		editingReply = null;
+		replyingTo = keyOf(a);
+	}
+
+	/** Leaving the field sends the reply; an empty one is dropped. */
+	function commitReply(a: Annotation, event: Event) {
+		const text = (event.currentTarget as HTMLTextAreaElement).value;
+		replyingTo = null;
+		if (text.trim()) void addReply(tab, a.page, a.id, text);
+	}
+
+	/** Ctrl+Enter sends, Escape drops the reply. */
+	function replyKey(event: KeyboardEvent) {
+		stopUnlessShortcut(event);
+		const field = event.currentTarget as HTMLTextAreaElement;
+		if (event.key === 'Enter' && event.ctrlKey) {
+			event.preventDefault();
+			field.blur();
+			focusList();
+		} else if (event.key === 'Escape') {
+			event.preventDefault();
+			field.value = '';
+			field.blur();
+			focusList();
+		}
+	}
+
+	/** Leaving the field keeps the edit; emptying a reply deletes it. */
+	function commitReplyEdit(r: Annotation, event: Event) {
+		const text = (event.currentTarget as HTMLTextAreaElement).value;
+		editingReply = null;
+		if (!text.trim()) void remove(tab, r.page, r.id);
+		else if (text !== r.contents) void update(tab, r.page, r.id, { contents: text });
+	}
+
+	function replyEditKey(r: Annotation, event: KeyboardEvent) {
+		if (event.key === 'Escape') (event.currentTarget as HTMLTextAreaElement).value = r.contents;
+		replyKey(event);
 	}
 
 	function commitNote(a: Annotation, event: Event) {
@@ -225,14 +293,42 @@
 										<p class="text-sm break-words whitespace-pre-wrap">{a.contents}</p>
 									{/if}
 									{#if replies.length}
-										<ul class="mt-1 flex flex-col gap-1 border-l-2 border-line pl-2" aria-label="Replies">
+										<ul class="reply-thread" aria-label="Replies">
 											{#each replies as r (r.id)}
-												<li class="text-xs">
-													<span class="font-semibold">{r.author || 'Unknown'}:</span>
-													<span class="break-words whitespace-pre-wrap">{r.contents}</span>
+												<li class="flex flex-col gap-0.5" data-reply={keyOf(r)}>
+													<div class="flex min-w-0 items-center gap-2 text-xs text-fg-muted">
+														<span class="min-w-0 truncate font-semibold">{r.author || 'Unknown'}</span>
+														{#if r.modified !== null}
+															<span class="shrink-0" title={formatDate(r.modified)}>{shortDate(r.modified)}</span>
+														{/if}
+													</div>
+													{#if editingReply === keyOf(r)}
+														<textarea
+															class="field comment-field w-full text-sm"
+															value={r.contents}
+															aria-label="Reply"
+															use:focusEnd
+															onclick={(e) => e.stopPropagation()}
+															onkeydown={(e) => replyEditKey(r, e)}
+															onblur={(e) => commitReplyEdit(r, e)}
+														></textarea>
+													{:else}
+														<p class="text-sm break-words whitespace-pre-wrap">{r.contents}</p>
+													{/if}
 												</li>
 											{/each}
 										</ul>
+									{/if}
+									{#if replyingTo === key}
+										<textarea
+											class="field comment-field mt-1 w-full text-sm"
+											aria-label="Reply to this annotation"
+											placeholder="Write a reply (Ctrl+Enter to send)"
+											use:focusEnd
+											onclick={(e) => e.stopPropagation()}
+											onkeydown={replyKey}
+											onblur={(e) => commitReply(a, e)}
+										></textarea>
 									{/if}
 								</div>
 							{/each}
@@ -241,25 +337,47 @@
 				{/snippet}
 			</ContextMenu.Trigger>
 			<ContextMenu.Portal>
-				<ContextMenu.Content class="menu-content">
-					<ContextMenu.Item
-						class="menu-item"
-						disabled={!selected?.contents}
-						onSelect={() => void copyComment(selected?.contents ?? '')}
-					>
-						Copy comment
-					</ContextMenu.Item>
-					<ContextMenu.Separator class="menu-separator" />
-					<ContextMenu.Item
-						class="menu-item"
-						disabled={!selected || !capabilities(selected, tab.flags.canAnnotate).delete}
-						onSelect={() => {
-							if (selected) void remove(tab, selected.page, selected.id);
-						}}
-					>
-						Delete annotation
-						<span class="menu-shortcut">Del</span>
-					</ContextMenu.Item>
+				<!-- A field the menu opened keeps the focus it takes, rather than the menu handing
+				     it back to the list (whose blur would end the edit). -->
+				<ContextMenu.Content
+					class="menu-content"
+					onCloseAutoFocus={(e) => {
+						if (replyingTo !== null || editingReply !== null) e.preventDefault();
+					}}
+				>
+					{#if menuTarget}
+						{@const t = menuTarget}
+						{@const caps = capabilities(t, tab.flags.canAnnotate)}
+						{@const isReply = tab.isThreadReply(t)}
+						<!-- On a reply, Reply adds to the same thread. -->
+						{@const root = isReply && t.replyTo !== null ? tab.annotation(t.page, t.replyTo) : t}
+						<ContextMenu.Item
+							class="menu-item"
+							disabled={!root || !capabilities(root, tab.flags.canAnnotate).text}
+							onSelect={() => {
+								if (root) startReply(root);
+							}}
+						>
+							Reply
+						</ContextMenu.Item>
+						{#if isReply}
+							<ContextMenu.Item class="menu-item" disabled={!caps.text} onSelect={() => (editingReply = keyOf(t))}>
+								Edit reply
+							</ContextMenu.Item>
+						{/if}
+						<ContextMenu.Item class="menu-item" disabled={!t.contents} onSelect={() => void copyComment(t.contents)}>
+							Copy comment
+						</ContextMenu.Item>
+						<ContextMenu.Separator class="menu-separator" />
+						<ContextMenu.Item class="menu-item" disabled={!caps.delete} onSelect={() => void remove(tab, t.page, t.id)}>
+							{#if isReply}
+								Delete reply
+							{:else}
+								Delete annotation
+								<span class="menu-shortcut">Del</span>
+							{/if}
+						</ContextMenu.Item>
+					{/if}
 				</ContextMenu.Content>
 			</ContextMenu.Portal>
 		</ContextMenu.Root>

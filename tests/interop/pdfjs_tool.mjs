@@ -73,7 +73,8 @@ async function info(file) {
 				subtype: a.subtype,
 				rect: a.rect,
 				hasAppearance: a.hasAppearance ?? null,
-				id: a.id
+				id: a.id,
+				inReplyTo: a.inReplyTo ?? null
 			});
 			if (a.subtype === 'Link') {
 				links.push({ page: i, target: a.dest ? await destPage(doc, a.dest) : null, uri: a.url ?? null });

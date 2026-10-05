@@ -151,7 +151,13 @@ pub fn repair(doc: &mut PdfDocument) -> Result<Vec<RepairChange>> {
                 }
             }
             if synthesize {
-                write::synthesize(doc, &mut annot)?;
+                // A reply gets an empty appearance: MuPDF's would draw a note icon over its
+                // parent, and readers show replies in the parent's thread (ADR 0012).
+                if super::reply::is_reply(&annot.object())? {
+                    super::reply::put_empty_appearance(doc, &mut annot.object())?;
+                } else {
+                    write::synthesize(doc, &mut annot)?;
+                }
                 if info.problems.contains(&Problem::MissingAppearance) {
                     fixed.push(Problem::MissingAppearance);
                 }

@@ -146,7 +146,8 @@ describe('what may change', () => {
 		expect(capabilities(link, true).text).toBe(false);
 		expect(capabilities(ink, false)).toEqual({ restyle: false, text: false, move: false, resize: false, delete: false });
 		expect(capabilities({ ...ink, id: 0 }, true).delete).toBe(false);
-		expect(capabilities({ ...note, replyTo: 7 }, true).text).toBe(false);
+		// A reply's text can change, nothing else (ADR 0012).
+		expect(capabilities({ ...note, replyTo: 7 }, true)).toEqual({ restyle: false, text: true, move: false, resize: false, delete: true });
 	});
 
 	it('names tools and types', () => {

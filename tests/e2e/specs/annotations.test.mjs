@@ -450,3 +450,66 @@ test('comments keep their line breaks, and looking at one changes nothing', asyn
 		await stop();
 	}
 });
+
+test('reply to an annotation from the list, edit the reply and delete it', async () => {
+	const plain = sample('replies-plain.pdf', 1);
+	const path = plain.replace('-plain.pdf', '.pdf');
+	cli('annot', 'note', plain, path, '--at', '400,150', '--text', 'The note');
+
+	const { browser, stop } = await launch([path]);
+	try {
+		await waitForDocument(browser);
+		await showAnnotations(browser);
+		const menuItem = (name) => browser.$(`//*[@role="menuitem"][contains(., "${name}")]`);
+		const thread = () => browser.execute(() => [...document.querySelectorAll('.reply-thread [data-reply] p')].map((p) => p.textContent.trim()));
+
+		// Reply from the row's context menu: the field opens focused; Ctrl+Enter sends.
+		await (await browser.$('.annotation-row')).click({ button: 'right' });
+		await (await menuItem('Reply')).click();
+		const field = await browser.$('textarea[aria-label="Reply to this annotation"]');
+		await field.waitForDisplayed({ timeoutMsg: 'no reply field' });
+		await browser.waitUntil(() => browser.execute(() => document.activeElement?.getAttribute('aria-label') === 'Reply to this annotation'), {
+			timeoutMsg: 'the reply field is not focused'
+		});
+		await browser.keys([...'First reply']);
+		await browser.keys(['Control', 'Enter']);
+		await browser.waitUntil(async () => (await thread()).join('|') === 'First reply', { timeoutMsg: `no reply in the thread: ${await thread()}` });
+		assert.match(await statusText(browser), /Unsaved changes/);
+		// One row still: the reply is in the thread, not a row of its own.
+		assert.equal((await listRows(browser)).length, 1);
+
+		// Hovering the note still shows the note's own comment.
+		await browser.action('pointer').move({ ...(await pagePoint(browser, 0, 410, 160)), origin: 'viewport' }).perform();
+		const tip = await browser.$('[role=tooltip]');
+		await tip.waitForDisplayed({ timeoutMsg: 'no comment over the note' });
+		assert.equal((await tip.getText()).trim(), 'The note');
+
+		// Saved: the reply is a note linked to its parent.
+		await browser.keys(['Control', 's']);
+		await browser.waitUntil(async () => (await statusText(browser)).includes('All changes saved'), { timeoutMsg: 'not saved' });
+		const lines = cli('annot', 'list', path).split('\n').filter((l) => l.includes('object'));
+		const parentId = /object (\d+) Text/.exec(lines.find((l) => l.includes('"The note"')) ?? '')?.[1];
+		assert.ok(parentId, lines.join('\n'));
+		assert.ok(lines.some((l) => l.includes('"First reply"') && l.includes(`reply-to ${parentId}`)), lines.join('\n'));
+
+		// Edit the reply from its own context menu.
+		await (await browser.$('.reply-thread [data-reply]')).click({ button: 'right' });
+		await (await menuItem('Edit reply')).click();
+		await browser.waitUntil(() => browser.execute(() => document.activeElement?.getAttribute('aria-label') === 'Reply'), {
+			timeoutMsg: 'the reply is not open for editing'
+		});
+		await browser.keys(['Control', 'a']);
+		await browser.keys([...'Edited reply']);
+		await browser.keys(['Control', 'Enter']);
+		await browser.waitUntil(async () => (await thread()).join('|') === 'Edited reply', { timeoutMsg: `the reply was not edited: ${await thread()}` });
+
+		// Delete it, then undo.
+		await (await browser.$('.reply-thread [data-reply]')).click({ button: 'right' });
+		await (await menuItem('Delete reply')).click();
+		await browser.waitUntil(async () => (await thread()).length === 0, { timeoutMsg: 'the reply was not deleted' });
+		await browser.keys(['Control', 'z']);
+		await browser.waitUntil(async () => (await thread()).join('|') === 'Edited reply', { timeoutMsg: 'undo did not bring the reply back' });
+	} finally {
+		await stop();
+	}
+});

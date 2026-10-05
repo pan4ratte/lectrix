@@ -150,10 +150,13 @@ export interface Capabilities {
 /** What may be changed on `a` (nothing in a document that doesn't allow annotating). */
 export function capabilities(a: Annotation, canAnnotate: boolean): Capabilities {
 	const editable = canAnnotate && a.id !== 0;
+	// A reply (a note answering another annotation) is never drawn: only its text and author
+	// change (pdf-core's `reply::edit_reply`, ADR 0012).
+	const reply = a.replyTo !== null && a.subtype === 'Text';
 	return {
-		restyle: editable && RESTYLABLE.has(a.subtype),
-		text: editable && MARKUP.has(a.subtype) && a.replyTo === null,
-		move: editable && (a.kind === 'note' || a.kind === 'ink' || a.kind === 'freeText'),
+		restyle: editable && !reply && RESTYLABLE.has(a.subtype),
+		text: editable && MARKUP.has(a.subtype),
+		move: editable && !reply && (a.kind === 'note' || a.kind === 'ink' || a.kind === 'freeText'),
 		resize: editable && (a.kind === 'ink' || a.kind === 'freeText'),
 		delete: editable
 	};

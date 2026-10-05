@@ -1276,3 +1276,200 @@ fn text_selected_across_pages_is_one_undo_step() {
             .is_err()
     );
 }
+
+/// The page's pixels as MuPDF draws it, annotations included.
+fn page_pixels(doc: &PdfDocument) -> Vec<u8> {
+    use mupdf::{Colorspace, Matrix};
+    doc.load_page(0)
+        .unwrap()
+        .to_pixmap(&Matrix::IDENTITY, &Colorspace::device_rgb(), false, true)
+        .unwrap()
+        .samples()
+        .to_vec()
+}
+
+#[test]
+fn replies_are_threaded_notes_that_nothing_draws() {
+    let dir = out_dir("annotations-replies");
+    let src = sample_file(&dir, "src.pdf", SampleSpec::default());
+    let probe = sample_file(&dir, "probe.pdf", SampleSpec::default());
+    let specs = every_kind(&open(&probe), 0);
+    // Each step is saved, checked, and the next one works on the file it wrote.
+    let step = |doc: &PdfDocument, from: &Path, name: &str| {
+        let path = dir.join(name);
+        let reopened = save_and_reopen(doc, from, &path);
+        qpdf_check(&path);
+        (reopened, path)
+    };
+
+    // A highlight with a note to reply to.
+    let mut doc = open(&src);
+    let parent = annot::create(&mut doc, &specs[0]).unwrap();
+    let parent_id = u32::try_from(parent.xref).unwrap();
+    let (mut doc, path) = step(&doc, &src, "parent.pdf");
+    let before = page_pixels(&doc);
+
+    let text = "Agreed — see page 3.";
+    let reply = annot::reply::add_reply(&mut doc, 0, parent_id, text, "Tëster").unwrap();
+    let reply_id = u32::try_from(reply.xref).unwrap();
+    let (mut doc, path) = step(&doc, &path, "reply.pdf");
+
+    let obj = doc.new_indirect(reply.xref, 0).unwrap();
+    let parent_obj = doc.new_indirect(parent.xref, 0).unwrap();
+    check_metadata(&obj, "reply");
+    assert_eq!(get(&obj, "Subtype").as_name().unwrap(), b"Text");
+    assert_eq!(get(&obj, "IRT").as_indirect().unwrap(), parent.xref);
+    assert_eq!(get(&obj, "Name").as_name().unwrap(), b"Comment");
+    assert!(!get(&obj, "Open").as_bool().unwrap());
+    assert!(obj.get_dict("Popup").unwrap().is_none(), "no popup");
+    assert_eq!(get(&obj, "Contents").as_string_lossy().unwrap(), text);
+    assert_eq!(
+        objects::numbers(&get(&obj, "C")).unwrap(),
+        objects::numbers(&get(&parent_obj, "C")).unwrap(),
+        "the parent's colour"
+    );
+    // A /Rect of no area at the parent's top-left corner, and an empty appearance.
+    let (r, p) = (rect_of(&obj), rect_of(&parent_obj));
+    for (got, want) in [(r.x0, p.x0), (r.x1, p.x0), (r.y0, p.y1), (r.y1, p.y1)] {
+        assert!((got - want).abs() < 0.01, "reply /Rect {r:?}, parent {p:?}");
+    }
+    assert!(
+        normal_appearance(&obj, "reply")
+            .read_stream()
+            .unwrap()
+            .is_empty()
+    );
+    let info = read_page(&doc, 0)
+        .unwrap()
+        .into_iter()
+        .find(|a| a.id == reply_id)
+        .unwrap();
+    assert_eq!(info.reply_to, Some(parent_id));
+    assert_eq!(info.contents, text);
+    assert!(info.problems.is_empty(), "{:?}", info.problems);
+    // Nothing on the page changes.
+    assert!(before == page_pixels(&doc), "the reply is drawn");
+
+    // Its text and author can change, nothing else; the appearance stays empty.
+    let retext = AnnotationEdit {
+        contents: Some("Changed my mind".into()),
+        ..AnnotationEdit::default()
+    };
+    annot::edit(&mut doc, 0, reply_id, &retext).unwrap();
+    let recolor = AnnotationEdit {
+        color: Some(BLUE),
+        ..AnnotationEdit::default()
+    };
+    assert!(annot::edit(&mut doc, 0, reply_id, &recolor).is_err());
+    let blank = AnnotationEdit {
+        contents: Some("  ".into()),
+        ..AnnotationEdit::default()
+    };
+    assert!(annot::edit(&mut doc, 0, reply_id, &blank).is_err());
+    let (mut doc, path) = step(&doc, &path, "edited.pdf");
+    let obj = doc.new_indirect(reply.xref, 0).unwrap();
+    assert_eq!(
+        get(&obj, "Contents").as_string_lossy().unwrap(),
+        "Changed my mind"
+    );
+    assert!(
+        normal_appearance(&obj, "edited")
+            .read_stream()
+            .unwrap()
+            .is_empty()
+    );
+    assert!(before == page_pixels(&doc), "the edited reply is drawn");
+
+    // No reply without text.
+    assert!(annot::reply::add_reply(&mut doc, 0, parent_id, " ", "Tëster").is_err());
+
+    // A reply from another app without an appearance gets an empty one from repair, not
+    // a note icon over its parent.
+    doc.new_indirect(reply.xref, 0)
+        .unwrap()
+        .dict_delete("AP")
+        .unwrap();
+    assert_eq!(
+        scan(&doc).unwrap().counts.get(&Problem::MissingAppearance),
+        Some(&1)
+    );
+    repair(&mut doc).unwrap();
+    let (mut doc, _) = step(&doc, &path, "repaired.pdf");
+    let obj = doc.new_indirect(reply.xref, 0).unwrap();
+    assert!(
+        normal_appearance(&obj, "repaired")
+            .read_stream()
+            .unwrap()
+            .is_empty()
+    );
+    assert!(before == page_pixels(&doc), "the repaired reply is drawn");
+
+    // Deleting the parent deletes its reply.
+    annot::delete(&mut doc, 0, parent_id).unwrap();
+    assert!(read_page(&doc, 0).unwrap().iter().all(|a| a.id != reply_id));
+}
+
+#[test]
+fn replies_are_undoable_steps_through_the_session() {
+    let dir = out_dir("annotations-reply-session");
+    let src = sample_file(&dir, "src.pdf", SampleSpec::default());
+    let probe = sample_file(&dir, "probe.pdf", SampleSpec::default());
+    let specs = every_kind(&open(&probe), 1);
+    let (session, _) = Session::open(&src, None).unwrap();
+    let parent = session
+        .apply(Operation::AddAnnotation {
+            annotation: specs[4].clone(),
+        })
+        .unwrap()
+        .created
+        .unwrap();
+
+    let added = session
+        .apply(Operation::AddReply {
+            page: 1,
+            parent,
+            text: "Yes".into(),
+            author: "Tëster".into(),
+        })
+        .unwrap();
+    assert_eq!(added.state.undo_name.as_deref(), Some("Add reply"));
+    let reply = added.created.unwrap();
+    let listed = |change: &pdf_core::session::DocumentChange| {
+        change
+            .annotations
+            .iter()
+            .flat_map(|(_, list)| list.iter())
+            .find(|a| a.id == reply)
+            .map(|a| (a.reply_to, a.contents.clone()))
+    };
+    assert_eq!(listed(&added), Some((Some(parent), "Yes".to_owned())));
+
+    let edited = session
+        .apply(Operation::UpdateAnnotation {
+            page: 1,
+            id: reply,
+            edit: AnnotationEdit {
+                contents: Some("Yes, done".into()),
+                ..AnnotationEdit::default()
+            },
+        })
+        .unwrap();
+    assert_eq!(edited.state.undo_name.as_deref(), Some("Edit reply"));
+    let deleted = session
+        .apply(Operation::DeleteAnnotation { page: 1, id: reply })
+        .unwrap();
+    assert_eq!(deleted.state.undo_name.as_deref(), Some("Delete reply"));
+    assert_eq!(listed(&deleted), None);
+    let back = session.undo().unwrap();
+    assert_eq!(listed(&back), Some((Some(parent), "Yes, done".to_owned())));
+    assert!(
+        session
+            .apply(Operation::AddReply {
+                page: 1,
+                parent,
+                text: " ".into(),
+                author: "Tëster".into(),
+            })
+            .is_err()
+    );
+}

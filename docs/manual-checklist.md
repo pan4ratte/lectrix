@@ -15,6 +15,7 @@ Run `python tests/interop/run.py phase5` and the end-to-end tests (`npm test` in
 | `types-crop.pdf` | The same on pages with a cropped, offset visible area. |
 | `types-userunit.pdf` | The same on pages with a UserUnit of 2 (pages twice the usual size). |
 | `edited.pdf` | `types-normal.pdf` after edits: the highlight is pink with the note "Edited note", the green underline on page 2 is now a green highlight, the blue squiggly on page 4 is now a blue underline, the note moved to the lower middle, the drawing resized to a wide box with 4 pt strokes, the text box retyped at 16 pt, and the strikeout deleted. |
+| `replies.pdf` | `types-normal.pdf` with a reply ("Reply on page 1 — ünïcödé") to the highlight on page 1 and one ("Reply on page 5 — ünïcödé") to the sticky note on page 5, by "Lectrix Harness" (ADR 0012). |
 | `app-annotations.pdf` | Made in the app by the end-to-end test: a highlight, a note ("Hello from the note"), a drawing, a text box ("Typed in a box") on page 1, and a highlight by "E2E Tester" on page 2. |
 | `problems-before-repair.pdf` | Eight annotations "another app" wrote with problems (no appearance, corners in the wrong order, too-small bounds, missing keys). Several are invisible in some readers. |
 | `problems-repaired.pdf`, `app-repaired.pdf` | The same after Repair annotations (the second one repaired in the app). |
@@ -50,6 +51,20 @@ Expected differences, not failures:
 - [ ] In `edited.pdf`, the comments list calls the annotation on page 2 a highlight and the
       one on page 4 an underline (types changed in Lectrix), and each can be edited there.
 - [ ] Nothing was lost: count the annotations in each reader's comments list (7 and 5).
+
+## `replies.pdf`
+
+In each reader:
+
+- [ ] The highlight's and the note's threads in the comments list show the reply under
+      them, with its author and text (accented letters intact).
+- [ ] Pages 1 and 5 look exactly like `types-normal.pdf`: no extra note icon anywhere.
+- [ ] Pointing at (or clicking) the sticky note on page 5 shows the note's own text,
+      "Sticky note text", not the reply's.
+- [ ] A reply written there (in Acrobat or Foxit) shows in Lectrix's annotation list under
+      the same annotation.
+
+If Acrobat or Foxit don't list Lectrix's replies, note it: ADR 0012 has the fallback.
 
 ## Repair
 
