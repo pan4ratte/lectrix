@@ -62,7 +62,7 @@
 			<span class="text-xs text-fg-muted">Title</span>
 			{#key b.id}
 				<input
-					class="field h-8 text-sm"
+					class="field h-8"
 					value={b.title}
 					readonly={!editable}
 					onkeydown={onTitleKey}

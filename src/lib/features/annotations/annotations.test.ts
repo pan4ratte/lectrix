@@ -15,7 +15,7 @@ import {
 	resizeBox,
 	selectionRanges
 } from './geometry.ts';
-import { capabilities, isMarkupTool, typeName } from './tools.ts';
+import { capabilities, isMarkupTool, shortDate, typeName } from './tools.ts';
 
 function annotation(patch: Partial<Annotation>): Annotation {
 	return {
@@ -235,5 +235,18 @@ describe('floating bars', () => {
 		expect(barControls(annotation({ subtype: 'Square', kind: null }), true)).toMatchObject({ restyle: true, retype: false });
 		expect(barControls(annotation({}), false)).toMatchObject({ restyle: false, retype: false, delete: false });
 		expect(barControls(annotation({ id: 0 }), true).retype).toBe(false);
+	});
+});
+
+describe('dates in the list', () => {
+	// Local times, so the test doesn't depend on the machine's time zone.
+	const now = new Date(2026, 9, 5, 21, 42).getTime();
+
+	it('shows the time today, the day this year, and the year before that', () => {
+		expect(shortDate(new Date(2026, 9, 5, 9, 7).getTime(), now, 'en-GB')).toBe('09:07');
+		expect(shortDate(new Date(2026, 9, 4, 23, 59).getTime(), now, 'en-GB')).toBe('4 Oct');
+		expect(shortDate(new Date(2026, 0, 1).getTime(), now, 'en-GB')).toBe('1 Jan');
+		expect(shortDate(new Date(2025, 11, 31).getTime(), now, 'en-GB')).toBe('31 Dec 2025');
+		expect(shortDate(new Date(2026, 9, 5, 9, 7).getTime(), now, 'en-US')).toBe('9:07 AM');
 	});
 });

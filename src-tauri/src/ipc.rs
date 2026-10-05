@@ -1019,6 +1019,8 @@ pub struct Settings {
     pub check_for_updates: bool,
     /// Whether zooming in or out a step glides instead of jumping (section 6.1).
     pub smooth_zoom: bool,
+    /// Whether picking an annotation in the list scrolls to it smoothly (section 6.5).
+    pub smooth_annotation_scroll: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, TS)]
@@ -1034,6 +1036,7 @@ pub struct SettingsInput {
     pub quick_tools: Vec<QuickTool>,
     pub check_for_updates: bool,
     pub smooth_zoom: bool,
+    pub smooth_annotation_scroll: bool,
 }
 
 /// A newer release of Lectrix, found when it started (ADR 0011).

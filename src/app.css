@@ -174,12 +174,15 @@ body {
 	touch-action: pan-x pan-y;
 }
 
-input,
-textarea {
-	user-select: text;
-	-webkit-user-select: text;
-	font: inherit;
-	color: inherit;
+/* In the base layer, so a field's own size class (text-sm...) wins over inheriting. */
+@layer base {
+	input,
+	textarea {
+		user-select: text;
+		-webkit-user-select: text;
+		font: inherit;
+		color: inherit;
+	}
 }
 
 button {
@@ -401,6 +404,40 @@ button {
 }
 .annotation-row[aria-selected='true'] {
 	background: var(--lectrix-row-selected);
+}
+/* The type icon, in the annotation's colour (set inline); muted when it has none. */
+.annotation-type-icon {
+	display: inline-flex;
+	flex-shrink: 0;
+	color: var(--lectrix-fg-muted);
+}
+/* The comment of the annotation under the pointer: plain text, up to 12 lines. */
+.comment-tip {
+	position: absolute;
+	z-index: 10;
+	max-width: 320px;
+	padding: 4px 8px;
+	overflow: hidden;
+	border: 1px solid var(--lectrix-line);
+	border-radius: var(--radius-control);
+	background: var(--lectrix-surface-raised);
+	box-shadow: 0 4px 12px var(--color-page-shadow);
+	color: var(--lectrix-fg);
+	font-size: 12px;
+	line-height: 1.4;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+	pointer-events: none;
+	display: -webkit-box;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 12;
+}
+/* A comment being edited in the list: as tall as its text, no scrollbar or resize grip. */
+.comment-field {
+	field-sizing: content;
+	min-height: 3.5em;
+	overflow: hidden;
+	resize: none;
 }
 .repair-badge {
 	display: inline-flex;

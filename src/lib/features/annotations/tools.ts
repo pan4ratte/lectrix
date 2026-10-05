@@ -188,7 +188,23 @@ export function needsRepair(a: Annotation): boolean {
 }
 
 /** A date for the inspector and the list, in the user's locale. */
-export function formatDate(ms: number | null): string {
+export function formatDate(ms: number | null, locale?: string): string {
 	if (ms === null) return '—';
-	return new Date(ms).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' });
+	return new Date(ms).toLocaleString(locale, { dateStyle: 'medium', timeStyle: 'short' });
+}
+
+/**
+ * A date as short as the annotation list needs, as Acrobat shows it: the time for today
+ * ("21:42"), the day and month this year ("5 Oct"), and the year too before that.
+ */
+export function shortDate(ms: number, now: number = Date.now(), locale?: string): string {
+	const d = new Date(ms);
+	const today = new Date(now);
+	if (d.toDateString() === today.toDateString()) {
+		return d.toLocaleTimeString(locale, { timeStyle: 'short' });
+	}
+	if (d.getFullYear() === today.getFullYear()) {
+		return d.toLocaleDateString(locale, { day: 'numeric', month: 'short' });
+	}
+	return d.toLocaleDateString(locale, { day: 'numeric', month: 'short', year: 'numeric' });
 }

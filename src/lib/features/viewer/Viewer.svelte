@@ -17,6 +17,7 @@
 		update
 	} from '#lib/features/annotations/actions.ts';
 	import AnnotationBar from '#lib/features/annotations/AnnotationBar.svelte';
+	import CommentTip from '#lib/features/annotations/CommentTip.svelte';
 	import { quickToolAllowed, releaseAnchor, type Area } from '#lib/features/annotations/bars.ts';
 	import {
 		annotationAt,
@@ -256,7 +257,7 @@
 		onScroll();
 	}
 
-	function reveal(index: number, rect: [number, number, number, number]) {
+	function reveal(index: number, rect: [number, number, number, number], options: { smooth?: boolean } = {}) {
 		if (!scroller) return;
 		const [ax, ay] = toBox(index, rect[0], rect[1]);
 		const [bx, by] = toBox(index, rect[2], rect[3]);
@@ -265,13 +266,53 @@
 		const bottom = b.top + Math.max(ay, by);
 		const left = b.left + Math.min(ax, bx);
 		const right = b.left + Math.max(ax, bx);
-		if (top < scrollTop + 40 || bottom > scrollTop + viewportH - 40) {
-			scroller.scrollTop = (top + bottom) / 2 - viewportH / 2;
+		const toTop = top < scrollTop + 40 || bottom > scrollTop + viewportH - 40 ? (top + bottom) / 2 - viewportH / 2 : null;
+		const toLeft = left < scrollLeft || right > scrollLeft + viewportW ? (left + right) / 2 - viewportW / 2 : null;
+		glideScroll(toTop, toLeft, options.smooth ? motionMs(SCROLL_GLIDE_MS) : 0);
+	}
+
+	// ----- gliding scroll (section 6.5: going to an annotation picked in the list) -----
+
+	const SCROLL_GLIDE_MS = 140;
+	let scrollFrame = 0;
+
+	/**
+	 * Scrolls to `top` and `left` (null leaves that axis), over `duration` ms. A long way
+	 * starts two screens from the target, so the pages in between are not all rendered.
+	 */
+	function glideScroll(top: number | null, left: number | null, duration: number) {
+		if (!scroller) return;
+		stopScrollGlide();
+		const maxTop = scroller.scrollHeight - scroller.clientHeight;
+		const maxLeft = scroller.scrollWidth - scroller.clientWidth;
+		const toTop = top === null ? null : Math.min(maxTop, Math.max(0, top));
+		const toLeft = left === null ? null : Math.min(maxLeft, Math.max(0, left));
+		if (toTop === null && toLeft === null) return;
+		if (duration === 0) {
+			if (toTop !== null) scroller.scrollTop = toTop;
+			if (toLeft !== null) scroller.scrollLeft = toLeft;
+			onScroll();
+			return;
 		}
-		if (left < scrollLeft || right > scrollLeft + viewportW) {
-			scroller.scrollLeft = (left + right) / 2 - viewportW / 2;
-		}
-		onScroll();
+		const near = 2 * viewportH;
+		let fromTop = scroller.scrollTop;
+		if (toTop !== null && Math.abs(toTop - fromTop) > near) fromTop = toTop - Math.sign(toTop - fromTop) * near;
+		const fromLeft = scroller.scrollLeft;
+		const start = performance.now();
+		const frame = (now: number) => {
+			if (!scroller) return;
+			const e = easeOut((now - start) / duration);
+			if (toTop !== null) scroller.scrollTop = fromTop + (toTop - fromTop) * e;
+			if (toLeft !== null) scroller.scrollLeft = fromLeft + (toLeft - fromLeft) * e;
+			onScroll();
+			scrollFrame = e < 1 ? requestAnimationFrame(frame) : 0;
+		};
+		scrollFrame = requestAnimationFrame(frame);
+	}
+
+	function stopScrollGlide() {
+		cancelAnimationFrame(scrollFrame);
+		scrollFrame = 0;
 	}
 
 	// ----- zoom -----
@@ -396,6 +437,9 @@
 	let wheelFrame = 0;
 
 	function onWheel(event: WheelEvent) {
+		// The user's own scrolling takes over from a glide to an annotation.
+		stopScrollGlide();
+		hideTip();
 		if (!event.ctrlKey || !scroller) return;
 		// Ctrl+wheel and touchpad pinch (which arrives as Ctrl+wheel): zoom at the cursor.
 		event.preventDefault();
@@ -511,6 +555,8 @@
 	const clickCounter = new ClickCounter();
 
 	function onPointerDown(event: PointerEvent) {
+		stopScrollGlide();
+		hideTip();
 		if (event.button !== 0 || !scroller) return;
 		const target = event.target as HTMLElement;
 		if (target.closest('[data-annotation-editor], [data-floating-bar]')) return;
@@ -641,19 +687,67 @@
 			if (!target?.closest('.page')) {
 				overText = false;
 				overAnnotation = null;
+				hideTip();
 				return;
 			}
 			const page = pageUnder(lastPointer.y);
 			const [x, y] = toPage(page, lastPointer.x, lastPointer.y);
 			overAnnotation = null;
-			if (tools.tool === 'select') {
-				const hit = annotationAt(tab.annotationsOn(page), x, y, px(4));
-				if (hit) overAnnotation = capabilities(hit, tab.flags.canAnnotate).move ? 'move' : 'select';
-			}
+			const hit = annotationAt(tab.annotationsOn(page), x, y, px(4));
+			if (hit && tools.tool === 'select') overAnnotation = capabilities(hit, tab.flags.canAnnotate).move ? 'move' : 'select';
+			hoverTip(hit);
 			const text = tab.text(page);
 			overText = !!text && isOverText(text, x, y);
 		});
 	}
+
+	// ----- the comment of the annotation under the pointer (section 6.5) -----
+
+	/** How long the pointer rests on an annotation before its comment shows. */
+	const TIP_DELAY_MS = 300;
+	/** The annotation whose comment shows. */
+	let tip = $state<{ page: number; id: number } | null>(null);
+	let pendingTip: { page: number; id: number } | null = null;
+	let tipTimer: ReturnType<typeof setTimeout> | undefined;
+
+	/** The comment a tooltip would show for `a`: none for a text box, whose text is on the page. */
+	function tipText(a: Annotation | null): string {
+		return a && a.kind !== 'freeText' ? a.contents.trim() : '';
+	}
+
+	/** Shows the comment of `hit` after a moment; from one annotation to another, at once. */
+	function hoverTip(hit: Annotation | null) {
+		const next = hit && tipText(hit) ? { page: hit.page, id: hit.id } : null;
+		const same = (a: typeof next) => a !== null && next !== null && a.page === next.page && a.id === next.id;
+		if (same(tip) || same(pendingTip)) return;
+		clearTimeout(tipTimer);
+		pendingTip = null;
+		if (!next) {
+			tip = null;
+		} else if (tip) {
+			tip = next;
+		} else {
+			pendingTip = next;
+			tipTimer = setTimeout(() => {
+				tip = pendingTip;
+				pendingTip = null;
+			}, TIP_DELAY_MS);
+		}
+	}
+
+	function hideTip() {
+		clearTimeout(tipTimer);
+		pendingTip = null;
+		tip = null;
+	}
+
+	/** The tooltip's text and where it goes, while nothing is being dragged or typed. */
+	const tipShown = $derived.by(() => {
+		if (!tip || dragging || tab.draft || !layout.pages[tip.page]) return null;
+		const a = tab.annotation(tip.page, tip.id);
+		const text = tipText(a);
+		return a && text ? { text, area: contentArea(a.page, a.bounds) } : null;
+	});
 
 	async function onPointerUp(event: PointerEvent) {
 		const g = gesture;
@@ -885,7 +979,9 @@
 			cancelAnimationFrame(autoScroll);
 			cancelAnimationFrame(wheelFrame);
 			stopZoomGlide();
+			stopScrollGlide();
 			clearTimeout(settleTimer);
+			clearTimeout(tipTimer);
 		};
 	});
 
@@ -936,6 +1032,7 @@
 					onpointermove={chain(props, 'onpointermove', onPointerMove)}
 					onpointerup={chain(props, 'onpointerup', onPointerUp)}
 					onpointercancel={chain(props, 'onpointercancel', onPointerUp)}
+					onpointerleave={chain(props, 'onpointerleave', hideTip)}
 					oncontextmenu={chain(props, 'oncontextmenu', onContextMenu)}
 				>
 					<div class="relative" style:width="{contentW}px" style:height="{layout.totalHeight}px">
@@ -981,6 +1078,9 @@
 									if (a) openTextEditor(a);
 								}}
 							/>
+						{/if}
+						{#if tipShown}
+							<CommentTip text={tipShown.text} anchor={tipShown.area} {view} contentWidth={contentW} />
 						{/if}
 					</div>
 				</div>

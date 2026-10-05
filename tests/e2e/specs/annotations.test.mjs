@@ -20,10 +20,11 @@ function onDisk(path) {
 }
 
 /** Rows of the annotation list: type and badge text. */
+/** The list's rows as text, each starting with its type (the icon's accessible name). */
 async function listRows(browser) {
 	return browser.execute(() =>
 		[...document.querySelectorAll('[aria-label="Annotations"][role=listbox] [role=option]')].map((r) =>
-			r.textContent.replace(/\s+/g, ' ').trim()
+			`${r.querySelector('.annotation-type-icon')?.getAttribute('aria-label') ?? ''} ${r.textContent}`.replace(/\s+/g, ' ').trim()
 		)
 	);
 }
@@ -121,9 +122,15 @@ test('create, edit, delete, undo, save and reopen annotations', async () => {
 		await browser.keys(['Control', 'Enter']);
 		await waitForRowCount(browser, 4, 'text box');
 
-		// Select tool, then drag the note somewhere else.
+		// Select tool. Resting the pointer on the note shows its comment, and only that.
 		await browser.keys('Escape');
 		await browser.keys('Escape');
+		await browser.action('pointer').move({ ...(await pagePoint(browser, 0, 410, 160)), origin: 'viewport' }).perform();
+		const tip = await browser.$('[role=tooltip]');
+		await tip.waitForDisplayed({ timeoutMsg: 'no comment over the note' });
+		assert.equal((await tip.getText()).trim(), 'Hello from the note');
+
+		// Drag the note somewhere else.
 		await drag(browser, await pagePoint(browser, 0, 410, 160), await pagePoint(browser, 0, 470, 230));
 		await browser.pause(500);
 
@@ -131,12 +138,36 @@ test('create, edit, delete, undo, save and reopen annotations', async () => {
 		const rows = await listRows(browser);
 		const drawing = rows.findIndex((r) => r.startsWith('Drawing'));
 		assert.ok(drawing >= 0, JSON.stringify(rows));
-		await (await browser.$$('[aria-label="Annotations"][role=listbox] [role=option]'))[drawing].click();
+		const drawingRow = (await browser.$$('[aria-label="Annotations"][role=listbox] [role=option]'))[drawing];
+		await drawingRow.click();
+		// Selected: no Delete button in the row (the menu and the Delete key delete); its
+		// note field has the same text size as the comments, and no scrollbar.
+		const row = await browser.execute(() => {
+			const selected = document.querySelector('.annotation-row[aria-selected="true"]');
+			const field = selected.querySelector('.comment-field');
+			return {
+				buttons: selected.querySelectorAll('button').length,
+				field: getComputedStyle(field).fontSize,
+				text: getComputedStyle(document.querySelector('.annotation-row p')).fontSize,
+				scrolls: field.scrollHeight > field.clientHeight + 1
+			};
+		});
+		assert.deepEqual(row, { buttons: 0, field: row.text, text: row.text, scrolls: false });
 		await browser.execute(() => document.querySelector('[aria-label="Annotations"][role=listbox]').focus());
 		await browser.keys('Delete');
 		await waitForRowCount(browser, 3, 'delete');
 		await browser.keys(['Control', 'z']);
 		await waitForRowCount(browser, 4, 'undo delete');
+
+		// The same from the row's context menu; a drawing without a comment has none to copy.
+		await (await browser.$$('[aria-label="Annotations"][role=listbox] [role=option]'))[drawing].click({ button: 'right' });
+		const copyItem = await browser.$('//*[@role="menuitem"][contains(., "Copy comment")]');
+		await copyItem.waitForDisplayed({ timeoutMsg: 'no context menu on the row' });
+		assert.equal(await copyItem.getAttribute('data-disabled'), '');
+		await (await browser.$('//*[@role="menuitem"][contains(., "Delete annotation")]')).click();
+		await waitForRowCount(browser, 3, 'delete from the menu');
+		await browser.keys(['Control', 'z']);
+		await waitForRowCount(browser, 4, 'undo delete from the menu');
 
 		await browser.keys(['Control', 's']);
 		await browser.waitUntil(async () => (await statusText(browser)).includes('All changes saved'), {

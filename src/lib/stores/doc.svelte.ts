@@ -27,8 +27,9 @@ import { clampZoom, type ZoomMode } from '#lib/features/viewer/zoom.ts';
 export interface ViewerApi {
 	position(): ViewPosition;
 	goTo(position: ViewPosition, options?: { recordHistory?: boolean }): void;
-	/** Scrolls so that `rect` (page points, view space) is visible. */
-	reveal(page: number, rect: [number, number, number, number]): void;
+	/** Scrolls so that `rect` (page points, view space) is visible; with `smooth`, gliding
+	 * there (unless the system asks for reduced motion). */
+	reveal(page: number, rect: [number, number, number, number], options?: { smooth?: boolean }): void;
 	/**
 	 * The page and point (page points, view space) at the top-left of what is visible:
 	 * where a bookmark made now should lead.

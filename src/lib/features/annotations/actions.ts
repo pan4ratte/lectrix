@@ -69,6 +69,20 @@ export async function update(tab: DocTab, page: number, id: number, edit: Annota
 	return app.apply(tab, { kind: 'updateAnnotation', page, id, edit });
 }
 
+/** Copies an annotation's comment (its note text) to the clipboard. */
+export async function copyComment(text: string) {
+	if (!text) return;
+	try {
+		await navigator.clipboard.writeText(text);
+	} catch {
+		app.notify({
+			kind: 'error',
+			message: 'The comment couldn’t be copied to the clipboard.',
+			suggestion: 'Try again.'
+		});
+	}
+}
+
 export async function remove(tab: DocTab, page: number, id: number) {
 	if (refuseIfLocked(tab)) return null;
 	const a = tab.annotation(page, id);

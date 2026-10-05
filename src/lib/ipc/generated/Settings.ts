@@ -28,4 +28,8 @@ checkForUpdates: boolean,
 /**
  * Whether zooming in or out a step glides instead of jumping (section 6.1).
  */
-smoothZoom: boolean, };
+smoothZoom: boolean, 
+/**
+ * Whether picking an annotation in the list scrolls to it smoothly (section 6.5).
+ */
+smoothAnnotationScroll: boolean, };

@@ -1,10 +1,10 @@
 <script lang="ts">
 	// Settings: the author name new annotations get (section 6.5), the appearance, System
-	// (default), Light or Dark (section 8), smooth zooming (section 6.1), the annotation
-	// toolbar's look (floating, or docked in the bar above the pages) and, when floating,
-	// where it sits and when it shows, the buttons of the bar over selected text (section
-	// 6.6), and whether Lectrix looks for updates when it starts (ADR 0011). Stored in app
-	// data by Rust; everything applies at once.
+	// (default), Light or Dark (section 8), smooth zooming (section 6.1) and scrolling to
+	// annotations (section 6.5), the annotation toolbar's look (floating, or docked in the
+	// bar above the pages) and, when floating, where it sits and when it shows, the buttons
+	// of the bar over selected text (section 6.6), and whether Lectrix looks for updates
+	// when it starts (ADR 0011). Stored in app data by Rust; everything applies at once.
 	import { Check } from '@lucide/svelte';
 	import { Checkbox, Dialog, RadioGroup } from 'bits-ui';
 
@@ -32,6 +32,7 @@
 	let quickTools = $state<QuickTool[]>([]);
 	let checkForUpdates = $state(true);
 	let smoothZoom = $state(true);
+	let smoothAnnotationScroll = $state(true);
 	let saving = $state(false);
 
 	$effect(() => {
@@ -47,6 +48,7 @@
 				quickTools = s.quickTools;
 				checkForUpdates = s.checkForUpdates;
 				smoothZoom = s.smoothZoom;
+				smoothAnnotationScroll = s.smoothAnnotationScroll;
 			})
 			.catch((e: unknown) => app.showError(toAppError(e)));
 	});
@@ -70,7 +72,8 @@
 				toolbarVisibility,
 				quickTools,
 				checkForUpdates,
-				smoothZoom
+				smoothZoom,
+				smoothAnnotationScroll
 			});
 			app.settings = s;
 			applyAppearance(s.appearance);
@@ -157,6 +160,25 @@
 						</label>
 						<span id="settings-zoom-note" class="text-xs text-fg-muted">
 							Zooming glides to the new size instead of jumping. A touchpad pinch always follows your fingers.
+						</span>
+					</div>
+					<div class="flex flex-col gap-1">
+						<label class="flex h-7 items-center gap-2">
+							<Checkbox.Root
+								class="checkbox"
+								checked={smoothAnnotationScroll}
+								onCheckedChange={(on) => (smoothAnnotationScroll = on)}
+								aria-label="Smooth scrolling to annotations"
+								aria-describedby="settings-annotation-scroll-note"
+							>
+								{#snippet children({ checked })}
+									{#if checked}<Check size={14} strokeWidth={3} aria-hidden="true" />{/if}
+								{/snippet}
+							</Checkbox.Root>
+							<span>Smooth scrolling to annotations</span>
+						</label>
+						<span id="settings-annotation-scroll-note" class="text-xs text-fg-muted">
+							Picking an annotation in the list glides the page to it instead of jumping.
 						</span>
 					</div>
 					{@render radios('Annotation toolbar', styleChoices, toolbarStyle, (v) => (toolbarStyle = v))}
