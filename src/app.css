@@ -567,9 +567,11 @@ button {
 	margin: 4px 0;
 	background: var(--lectrix-line);
 }
+
+/* WinUI's MenuBarItem: 14 px text, 32 px tall, 10 px side padding, 8 px apart (MenuBar.svelte). */
 .menubar-trigger {
-	height: 28px;
-	padding: 0 8px;
+	height: 32px;
+	padding: 0 10px;
 	border: 0;
 	border-radius: var(--radius-control);
 	background: transparent;

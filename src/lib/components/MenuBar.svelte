@@ -10,7 +10,7 @@
 	const hasDoc = $derived(tab !== null);
 </script>
 
-<Menubar.Root class="flex items-center gap-0.5" aria-label="Main menu">
+<Menubar.Root class="flex items-center gap-2" aria-label="Main menu">
 	<Menubar.Menu>
 		<Menubar.Trigger class="menubar-trigger">File</Menubar.Trigger>
 		<Menubar.Portal>
