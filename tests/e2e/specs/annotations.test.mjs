@@ -208,9 +208,17 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 		await quick.waitForExist({ reverse: true, timeoutMsg: 'Esc left the quick tools' });
 
 		// Text selected with the Select tool brings up the quick tools; Highlight marks it.
-		await drag(browser, await pagePoint(browser, 0, 40, 92), await pagePoint(browser, 0, 200, 92), 1);
+		const released = await pagePoint(browser, 0, 200, 92);
+		await drag(browser, await pagePoint(browser, 0, 40, 92), released, 1);
 		quick = await browser.$('[role=toolbar][aria-label="Quick tools"]');
 		await quick.waitForDisplayed({ timeoutMsg: 'no quick tools over the selection' });
+		// The bar sits above where the pointer was released, centred on it.
+		const bar = await browser.execute(() => {
+			const r = document.querySelector('[role=toolbar][aria-label="Quick tools"]').getBoundingClientRect();
+			return { center: r.left + r.width / 2, bottom: r.bottom };
+		});
+		assert.ok(Math.abs(bar.center - released.x) <= 2, `bar centred at ${bar.center}, released at ${released.x}`);
+		assert.ok(bar.bottom < released.y, `bar bottom ${bar.bottom}, released at ${released.y}`);
 		await (await quick.$('button[aria-label="Highlight"]')).click();
 		await waitForRowCount(browser, 1, 'highlight from the quick tools');
 		await quick.waitForExist({ reverse: true, timeoutMsg: 'the quick tools stayed after marking' });

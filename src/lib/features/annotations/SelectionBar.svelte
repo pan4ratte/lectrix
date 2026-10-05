@@ -24,16 +24,17 @@
 
 	interface Props {
 		tab: DocTab;
-		/** The selected line the bar belongs to, and which way the selection went. */
+		/** What the bar belongs to (where the pointer was released, or the selection's last
+		 * line), and the side it goes on when both fit. */
 		anchor: Area;
-		forward: boolean;
+		prefer: 'above' | 'below';
 		view: Area;
 		contentWidth: number;
 		/** The tools to show, in Settings' order. */
 		chosen: readonly QuickTool[];
 	}
 
-	let { tab, anchor, forward, view, contentWidth, chosen }: Props = $props();
+	let { tab, anchor, prefer, view, contentWidth, chosen }: Props = $props();
 
 	const ICONS: Record<QuickTool, Component<{ size?: number; 'aria-hidden'?: boolean | 'true' }>> = {
 		highlight: Highlighter,
@@ -65,7 +66,7 @@
 	}
 </script>
 
-<FloatingBar label="Quick tools" {anchor} {view} {contentWidth} prefer={forward ? 'below' : 'above'}>
+<FloatingBar label="Quick tools" {anchor} {view} {contentWidth} {prefer}>
 	{#each shown as t (t.id)}
 		{@const Icon = ICONS[t.id]}
 		<button

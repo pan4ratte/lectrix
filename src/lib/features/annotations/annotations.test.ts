@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Annotation, DocumentFlags } from '#lib/ipc/index.ts';
 import { prepareText } from '#lib/features/viewer/selection.ts';
 
-import { BAR_GAP, barControls, nearEdge, placeBar, quickToolAllowed } from './bars.ts';
+import { BAR_GAP, barControls, nearEdge, placeBar, quickToolAllowed, releaseAnchor } from './bars.ts';
 import {
 	annotationAt,
 	boxQuad,
@@ -182,6 +182,20 @@ describe('floating bars', () => {
 		expect(placeBar(right, size, view, 600, 'below').left).toBe(600 - BAR_GAP - 200);
 		// Scrolled sideways: the view's edge counts.
 		expect(placeBar(left, size, { ...view, x0: 100, x1: 900 }, 1200, 'below').left).toBe(100 + BAR_GAP);
+	});
+
+	it('goes above where the pointer was released, clear of the line it ended on', () => {
+		const line = { x0: 100, y0: 1300, x1: 500, y1: 1320 };
+		// Released on the line: centred on the pointer, above the line.
+		const onLine = releaseAnchor(line, { x: 420, y: 1312 });
+		expect(onLine).toEqual({ x0: 420, x1: 420, y0: 1300, y1: 1320 });
+		expect(placeBar(onLine, size, view, 800, 'above')).toEqual({ left: 320, top: 1300 - BAR_GAP - 40 });
+		// Released below the text: right above the pointer.
+		const below = releaseAnchor(line, { x: 250, y: 1400 });
+		expect(placeBar(below, size, view, 800, 'above')).toEqual({ left: 150, top: 1400 - BAR_GAP - 40 });
+		// No room above, at the top of the view: below the line instead.
+		const high = releaseAnchor({ x0: 100, y0: 1010, x1: 500, y1: 1030 }, { x: 300, y: 1020 });
+		expect(placeBar(high, size, view, 800, 'above').top).toBe(1030 + BAR_GAP);
 	});
 
 	it('keeps the bar of a tall anchor on screen, and lets an off-screen one go', () => {

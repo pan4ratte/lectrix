@@ -50,6 +50,21 @@ export function placeBar(
 	return { left, top };
 }
 
+/**
+ * What the bar over selected text belongs to when a pointer made the selection: the point
+ * where it was released. Released on the selection's last line, the bar keeps clear of
+ * that line, so it never covers the text the pointer just ended on.
+ */
+export function releaseAnchor(line: Area, pointer: { x: number; y: number }): Area {
+	const onLine = pointer.y >= line.y0 && pointer.y <= line.y1;
+	return {
+		x0: pointer.x,
+		x1: pointer.x,
+		y0: onLine ? line.y0 : pointer.y,
+		y1: onLine ? line.y1 : pointer.y
+	};
+}
+
 /** How close to its edge the pointer reveals a toolbar that shows only then, CSS pixels. */
 export const REVEAL_ZONE = 72;
 

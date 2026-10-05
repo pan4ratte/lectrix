@@ -257,7 +257,7 @@ Settled details:
 
 - **Toolbar tools:** Select, Highlight, Underline, Strikeout, Squiggly, Note, Pen, Text box.
 - **Text markup:** with a markup tool active, selecting text creates the annotation on mouse-up. Alt-drag creates an area highlight (one rectangular quad) for scanned pages without text.
-- **Quick tools:** with the Select tool, selected text gets a floating bar next to where the selection ended, with the tools chosen in Settings: Highlight, Underline, Strikeout, Squiggly, Highlight with note, Copy, Add bookmark.
+- **Quick tools:** with the Select tool, selected text gets a floating bar above the point where the pointer was released (below it when there is no room above; released on the last selected line, the bar keeps clear of that line), with the tools chosen in Settings: Highlight, Underline, Strikeout, Squiggly, Highlight with note, Copy, Add bookmark.
 - **Annotation bar:** clicking an annotation selects it and shows a floating bar above it: color, type (text markup only: highlight, underline, strikeout, squiggly), note, delete. Double-clicking opens the inspector with the cursor in the note.
 - **Style:** six preset colors plus a custom picker, opacity (a slider in the toolbar, 10% to 100%), stroke width for the pen; the last-used style per tool is remembered.
 - **Inspector panel** for the selected annotation: color, opacity, note text, author, dates.

@@ -17,7 +17,7 @@
 		update
 	} from '#lib/features/annotations/actions.ts';
 	import AnnotationBar from '#lib/features/annotations/AnnotationBar.svelte';
-	import { quickToolAllowed, type Area } from '#lib/features/annotations/bars.ts';
+	import { quickToolAllowed, releaseAnchor, type Area } from '#lib/features/annotations/bars.ts';
 	import {
 		annotationAt,
 		boxQuad,
@@ -669,8 +669,12 @@
 				const sel = tab.selection;
 				if (sel && compareCarets(sel.anchor, sel.focus) === 0) {
 					tab.selection = null;
-				} else if (sel && isMarkupTool(tool)) {
-					await markSelection(tab, tool);
+				} else if (sel) {
+					// The selection bar goes above this point.
+					const page = pageUnder(event.clientY);
+					const [x, y] = pointOn(page, event.clientX, event.clientY);
+					release = { anchor: sel.anchor, focus: sel.focus, page, x, y };
+					if (isMarkupTool(tool)) await markSelection(tab, tool);
 				}
 				break;
 			}
@@ -745,7 +749,15 @@
 	const view: Area = $derived({ x0: scrollLeft, y0: scrollTop, x1: scrollLeft + viewportW, y1: scrollTop + viewportH });
 	const quickTools = $derived(app.settings?.quickTools ?? DEFAULT_QUICK_TOOLS);
 
-	/** The selection bar's line: where the selection ended, and which way it went. */
+	/** Where the pointer was released after selecting text (page points), and for which
+	 * selection. */
+	let release: { anchor: Caret; focus: Caret; page: number; x: number; y: number } | null = $state(null);
+
+	/**
+	 * Where the selection bar goes: above the point where the pointer was released, or
+	 * below it if there is no room; for a selection the pointer didn't make, next to its
+	 * last line, on the side it went.
+	 */
 	const selectionAnchor = $derived.by(() => {
 		if (dragging || tools.tool !== 'select') return null;
 		if (!quickTools.some((t) => quickToolAllowed(t, tab.flags, tab.canEditBookmarks))) return null;
@@ -758,7 +770,14 @@
 		const [start, end] = ordered(sel.anchor, sel.focus);
 		const rects = selectionRects(text, start, end);
 		const line = order < 0 ? rects.at(-1) : rects[0];
-		return line ? { area: contentArea(sel.focus.page, line), forward: order < 0 } : null;
+		if (!line) return null;
+		const lineArea = contentArea(sel.focus.page, line);
+		const r = release;
+		if (r && layout.pages[r.page] && compareCarets(r.anchor, sel.anchor) === 0 && compareCarets(r.focus, sel.focus) === 0) {
+			const at = contentArea(r.page, [r.x, r.y, r.x, r.y]);
+			return { area: releaseAnchor(lineArea, { x: at.x0, y: at.y0 }), prefer: 'above' as const };
+		}
+		return { area: lineArea, prefer: order < 0 ? ('below' as const) : ('above' as const) };
 	});
 
 	/** The selected annotation, for its bar, while it isn't being dragged or typed in. */
@@ -944,7 +963,7 @@
 							<SelectionBar
 								{tab}
 								anchor={selectionAnchor.area}
-								forward={selectionAnchor.forward}
+								prefer={selectionAnchor.prefer}
 								{view}
 								contentWidth={contentW}
 								chosen={quickTools}
