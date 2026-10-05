@@ -14,6 +14,20 @@ async function firstPageShape(browser) {
 	});
 }
 
+/** The scales page 0 was requested at for the page view (thumbnails are under 0.5). */
+async function viewScalesOfFirstPage(browser) {
+	return browser.execute(() => [
+		...new Set(
+			performance
+				.getEntriesByType('resource')
+				.map((e) => new URL(e.name))
+				.filter((u) => /\/page\/\d+\/0$/.test(u.pathname))
+				.map((u) => Number(u.searchParams.get('scale')))
+				.filter((scale) => scale >= 0.5)
+		)
+	]);
+}
+
 async function statusText(browser) {
 	return browser.execute(() => document.querySelector('footer')?.textContent ?? '');
 }
@@ -24,6 +38,10 @@ test('open, rotate a page, save, reopen', async () => {
 	let { browser, stop } = await launch([path]);
 	try {
 		await waitForDocument(browser);
+		// The first page is rendered once, already fitted: not first at the default zoom.
+		await browser.pause(300);
+		const scales = await viewScalesOfFirstPage(browser);
+		assert.equal(scales.length, 1, `page 1 was rendered at scales ${scales.join(', ')}`);
 		const before = await firstPageShape(browser);
 		assert.ok(before && before.height > before.width, 'portrait page');
 

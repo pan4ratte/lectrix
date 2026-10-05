@@ -76,6 +76,8 @@
 	 * only cost memory (ADR 0002). */
 	const mounted = $derived(pagesInRange(layout, scrollTop - viewportH * 0.25, scrollTop + viewportH * 1.25));
 	const mountedPages = $derived.by(() => {
+		// None before the viewport is measured: they would ask for images at the default zoom.
+		if (viewportW === 0) return [];
 		const [first, last] = mounted;
 		const out: number[] = [];
 		for (let i = first; i <= last; i++) out.push(i);
@@ -728,24 +730,34 @@
 
 	// ----- lifecycle -----
 
+	/** Takes the viewport's size; the first time, fits the zoom and goes to the start position. */
+	function measure() {
+		if (!scroller) return;
+		const w = scroller.clientWidth;
+		const h = scroller.clientHeight;
+		if (w === 0 || (w === viewportW && h === viewportH)) return;
+		const first = viewportW === 0;
+		// A fit mode re-fits on every frame of a pane sliding or being resized, or of the
+		// window being resized: render once that settles, as for a wheel zoom.
+		if (!first && tab.zoomMode !== 'custom') holdRendering();
+		viewportW = w;
+		viewportH = h;
+		dpr = window.devicePixelRatio || 1;
+		if (first) {
+			if (tab.zoomMode !== 'custom') tab.zoom = fitZoom(tab.zoomMode);
+			const pending = tab.pendingPosition;
+			tab.pendingPosition = null;
+			void tick().then(() => scrollToPosition(pending ?? { page: 0, offset: 0 }));
+		}
+	}
+
 	onMount(() => {
 		if (!scroller) return;
-		const resize = new ResizeObserver(() => {
-			if (!scroller) return;
-			const first = viewportW === 0;
-			// A fit mode re-fits on every frame of a pane sliding or being resized, or of the
-			// window being resized: render once that settles, as for a wheel zoom.
-			if (!first && tab.zoomMode !== 'custom') holdRendering();
-			viewportW = scroller.clientWidth;
-			viewportH = scroller.clientHeight;
-			dpr = window.devicePixelRatio || 1;
-			if (first) {
-				if (tab.zoomMode !== 'custom') tab.zoom = fitZoom(tab.zoomMode);
-				const pending = tab.pendingPosition;
-				tab.pendingPosition = null;
-				void tick().then(() => scrollToPosition(pending ?? { page: 0, offset: 0 }));
-			}
-		});
+		// Measured now rather than on the observer's first report, which can come several
+		// frames later: until then the first pages rendered at the default zoom, and again
+		// once fitted.
+		measure();
+		const resize = new ResizeObserver(measure);
 		resize.observe(scroller);
 		scroller.addEventListener('wheel', onWheel, { passive: false });
 		scroller.focus({ preventScroll: true });
