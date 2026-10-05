@@ -184,14 +184,17 @@ async function ensureAppPage(browser) {
 	if (!loaded) await browser.url(APP_URL);
 }
 
-/** Waits until the first page of the active document has an image. On failure, saves a
- * screenshot and prints what the window shows (CI uploads target/test-output/e2e). */
+/** Waits until the first page of the active document has an image, and the layout has
+ * settled (the viewer fits the page from its first size measurement, which can arrive a few
+ * frames after the first image; keys pressed before it would race the fit). On failure,
+ * saves a screenshot and prints what the window shows (CI uploads target/test-output/e2e). */
 export async function waitForDocument(browser) {
 	try {
 		await browser.waitUntil(
 			() => browser.execute(() => document.querySelector('.page canvas, .page img') !== null),
 			{ timeout: 20_000, timeoutMsg: 'the document did not show a page' }
 		);
+		await browser.executeAsync((done) => requestAnimationFrame(() => requestAnimationFrame(() => done())));
 	} catch (e) {
 		const shot = join(OUT, `failure-${Date.now()}.png`);
 		await browser.saveScreenshot(shot).catch(() => {});
