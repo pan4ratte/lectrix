@@ -340,7 +340,7 @@ The app should feel like a native Windows 11 app: calm, fast, and keyboard-frien
 
 **Accessibility.** Every control is reachable by keyboard with a visible focus ring (the page canvas, which takes focus to scroll from the keyboard, has none: a ring around the document is noise), has an accessible name, and meets WCAG AA contrast (checked by `src/lib/contrast.test.ts` in both themes). Shift+F10 and the Menu key open the focused control's context menu. App-wide shortcuts such as Ctrl+S work while typing in panel fields.
 
-**Default shortcuts** (not rebindable in v1):
+**Default shortcuts** (not rebindable in v1). With a keyboard layout that types non-Latin letters (Russian, Greek...), letter shortcuts follow the key's place on a US keyboard, so Ctrl+Я is Ctrl+Z; Latin layouts such as AZERTY or Dvorak use the letter typed:
 
 | Action | Shortcut |
 | --- | --- |

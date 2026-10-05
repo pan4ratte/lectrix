@@ -2,9 +2,10 @@ import { describe, expect, it } from 'vitest';
 
 import { COMMIT_FIELD_FIRST, commandFor, isBlocked, isBrowserZoomKey, stopUnlessShortcut } from './shortcuts';
 
-function key(k: string, mods: { ctrl?: boolean; shift?: boolean; alt?: boolean } = {}) {
+function key(k: string, mods: { ctrl?: boolean; shift?: boolean; alt?: boolean; code?: string } = {}) {
 	return {
 		key: k,
+		code: mods.code ?? '',
 		ctrlKey: !!mods.ctrl,
 		metaKey: false,
 		shiftKey: !!mods.shift,
@@ -27,6 +28,24 @@ describe('shortcuts', () => {
 		expect(commandFor(key('Tab', { ctrl: true }), false)).toBe('nextTab');
 		expect(commandFor(key('Tab', { ctrl: true, shift: true }), false)).toBe('previousTab');
 		expect(commandFor(key('ArrowLeft', { alt: true }), false)).toBe('back');
+	});
+
+	it('matches non-Latin layouts by the key pressed, Latin ones by the letter typed', () => {
+		// Russian: the Z key types "я", the H key "р", the comma key "б".
+		expect(commandFor(key('я', { ctrl: true, code: 'KeyZ' }), false)).toBe('undo');
+		expect(commandFor(key('Я', { ctrl: true, shift: true, code: 'KeyZ' }), false)).toBe('redo');
+		expect(commandFor(key('н', { ctrl: true, code: 'KeyY' }), false)).toBe('redo');
+		expect(commandFor(key('ы', { ctrl: true, code: 'KeyS' }), true)).toBe('save');
+		expect(commandFor(key('б', { ctrl: true, code: 'Comma' }), false)).toBe('settings');
+		expect(commandFor(key('р', { code: 'KeyH' }), false)).toBe('toolHighlight');
+		expect(commandFor(key('я', { ctrl: true, code: 'KeyZ' }), true)).toBeNull();
+		expect(isBlocked(key('к', { ctrl: true, code: 'KeyR' }), false)).toBe(true);
+		expect(isBlocked(key('з', { ctrl: true, code: 'KeyP' }))).toBe(true);
+		// Greek.
+		expect(commandFor(key('ζ', { ctrl: true, code: 'KeyZ' }), false)).toBe('undo');
+		// Dvorak: "z" sits on the slash key, and the Z key types ";".
+		expect(commandFor(key('z', { ctrl: true, code: 'Slash' }), false)).toBe('undo');
+		expect(commandFor(key(';', { ctrl: true, code: 'KeyZ' }), false)).toBeNull();
 	});
 
 	it('leaves editing keys to text fields', () => {

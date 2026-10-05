@@ -61,12 +61,30 @@ function sameKey(a: string, b: string) {
 	return a.length === 1 && b.length === 1 ? a.toLowerCase() === b.toLowerCase() : a === b;
 }
 
+/** Punctuation keys the bindings use, by physical key (`KeyboardEvent.code`). */
+const PUNCTUATION_CODES: Record<string, string> = { Equal: '=', Minus: '-', Comma: ',' };
+
+/**
+ * The key a shortcut is matched against. Usually the character typed, so Latin layouts
+ * other than QWERTY (AZERTY, Dvorak) match by their own letters. A key that types a
+ * non-Latin character (Cyrillic, Greek, Hebrew...) matches by its place on the keyboard
+ * instead, as on a US layout, the way Windows apps treat shortcuts: Ctrl+Я is Ctrl+Z.
+ */
+export function shortcutKey(event: Pick<KeyboardEvent, 'key' | 'code'>): string {
+	const { key, code } = event;
+	if (key.length !== 1 || /^[\x20-\x7e]$/.test(key) || !code) return key;
+	if (/^Key[A-Z]$/.test(code)) return code.slice(3).toLowerCase();
+	if (/^Digit[0-9]$/.test(code)) return code.slice(5);
+	return PUNCTUATION_CODES[code] ?? key;
+}
+
 /** The command for a key event, or null. */
 export function commandFor(event: KeyboardEvent, inInput: boolean): CommandName | null {
 	const ctrl = event.ctrlKey || event.metaKey;
+	const pressed = shortcutKey(event);
 	for (const b of BINDINGS) {
 		if (
-			sameKey(b.key, event.key) &&
+			sameKey(b.key, pressed) &&
 			!!b.ctrl === ctrl &&
 			!!b.shift === event.shiftKey &&
 			!!b.alt === event.altKey &&
@@ -92,7 +110,7 @@ export const COMMIT_FIELD_FIRST: ReadonlySet<CommandName> = new Set(['save', 'sa
 
 /** Reload: Ctrl+R and F5, with or without Shift or Ctrl (the hard-reload variants). */
 function isReload(event: KeyboardEvent): boolean {
-	return event.key === 'F5' || ((event.ctrlKey || event.metaKey) && sameKey('r', event.key));
+	return event.key === 'F5' || ((event.ctrlKey || event.metaKey) && sameKey('r', shortcutKey(event)));
 }
 
 /**
@@ -102,7 +120,8 @@ function isReload(event: KeyboardEvent): boolean {
 export function isBlocked(event: KeyboardEvent, allowReload: boolean = import.meta.env.DEV): boolean {
 	if (isReload(event)) return !allowReload;
 	const ctrl = event.ctrlKey || event.metaKey;
-	return BLOCKED.some((b) => sameKey(b.key, event.key) && !!b.ctrl === ctrl && !!b.shift === event.shiftKey);
+	const pressed = shortcutKey(event);
+	return BLOCKED.some((b) => sameKey(b.key, pressed) && !!b.ctrl === ctrl && !!b.shift === event.shiftKey);
 }
 
 /**
@@ -111,7 +130,7 @@ export function isBlocked(event: KeyboardEvent, allowReload: boolean = import.me
  * the zoom commands still run through the bindings above.
  */
 export function isBrowserZoomKey(event: KeyboardEvent): boolean {
-	return (event.ctrlKey || event.metaKey) && !event.altKey && ['=', '+', '-', '_', '0'].includes(event.key);
+	return (event.ctrlKey || event.metaKey) && !event.altKey && ['=', '+', '-', '_', '0'].includes(shortcutKey(event));
 }
 
 export function isTextInput(target: EventTarget | null): boolean {
