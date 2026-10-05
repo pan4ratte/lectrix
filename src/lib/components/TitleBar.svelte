@@ -1,9 +1,11 @@
 <script lang="ts">
-	// Custom title bar (window decorations are off): sidebar toggle, menus, document tabs,
-	// a drag region, the annotation pane toggle, and the window buttons.
+	// Custom title bar (window decorations are off): the app's icon and name, sidebar toggle,
+	// menus, document tabs, a drag region, the annotation pane toggle, and the window buttons.
 	import { PanelLeft, PanelRight } from '@lucide/svelte';
 
+	import iconUrl from '#lib/assets/lectrix-icon.svg';
 	import { commands } from '#lib/commands.ts';
+	import { APP_NAME } from '#lib/config.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 
 	import MenuBar from './MenuBar.svelte';
@@ -16,7 +18,13 @@
 </script>
 
 <header class="flex h-10 shrink-0 items-stretch bg-chrome" data-tauri-drag-region>
-	<div class="flex items-center gap-1 pl-1">
+	<!-- The app's icon and name, as a native Windows 11 title bar shows them. They pass pointer
+	     events to the drag region beneath, so the window can be dragged by them. -->
+	<div class="flex shrink-0 items-center gap-2 pr-2 pl-3 select-none" data-tauri-drag-region>
+		<img class="pointer-events-none" src={iconUrl} alt="" width="18" height="18" draggable="false" />
+		<span class="pointer-events-none text-xs">{APP_NAME}</span>
+	</div>
+	<div class="flex items-center gap-1">
 		<button
 			type="button"
 			class="icon-button"

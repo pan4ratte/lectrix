@@ -321,7 +321,7 @@ The app should feel like a native Windows 11 app: calm, fast, and keyboard-frien
 
 **Layout.**
 
-- **Title bar:** custom (Tauri decorations off, explicit drag region), holding the sidebar and annotation pane toggles, the document tabs and the standard window buttons.
+- **Title bar:** custom (Tauri decorations off, explicit drag region), holding the app's icon and name at the left, the sidebar and annotation pane toggles, the menus, the document tabs and the standard window buttons.
 - **Left sidebar**, collapsible (open by default), with three panels: Pages (thumbnails), Bookmarks, Page labels. The tabs are icons with tooltips and accessible names.
 - **View bar**, one bar at the top of the document as in Acrobat, its contents centered: previous page, next page, the page box with the page label or number and the physical position after it ("iv" then "(4 of 312)", or "4" then "of 312"; screen readers hear "iv (4 of 312)"), then zoom out, the zoom level (a menu with fit width, fit page and the presets) and zoom in, then the annotation tools when docked there (Settings). Previous and next page go to the top of that page and are not recorded in back/forward history. In a narrow window the bar wraps onto a second row.
 - **Center:** the page canvas, below the view bar, with the annotation toolbar floating at its bottom or top, or docked in the view bar (Settings). The search bar and inspectors move below a floating toolbar that stays at the top. The active tool has an accent border on every side.
