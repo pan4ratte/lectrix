@@ -155,13 +155,19 @@ jobs:
       - name: Install JS dependencies
         run: npm ci
 
+      # tauri.linux.conf.json makes AppImage and deb. An rpm version cannot contain "-", so
+      # only final versions (no pre-release part) add an rpm (ADR 0011).
+      - name: Add an rpm for a final version
+        if: runner.os == 'Linux' && !contains(needs.version.outputs.version, '-')
+        run: echo "LINUX_BUNDLES=--bundles appimage,deb,rpm" >> "$GITHUB_ENV"
+
       # npm run bundle sets the MSI version; tauri.release.conf.json turns on the updater
       # bundles and their signatures.
       - name: Build
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
-        run: npm run bundle -- --target ${{ matrix.target }} --config src-tauri/tauri.release.conf.json
+        run: npm run bundle -- --target ${{ matrix.target }} --config src-tauri/tauri.release.conf.json ${{ env.LINUX_BUNDLES }}
 
       - name: Collect the installers
         run: node .github/scripts/release-assets.mjs collect ${{ matrix.target }} "${{ env.VERSION }}" dist

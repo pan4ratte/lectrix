@@ -77,8 +77,10 @@ The user chose (2026-10-05):
    Release workflow and local installer builds use `npm run bundle`. Betas are published
    as ordinary releases, not GitHub pre-releases, because the updater reads
    `releases/latest`, which skips pre-releases.
-8. **Linux packages** are the AppImage (which the updater replaces) and a deb. No rpm:
-   an rpm version cannot contain `-`, and a beta version does.
+8. **Linux packages** are the AppImage (which the updater replaces) and a deb, plus an
+   rpm for final versions only: an rpm version cannot contain `-`, and a pre-release
+   version does (`src-tauri/tauri.linux.conf.json` leaves rpm out; the Release workflow
+   adds it when the version has no pre-release part).
 9. **macOS builds are ad-hoc signed** (`signingIdentity: "-"`), which Apple Silicon
    requires for the app to run at all. They are not notarized.
 
