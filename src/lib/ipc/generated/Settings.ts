@@ -32,4 +32,8 @@ smoothZoom: boolean,
 /**
  * Whether picking an annotation in the list scrolls to it smoothly (section 6.5).
  */
-smoothAnnotationScroll: boolean, };
+smoothAnnotationScroll: boolean, 
+/**
+ * How long the pointer rests on an annotation before its comment shows, in ms.
+ */
+tooltipDelayMs: number, };

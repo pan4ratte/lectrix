@@ -415,3 +415,38 @@ test('repair annotations another app wrote', async () => {
 	assert.ok(saved.every((l) => !l.includes('needs-repair')), saved.join('\n'));
 	assert.ok(saved.some((l) => l.includes('text "Old highlight"') && l.includes('author "Other App"')), saved.join('\n'));
 });
+
+test('comments keep their line breaks, and looking at one changes nothing', async () => {
+	// Acrobat separates a comment's lines with a lone CR.
+	const [CR, LF] = [13, 10].map((c) => String.fromCharCode(c));
+	const plain = sample('line-breaks-plain.pdf', 1);
+	const path = plain.replace('-plain.pdf', '.pdf');
+	cli('annot', 'note', plain, path, '--at', '400,150', '--text', ['First line', 'Second line'].join(CR));
+
+	const { browser, stop } = await launch([path]);
+	try {
+		await waitForDocument(browser);
+		await showAnnotations(browser);
+		const lines = (text) => text.split(LF).map((l) => l.trim()).filter(Boolean);
+
+		// The list shows two lines.
+		const shown = await browser.execute(() => document.querySelector('.annotation-row p').innerText);
+		assert.deepEqual(lines(shown), ['First line', 'Second line']);
+
+		// So does the tooltip.
+		await browser.action('pointer').move({ ...(await pagePoint(browser, 0, 410, 160)), origin: 'viewport' }).perform();
+		const tip = await browser.$('[role=tooltip]');
+		await tip.waitForDisplayed({ timeoutMsg: 'no comment over the note' });
+		assert.deepEqual(lines(await browser.execute(() => document.querySelector('[role=tooltip]').innerText)), ['First line', 'Second line']);
+
+		// Into the comment's field and out again: no edit.
+		await (await browser.$('.annotation-row')).click();
+		const field = await browser.$('.annotation-row .comment-field');
+		await field.click();
+		await browser.execute(() => document.querySelector('[aria-label="Annotations"][role=listbox]').focus());
+		await browser.pause(300);
+		assert.match(await statusText(browser), /All changes saved/);
+	} finally {
+		await stop();
+	}
+});

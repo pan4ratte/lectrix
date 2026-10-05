@@ -405,6 +405,7 @@ fn settings_of(stored: &StoredSettings, platform: &dyn Platform) -> Settings {
         check_for_updates: stored.check_for_updates,
         smooth_zoom: stored.smooth_zoom,
         smooth_annotation_scroll: stored.smooth_annotation_scroll,
+        tooltip_delay_ms: stored.tooltip_delay_ms,
     }
 }
 
@@ -440,6 +441,9 @@ pub fn set_settings(
         check_for_updates: settings.check_for_updates,
         smooth_zoom: settings.smooth_zoom,
         smooth_annotation_scroll: settings.smooth_annotation_scroll,
+        tooltip_delay_ms: settings
+            .tooltip_delay_ms
+            .min(crate::store::MAX_TOOLTIP_DELAY_MS),
     };
     let mut store = state.store.lock().map_err(|_| AppError::bad_state())?;
     store.set_settings(stored.clone());

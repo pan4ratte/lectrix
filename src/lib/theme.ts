@@ -36,6 +36,32 @@ export function mix(hex: string, toward: string, amount: number): string {
 		.join('')}`;
 }
 
+/** The side panes' background, text and accent colours in each theme (the `--lectrix-chrome`,
+ * `--lectrix-fg` and `--lectrix-accent` tokens; the contrast test keeps them in step), for
+ * colours worked out in code. */
+export const PANE_COLORS = {
+	light: { pane: '#f3f3f3', fg: '#1b1b1b', accent: '#2f5daa' },
+	dark: { pane: '#202020', fg: '#ffffff', accent: '#6fa3ef' }
+} as const;
+
+/** The share of the accent in a selected row's background (`--lectrix-row-selected`). */
+export const ROW_SELECTED_SHARE = 0.16;
+
+/**
+ * `hex`, moved toward the text colour just far enough that it shows at 3:1 (WCAG 1.4.11)
+ * on a side pane, plain or under a selected row's tint. A colour that already shows stays
+ * as it is, so annotation colours keep their own look wherever they can.
+ */
+export function legibleOnPane(hex: string, dark: boolean): string {
+	const { pane, fg, accent } = dark ? PANE_COLORS.dark : PANE_COLORS.light;
+	const selected = mix(pane, accent, ROW_SELECTED_SHARE);
+	for (let step = 0; step <= 20; step++) {
+		const c = mix(hex, fg, step / 20);
+		if (contrast(c, pane) >= 3 && contrast(c, selected) >= 3) return c;
+	}
+	return fg;
+}
+
 /**
  * Light, dark or the system's choice (Settings). Rust also sets the window's theme; the
  * attribute makes the design tokens follow even where the webview keeps reporting the

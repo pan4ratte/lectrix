@@ -1021,6 +1021,8 @@ pub struct Settings {
     pub smooth_zoom: bool,
     /// Whether picking an annotation in the list scrolls to it smoothly (section 6.5).
     pub smooth_annotation_scroll: bool,
+    /// How long the pointer rests on an annotation before its comment shows, in ms.
+    pub tooltip_delay_ms: u32,
 }
 
 #[derive(Debug, Clone, Deserialize, TS)]
@@ -1037,6 +1039,7 @@ pub struct SettingsInput {
     pub check_for_updates: bool,
     pub smooth_zoom: bool,
     pub smooth_annotation_scroll: bool,
+    pub tooltip_delay_ms: u32,
 }
 
 /// A newer release of Lectrix, found when it started (ADR 0011).

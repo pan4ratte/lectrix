@@ -65,6 +65,40 @@ export function releaseAnchor(line: Area, pointer: { x: number; y: number }): Ar
 	};
 }
 
+/** How long the pointer rests on an annotation before its comment shows, until Settings
+ * say otherwise (mirrors `store::DEFAULT_TOOLTIP_DELAY_MS`). */
+export const DEFAULT_TIP_DELAY_MS = 300;
+/** The longest delay Settings offer (mirrors `store::MAX_TOOLTIP_DELAY_MS`). */
+export const MAX_TIP_DELAY_MS = 2000;
+
+/** Where a tooltip sits from the pointer: right of it, and below the cursor's arrow. */
+export const TIP_OFFSET = { x: 12, y: 20 };
+
+/**
+ * Where a tooltip of size `w` × `h` goes for the pointer at `pointer` (content pixels):
+ * below and to the right of it, as Windows tooltips are; shifted left near the right
+ * edge, and above the pointer when there is no room below. It always stays wholly inside
+ * the visible part of the content (`view`, cut at `contentWidth`).
+ */
+export function placeTip(
+	pointer: { x: number; y: number },
+	size: { w: number; h: number },
+	view: Area,
+	contentWidth: number
+): { left: number; top: number } {
+	const x0 = Math.max(view.x0, 0) + BAR_GAP;
+	const x1 = Math.min(view.x1, contentWidth) - BAR_GAP;
+	const y0 = view.y0 + BAR_GAP;
+	const y1 = view.y1 - BAR_GAP;
+	const left = pointer.x + TIP_OFFSET.x;
+	let top = pointer.y + TIP_OFFSET.y;
+	if (top + size.h > y1) top = pointer.y - BAR_GAP - size.h;
+	return {
+		left: Math.max(x0, Math.min(left, x1 - size.w)),
+		top: Math.max(y0, Math.min(top, y1 - size.h))
+	};
+}
+
 /** How close to its edge the pointer reveals a toolbar that shows only then, CSS pixels. */
 export const REVEAL_ZONE = 72;
 

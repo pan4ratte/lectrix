@@ -1,14 +1,16 @@
 <script lang="ts">
 	// Settings: the author name new annotations get (section 6.5), the appearance, System
-	// (default), Light or Dark (section 8), smooth zooming (section 6.1) and scrolling to
-	// annotations (section 6.5), the annotation toolbar's look (floating, or docked in the
-	// bar above the pages) and, when floating, where it sits and when it shows, the buttons
-	// of the bar over selected text (section 6.6), and whether Lectrix looks for updates
-	// when it starts (ADR 0011). Stored in app data by Rust; everything applies at once.
+	// (default), Light or Dark (section 8), smooth zooming (section 6.1), scrolling to
+	// annotations and the comment tooltip's delay (section 6.5), the annotation toolbar's
+	// look (floating, or docked in the bar above the pages) and, when floating, where it
+	// sits and when it shows, the buttons of the bar over selected text (section 6.6), and
+	// whether Lectrix looks for updates when it starts (ADR 0011). Stored in app data by
+	// Rust; everything applies at once.
 	import { Check } from '@lucide/svelte';
 	import { Checkbox, Dialog, RadioGroup } from 'bits-ui';
 
 	import { APP_NAME } from '#lib/config.ts';
+	import { DEFAULT_TIP_DELAY_MS, MAX_TIP_DELAY_MS } from '#lib/features/annotations/bars.ts';
 	import { QUICK_TOOLS } from '#lib/features/annotations/tools.ts';
 	import {
 		getSettings,
@@ -33,6 +35,8 @@
 	let checkForUpdates = $state(true);
 	let smoothZoom = $state(true);
 	let smoothAnnotationScroll = $state(true);
+	let tooltipDelayMs = $state(DEFAULT_TIP_DELAY_MS);
+	const delayText = $derived(`${(tooltipDelayMs / 1000).toFixed(1)} s`);
 	let saving = $state(false);
 
 	$effect(() => {
@@ -49,6 +53,7 @@
 				checkForUpdates = s.checkForUpdates;
 				smoothZoom = s.smoothZoom;
 				smoothAnnotationScroll = s.smoothAnnotationScroll;
+				tooltipDelayMs = s.tooltipDelayMs;
 			})
 			.catch((e: unknown) => app.showError(toAppError(e)));
 	});
@@ -73,7 +78,8 @@
 				quickTools,
 				checkForUpdates,
 				smoothZoom,
-				smoothAnnotationScroll
+				smoothAnnotationScroll,
+				tooltipDelayMs: Number(tooltipDelayMs)
 			});
 			app.settings = s;
 			applyAppearance(s.appearance);
@@ -179,6 +185,26 @@
 						</label>
 						<span id="settings-annotation-scroll-note" class="text-xs text-fg-muted">
 							Picking an annotation in the list glides the page to it instead of jumping.
+						</span>
+					</div>
+					<div class="flex flex-col gap-1">
+						<label class="text-sm" for="settings-tooltip-delay">Comment tooltip delay</label>
+						<div class="flex items-center gap-3">
+							<input
+								id="settings-tooltip-delay"
+								type="range"
+								class="settings-slider"
+								min="0"
+								max={MAX_TIP_DELAY_MS}
+								step="100"
+								bind:value={tooltipDelayMs}
+								aria-valuetext={delayText}
+								aria-describedby="settings-tooltip-delay-note"
+							/>
+							<span class="w-12 shrink-0 text-right text-sm tabular-nums" aria-hidden="true">{delayText}</span>
+						</div>
+						<span id="settings-tooltip-delay-note" class="text-xs text-fg-muted">
+							How long the pointer rests on an annotation before its comment shows.
 						</span>
 					</div>
 					{@render radios('Annotation toolbar', styleChoices, toolbarStyle, (v) => (toolbarStyle = v))}

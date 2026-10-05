@@ -18,7 +18,7 @@
 	} from '#lib/features/annotations/actions.ts';
 	import AnnotationBar from '#lib/features/annotations/AnnotationBar.svelte';
 	import CommentTip from '#lib/features/annotations/CommentTip.svelte';
-	import { quickToolAllowed, releaseAnchor, type Area } from '#lib/features/annotations/bars.ts';
+	import { DEFAULT_TIP_DELAY_MS, quickToolAllowed, releaseAnchor, type Area } from '#lib/features/annotations/bars.ts';
 	import {
 		annotationAt,
 		boxQuad,
@@ -696,6 +696,8 @@
 			const hit = annotationAt(tab.annotationsOn(page), x, y, px(4));
 			if (hit && tools.tool === 'select') overAnnotation = capabilities(hit, tab.flags.canAnnotate).move ? 'move' : 'select';
 			hoverTip(hit);
+			const rect = scroller.getBoundingClientRect();
+			tipPointer = { x: lastPointer.x - rect.left + scrollLeft, y: lastPointer.y - rect.top + scrollTop };
 			const text = tab.text(page);
 			overText = !!text && isOverText(text, x, y);
 		});
@@ -703,10 +705,10 @@
 
 	// ----- the comment of the annotation under the pointer (section 6.5) -----
 
-	/** How long the pointer rests on an annotation before its comment shows. */
-	const TIP_DELAY_MS = 300;
 	/** The annotation whose comment shows. */
 	let tip = $state<{ page: number; id: number } | null>(null);
+	/** Where the pointer is, in the scrolled content: the tooltip follows it. */
+	let tipPointer = $state({ x: 0, y: 0 });
 	let pendingTip: { page: number; id: number } | null = null;
 	let tipTimer: ReturnType<typeof setTimeout> | undefined;
 
@@ -727,11 +729,13 @@
 		} else if (tip) {
 			tip = next;
 		} else {
+			// The pointer rests on the annotation this long first (Settings).
+			const delay = app.settings?.tooltipDelayMs ?? DEFAULT_TIP_DELAY_MS;
 			pendingTip = next;
 			tipTimer = setTimeout(() => {
 				tip = pendingTip;
 				pendingTip = null;
-			}, TIP_DELAY_MS);
+			}, delay);
 		}
 	}
 
@@ -746,7 +750,7 @@
 		if (!tip || dragging || tab.draft || !layout.pages[tip.page]) return null;
 		const a = tab.annotation(tip.page, tip.id);
 		const text = tipText(a);
-		return a && text ? { text, area: contentArea(a.page, a.bounds) } : null;
+		return a && text ? { text } : null;
 	});
 
 	async function onPointerUp(event: PointerEvent) {
@@ -1080,7 +1084,7 @@
 							/>
 						{/if}
 						{#if tipShown}
-							<CommentTip text={tipShown.text} anchor={tipShown.area} {view} contentWidth={contentW} />
+							<CommentTip text={tipShown.text} pointer={tipPointer} {view} contentWidth={contentW} />
 						{/if}
 					</div>
 				</div>

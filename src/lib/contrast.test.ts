@@ -5,7 +5,8 @@ import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import { contrast, mix } from './theme';
+import { PRESET_COLORS } from './features/annotations/tools';
+import { PANE_COLORS, ROW_SELECTED_SHARE, contrast, legibleOnPane, mix } from './theme';
 
 const css = readFileSync(new URL('../app.css', import.meta.url), 'utf8');
 
@@ -135,6 +136,22 @@ describe.each([
 		for (let i = 1; i <= 6; i++) {
 			const bg = solid('--lectrix-surface', vars);
 			expect(contrast(solid(`--lectrix-source-${i}`, vars), bg), `source ${i}`).toBeGreaterThanOrEqual(3);
+		}
+	});
+
+	it('annotation icons in the list show at 3:1, keeping colours that already do', () => {
+		const theme = _name === 'dark' ? PANE_COLORS.dark : PANE_COLORS.light;
+		// The colours worked out in code are the tokens.
+		expect(theme.pane).toBe(solid('--lectrix-chrome', vars));
+		expect(theme.fg).toBe(solid('--lectrix-fg', vars));
+		expect(theme.accent).toBe(solid('--lectrix-accent', vars));
+		expect(on('--lectrix-row-selected', vars, theme.pane)).toBe(mix(theme.pane, theme.accent, ROW_SELECTED_SHARE));
+		const selected = mix(theme.pane, theme.accent, ROW_SELECTED_SHARE);
+		for (const { value, name } of [...PRESET_COLORS, { value: '#ffffff', name: 'White' }]) {
+			const shown = legibleOnPane(value, _name === 'dark');
+			expect(contrast(shown, theme.pane), `${name} on the pane`).toBeGreaterThanOrEqual(3);
+			expect(contrast(shown, selected), `${name} on a selected row`).toBeGreaterThanOrEqual(3);
+			if (contrast(value, theme.pane) >= 3 && contrast(value, selected) >= 3) expect(shown, name).toBe(value);
 		}
 	});
 });

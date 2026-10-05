@@ -18,6 +18,7 @@ import {
 	type ViewState
 } from '#lib/ipc/index.ts';
 import type { Box } from '#lib/features/annotations/geometry.ts';
+import { lineBreaks } from '#lib/features/annotations/tools.ts';
 import { NavHistory, type ViewPosition } from '#lib/features/viewer/history.ts';
 import { normalizeRotation, type Rotation } from '#lib/features/viewer/layout.ts';
 import { prepareText, type Caret, type TextGeometry } from '#lib/features/viewer/selection.ts';
@@ -330,12 +331,13 @@ export class DocTab {
 
 	/**
 	 * Takes Rust's annotation lists: all of them (`replace`), or the pages that changed (an
-	 * empty list removes a page). Pages past `pageCount` are dropped.
+	 * empty list removes a page). Pages past `pageCount` are dropped. Comments get LF line
+	 * breaks (see `lineBreaks`).
 	 */
 	private setAnnotations(pages: PageAnnotations[], replace: boolean, pageCount = this.pages.length) {
 		const map = replace ? new Map<number, Annotation[]>() : new Map(this.annotations);
 		for (const p of pages) {
-			if (p.annotations.length) map.set(p.page, p.annotations);
+			if (p.annotations.length) map.set(p.page, p.annotations.map((a) => ({ ...a, contents: lineBreaks(a.contents) })));
 			else map.delete(p.page);
 		}
 		for (const page of map.keys()) if (page >= pageCount) map.delete(page);

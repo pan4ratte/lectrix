@@ -194,6 +194,15 @@ export function formatDate(ms: number | null, locale?: string): string {
 }
 
 /**
+ * `text` with its line breaks as LF. Acrobat separates lines with a lone CR, which HTML
+ * shows as a space; a text field would also turn it into LF, so leaving a field would count
+ * as an edit and rewrite a comment nobody changed. Only edited comments are written back.
+ */
+export function lineBreaks(text: string): string {
+	return text.replace(/\r\n?|\u2028|\u2029/g, '\n');
+}
+
+/**
  * A date as short as the annotation list needs, as Acrobat shows it: the time for today
  * ("21:42"), the day and month this year ("5 Oct"), and the year too before that.
  */

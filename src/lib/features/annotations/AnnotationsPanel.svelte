@@ -6,12 +6,14 @@
 	// annotations that need repair.
 	import { MessageSquareText, TriangleAlert, Wrench } from '@lucide/svelte';
 	import { ContextMenu } from 'bits-ui';
+	import { MediaQuery } from 'svelte/reactivity';
 
 	import { chain } from '#lib/components/chain.ts';
 	import type { Annotation } from '#lib/ipc/index.ts';
 	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
+	import { legibleOnPane } from '#lib/theme.ts';
 
 	import { copyComment, openInspector, remove, repair, update } from './actions.ts';
 	import { typeIcon } from './icons.ts';
@@ -49,6 +51,17 @@
 		}
 		return out;
 	});
+
+	// Icons take the annotation's colour, made just dark (or light) enough to show on the
+	// pane: a yellow highlight's icon on the light theme, a black one's on the dark.
+	const systemDark = new MediaQuery('(prefers-color-scheme: dark)');
+	const dark = $derived(
+		app.settings?.appearance === 'dark' || (app.settings?.appearance !== 'light' && systemDark.current)
+	);
+
+	function iconColor(a: Annotation): string | undefined {
+		return a.color && /^#[0-9a-f]{6}$/i.test(a.color) ? legibleOnPane(a.color, dark) : undefined;
+	}
 
 	const selectedKey = $derived(tab.selectedAnnotation ? `${tab.selectedAnnotation.page}:${tab.selectedAnnotation.id}` : null);
 	const selected = $derived(tab.selectedAnnotationInfo);
@@ -159,7 +172,7 @@
 						oncontextmenu={chain(props, 'oncontextmenu', onContextMenu)}
 					>
 						{#each groups as g (g.page)}
-							<div class="px-2 pt-2 pb-1 text-xs font-semibold text-fg-muted" role="presentation">
+							<div class="annotation-page" role="presentation">
 								Page {tab.displayLabels?.[g.page] ?? g.page + 1}
 							</div>
 							{#each g.items as a, i (`${a.page}:${a.id || `direct-${i}`}`)}
@@ -181,7 +194,7 @@
 									<div class="flex min-w-0 items-center gap-2 text-xs text-fg-muted">
 										<span
 											class="annotation-type-icon"
-											style:color={a.color ?? undefined}
+											style:color={iconColor(a)}
 											role="img"
 											aria-label={typeName(a.subtype)}
 											title={typeName(a.subtype)}
@@ -200,7 +213,7 @@
 									</div>
 									{#if isSelected && caps.text}
 										<textarea
-											class="field comment-field mt-1 w-full py-1 text-sm"
+											class="field comment-field mt-1 w-full text-sm"
 											value={a.contents}
 											aria-label={a.kind === 'freeText' ? 'Text' : 'Note'}
 											placeholder="Add a note"

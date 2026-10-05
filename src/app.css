@@ -362,6 +362,12 @@ button {
 	outline: 2px solid var(--lectrix-focus);
 	outline-offset: 2px;
 }
+.settings-slider {
+	flex: 1;
+	min-width: 0;
+	height: 28px;
+	accent-color: var(--lectrix-accent);
+}
 .toolbar-slider {
 	width: 72px;
 	height: 28px;
@@ -432,8 +438,25 @@ button {
 	-webkit-box-orient: vertical;
 	-webkit-line-clamp: 12;
 }
-/* A comment being edited in the list: as tall as its text, no scrollbar or resize grip. */
+/* A page's group in the annotation list: a rule above each but the first, and a header that
+   stands apart from the rows. */
+.annotation-page {
+	margin: 12px 4px 4px;
+	padding: 8px 4px 0;
+	border-top: 1px solid var(--lectrix-line);
+	color: var(--lectrix-fg);
+	font-size: 12px;
+	font-weight: 600;
+}
+.annotation-page:first-child {
+	margin-top: 0;
+	padding-top: 4px;
+	border-top: 0;
+}
+/* A comment being edited in the list: as tall as its text, no scrollbar or resize grip, with
+   room around the text. */
 .comment-field {
+	padding: 6px 8px;
 	field-sizing: content;
 	min-height: 3.5em;
 	overflow: hidden;

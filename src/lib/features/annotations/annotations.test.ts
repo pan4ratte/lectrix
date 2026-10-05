@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import type { Annotation, DocumentFlags } from '#lib/ipc/index.ts';
 import { prepareText } from '#lib/features/viewer/selection.ts';
 
-import { BAR_GAP, barControls, nearEdge, placeBar, quickToolAllowed, releaseAnchor } from './bars.ts';
+import { BAR_GAP, TIP_OFFSET, barControls, nearEdge, placeBar, placeTip, quickToolAllowed, releaseAnchor } from './bars.ts';
 import {
 	annotationAt,
 	boxQuad,
@@ -15,7 +15,7 @@ import {
 	resizeBox,
 	selectionRanges
 } from './geometry.ts';
-import { capabilities, isMarkupTool, shortDate, typeName } from './tools.ts';
+import { capabilities, isMarkupTool, lineBreaks, shortDate, typeName } from './tools.ts';
 
 function annotation(patch: Partial<Annotation>): Annotation {
 	return {
@@ -198,6 +198,20 @@ describe('floating bars', () => {
 		expect(placeBar(high, size, view, 800, 'above').top).toBe(1030 + BAR_GAP);
 	});
 
+	it('puts a tooltip by the pointer, always wholly in view', () => {
+		const tipSize = { w: 300, h: 60 };
+		// Room everywhere: below and right of the pointer.
+		expect(placeTip({ x: 100, y: 1100 }, tipSize, view, 800)).toEqual({ left: 100 + TIP_OFFSET.x, top: 1100 + TIP_OFFSET.y });
+		// Near the right edge: shifted left, still below.
+		expect(placeTip({ x: 700, y: 1100 }, tipSize, view, 800)).toEqual({ left: 800 - BAR_GAP - 300, top: 1100 + TIP_OFFSET.y });
+		// Near the bottom: above the pointer.
+		expect(placeTip({ x: 100, y: 1580 }, tipSize, view, 800).top).toBe(1580 - BAR_GAP - 60);
+		// Content narrower than the view: its edge counts.
+		expect(placeTip({ x: 550, y: 1100 }, tipSize, view, 600).left).toBe(600 - BAR_GAP - 300);
+		// Taller than the view: pinned to the top edge rather than cut off at the top.
+		expect(placeTip({ x: 100, y: 1300 }, { w: 300, h: 700 }, view, 800).top).toBe(1000 + BAR_GAP);
+	});
+
 	it('keeps the bar of a tall anchor on screen, and lets an off-screen one go', () => {
 		const tall = { x0: 300, y0: 900, x1: 500, y1: 1700 };
 		expect(placeBar(tall, size, view, 800, 'above').top).toBe(1000 + BAR_GAP);
@@ -235,6 +249,19 @@ describe('floating bars', () => {
 		expect(barControls(annotation({ subtype: 'Square', kind: null }), true)).toMatchObject({ restyle: true, retype: false });
 		expect(barControls(annotation({}), false)).toMatchObject({ restyle: false, retype: false, delete: false });
 		expect(barControls(annotation({ id: 0 }), true).retype).toBe(false);
+	});
+});
+
+describe('comment line breaks', () => {
+	const [CR, LF, LS, PS] = [13, 10, 0x2028, 0x2029].map((c) => String.fromCharCode(c)) as [string, string, string, string];
+
+	it('turns every kind of line break into LF', () => {
+		// Acrobat writes a lone CR; Windows text CR LF; some apps the Unicode separators.
+		expect(lineBreaks(`one${CR}two${CR}${LF}three${LF}four${LS}five${PS}six`)).toBe(
+			['one', 'two', 'three', 'four', 'five', 'six'].join(LF)
+		);
+		expect(lineBreaks(`blank${CR}${CR}line`)).toBe(`blank${LF}${LF}line`);
+		expect(lineBreaks('plain')).toBe('plain');
 	});
 });
 

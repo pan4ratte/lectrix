@@ -69,10 +69,22 @@ pub struct StoredSettings {
     pub smooth_zoom: bool,
     #[serde(default = "yes")]
     pub smooth_annotation_scroll: bool,
+    /// How long the pointer rests on an annotation before its comment shows.
+    #[serde(default = "default_tooltip_delay")]
+    pub tooltip_delay_ms: u32,
 }
 
 fn yes() -> bool {
     true
+}
+
+/// The comment tooltip's delay until the user sets one (section 6.5).
+pub const DEFAULT_TOOLTIP_DELAY_MS: u32 = 300;
+/// The longest delay Settings offers.
+pub const MAX_TOOLTIP_DELAY_MS: u32 = 2000;
+
+fn default_tooltip_delay() -> u32 {
+    DEFAULT_TOOLTIP_DELAY_MS
 }
 
 impl Default for StoredSettings {
@@ -87,6 +99,7 @@ impl Default for StoredSettings {
             check_for_updates: true,
             smooth_zoom: true,
             smooth_annotation_scroll: true,
+            tooltip_delay_ms: DEFAULT_TOOLTIP_DELAY_MS,
         }
     }
 }
@@ -308,6 +321,7 @@ mod tests {
             check_for_updates: false,
             smooth_zoom: false,
             smooth_annotation_scroll: false,
+            tooltip_delay_ms: 800,
         };
         store.set_settings(settings.clone());
         let reloaded = Store::load(Some(file.clone()));
@@ -331,6 +345,7 @@ mod tests {
         assert!(v1.settings().check_for_updates);
         assert!(v1.settings().smooth_zoom);
         assert!(v1.settings().smooth_annotation_scroll);
+        assert_eq!(v1.settings().tooltip_delay_ms, DEFAULT_TOOLTIP_DELAY_MS);
         // Tools from a newer version are skipped, not fatal; an empty list stays empty.
         fs::write(
             &file,
