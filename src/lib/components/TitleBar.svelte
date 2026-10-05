@@ -18,11 +18,12 @@
 </script>
 
 <header class="flex h-10 shrink-0 items-stretch bg-chrome" data-tauri-drag-region>
-	<!-- The app's icon and name, as a native Windows 11 title bar shows them. They pass pointer
+	<!-- The app's icon and name, sized and spaced as Windows 11's title bar guidelines give them
+	     (16 px icon, 16 px from the edge and from the 12 px caption text). They pass pointer
 	     events to the drag region beneath, so the window can be dragged by them. -->
-	<div class="flex shrink-0 items-center gap-2 pr-2 pl-3 select-none" data-tauri-drag-region>
-		<img class="pointer-events-none" src={iconUrl} alt="" width="18" height="18" draggable="false" />
-		<span class="pointer-events-none">{APP_NAME}</span>
+	<div class="flex shrink-0 items-center gap-4 pr-2 pl-4 select-none" data-tauri-drag-region>
+		<img class="pointer-events-none" src={iconUrl} alt="" width="16" height="16" draggable="false" />
+		<span class="pointer-events-none text-xs">{APP_NAME}</span>
 	</div>
 	<div class="flex items-center gap-1">
 		<button
