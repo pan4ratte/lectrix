@@ -3,7 +3,7 @@
 #
 # It really installs Lectrix, so it is meant for CI runners (MSI needs an elevated shell).
 # Run it on your own machine only if you are happy for Lectrix to be installed and removed
-# again. Needs the installers from `npx tauri build`.
+# again. Needs the installers from `npm run bundle`.
 #
 #   powershell -ExecutionPolicy Bypass -File tests/installer/check.ps1
 
@@ -12,7 +12,7 @@ $root = Resolve-Path (Join-Path $PSScriptRoot '..\..')
 $bundle = Join-Path $root 'target\release\bundle'
 $nsis = Get-ChildItem (Join-Path $bundle 'nsis\*-setup.exe') | Select-Object -First 1
 $msi = Get-ChildItem (Join-Path $bundle 'msi\*.msi') | Select-Object -First 1
-if (-not $nsis -or -not $msi) { throw "installers not found in $bundle; run npx tauri build" }
+if (-not $nsis -or -not $msi) { throw "installers not found in $bundle; run npm run bundle" }
 $logs = Join-Path $root 'target\test-output\installer'
 New-Item -ItemType Directory -Force $logs | Out-Null
 

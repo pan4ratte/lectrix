@@ -9,10 +9,12 @@ The in-app updater only installs files signed with Lectrix's updater key.
 1. Create the key pair and choose a password:
 
    ```
-   npx tauri signer generate -w ~/.tauri/lectrix.key
+   npx tauri signer generate -w "$HOME/.tauri/lectrix.key"
    ```
 
-   This writes `lectrix.key` (private) and `lectrix.key.pub` (public).
+   This writes `lectrix.key` (private) and `lectrix.key.pub` (public). Write `$HOME`, not
+   `~`: PowerShell passes `~` to the command unchanged, and the key then lands in a folder
+   named `~` inside the current directory, which may be this repository.
 2. Put the contents of `lectrix.key.pub` into `src-tauri/tauri.conf.json`, as
    `plugins.updater.pubkey`, and commit it.
 3. In the GitHub repository, go to Settings > Secrets and variables > Actions and add:
@@ -24,21 +26,27 @@ The in-app updater only installs files signed with Lectrix's updater key.
 ## Each release
 
 1. Bump `"version"` in `package.json` (and `package-lock.json`, for example with
-   `npm version 0.2.0 --no-git-tag-version`) and push to `main`.
-2. CI runs. When it passes, the Release workflow sees that `v0.2.0` has no release yet. It
-   builds every platform, attests the installers and publishes the release with
-   `latest.json`.
+   `npm version 1.0.0-beta.2 --no-git-tag-version`) and push to `main`. Pre-releases must
+   end in a number (`1.0.0-beta.2`, `1.0.0-rc.1`): the MSI version is made from it
+   (ADR 0011). After the betas comes `1.0.0`.
+2. CI runs. When it passes, the Release workflow sees that the version has no release yet.
+   It builds every platform, attests the installers and publishes the release with
+   `latest.json`. Betas are published as ordinary releases (the updater skips GitHub
+   pre-releases).
 3. Copies of Lectrix that start after that offer the update.
 
 A run that fails leaves a draft release. Fix the problem, then run the workflow again
 (Actions > Release > Run workflow): it replaces the draft.
+
+To build the installers on your own machine, run `npm run bundle` (plain
+`npx tauri build` fails for a beta version: the MSI needs a numeric version).
 
 ## Checking a download
 
 Each installer has a build provenance attestation:
 
 ```
-gh attestation verify Lectrix_0.2.0_x64-setup.exe -R pan4ratte/lectrix
+gh attestation verify Lectrix_1.0.0-beta.1_x64-setup.exe -R pan4ratte/lectrix
 ```
 
 ## What users see on first install

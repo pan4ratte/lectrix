@@ -57,7 +57,7 @@ The user chose (2026-10-05):
 6. **Release workflow** (`.github/workflows/release.yml`): it runs after CI passes on
    `main`, or by hand. If `v<version>` has no tag yet, it:
    - creates a draft release;
-   - builds Windows x64 (NSIS and MSI), Linux x64 (AppImage, deb, rpm) and macOS on Apple
+   - builds Windows x64 (NSIS and MSI), Linux x64 (AppImage, deb) and macOS on Apple
      Silicon and Intel (dmg and the updater's `.app.tar.gz`), with
      `src-tauri/tauri.release.conf.json` turning on the signed update bundles;
    - attests every installer with `actions/attest-build-provenance`;
@@ -68,7 +68,18 @@ The user chose (2026-10-05):
    The updater key lives in the `TAURI_SIGNING_PRIVATE_KEY` and
    `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secrets (`docs/releasing.md`). Ordinary CI builds
    don't need it: they don't make update bundles.
-7. **macOS builds are ad-hoc signed** (`signingIdentity: "-"`), which Apple Silicon
+7. **Versions and pre-releases.** Lectrix starts at `1.0.0-beta.1` (the user's choice,
+   2026-10-05). A pre-release must end in a number, because MSI versions are numbers
+   only: `npm run bundle` (`.github/scripts/msi-version.mjs`) gives the MSI
+   `1.0.0-beta.N` as `1.0.0.N` and `1.0.0` as `1.0.0`. Windows Installer compares only the
+   first three fields, and Tauri's MSI allows same-version upgrades, so 1.0.0 replaces its
+   betas. Plain `tauri build` fails on a pre-release version for that reason; CI, the
+   Release workflow and local installer builds use `npm run bundle`. Betas are published
+   as ordinary releases, not GitHub pre-releases, because the updater reads
+   `releases/latest`, which skips pre-releases.
+8. **Linux packages** are the AppImage (which the updater replaces) and a deb. No rpm:
+   an rpm version cannot contain `-`, and a beta version does.
+9. **macOS builds are ad-hoc signed** (`signingIdentity: "-"`), which Apple Silicon
    requires for the app to run at all. They are not notarized.
 
 ## Consequences

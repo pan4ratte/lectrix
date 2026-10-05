@@ -101,10 +101,11 @@ jobs:
           name: interop-output
           path: target/test-output/interop
 
+      # npm run bundle: tauri build with the MSI version for a pre-release (ADR 0011).
       - name: Build installers
         id: build
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: npx tauri build
+        run: npm run bundle
 
       # Every shipped crate and bundled npm package has an AGPL-compatible license, and
       # THIRD_PARTY_LICENSES.md (installed with the app) is up to date.

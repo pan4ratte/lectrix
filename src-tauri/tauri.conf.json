@@ -77,7 +77,7 @@
   },
   "plugins": {
     "updater": {
-      "pubkey": "REPLACE_WITH_UPDATER_PUBLIC_KEY",
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDA5MzQxMEREQzU4ODYxMUEKUldRYVlZakYzUkEwQ2FZS0l2SzJtTVRXeERMVVVBdlJjdkovT2o5VXh1dW5tRVJqc2p5dlhFMm0K",
       "endpoints": [
         "https://github.com/pan4ratte/lectrix/releases/latest/download/latest.json"
       ],

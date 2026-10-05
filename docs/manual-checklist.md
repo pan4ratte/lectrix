@@ -67,13 +67,13 @@ save a copy, and check the copy in Acrobat.
 # Manual release checklist: installers, crash recovery, accessibility
 
 About 20 minutes. The installers come from CI (the `installers` artifact) or from
-`npx tauri build` (`target/release/bundle/`). CI installs and uninstalls both silently and
+`npm run bundle` (`target/release/bundle/`). CI installs and uninstalls both silently and
 checks the registry; what it cannot check is the pages you click through and what Windows
 does afterwards.
 
 ## Installers
 
-- [ ] `Lectrix_0.1.0_x64-setup.exe`: after the folder page comes a "PDF files" page with
+- [ ] `Lectrix_<version>_x64-setup.exe`: after the folder page comes a "PDF files" page with
       "Open PDF files with Lectrix" checked and a sentence about Windows asking. Leave it
       checked and finish.
 - [ ] Double-click a PDF in Explorer: Windows asks which app to use and offers Lectrix (or,
@@ -83,7 +83,7 @@ does afterwards.
       `THIRD_PARTY_LICENSES.md`.
 - [ ] Uninstall (Settings > Apps): Lectrix disappears from Open with and Default apps.
 - [ ] Install again with the box unchecked: Lectrix is not offered for PDFs. Uninstall.
-- [ ] `Lectrix_0.1.0_x64_en-US.msi`: the same two runs (the page comes after the folder
+- [ ] `Lectrix_<version>_x64_en-US.msi`: the same two runs (the page comes after the folder
       page; it needs administrator rights).
 
 ## Updates (from the second release on)

@@ -85,8 +85,8 @@ Nothing has been run interactively there.
   delivers pinches as gesture events, which the viewer does not handle.
 - **Platform services:** the default author comes from `USER`. WebView2's memory target
   has no equivalent.
-- **Packages** for macOS (dmg, ad-hoc signed, not notarized) and Linux (AppImage, deb,
-  rpm, built on Ubuntu 24.04, so glibc 2.39 or later) are built and released (ADR 0011)
+- **Packages** for macOS (dmg, ad-hoc signed, not notarized) and Linux (AppImage and deb,
+  no rpm; built on Ubuntu 24.04, so glibc 2.39 or later) are built and released (ADR 0011)
   but have never been installed or run. No PDF file association is configured for them.
   Crash recovery, the single-instance hand-off and the in-app updater are
   platform-neutral but untested there.
@@ -98,9 +98,7 @@ Nothing has been run interactively there.
 
 ## Releases and updates
 
-- **The updater key is not set up yet.** `src-tauri/tauri.conf.json` has a placeholder
-  public key, and the Release workflow stops until the signing secrets exist
-  (`docs/releasing.md`).
+- **Version:** the first release is `1.0.0-beta.1` (ADR 0011).
 - **Installing a downloaded update has not been run.** Checking, the notice, progress,
   Stop, Don't ask again and rejecting a badly signed download were tried against a local
   test server; installing and restarting need a release signed with the real key. The

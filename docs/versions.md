@@ -86,7 +86,7 @@ SPA with no server, so the code is never reached. We will re-check when bits-ui 
 
 ## Installers
 
-Downloaded by the Tauri CLI (2.12.1) on the first `npx tauri build` into
+Downloaded by the Tauri CLI (2.12.1) on the first `npm run bundle` (`tauri build`) into
 `%LOCALAPPDATA%\tauri`, not pinned by Lectrix:
 
 | Tool | Version | Notes |
