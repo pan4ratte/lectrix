@@ -620,6 +620,22 @@ class AppStore {
 		return true;
 	}
 
+	/**
+	 * Asks about unsaved documents as closing the window does, then runs `quit`, which ends
+	 * the app (restarting into an update). Returns false if the user cancelled. If `quit`
+	 * fails, Lectrix stays open and closing asks again.
+	 */
+	async quitWith(quit: () => Promise<void>): Promise<boolean> {
+		if (!(await this.confirmExit())) return false;
+		try {
+			await quit();
+		} catch (e) {
+			this.exiting = false;
+			throw e;
+		}
+		return true;
+	}
+
 	// ----- editing -----
 
 	/** Warns once before the first edit of a signed document (section 5.4). */

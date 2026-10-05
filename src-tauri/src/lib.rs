@@ -11,6 +11,7 @@ mod platform;
 mod protocol;
 mod recovery;
 mod store;
+mod update;
 
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -64,6 +65,7 @@ pub struct AppState {
     drop_to_combine: AtomicBool,
     /// Set while combining; storing `true` in it stops the merge.
     merge_cancel: Mutex<Option<Arc<AtomicBool>>>,
+    updates: update::Updates,
 }
 
 impl AppState {
@@ -239,11 +241,17 @@ pub fn run() {
             focus_main_window(app);
         }))
         .plugin(tauri_plugin_dialog::init())
+        // Updates from GitHub releases (ADR 0011). Only Rust uses it: the webview has no
+        // updater permission and goes through Lectrix's own commands in update.rs.
+        .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(move |app| {
             if let Ok(dir) = app.path().app_log_dir() {
                 applog::init(&dir);
             }
-            applog::info(format!("{APP_NAME} {} starting", env!("CARGO_PKG_VERSION")));
+            applog::info(format!(
+                "{APP_NAME} {} starting",
+                app.package_info().version
+            ));
             // LECTRIX_EPHEMERAL (used by tests/perf/measure.ps1) keeps measurement runs out
             // of the user's recent files and remembered views.
             let store_file = if std::env::var_os("LECTRIX_EPHEMERAL").is_some() {
@@ -267,6 +275,7 @@ pub fn run() {
                 platform: platform::current(),
                 drop_to_combine: AtomicBool::new(false),
                 merge_cancel: Mutex::new(None),
+                updates: update::Updates::default(),
             });
             watch_files(app.handle().clone());
             if recovering {
@@ -361,6 +370,11 @@ pub fn run() {
             commands::set_pane_layout,
             commands::log_metric,
             commands::log_error,
+            update::check_for_update,
+            update::skip_update,
+            update::download_update,
+            update::cancel_update_download,
+            update::restart_to_update,
         ])
         .build(tauri::generate_context!())
         .map(|app| {
@@ -369,7 +383,10 @@ pub fn run() {
                 // recovery copies go. Only a crash leaves them behind. The window's close
                 // prompt already deleted them (exit_confirmed); this covers other exits.
                 if let RunEvent::Exit = event {
-                    app.state::<AppState>().documents.recovery().close();
+                    let state = app.state::<AppState>();
+                    state.documents.recovery().close();
+                    // Windows: an update downloaded in this run is installed now.
+                    update::install_on_exit(&state);
                 }
             })
         });

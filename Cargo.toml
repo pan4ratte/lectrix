@@ -4,6 +4,7 @@ members = ["crates/pdf-core", "crates/pdf-cli", "src-tauri"]
 exclude = ["third_party"]
 
 [workspace.package]
+# Not the app's version: Lectrix takes that from package.json (ADR 0011).
 version = "0.1.0"
 edition = "2024"
 license = "AGPL-3.0-or-later"

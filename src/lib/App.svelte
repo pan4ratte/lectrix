@@ -27,6 +27,7 @@
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
 	import CombineView from '#lib/features/merge/CombineView.svelte';
 	import InsertPagesDialog from '#lib/features/merge/InsertPagesDialog.svelte';
+	import { update } from '#lib/features/update/update.svelte.ts';
 	import { firstPagePainted, runPerf } from '#lib/features/viewer/perfrun.ts';
 	import RotatePagesDialog from '#lib/features/viewer/RotatePagesDialog.svelte';
 	import StatusBar from '#lib/features/viewer/StatusBar.svelte';
@@ -74,6 +75,8 @@
 				void logMetric('first_page_visible_ms', performance.now() - openStartedAt);
 				if (info.perfMode && app.active) await runPerf(app.active, info.perfScrollOnly);
 			}
+			// Once the documents are up, so the check never delays them (ADR 0011).
+			void update.check();
 		} catch (e) {
 			app.showError(toAppError(e));
 		}

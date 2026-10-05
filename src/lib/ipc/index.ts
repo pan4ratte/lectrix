@@ -20,6 +20,9 @@ import type { RecoveredDocument } from './generated/RecoveredDocument';
 import type { SaveResult } from './generated/SaveResult';
 import type { SearchChunk } from './generated/SearchChunk';
 import type { StartupInfo } from './generated/StartupInfo';
+import type { UpdateInfo } from './generated/UpdateInfo';
+import type { UpdateProgress } from './generated/UpdateProgress';
+import type { UpdateReady } from './generated/UpdateReady';
 import type { ViewState } from './generated/ViewState';
 
 export type {
@@ -40,6 +43,9 @@ export type {
 	SaveResult,
 	SearchChunk,
 	StartupInfo,
+	UpdateInfo,
+	UpdateProgress,
+	UpdateReady,
 	ViewState
 };
 export type { Bookmark } from './generated/Bookmark';
@@ -140,6 +146,20 @@ export function executeMerge(request: MergeRequest, onProgress: (p: MergeProgres
 	return invoke<MergeOutcome | null>('execute_merge', { request, onProgress: channel });
 }
 export const cancelMerge = () => invoke<void>('cancel_merge');
+// Updates from GitHub releases (ADR 0011).
+/** A newer release, or null: none, checks are off, it was skipped, or there is no network. */
+export const checkForUpdate = () => invoke<UpdateInfo | null>('check_for_update');
+/** "Don't ask again" for this version. */
+export const skipUpdate = (version: string) => invoke<void>('skip_update', { version });
+/** Downloads and verifies the update found by the check; on macOS and Linux it is installed too. */
+export function downloadUpdate(onProgress: (p: UpdateProgress) => void) {
+	const channel = new Channel<UpdateProgress>();
+	channel.onmessage = onProgress;
+	return invoke<UpdateReady>('download_update', { onProgress: channel });
+}
+export const cancelUpdateDownload = () => invoke<void>('cancel_update_download');
+/** Restarts into the new version (Windows: runs its installer). Call after the exit prompts. */
+export const restartToUpdate = () => invoke<void>('restart_to_update');
 export const undo = (id: number) => invoke<DocumentChange>('undo', { id });
 export const redo = (id: number) => invoke<DocumentChange>('redo', { id });
 export const save = (id: number) => invoke<SaveResult>('save', { id });

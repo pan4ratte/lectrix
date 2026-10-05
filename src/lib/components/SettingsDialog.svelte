@@ -2,11 +2,13 @@
 	// Settings: the author name new annotations get (section 6.5), the appearance, System
 	// (default), Light or Dark (section 8), the annotation toolbar's look (floating or a
 	// panel above the pages) and, when floating, where it sits and when it shows, and the
-	// buttons of the bar over selected text (section 6.6). Stored in app data
-	// by Rust; everything applies at once.
+	// buttons of the bar over selected text (section 6.6), and whether Lectrix looks for
+	// updates when it starts (ADR 0011). Stored in app data by Rust; everything applies at
+	// once.
 	import { Check } from '@lucide/svelte';
 	import { Checkbox, Dialog, RadioGroup } from 'bits-ui';
 
+	import { APP_NAME } from '#lib/config.ts';
 	import { QUICK_TOOLS } from '#lib/features/annotations/tools.ts';
 	import {
 		getSettings,
@@ -28,6 +30,7 @@
 	let toolbarPosition = $state<ToolbarPosition>('bottom');
 	let toolbarVisibility = $state<ToolbarVisibility>('always');
 	let quickTools = $state<QuickTool[]>([]);
+	let checkForUpdates = $state(true);
 	let saving = $state(false);
 
 	$effect(() => {
@@ -41,6 +44,7 @@
 				toolbarPosition = s.toolbarPosition;
 				toolbarVisibility = s.toolbarVisibility;
 				quickTools = s.quickTools;
+				checkForUpdates = s.checkForUpdates;
 			})
 			.catch((e: unknown) => app.showError(toAppError(e)));
 	});
@@ -62,7 +66,8 @@
 				toolbarStyle,
 				toolbarPosition,
 				toolbarVisibility,
-				quickTools
+				quickTools,
+				checkForUpdates
 			});
 			app.settings = s;
 			applyAppearance(s.appearance);
@@ -172,6 +177,25 @@
 							Shown over text you select with the Select tool. With none chosen, no bar appears.
 						</span>
 					</fieldset>
+					<div class="flex flex-col gap-1">
+						<label class="flex h-7 items-center gap-2">
+							<Checkbox.Root
+								class="checkbox"
+								checked={checkForUpdates}
+								onCheckedChange={(on) => (checkForUpdates = on)}
+								aria-label="Check for updates when {APP_NAME} starts"
+								aria-describedby="settings-updates-note"
+							>
+								{#snippet children({ checked })}
+									{#if checked}<Check size={14} strokeWidth={3} aria-hidden="true" />{/if}
+								{/snippet}
+							</Checkbox.Root>
+							<span>Check for updates when {APP_NAME} starts</span>
+						</label>
+						<span id="settings-updates-note" class="text-xs text-fg-muted">
+							{APP_NAME} asks its GitHub page for the latest version. Nothing about you or your files is sent.
+						</span>
+					</div>
 				</div>
 				<div class="mt-2 flex justify-end gap-2">
 					<button type="submit" class="button button-primary" disabled={saving}>Save</button>

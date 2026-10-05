@@ -1,0 +1,209 @@
+name: Release
+
+# Publishes a release when the version in package.json has none yet (a version bump), once
+# CI has passed for that commit on main (ADR 0011). Builds for Windows, Linux and macOS,
+# signs the update bundles with the updater key (the in-app updater accepts nothing else),
+# attests every installer's build provenance, and writes latest.json, which the app reads
+# to find updates. Run it by hand (Actions > Release > Run workflow) to retry a failed one.
+#
+# Needs two repository secrets: TAURI_SIGNING_PRIVATE_KEY and
+# TAURI_SIGNING_PRIVATE_KEY_PASSWORD (docs/releasing.md).
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# One release at a time; a second bump waits instead of racing the first.
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  version:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-24.04
+    outputs:
+      version: ${{ steps.read.outputs.version }}
+      sha: ${{ steps.read.outputs.sha }}
+      release: ${{ steps.read.outputs.release }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Read the version and look for its release
+        id: read
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(node -p "require('./package.json').version")
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          # A published release has its tag; a draft from a failed run does not.
+          if git ls-remote --exit-code --tags origin "refs/tags/v$version" > /dev/null; then
+            echo "v$version is already released."
+            echo "release=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "Releasing v$version."
+            echo "release=true" >> "$GITHUB_OUTPUT"
+          fi
+
+  draft:
+    needs: version
+    if: needs.version.outputs.release == 'true'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+
+      - name: Check the updater keys
+        env:
+          KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+        run: |
+          if [ -z "$KEY" ]; then
+            echo "::error::The TAURI_SIGNING_PRIVATE_KEY secret is missing. See docs/releasing.md."
+            exit 1
+          fi
+          if grep -q REPLACE_WITH_UPDATER_PUBLIC_KEY src-tauri/tauri.conf.json; then
+            echo "::error::src-tauri/tauri.conf.json has no updater public key yet. See docs/releasing.md."
+            exit 1
+          fi
+
+      - name: Create a draft release
+        run: |
+          # A draft left by a failed run is replaced.
+          if gh release view "v$VERSION" -R "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release delete "v$VERSION" -R "$GITHUB_REPOSITORY" --yes
+          fi
+          gh release create "v$VERSION" -R "$GITHUB_REPOSITORY" --draft \
+            --target "${{ needs.version.outputs.sha }}" --title "Lectrix $VERSION" --generate-notes
+
+  build:
+    needs: [version, draft]
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-latest
+            target: x86_64-pc-windows-msvc
+          - runner: ubuntu-24.04
+            target: x86_64-unknown-linux-gnu
+          - runner: macos-latest
+            target: aarch64-apple-darwin
+          - runner: macos-15-intel
+            target: x86_64-apple-darwin
+    runs-on: ${{ matrix.runner }}
+    permissions:
+      contents: write
+      id-token: write
+      attestations: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      # MuPDF and WebKitGTK release builds outgrow the Linux runner's free space (as in CI).
+      - name: Free disk space
+        if: runner.os == 'Linux'
+        run: sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache/CodeQL
+
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.99.0
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: release-${{ matrix.target }}
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install system libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev libclang-18-dev libxdo-dev libssl-dev file
+          echo "LIBCLANG_PATH=/usr/lib/llvm-18/lib" >> "$GITHUB_ENV"
+
+      # .cargo/config.toml points at the Windows LLVM; use Xcode's libclang instead.
+      - name: Find libclang
+        if: runner.os == 'macOS'
+        run: echo "LIBCLANG_PATH=$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/lib" >> "$GITHUB_ENV"
+
+      - name: Install JS dependencies
+        run: npm ci
+
+      # tauri.release.conf.json turns on the updater bundles and their signatures.
+      - name: Build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: npx tauri build --target ${{ matrix.target }} --config src-tauri/tauri.release.conf.json
+
+      - name: Collect the installers
+        run: node .github/scripts/release-assets.mjs collect ${{ matrix.target }} "${{ env.VERSION }}" dist
+
+      # Provenance: anyone can check that a file came from this workflow and commit with
+      # `gh attestation verify <file> -R pan4ratte/lectrix`.
+      - uses: actions/attest-build-provenance@v3
+        with:
+          subject-path: dist/installers/*
+
+      - name: Upload to the draft release
+        shell: bash
+        run: gh release upload "v$VERSION" -R "$GITHUB_REPOSITORY" --clobber dist/installers/* dist/signatures/*
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: updater-${{ matrix.target }}
+          path: dist/updater-${{ matrix.target }}.json
+
+  publish:
+    needs: [version, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      VERSION: ${{ needs.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.version.outputs.sha }}
+
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: updater-*
+          path: fragments
+
+      - name: Write latest.json
+        run: node .github/scripts/release-assets.mjs manifest "$VERSION" fragments latest.json
+
+      # Publishing creates the tag. The app finds the update through
+      # releases/latest/download/latest.json, so it sees this release only from now on.
+      - name: Publish the release
+        run: |
+          gh release upload "v$VERSION" -R "$GITHUB_REPOSITORY" --clobber latest.json
+          gh release edit "v$VERSION" -R "$GITHUB_REPOSITORY" --draft=false --latest

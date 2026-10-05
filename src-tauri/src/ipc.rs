@@ -1015,6 +1015,8 @@ pub struct Settings {
     pub toolbar_visibility: ToolbarVisibility,
     /// The buttons of the bar over selected text; empty: no bar.
     pub quick_tools: Vec<QuickTool>,
+    /// Whether Lectrix looks for a new release when it starts (ADR 0011).
+    pub check_for_updates: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, TS)]
@@ -1028,6 +1030,37 @@ pub struct SettingsInput {
     pub toolbar_position: ToolbarPosition,
     pub toolbar_visibility: ToolbarVisibility,
     pub quick_tools: Vec<QuickTool>,
+    pub check_for_updates: bool,
+}
+
+/// A newer release of Lectrix, found when it started (ADR 0011).
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct UpdateInfo {
+    pub version: String,
+    pub current_version: String,
+}
+
+/// How far downloading an update has got.
+#[derive(Debug, Clone, Copy, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct UpdateProgress {
+    pub downloaded: u32,
+    /// None when the server does not say how big the file is.
+    pub total: Option<u32>,
+}
+
+/// A downloaded update, checked against Lectrix's signing key.
+#[derive(Debug, Clone, Copy, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct UpdateReady {
+    /// True when the new version is already installed and starts with the next launch
+    /// (macOS, Linux). False on Windows, where the installer runs when Lectrix restarts or
+    /// closes, because it cannot replace the running app.
+    pub installed: bool,
 }
 
 /// Emitted as `file-changed` when an open document's file changes on disk.

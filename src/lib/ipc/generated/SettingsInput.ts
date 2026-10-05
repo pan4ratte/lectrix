@@ -9,4 +9,4 @@ export type SettingsInput = {
 /**
  * Empty: use the default (the Windows user name).
  */
-author: string, appearance: Appearance, toolbarStyle: ToolbarStyle, toolbarPosition: ToolbarPosition, toolbarVisibility: ToolbarVisibility, quickTools: Array<QuickTool>, };
+author: string, appearance: Appearance, toolbarStyle: ToolbarStyle, toolbarPosition: ToolbarPosition, toolbarVisibility: ToolbarVisibility, quickTools: Array<QuickTool>, checkForUpdates: boolean, };

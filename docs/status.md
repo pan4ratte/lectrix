@@ -18,6 +18,10 @@ recovery, recent files with each file's last view, Settings (author name; System
 or Dark appearance), an About dialog with the AGPL source address, and NSIS and MSI
 installers that can register Lectrix for PDF files (ADR 0007).
 
+Since v1: releases on GitHub for Windows, Linux and macOS, built by the Release
+workflow with attested installers, and an in-app updater with a Settings switch
+(ADR 0011).
+
 ## Performance
 
 Last measured 2026-10-04: release build, PNG page images, a mid-range laptop.
@@ -81,11 +85,28 @@ Nothing has been run interactively there.
   delivers pinches as gesture events, which the viewer does not handle.
 - **Platform services:** the default author comes from `USER`. WebView2's memory target
   has no equivalent.
-- **Installers and file association** are Windows-only. `.dmg`, `.deb` or AppImage and
-  their associations are not configured. Crash recovery and the single-instance hand-off
-  are platform-neutral but untested there.
+- **Packages** for macOS (dmg, ad-hoc signed, not notarized) and Linux (AppImage, deb,
+  rpm, built on Ubuntu 24.04, so glibc 2.39 or later) are built and released (ADR 0011)
+  but have never been installed or run. No PDF file association is configured for them.
+  Crash recovery, the single-instance hand-off and the in-app updater are
+  platform-neutral but untested there.
+- **License notices:** `THIRD_PARTY_LICENSES.md` lists the crates of the Windows build
+  only; the macOS and Linux builds include more (GTK and WebKitGTK bindings, objc2 and
+  others), which it does not name.
 - **Tests:** some are Windows-only by design (DirectWrite fonts, locked files, the
   `qpdf.exe` lookup).
+
+## Releases and updates
+
+- **The updater key is not set up yet.** `src-tauri/tauri.conf.json` has a placeholder
+  public key, and the Release workflow stops until the signing secrets exist
+  (`docs/releasing.md`).
+- **Installing a downloaded update has not been run.** Checking, the notice, progress,
+  Stop, Don't ask again and rejecting a badly signed download were tried against a local
+  test server; installing and restarting need a release signed with the real key. The
+  first real release is the first full test.
+- **No code signing** (Authenticode, Apple notarization): SmartScreen and Gatekeeper warn
+  on the first manual install (ADR 0011).
 
 ## Upstream work
 

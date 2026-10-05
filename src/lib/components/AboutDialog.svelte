@@ -1,7 +1,7 @@
 <script lang="ts">
 	// About (Help menu): version, license, and where the source code is (AGPL-3.0
-	// section 6). Lectrix makes no network requests, so the address is shown and copied, not
-	// opened.
+	// section 6). The address is shown and copied, not opened: the update check is Lectrix's
+	// only network access (ADR 0011).
 	import { getVersion } from '@tauri-apps/api/app';
 	import { Dialog } from 'bits-ui';
 

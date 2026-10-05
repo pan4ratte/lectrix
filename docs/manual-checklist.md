@@ -86,6 +86,24 @@ does afterwards.
 - [ ] `Lectrix_0.1.0_x64_en-US.msi`: the same two runs (the page comes after the folder
       page; it needs administrator rights).
 
+## Updates (from the second release on)
+
+Needs an installed earlier release and a newer one published (ADR 0011,
+`docs/releasing.md`).
+
+- [ ] Start the earlier version: within a few seconds a notice offers the new version.
+      Not now hides it; it is back at the next start.
+- [ ] Update: a progress bar fills, then "ready to install" (Windows) or "installed".
+- [ ] With a document that has unsaved changes, Restart now asks about saving first. Then
+      Lectrix closes, the installer shows its progress window (Windows) and Lectrix opens
+      again; Help > About shows the new version.
+- [ ] Windows: Update, then Later, then close Lectrix: the installer runs and does not
+      reopen Lectrix. The next start is the new version.
+- [ ] If Lectrix was installed without "Open PDF files with Lectrix", it is still not
+      offered for PDFs after updating.
+- [ ] Settings: turn off "Check for updates when Lectrix starts": no notice at the next
+      start.
+
 ## Crash recovery
 
 - [ ] Open a PDF, add a highlight, wait two and a half minutes, then end Lectrix in Task

@@ -1,11 +1,14 @@
 <script lang="ts">
-	// Notifications: plain-language errors with a suggested next step (section 8).
+	// Notifications: plain-language errors with a suggested next step (section 8), under
+	// the update notice when there is one (ADR 0011).
 	import { CircleAlert, Info, X } from '@lucide/svelte';
 
+	import UpdateNotice from '#lib/features/update/UpdateNotice.svelte';
 	import { app } from '#lib/stores/app.svelte.ts';
 </script>
 
 <div class="pointer-events-none fixed right-4 bottom-12 z-30 flex w-96 flex-col gap-2">
+	<UpdateNotice />
 	{#each app.toasts as toast (toast.id)}
 		<div
 			class="pointer-events-auto flex gap-3 rounded-panel border border-line p-3 shadow-[0_8px_16px_var(--color-page-shadow)]"

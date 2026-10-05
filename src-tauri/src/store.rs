@@ -39,6 +39,9 @@ struct Data {
     settings: StoredSettings,
     #[serde(default)]
     panes: PaneLayout,
+    /// The release the user said not to be asked about again (ADR 0011).
+    #[serde(default)]
+    skipped_update: Option<String>,
 }
 
 /// What the Settings dialog changes (sections 6.5 and 6.6).
@@ -60,6 +63,12 @@ pub struct StoredSettings {
         deserialize_with = "known_quick_tools"
     )]
     pub quick_tools: Vec<QuickTool>,
+    #[serde(default = "yes")]
+    pub check_for_updates: bool,
+}
+
+fn yes() -> bool {
+    true
 }
 
 impl Default for StoredSettings {
@@ -71,6 +80,7 @@ impl Default for StoredSettings {
             toolbar_position: ToolbarPosition::default(),
             toolbar_visibility: ToolbarVisibility::default(),
             quick_tools: default_quick_tools(),
+            check_for_updates: true,
         }
     }
 }
@@ -144,6 +154,17 @@ impl Store {
     pub fn set_settings(&mut self, settings: StoredSettings) {
         if self.data.settings != settings {
             self.data.settings = settings;
+            self.persist();
+        }
+    }
+
+    pub fn skipped_update(&self) -> Option<&str> {
+        self.data.skipped_update.as_deref()
+    }
+
+    pub fn set_skipped_update(&mut self, version: Option<String>) {
+        if self.data.skipped_update != version {
+            self.data.skipped_update = version;
             self.persist();
         }
     }
@@ -278,6 +299,7 @@ mod tests {
             toolbar_position: ToolbarPosition::Top,
             toolbar_visibility: ToolbarVisibility::OnHover,
             quick_tools: vec![QuickTool::Squiggly, QuickTool::Bookmark],
+            check_for_updates: false,
         };
         store.set_settings(settings.clone());
         let reloaded = Store::load(Some(file.clone()));
@@ -298,6 +320,7 @@ mod tests {
         assert_eq!(v1.settings().author.as_deref(), Some("Ada"));
         assert_eq!(v1.settings().quick_tools, QuickTool::DEFAULT.to_vec());
         assert_eq!(v1.settings().toolbar_style, ToolbarStyle::Floating);
+        assert!(v1.settings().check_for_updates);
         // Tools from a newer version are skipped, not fatal; an empty list stays empty.
         fs::write(
             &file,
@@ -335,6 +358,15 @@ mod tests {
         let partial = Store::load(Some(file)).panes();
         assert_eq!(partial.sidebar_width, 300);
         assert!(partial.sidebar_open);
+    }
+
+    #[test]
+    fn skipped_update_round_trips() {
+        let file = temp_store("skipped.json");
+        let mut store = Store::load(Some(file.clone()));
+        assert_eq!(store.skipped_update(), None);
+        store.set_skipped_update(Some("1.2.0".into()));
+        assert_eq!(Store::load(Some(file)).skipped_update(), Some("1.2.0"));
     }
 
     #[test]

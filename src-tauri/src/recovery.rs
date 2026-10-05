@@ -359,6 +359,14 @@ impl Recovery {
             }
         }
     }
+
+    /// Writes copies again after `close`: quitting did not happen after all (an update's
+    /// installer could not be started).
+    pub fn reopen(&self) {
+        if let Ok(mut inner) = self.inner.lock() {
+            inner.closed = false;
+        }
+    }
 }
 
 /// A copy belongs to its slot: `<slot>-<n>.pdf`, nothing that leaves the folder.

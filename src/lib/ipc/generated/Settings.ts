@@ -20,4 +20,8 @@ defaultAuthor: string, appearance: Appearance, toolbarStyle: ToolbarStyle, toolb
 /**
  * The buttons of the bar over selected text; empty: no bar.
  */
-quickTools: Array<QuickTool>, };
+quickTools: Array<QuickTool>, 
+/**
+ * Whether Lectrix looks for a new release when it starts (ADR 0011).
+ */
+checkForUpdates: boolean, };

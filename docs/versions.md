@@ -30,6 +30,7 @@ Recorded at project start (2026-10-02). Versions are pinned exactly in `Cargo.to
 | tauri-build | 2.7.1 |
 | tauri-plugin-dialog | 2.8.1 |
 | tauri-plugin-single-instance | 2.5.2 (forwards a second launch's files to the running window) |
+| tauri-plugin-updater | 2.13.1 (updates from GitHub releases, ADR 0011; brings reqwest 0.13, rustls 0.23 with ring, rustls-platform-verifier, minisign-verify, zip) |
 | windows-sys | 0.61.2 (Windows `platform` module; already in the tree through Tauri) |
 | windows | 0.62.2 (`pdf-core` DirectWrite font index, ADR 0005; already in the tree through Tauri's webview2-com) |
 | webview2-com | 0.39.1 (WebView2 memory target level while minimized; already in the tree through Tauri) |
@@ -94,6 +95,11 @@ Downloaded by the Tauri CLI (2.12.1) on the first `npx tauri build` into
 | WiX Toolset | 3.14 | `src-tauri/windows/pdf-association.wxs` is added as a fragment (ADR 0007) |
 
 When the Tauri CLI is upgraded, re-apply the `Lectrix:` changes to its new NSIS template.
+
+Release builds (`.github/workflows/release.yml`, ADR 0011) run on `windows-latest`,
+`ubuntu-24.04`, `macos-latest` (Apple Silicon) and `macos-15-intel`, with the same
+toolchain and libraries as CI, and `actions/attest-build-provenance@v3` for the
+attestations.
 
 macOS and Linux CI jobs (build only): `macos-latest` with Xcode's libclang, and
 `ubuntu-24.04` with `libwebkit2gtk-4.1-dev`, `libgtk-3-dev`, `librsvg2-dev`,

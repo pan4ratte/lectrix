@@ -402,6 +402,7 @@ fn settings_of(stored: &StoredSettings, platform: &dyn Platform) -> Settings {
         toolbar_position: stored.toolbar_position,
         toolbar_visibility: stored.toolbar_visibility,
         quick_tools: stored.quick_tools.clone(),
+        check_for_updates: stored.check_for_updates,
     }
 }
 
@@ -434,6 +435,7 @@ pub fn set_settings(
             .filter(|&(i, t)| !settings.quick_tools[..i].contains(t))
             .map(|(_, &t)| t)
             .collect(),
+        check_for_updates: settings.check_for_updates,
     };
     let mut store = state.store.lock().map_err(|_| AppError::bad_state())?;
     store.set_settings(stored.clone());

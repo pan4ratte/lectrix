@@ -49,6 +49,11 @@
     "allow-app-ready",
     "allow-set-pane-layout",
     "allow-log-metric",
-    "allow-log-error"
+    "allow-log-error",
+    "allow-check-for-update",
+    "allow-skip-update",
+    "allow-download-update",
+    "allow-cancel-update-download",
+    "allow-restart-to-update"
   ]
 }

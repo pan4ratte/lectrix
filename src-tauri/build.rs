@@ -39,6 +39,11 @@ const COMMANDS: &[&str] = &[
     "set_pane_layout",
     "log_metric",
     "log_error",
+    "check_for_update",
+    "skip_update",
+    "download_update",
+    "cancel_update_download",
+    "restart_to_update",
 ];
 
 fn main() {
