@@ -18,11 +18,13 @@
 </script>
 
 <header class="flex h-10 shrink-0 items-stretch bg-chrome" data-tauri-drag-region>
-	<!-- The app's icon and name, sized and spaced as Windows 11's title bar guidelines give them
-	     (16 px icon, 16 px from the edge and from the 12 px caption text). They pass pointer
-	     events to the drag region beneath, so the window can be dragged by them. -->
-	<div class="flex shrink-0 items-center gap-4 pr-2 pl-4 select-none" data-tauri-drag-region>
-		<img class="pointer-events-none" src={iconUrl} alt="" width="16" height="16" draggable="false" />
+	<!-- The app's icon and name, measured as VS Code's title bar: the 16 px icon centred in a 35 px
+	     box, the name in 12 px like its window title. They pass pointer events to the drag
+	     region beneath, so the window can be dragged by them. -->
+	<div class="flex shrink-0 items-center pr-2 select-none" data-tauri-drag-region>
+		<div class="pointer-events-none flex w-[35px] justify-center">
+			<img src={iconUrl} alt="" width="16" height="16" draggable="false" />
+		</div>
 		<span class="pointer-events-none text-xs">{APP_NAME}</span>
 	</div>
 	<div class="flex items-center gap-1">

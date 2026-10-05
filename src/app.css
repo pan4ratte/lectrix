@@ -568,12 +568,14 @@ button {
 	background: var(--lectrix-line);
 }
 
-/* WinUI's MenuBarItem: 14 px text, 32 px tall, 10 px side padding, 8 px apart (MenuBar.svelte). */
+/* Measured as VS Code's menu bar: 13 px text, 8 px side padding, a 22 px tall highlight with
+   5 px corners, no gap between the menus. */
 .menubar-trigger {
-	height: 32px;
-	padding: 0 10px;
+	height: 22px;
+	padding: 0 8px;
 	border: 0;
-	border-radius: var(--radius-control);
+	border-radius: 5px;
+	font-size: 13px;
 	background: transparent;
 }
 .menubar-trigger:hover,
