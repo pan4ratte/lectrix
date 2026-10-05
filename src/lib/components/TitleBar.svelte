@@ -22,7 +22,7 @@
 	     events to the drag region beneath, so the window can be dragged by them. -->
 	<div class="flex shrink-0 items-center gap-2 pr-2 pl-3 select-none" data-tauri-drag-region>
 		<img class="pointer-events-none" src={iconUrl} alt="" width="18" height="18" draggable="false" />
-		<span class="pointer-events-none text-xs">{APP_NAME}</span>
+		<span class="pointer-events-none">{APP_NAME}</span>
 	</div>
 	<div class="flex items-center gap-1">
 		<button
