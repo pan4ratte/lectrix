@@ -181,7 +181,7 @@ Each feature below defines behavior. The "settled details" were decided during t
 - **Tabs:** one tab per document, reorderable, with a dirty marker (a dot; a spinning ring while saving) and a close prompt for unsaved changes.
 - **Scrolling:** continuous vertical scroll, virtualized; only pages near the viewport are rendered.
 - **Zoom:** fit width, fit page, preset percentages, Ctrl+wheel and pinch, centered on the cursor. Zooming glides to the new zoom in 140 ms: the + and − buttons and Ctrl+= / Ctrl+- (to the next preset, around the center of the view), the zoom menu, fit width, fit page (ending at the top of the current page) and mouse wheel notches (around the cursor). A step pressed during a glide goes on from where it was heading. A touchpad pinch follows the fingers instead, and re-fitting as the window or a pane changes size is immediate. Settings can turn gliding off, and reduced motion always does.
-- **Navigation:** page box accepts a physical page number or a page label (typing `iv` jumps to the page labeled iv); thumbnails sidebar; back/forward history for jumps (Alt+Left/Right).
+- **Navigation:** page box accepts a physical page number or a page label (typing `iv` jumps to the page labeled iv); a thumbnails panel; back/forward history for jumps (Alt+Left/Right).
 - **Text:** selection and copy across lines and pages; search with match highlighting and next/previous.
 - **View rotation:** rotating the view does not modify the document. A separate "Rotate pages" command does modify it (sets `/Rotate`) and is undoable.
 - **Recent files** list and remembered per-file view position (page and zoom), stored in app data, not in the PDF.
@@ -194,7 +194,7 @@ Settled details:
 
 ### 6.2 Bookmarks (outline)
 
-- Sidebar panel with the outline as a tree. Expanded/collapsed state is read from and written to the outline.
+- A panel (section 8) with the outline as a tree. Expanded/collapsed state is read from and written to the outline.
 - **Add bookmark** (Ctrl+B) at the current page and scroll position; if text is selected, use it as the title.
 - **Edit:** rename inline (F2 or double-click), drag to reorder and nest, delete (with children, after confirmation), "Set destination to current view."
 - New and retargeted bookmarks get explicit destinations: page reference, `/XYZ`, left and top of the current view, null zoom (keeps the reader's zoom).
@@ -261,7 +261,7 @@ Settled details:
 - **Annotation bar:** clicking an annotation selects it and shows a floating bar above it: color, type (text markup only: highlight, underline, strikeout, squiggly), note, delete. Double-clicking opens the inspector with the cursor in the note.
 - **Style:** six preset colors plus a custom picker, opacity (a slider in the toolbar, 10% to 100%), stroke width for the pen; the last-used style per tool is remembered.
 - **Inspector panel** for the selected annotation: color, opacity, note text, author, dates.
-- **Annotation list** in the right pane: grouped by page, filter by type and author, click to jump, edit note text, delete, "needs repair" badges. Each row shows the type as an icon in the annotation's colour, moved toward the text colour only as far as 3:1 contrast on the pane needs (its name as tooltip and accessible name), then the author and a short date, then the whole comment with its line breaks. Each page's group starts with a header under a dividing line. A right-click (or Shift+F10) offers Reply, Copy comment and Delete annotation; on a reply in a thread, Edit reply, Copy comment and Delete reply.
+- **Annotation list** in the right pane by default (section 8): grouped by page, filter by type and author, click to jump, edit note text, delete, "needs repair" badges. Each row shows the type as an icon in the annotation's colour, moved toward the text colour only as far as 3:1 contrast on the pane needs (its name as tooltip and accessible name), then the author and a short date, then the whole comment with its line breaks. Each page's group starts with a header under a dividing line. A right-click (or Shift+F10) offers Reply, Copy comment and Delete annotation; on a reply in a thread, Edit reply, Copy comment and Delete reply.
 - Annotations can be moved, resized (ink, text box, notes) and deleted; every change is undoable.
 - Author name is set in Settings, defaulting to the Windows user name.
 
@@ -321,13 +321,13 @@ The app should feel like a native Windows 11 app: calm, fast, and keyboard-frien
 
 **Layout.**
 
-- **Title bar:** custom (Tauri decorations off, explicit drag region), holding the app's icon and name at the left, the sidebar and annotation pane toggles, the menus, the document tabs and the standard window buttons.
-- **Left sidebar**, collapsible (open by default), with three panels: Pages (thumbnails), Bookmarks, Page labels. The tabs are icons with tooltips and accessible names.
+- **Title bar:** custom (Tauri decorations off, explicit drag region), holding the app's icon and name at the left, the menus, the document tabs and the standard window buttons, measured as VS Code's title bar (16 px icon in a 35 px box, 12 px name, 13 px menus).
+- **Side panes** hold four panels: Pages (thumbnails), Bookmarks, Page labels and Annotations (the annotation list). The left pane, open by default, starts with the first three; the right pane, closed by default, with Annotations. Each pane's top row has its panels' tabs (icons with tooltips and accessible names) and, at its outer end, the button that hides it. A closed pane's button stays in the same place, at that end of the view bar's row, as in Obsidian. Panels move freely: a tab is dragged along its row, into the other pane's row, or onto a closed pane's button; Ctrl+Shift+Left/Right and the tab's context menu do the same from the keyboard, crossing between the panes at their inner ends. A panel moved into the other pane is shown there; a pane left without panels closes, and its button goes until a panel is dragged to the drop place shown there.
 - **View bar**, one bar at the top of the document as in Acrobat, its contents centered: previous page, next page, the page box with the page label or number and the physical position after it ("iv" then "(4 of 312)", or "4" then "of 312"; screen readers hear "iv (4 of 312)"), then zoom out, the zoom level (a menu with fit width, fit page and the presets) and zoom in, then the annotation tools when docked there (Settings). Previous and next page go to the top of that page and are not recorded in back/forward history. In a narrow window the bar wraps onto a second row.
 - **Center:** the page canvas, below the view bar, with the annotation toolbar floating at its bottom or top, or docked in the view bar (Settings). The search bar and inspectors move below a floating toolbar that stays at the top. The active tool has an accent border on every side.
-- **Right pane**, collapsible (closed by default): the annotation list. Its toggle carries the "needs repair" dot.
+- The Annotations tab carries the "needs repair" dot, and so does its pane's button while that pane is closed.
 - **Inspector**, floating over the right edge of the page: properties of the selected annotation or bookmark, shown when opened for it (sections 6.2 and 6.5).
-- **Side panes** resize by dragging their inner edge, or from the keyboard on that edge (arrows, Home, End); a double-click resets the width. Each takes at most 40% of the window. Which panes are open and their widths are remembered in app data. Opening and closing slides (140 ms); a fit-width or fit-page view re-fits as a pane moves and renders again once it stops.
+- **Side panes** resize by dragging their inner edge, or from the keyboard on that edge (arrows, Home, End); a double-click resets the width. Each takes at most 40% of the window. Which panes are open, their widths, the panels each holds and the one each shows are remembered in app data. Opening and closing slides (140 ms); a fit-width or fit-page view re-fits as a pane moves and renders again once it stops.
 
 **Visual style.**
 

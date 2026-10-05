@@ -33,12 +33,23 @@ import {
 	type OpenResult,
 	type OperationInput,
 	type PaneLayout,
+	type PanelId,
 	type RecentFile,
 	type SaveResult,
 	type Settings,
 	type StartupInfo
 } from '#lib/ipc/index.ts';
-import { ANNOTATIONS_LIMITS, SIDEBAR_LIMITS, clampWidth } from '#lib/components/panes.ts';
+import {
+	DEFAULT_ARRANGEMENT,
+	LEFT_LIMITS,
+	RIGHT_LIMITS,
+	clampWidth,
+	movePanel,
+	normalizeArrangement,
+	paneOf,
+	type PaneSide,
+	type PanelArrangement
+} from '#lib/components/panes.ts';
 import { CombineState } from '#lib/features/merge/combine.svelte.ts';
 import { reportDetail, signedWarning } from '#lib/features/merge/pages.ts';
 import { discardQuestion, recoveryQuestion } from '#lib/features/recovery/recovery.ts';
@@ -92,13 +103,15 @@ class AppStore {
 	activeId = $state<number | null>(null);
 	startup = $state<StartupInfo | null>(null);
 	recent = $state<RecentFile[]>([]);
-	/** The left sidebar (section 8): open, its width, and the panel it shows. */
-	sidebarOpen = $state(true);
-	sidebarWidth = $state(SIDEBAR_LIMITS.initial);
-	sidebarPanel = $state<'pages' | 'bookmarks' | 'labels'>('pages');
-	/** The right pane with the annotation list. */
-	annotationsOpen = $state(false);
-	annotationsWidth = $state(ANNOTATIONS_LIMITS.initial);
+	/** The side panes (section 8): open, their widths, the panels each holds (the user
+	 * moves them between the panes) and the one each shows. */
+	leftOpen = $state(true);
+	leftWidth = $state(LEFT_LIMITS.initial);
+	rightOpen = $state(false);
+	rightWidth = $state(RIGHT_LIMITS.initial);
+	panels = $state<PanelArrangement>({ left: [...DEFAULT_ARRANGEMENT.left], right: [...DEFAULT_ARRANGEMENT.right] });
+	#leftActive = $state<PanelId | null>(null);
+	#rightActive = $state<PanelId | null>(null);
 	/** The remembered pane layout is in; until then panes neither animate nor are saved. */
 	panesRestored = $state(false);
 	/** The inspector (properties of the selected bookmark) is open. */
@@ -175,20 +188,79 @@ class AppStore {
 	// ----- side panes -----
 
 	restorePanes(panes: PaneLayout) {
-		this.sidebarOpen = panes.sidebarOpen;
-		this.sidebarWidth = clampWidth(panes.sidebarWidth, SIDEBAR_LIMITS);
-		this.annotationsOpen = panes.annotationsOpen;
-		this.annotationsWidth = clampWidth(panes.annotationsWidth, ANNOTATIONS_LIMITS);
+		this.leftOpen = panes.leftOpen;
+		this.leftWidth = clampWidth(panes.leftWidth, LEFT_LIMITS);
+		this.rightOpen = panes.rightOpen;
+		this.rightWidth = clampWidth(panes.rightWidth, RIGHT_LIMITS);
+		this.panels = normalizeArrangement(panes.leftPanels, panes.rightPanels);
+		this.#leftActive = panes.leftActive;
+		this.#rightActive = panes.rightActive;
 		this.panesRestored = true;
 	}
 
 	get panes(): PaneLayout {
 		return {
-			sidebarOpen: this.sidebarOpen,
-			sidebarWidth: this.sidebarWidth,
-			annotationsOpen: this.annotationsOpen,
-			annotationsWidth: this.annotationsWidth
+			leftOpen: this.leftOpen,
+			leftWidth: this.leftWidth,
+			rightOpen: this.rightOpen,
+			rightWidth: this.rightWidth,
+			leftPanels: [...this.panels.left],
+			rightPanels: [...this.panels.right],
+			leftActive: this.activePanel('left'),
+			rightActive: this.activePanel('right')
 		};
+	}
+
+	isOpen(side: PaneSide): boolean {
+		return side === 'left' ? this.leftOpen : this.rightOpen;
+	}
+
+	setOpen(side: PaneSide, open: boolean) {
+		if (side === 'left') this.leftOpen = open;
+		else this.rightOpen = open;
+	}
+
+	/** Opens or closes a pane; a pane without panels stays closed. */
+	togglePane(side: PaneSide) {
+		this.setOpen(side, !this.isOpen(side) && this.panels[side].length > 0);
+	}
+
+	/** The panel a pane shows: the one last picked there, or its first. */
+	activePanel(side: PaneSide): PanelId | null {
+		const active = side === 'left' ? this.#leftActive : this.#rightActive;
+		const list = this.panels[side];
+		return active !== null && list.includes(active) ? active : (list[0] ?? null);
+	}
+
+	setActivePanel(side: PaneSide, panel: PanelId) {
+		if (side === 'left') this.#leftActive = panel;
+		else this.#rightActive = panel;
+	}
+
+	/** The panel is on screen: its pane is open and shows it. */
+	isShown(panel: PanelId): boolean {
+		const side = paneOf(this.panels, panel);
+		return this.isOpen(side) && this.activePanel(side) === panel;
+	}
+
+	/** Opens the pane that holds a panel, showing it. */
+	showPanel(panel: PanelId) {
+		const side = paneOf(this.panels, panel);
+		this.setActivePanel(side, panel);
+		this.setOpen(side, true);
+	}
+
+	/**
+	 * Moves a panel to `index` in a pane's row. Moved into the other pane, it is shown
+	 * there, and a pane left without panels closes.
+	 */
+	movePanel(panel: PanelId, side: PaneSide, index: number) {
+		const from = paneOf(this.panels, panel);
+		this.panels = movePanel(this.panels, panel, side, index);
+		if (from === side) return;
+		if (this.panels[from].length === 0) this.setOpen(from, false);
+		this.setActivePanel(side, panel);
+		this.setOpen(side, true);
 	}
 
 	// ----- opening -----

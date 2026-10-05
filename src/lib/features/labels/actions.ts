@@ -38,8 +38,7 @@ function queued<T>(run: () => Promise<T>): Promise<T> {
 }
 
 export function showLabels() {
-	app.sidebarOpen = true;
-	app.sidebarPanel = 'labels';
+	app.showPanel('labels');
 }
 
 /**

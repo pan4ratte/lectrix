@@ -78,10 +78,10 @@ test('every Tab stop is named and shows focus, in every panel and dialog', async
 		}
 
 		// The annotation pane on the right, and the edges that resize both panes.
-		await (await browser.$('button[aria-label="Show annotations"]')).click();
+		await (await browser.$('button[aria-label="Show right pane"]')).click();
 		await browser.pause(300);
 		const withPane = assertStops(await tabWalk(browser, { max: 100 }), 'annotation pane');
-		for (const name of ['Hide annotations', 'Show type', 'Resize sidebar', 'Resize annotations']) {
+		for (const name of ['Hide right pane', 'Show type', 'Resize left pane', 'Resize right pane']) {
 			assert.ok(withPane.includes(name), `annotation pane reaches ${name}`);
 		}
 		await assertAllNamed(browser, 'annotation pane');
@@ -144,9 +144,9 @@ test('menus, tabs and lists move with arrow keys; dialogs keep focus inside', as
 		await browser.keys(['Escape']);
 
 		// The sidebar's edge, after its content: arrows resize it, Home goes to the narrowest.
-		await tabTo(browser, (s) => s.name === 'Resize sidebar', 'the sidebar edge');
+		await tabTo(browser, (s) => s.name === 'Resize left pane', 'the sidebar edge');
 		const sidebarWidth = () =>
-			browser.execute(() => Number(document.querySelector('[role="separator"][aria-label="Resize sidebar"]').getAttribute('aria-valuenow')));
+			browser.execute(() => Number(document.querySelector('[role="separator"][aria-label="Resize left pane"]').getAttribute('aria-valuenow')));
 		const before = await sidebarWidth();
 		await browser.keys(['ArrowRight']);
 		assert.equal(await sidebarWidth(), before + 16, 'Right widens the sidebar');
@@ -220,7 +220,7 @@ test('a keyboard-only session: go to a page, bookmark it, edit a note, save', as
 		await browser.keys([...'Chapter three', 'Enter']);
 
 		// Open the annotation pane and reach its list, by Tab and Enter only.
-		await tabTo(browser, (s) => s.name === 'Show annotations', 'the annotation pane button');
+		await tabTo(browser, (s) => s.name === 'Show right pane', 'the annotation pane button');
 		await browser.keys(['Enter']);
 		await tabTo(browser, (s) => s.computedRole === 'listbox' && s.name === 'Annotations', 'the annotation list');
 		await browser.keys(['ArrowDown']);

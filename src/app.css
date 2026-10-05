@@ -663,6 +663,46 @@ button {
 	color: var(--lectrix-fg);
 }
 
+/* Dragging a panel's tab between the side panes: where it would land, a closed or empty
+   pane's place that takes it, and the panel following the pointer. */
+.panel-drop-mark {
+	position: absolute;
+	top: 4px;
+	bottom: 4px;
+	width: 2px;
+	border-radius: 1px;
+	background: var(--lectrix-accent);
+	pointer-events: none;
+}
+.pane-drop-slot {
+	width: 32px;
+	height: 32px;
+	border: 1px dashed var(--lectrix-fg-muted);
+	border-radius: var(--radius-control);
+}
+.pane-drop-target {
+	outline: 2px solid var(--lectrix-accent);
+	outline-offset: -2px;
+}
+.panel-drag-ghost {
+	position: fixed;
+	z-index: 60;
+	display: flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px;
+	border: 1px solid var(--lectrix-line);
+	border-radius: var(--radius-control);
+	background: var(--lectrix-surface-raised);
+	color: var(--lectrix-fg);
+	font-size: 13px;
+	pointer-events: none;
+}
+:root.panel-dragging,
+:root.panel-dragging * {
+	cursor: grabbing !important;
+}
+
 /* ----- bookmarks tree ----- */
 
 .tree:focus-visible {

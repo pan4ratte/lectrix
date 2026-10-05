@@ -99,29 +99,34 @@
 			<Menubar.Content class="menu-content" align="start" sideOffset={9}>
 				<Menubar.CheckboxItem
 					class="menu-item"
-					checked={app.sidebarOpen}
-					onCheckedChange={commands.toggleSidebar}
+					disabled={!hasDoc || app.panels.left.length === 0}
+					checked={app.leftOpen}
+					onCheckedChange={commands.toggleLeftPane}
 				>
 					{#snippet children({ checked })}
-						<span class="w-4" aria-hidden="true">{checked ? '✓' : ''}</span>Sidebar
+						<span class="w-4" aria-hidden="true">{checked ? '✓' : ''}</span>Left pane
 					{/snippet}
 				</Menubar.CheckboxItem>
 				<Menubar.CheckboxItem
 					class="menu-item"
-					disabled={!hasDoc}
-					checked={app.annotationsOpen}
-					onCheckedChange={commands.toggleAnnotations}
+					disabled={!hasDoc || app.panels.right.length === 0}
+					checked={app.rightOpen}
+					onCheckedChange={commands.toggleRightPane}
 				>
 					{#snippet children({ checked })}
-						<span class="w-4" aria-hidden="true">{checked ? '✓' : ''}</span>Annotations pane
+						<span class="w-4" aria-hidden="true">{checked ? '✓' : ''}</span>Right pane
 					{/snippet}
 				</Menubar.CheckboxItem>
 				<Menubar.Separator class="menu-separator" />
+				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.showPages}>Pages</Menubar.Item>
 				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.showBookmarks}>
 					Bookmarks
 				</Menubar.Item>
 				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.showLabels}>
 					Page labels
+				</Menubar.Item>
+				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.showAnnotations}>
+					Annotations
 				</Menubar.Item>
 				<Menubar.Separator class="menu-separator" />
 				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.zoomIn}>

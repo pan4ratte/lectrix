@@ -53,8 +53,7 @@ export function revealBookmark(tab: DocTab, id: number) {
 }
 
 function showBookmarks() {
-	app.sidebarOpen = true;
-	app.sidebarPanel = 'bookmarks';
+	app.showPanel('bookmarks');
 }
 
 /**

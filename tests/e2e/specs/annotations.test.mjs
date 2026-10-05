@@ -39,11 +39,11 @@ async function waitForRowCount(browser, n, message) {
 /** Converts page points of page `index` (view space at zoom 1) to viewport pixels. */
 /** Opens the annotation pane and waits until it has finished sliding in. */
 async function showAnnotations(browser) {
-	await (await browser.$('button[aria-label="Show annotations"]')).click();
+	await (await browser.$('button[aria-label="Show right pane"]')).click();
 	await browser.waitUntil(
 		() =>
 			browser.execute(() => {
-				const pane = document.querySelector('aside[aria-label="Annotations"]');
+				const pane = document.querySelector('aside[aria-label="Right pane"]');
 				return pane !== null && pane.getAnimations({ subtree: true }).length === 0;
 			}),
 		{ timeoutMsg: 'the annotation pane did not open' }

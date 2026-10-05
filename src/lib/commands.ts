@@ -77,12 +77,8 @@ export const commands = {
 	rotateViewCounterClockwise: withTab((t) => {
 		t.rotation = normalizeRotation(t.rotation - 90);
 	}),
-	toggleSidebar: () => {
-		app.sidebarOpen = !app.sidebarOpen;
-	},
-	toggleAnnotations: () => {
-		app.annotationsOpen = !app.annotationsOpen;
-	},
+	toggleLeftPane: () => app.togglePane('left'),
+	toggleRightPane: () => app.togglePane('right'),
 	goToPage: () => {
 		const box = document.querySelector<HTMLInputElement>('[data-page-box]');
 		box?.focus();
@@ -104,11 +100,10 @@ export const commands = {
 	}),
 	insertPages: withTab((t) => app.insertFromFile(t)),
 	addBookmark: withTab((t) => addBookmark(t)),
-	showBookmarks: () => {
-		app.sidebarOpen = true;
-		app.sidebarPanel = 'bookmarks';
-	},
+	showPages: () => app.showPanel('pages'),
+	showBookmarks: () => app.showPanel('bookmarks'),
 	showLabels: () => showLabels(),
+	showAnnotations: () => app.showPanel('annotations'),
 	repairAnnotations: withTab((t) => repair(t)),
 	toolSelect: useTool('select'),
 	toolHighlight: useTool('highlight'),

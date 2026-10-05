@@ -37,11 +37,33 @@ struct Data {
     views: HashMap<String, StoredView>,
     #[serde(default)]
     settings: StoredSettings,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "panes_with_old_names")]
     panes: PaneLayout,
     /// The release the user said not to be asked about again (ADR 0011).
     #[serde(default)]
     skipped_update: Option<String>,
+}
+
+/// The pane layout, reading files from before panels could move, which named the left
+/// pane the sidebar and the right one the annotation pane. A layout that cannot be read
+/// gives the default.
+fn panes_with_old_names<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<PaneLayout, D::Error> {
+    let mut value = serde_json::Value::deserialize(deserializer)?;
+    if let Some(map) = value.as_object_mut() {
+        for (old, new) in [
+            ("sidebarOpen", "leftOpen"),
+            ("sidebarWidth", "leftWidth"),
+            ("annotationsOpen", "rightOpen"),
+            ("annotationsWidth", "rightWidth"),
+        ] {
+            if let Some(v) = map.remove(old) {
+                map.entry(new).or_insert(v);
+            }
+        }
+    }
+    Ok(serde_json::from_value(value).unwrap_or_default())
 }
 
 /// What the Settings dialog changes (sections 6.5 and 6.6).
@@ -189,7 +211,7 @@ impl Store {
     }
 
     pub fn panes(&self) -> PaneLayout {
-        self.data.panes
+        self.data.panes.clone()
     }
 
     pub fn set_panes(&mut self, panes: PaneLayout) {
@@ -253,7 +275,7 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::ipc::ZoomMode;
+    use crate::ipc::{PanelId, ZoomMode};
 
     fn temp_store(name: &str) -> PathBuf {
         let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../target/test-output/store");
@@ -365,12 +387,16 @@ mod tests {
         let mut store = Store::load(Some(file.clone()));
         assert_eq!(store.panes(), PaneLayout::default());
         let panes = PaneLayout {
-            sidebar_open: false,
-            sidebar_width: 320,
-            annotations_open: true,
-            annotations_width: 400,
+            left_open: false,
+            left_width: 320,
+            right_open: true,
+            right_width: 400,
+            left_panels: vec![PanelId::Annotations, PanelId::Pages],
+            right_panels: vec![PanelId::Labels, PanelId::Bookmarks],
+            left_active: Some(PanelId::Pages),
+            right_active: None,
         };
-        store.set_panes(panes);
+        store.set_panes(panes.clone());
         assert_eq!(Store::load(Some(file.clone())).panes(), panes);
         // A state file from before the panes were remembered loads with defaults, and one
         // missing a field keeps the others.
@@ -379,10 +405,28 @@ mod tests {
             Store::load(Some(file.clone())).panes(),
             PaneLayout::default()
         );
-        fs::write(&file, br#"{"panes":{"sidebarWidth":300}}"#).unwrap();
-        let partial = Store::load(Some(file)).panes();
-        assert_eq!(partial.sidebar_width, 300);
-        assert!(partial.sidebar_open);
+        fs::write(&file, br#"{"panes":{"leftWidth":300}}"#).unwrap();
+        let partial = Store::load(Some(file.clone())).panes();
+        assert_eq!(partial.left_width, 300);
+        assert!(partial.left_open);
+        assert_eq!(partial.right_panels, vec![PanelId::Annotations]);
+        // From before panels could move: the sidebar and annotation pane's names.
+        fs::write(
+            &file,
+            br#"{"panes":{"sidebarOpen":false,"sidebarWidth":200,"annotationsOpen":true,"annotationsWidth":350}}"#,
+        )
+        .unwrap();
+        let old = Store::load(Some(file)).panes();
+        assert_eq!(
+            (
+                old.left_open,
+                old.left_width,
+                old.right_open,
+                old.right_width
+            ),
+            (false, 200, true, 350)
+        );
+        assert_eq!(old.left_panels, PaneLayout::default().left_panels);
     }
 
     #[test]

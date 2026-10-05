@@ -920,29 +920,48 @@ pub struct StartupInfo {
     pub panes: PaneLayout,
 }
 
-/// Which side panes are open and how wide they are (section 8), remembered in app data.
-/// Widths are CSS pixels; the frontend keeps them within its limits.
-#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+/// The side panes (section 8): which are open, how wide they are, which panels each holds
+/// in which order, and the panel each shows. Remembered in app data. Widths are CSS pixels;
+/// the frontend keeps them within its limits, and puts each panel in exactly one pane.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
 #[ts(export)]
 pub struct PaneLayout {
-    /// The left sidebar (pages, bookmarks, page labels).
-    pub sidebar_open: bool,
-    pub sidebar_width: u32,
-    /// The right pane (the annotation list).
-    pub annotations_open: bool,
-    pub annotations_width: u32,
+    pub left_open: bool,
+    pub left_width: u32,
+    pub right_open: bool,
+    pub right_width: u32,
+    pub left_panels: Vec<PanelId>,
+    pub right_panels: Vec<PanelId>,
+    /// The panel each pane shows; none means its first one.
+    pub left_active: Option<PanelId>,
+    pub right_active: Option<PanelId>,
 }
 
 impl Default for PaneLayout {
     fn default() -> Self {
         PaneLayout {
-            sidebar_open: true,
-            sidebar_width: 240,
-            annotations_open: false,
-            annotations_width: 300,
+            left_open: true,
+            left_width: 240,
+            right_open: false,
+            right_width: 300,
+            left_panels: vec![PanelId::Pages, PanelId::Bookmarks, PanelId::Labels],
+            right_panels: vec![PanelId::Annotations],
+            left_active: None,
+            right_active: None,
         }
     }
+}
+
+/// A panel the side panes hold; the user moves them between the two panes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum PanelId {
+    Pages,
+    Bookmarks,
+    Labels,
+    Annotations,
 }
 
 /// Light or dark: following the system, or forced (Settings, section 8).

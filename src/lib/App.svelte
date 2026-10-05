@@ -1,7 +1,6 @@
 <script lang="ts">
 	// The app window: title bar, sidebar, view bar, page canvas, annotation pane, and the
 	// wiring between Rust events, shortcuts and the stores.
-	import { X } from '@lucide/svelte';
 	import { getCurrentWebview } from '@tauri-apps/api/webview';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { onMount } from 'svelte';
@@ -13,16 +12,18 @@
 	import DialogHost from '#lib/components/DialogHost.svelte';
 	import FileBanner from '#lib/components/FileBanner.svelte';
 	import PasswordDialog from '#lib/components/PasswordDialog.svelte';
-	import { ANNOTATIONS_LIMITS, SIDEBAR_LIMITS } from '#lib/components/panes.ts';
+	import PaneToggle from '#lib/components/PaneToggle.svelte';
+	import PanelDragGhost from '#lib/components/PanelDragGhost.svelte';
+	import PanelPane from '#lib/components/PanelPane.svelte';
+	import { draggedPanel, dropSlot } from '#lib/components/panels.svelte.ts';
+	import { LEFT_LIMITS, RIGHT_LIMITS, type PaneSide } from '#lib/components/panes.ts';
 	import SidePane from '#lib/components/SidePane.svelte';
-	import Sidebar from '#lib/components/Sidebar.svelte';
 	import StartScreen from '#lib/components/StartScreen.svelte';
 	import TitleBar from '#lib/components/TitleBar.svelte';
 	import Toasts from '#lib/components/Toasts.svelte';
 	import SettingsDialog from '#lib/components/SettingsDialog.svelte';
 	import { cancelTextDraft } from '#lib/features/annotations/actions.ts';
 	import AnnotationInspector from '#lib/features/annotations/AnnotationInspector.svelte';
-	import AnnotationsPanel from '#lib/features/annotations/AnnotationsPanel.svelte';
 	import AnnotationToolbar from '#lib/features/annotations/AnnotationToolbar.svelte';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
 	import CombineView from '#lib/features/merge/CombineView.svelte';
@@ -189,6 +190,28 @@
 
 <svelte:window onkeydown={onKeyDown} oncontextmenu={onContextMenu} />
 
+<!-- A closed pane keeps its button at the same place, at that end of the view bar's row (as
+     in Obsidian). A pane without panels has none; while a panel is dragged, a place to drop
+     it shows there instead. -->
+{#snippet paneEnd(side: PaneSide)}
+	{#if app.panels[side].length > 0 ? !app.isOpen(side) : draggedPanel() !== null}
+		<div class="flex border-b border-line bg-surface px-1">
+			<div class="flex h-10 items-center">
+				{#if app.panels[side].length > 0}
+					<PaneToggle {side} />
+				{:else}
+					<div
+						class="pane-drop-slot"
+						class:pane-drop-target={dropSlot(side) !== null}
+						data-panel-drop={side}
+						aria-hidden="true"
+					></div>
+				{/if}
+			</div>
+		</div>
+	{/if}
+{/snippet}
+
 <div class="flex h-full flex-col">
 	<TitleBar />
 	<div class="flex min-h-0 flex-1">
@@ -197,23 +220,29 @@
 				<CombineView combine={app.combine} />
 			</main>
 		{:else}
-			{#if tab}
+			{#if tab && app.panels.left.length > 0}
 				<SidePane
 					side="left"
-					label="Sidebar"
-					open={app.sidebarOpen}
-					bind:width={app.sidebarWidth}
-					limits={SIDEBAR_LIMITS}
+					label="Left pane"
+					open={app.leftOpen}
+					bind:width={app.leftWidth}
+					limits={LEFT_LIMITS}
 					animate={app.panesRestored}
 				>
-					<Sidebar {tab} />
+					<PanelPane side="left" {tab} />
 				</SidePane>
 			{/if}
 			<main class="flex min-w-0 flex-1 flex-col bg-canvas">
 				{#if tab}
-					{#key tab.id}
-						<ViewBar {tab} />
-					{/key}
+					<div class="flex shrink-0 items-stretch">
+						{@render paneEnd('left')}
+						<div class="min-w-0 flex-1">
+							{#key tab.id}
+								<ViewBar {tab} />
+							{/key}
+						</div>
+						{@render paneEnd('right')}
+					</div>
 					<FileBanner {tab} />
 					{#key tab.id}
 						<div class="relative flex min-h-0 flex-1 flex-col">
@@ -229,32 +258,16 @@
 					<StartScreen />
 				{/if}
 			</main>
-			{#if tab}
+			{#if tab && app.panels.right.length > 0}
 				<SidePane
 					side="right"
-					label="Annotations"
-					open={app.annotationsOpen}
-					bind:width={app.annotationsWidth}
-					limits={ANNOTATIONS_LIMITS}
+					label="Right pane"
+					open={app.rightOpen}
+					bind:width={app.rightWidth}
+					limits={RIGHT_LIMITS}
 					animate={app.panesRestored}
 				>
-					<div class="flex h-10 shrink-0 items-center gap-1 pr-1 pl-3">
-						<h2 class="flex-1 text-sm font-semibold">Annotations</h2>
-						<button
-							type="button"
-							class="icon-button"
-							aria-label="Hide annotations"
-							title="Hide annotations"
-							onclick={commands.toggleAnnotations}
-						>
-							<X size={16} aria-hidden="true" />
-						</button>
-					</div>
-					<div class="min-h-0 flex-1">
-						{#key tab.id}
-							<AnnotationsPanel {tab} />
-						{/key}
-					</div>
+					<PanelPane side="right" {tab} />
 				</SidePane>
 			{/if}
 		{/if}
@@ -270,6 +283,7 @@
 <DialogHost />
 <PasswordDialog />
 <Toasts />
+<PanelDragGhost />
 
 {#if app.dropTarget}
 	<div

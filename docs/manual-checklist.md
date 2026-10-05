@@ -76,7 +76,7 @@ If Acrobat or Foxit don't list Lectrix's replies, note it: ADR 0012 has the fall
 ## Your own files
 
 If you have PDFs whose annotations display wrongly in Acrobat, open one in Lectrix: the
-annotation pane (title bar, right) marks the ones that need repair. Run Document > Repair annotations,
+annotation list (the Annotations panel, in the right pane at first) marks the ones that need repair. Run Document > Repair annotations,
 save a copy, and check the copy in Acrobat.
 
 # Manual release checklist: installers, crash recovery, accessibility
@@ -132,7 +132,7 @@ Needs an installed earlier release and a newer one published (ADR 0011,
 ## Accessibility
 
 - [ ] Turn on Narrator (Ctrl+Win+Enter). Tab through the window with a document open:
-      each control is announced with a sensible name (tools, page box, zoom, sidebar tabs,
+      each control is announced with a sensible name (tools, page box, zoom, pane buttons and panel tabs,
       bookmarks, annotation rows). Turn Narrator off.
 - [ ] Focus rings, the selected tab, the active annotation tool and text fields are
       easy to see in Lectrix blue in both the light and the dark appearance.

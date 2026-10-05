@@ -57,6 +57,7 @@ export type { MergeReport } from './generated/MergeReport';
 export type { MergeStage } from './generated/MergeStage';
 export type { UnsavedSource } from './generated/UnsavedSource';
 export type { BookmarkTarget } from './generated/BookmarkTarget';
+export type { PanelId } from './generated/PanelId';
 export type { DocumentFlags } from './generated/DocumentFlags';
 export type { DocumentState } from './generated/DocumentState';
 export type { ErrorCode } from './generated/ErrorCode';
