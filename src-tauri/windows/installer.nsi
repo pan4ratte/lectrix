@@ -740,6 +740,18 @@ Section Install
     {{/each}}
   {{/each}}
 
+  ; Lectrix: an update (the in-app updater runs this installer with /UPDATE, ADR 0011)
+  ; keeps the earlier choice: Lectrix stays registered for PDF files only if it was.
+  ${If} $UpdateMode = 1
+    ClearErrors
+    ReadRegStr $R0 SHCTX "Software\Classes\${LECTRIX_PROGID}" ""
+    ${If} ${Errors}
+      StrCpy $AssociatePdf 0
+    ${Else}
+      StrCpy $AssociatePdf 1
+    ${EndIf}
+  ${EndIf}
+
   ; Lectrix: register for PDF files as chosen; a reinstall without it removes an earlier
   ; registration.
   ${If} $AssociatePdf = 1

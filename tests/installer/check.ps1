@@ -80,6 +80,18 @@ foreach ($case in @(@{ Args = @('/S'); Registered = $true }, @{ Args = @('/S', '
     Remove-Item -Recurse -Force $nsisDir -ErrorAction SilentlyContinue
 }
 
+# An in-app update runs the installer with /UPDATE (ADR 0011): it keeps the earlier choice.
+foreach ($case in @(@{ Args = @('/S'); Registered = $true }, @{ Args = @('/S', '/NOPDF'); Registered = $false })) {
+    Write-Host "NSIS $($nsis.Name) $($case.Args -join ' '), then /P /UPDATE"
+    Run $nsis.FullName $case.Args
+    Run $nsis.FullName @('/P', '/UPDATE')
+    Check (Test-Path $nsisExe) 'lectrix.exe still installed after the update'
+    Check-Registration 'HKCU' $case.Registered $nsisExe
+    Run (Join-Path $nsisDir 'uninstall.exe') @('/S', "_?=$nsisDir")
+    Check-Registration 'HKCU' $false $nsisExe
+    Remove-Item -Recurse -Force $nsisDir -ErrorAction SilentlyContinue
+}
+
 # --- MSI (per machine) -----------------------------------------------------------------
 $msiExe = Join-Path $env:ProgramFiles "$product\lectrix.exe"
 foreach ($case in @(@{ Props = @(); Registered = $true; Log = 'msi-default' }, @{ Props = @('LECTRIX_ASSOCIATE_PDF=0'); Registered = $false; Log = 'msi-no-pdf' })) {
