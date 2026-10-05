@@ -279,7 +279,7 @@ Settled details:
 ### 6.6 Settings, About and installers
 
 - **Settings** (File menu, Ctrl+,): author name; appearance (System by default, Light or Dark); the annotation toolbar's place (bottom by default, or top) and when it shows (always by default, or only while the pointer is within about 72 px of that edge, while it has keyboard focus, and for 1.5 s after a tool is picked); and the quick tools for selected text. Applied at once and stored in app data.
-- **About** (Help menu): version, the AGPL notice, MuPDF's credit, where the license files are installed, and the source code address with a Copy button. The address is shown, never opened (Lectrix stays offline).
+- **About** (Help menu): the app icon, version, the AGPL notice, MuPDF's credit, where the license files are installed, and the source code address with a Copy button. The address is shown, never opened (Lectrix stays offline).
 - **Installers** (NSIS and MSI, ADR 0007): a "PDF files" page after the folder page, "Open PDF files with Lectrix", checked by default. It registers Lectrix for PDFs (Open with, Default apps); Windows asks which app to use at the next PDF, and the installer never takes over the default itself. For silent installs, `/NOPDF` (NSIS) or `LECTRIX_ASSOCIATE_PDF=0` (MSI) leaves the registration out. Both install `LICENSE.txt` and the license notices.
 
 ## 7. Document model, undo/redo and saving

@@ -5,6 +5,8 @@
 	import { getVersion } from '@tauri-apps/api/app';
 	import { Dialog } from 'bits-ui';
 
+	import iconUrl from '#lib/assets/lectrix-icon.svg';
+
 	import { APP_NAME, SOURCE_URL } from '#lib/config.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 
@@ -31,10 +33,16 @@
 	<Dialog.Portal>
 		<Dialog.Overlay class="dialog-overlay" />
 		<Dialog.Content class="dialog-content w-[440px]">
-			<Dialog.Title class="text-base font-semibold">About {APP_NAME}</Dialog.Title>
-			<Dialog.Description class="mt-1 text-sm text-fg-muted">
-				{version ? `Version ${version}` : ''}
-			</Dialog.Description>
+			<div class="flex items-center gap-4">
+				<!-- Decorative: the title names the app. -->
+				<img src={iconUrl} alt="" width="56" height="56" draggable="false" />
+				<div>
+					<Dialog.Title class="text-base font-semibold">About {APP_NAME}</Dialog.Title>
+					<Dialog.Description class="mt-1 text-sm text-fg-muted">
+						{version ? `Version ${version}` : ''}
+					</Dialog.Description>
+				</div>
+			</div>
 			<div class="mt-4 flex flex-col gap-3 text-sm">
 				<p>
 					{APP_NAME} is free software: you can redistribute it and change it under the terms of the GNU Affero
