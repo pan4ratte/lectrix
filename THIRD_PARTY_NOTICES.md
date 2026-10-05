@@ -23,6 +23,7 @@ following third-party components. Every one has an AGPL-compatible license.
 | Tailwind CSS | MIT | styling |
 | Bits UI | MIT | headless UI primitives |
 | Lucide icons (`@lucide/svelte`) | ISC | icons |
+| Google Sans 14.000 (The Google Sans Project Authors), Latin, Cyrillic and Greek build | OFL-1.1 | UI font, bundled into the frontend (ADR 0009); license text in `src/lib/assets/fonts/OFL.txt` |
 
 Test-only tools (not distributed): pdfjs-dist (Apache-2.0), @napi-rs/canvas (MIT),
 pypdfium2 (Apache-2.0 / BSD-3-Clause), numpy (BSD-3-Clause), Pillow (MIT-CMU), qpdf

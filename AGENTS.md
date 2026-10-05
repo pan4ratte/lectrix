@@ -323,7 +323,7 @@ The app should feel like a native Windows 11 app: calm, fast, and keyboard-frien
 
 - Mica window background through Tauri's window effects, with a solid fallback where Mica is unavailable.
 - Follow the system light/dark setting and accent color by default; Settings can force light or dark. The accent is shaded per theme where needed for 3:1 contrast.
-- Font stack: Segoe UI Variable, Segoe UI, then system UI fonts for other platforms.
+- Font stack: Google Sans, bundled with the app (ADR 0009), then Segoe UI Variable, Segoe UI and the system UI fonts for characters it lacks.
 - Spacing on an 8 px grid (4 px for tight spots); corner radius 6–8 px; thin borders instead of heavy shadows.
 - All colors, sizes and radii as CSS variables (design tokens) consumed by Tailwind; no hard-coded colors in components.
 

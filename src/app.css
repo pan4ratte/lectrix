@@ -1,6 +1,27 @@
 @import 'tailwindcss';
 
 /*
+ * Google Sans, bundled (ADR 0009): the Latin, Cyrillic and Greek build, variable weight
+ * 400 to 700. Other scripts fall back per character to the Segoe UI stack in --font-sans.
+ * The files load from the app itself in a few milliseconds, so text waits for them
+ * (block) rather than flashing in the fallback first.
+ */
+@font-face {
+	font-family: 'Google Sans';
+	src: url('./lib/assets/fonts/GoogleSans-LatinCyrillicGreek.woff2') format('woff2');
+	font-weight: 400 700;
+	font-style: normal;
+	font-display: block;
+}
+@font-face {
+	font-family: 'Google Sans';
+	src: url('./lib/assets/fonts/GoogleSans-Italic-LatinCyrillicGreek.woff2') format('woff2');
+	font-weight: 400 700;
+	font-style: italic;
+	font-display: block;
+}
+
+/*
  * Design tokens. Components use only these (through Tailwind utilities such as
  * bg-surface, text-fg, border-line, or the component classes below); never hard-coded
  * colors. Spacing follows an 8 px grid (4 px for tight spots); radii 6 to 8 px.
@@ -133,7 +154,7 @@
 	--color-danger-bg: var(--lectrix-danger-bg);
 	--color-info-bg: var(--lectrix-info-bg);
 	--color-page-shadow: var(--lectrix-page-shadow);
-	--font-sans: 'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
+	--font-sans: 'Google Sans', 'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
 	--radius-control: 6px;
 	--radius-panel: 8px;
 }
