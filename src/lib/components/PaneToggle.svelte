@@ -1,7 +1,7 @@
 <script lang="ts">
-	// Shows or hides a side pane (section 8). It sits at the pane's outer end of its panel
-	// row, and stays in that place, in the view bar's row, while the pane is closed, as in
-	// Obsidian. A closed pane's button also takes panels dropped on it.
+	// Shows or hides a side pane (section 8). It floats at the window's edge, at the outer end
+	// of the pane's panel row, and stays in that place, in the view bar's row, while the pane
+	// is closed, as in Obsidian. A closed pane's button also takes panels dropped on it.
 	import { PanelLeft, PanelRight } from '@lucide/svelte';
 
 	import { app } from '#lib/stores/app.svelte.ts';

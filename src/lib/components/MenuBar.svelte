@@ -10,12 +10,13 @@
 	const hasDoc = $derived(tab !== null);
 </script>
 
-<!-- The menus open from the title bar's bottom edge, as in VS Code: the 22 px triggers sit 9 px above it. -->
+<!-- The menus open from the title bar's bottom edge, as in VS Code: the 22 px triggers sit about 7 px
+     above it in the 35 px bar. -->
 <Menubar.Root class="flex items-center" aria-label="Main menu">
 	<Menubar.Menu>
 		<Menubar.Trigger class="menubar-trigger">File</Menubar.Trigger>
 		<Menubar.Portal>
-			<Menubar.Content class="menu-content" align="start" sideOffset={9}>
+			<Menubar.Content class="menu-content" align="start" sideOffset={7}>
 				<Menubar.Item class="menu-item" onSelect={commands.open}>
 					Open…<span class="menu-shortcut">Ctrl+O</span>
 				</Menubar.Item>
@@ -64,7 +65,7 @@
 	<Menubar.Menu>
 		<Menubar.Trigger class="menubar-trigger">Edit</Menubar.Trigger>
 		<Menubar.Portal>
-			<Menubar.Content class="menu-content" align="start" sideOffset={9}>
+			<Menubar.Content class="menu-content" align="start" sideOffset={7}>
 				{#if app.combineActive}
 					<Menubar.Item class="menu-item" disabled={!app.combine?.canUndo} onSelect={commands.undo}>
 						Undo<span class="menu-shortcut">Ctrl+Z</span>
@@ -96,7 +97,7 @@
 	<Menubar.Menu>
 		<Menubar.Trigger class="menubar-trigger">View</Menubar.Trigger>
 		<Menubar.Portal>
-			<Menubar.Content class="menu-content" align="start" sideOffset={9}>
+			<Menubar.Content class="menu-content" align="start" sideOffset={7}>
 				<Menubar.CheckboxItem
 					class="menu-item"
 					disabled={!hasDoc || app.panels.left.length === 0}
@@ -165,7 +166,7 @@
 	<Menubar.Menu>
 		<Menubar.Trigger class="menubar-trigger">Document</Menubar.Trigger>
 		<Menubar.Portal>
-			<Menubar.Content class="menu-content" align="start" sideOffset={9}>
+			<Menubar.Content class="menu-content" align="start" sideOffset={7}>
 				<Menubar.Item
 					class="menu-item"
 					disabled={!hasDoc || !tab?.flags.canAssemble}
@@ -203,7 +204,7 @@
 	<Menubar.Menu>
 		<Menubar.Trigger class="menubar-trigger">Help</Menubar.Trigger>
 		<Menubar.Portal>
-			<Menubar.Content class="menu-content" align="start" sideOffset={9}>
+			<Menubar.Content class="menu-content" align="start" sideOffset={7}>
 				<Menubar.Item class="menu-item" onSelect={commands.about}>About {APP_NAME}</Menubar.Item>
 			</Menubar.Content>
 		</Menubar.Portal>

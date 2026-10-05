@@ -57,17 +57,26 @@ test('pane buttons keep their place; panels move between the panes', async () =>
 		assert.deepEqual(await rows(browser), { left: ['Pages', 'Bookmarks', 'Page labels'], right: [] });
 
 		// The left pane's button is in its panel row, before the tabs, and stays in the same
-		// place, in the view bar's row, once the pane is closed.
-		const hide = await box(browser, 'aside[aria-label="Left pane"] button[aria-label="Hide left pane"]');
+		// place, in the view bar's row, once the pane is closed: also on every frame while the
+		// pane slides closed and open again.
+		const hide = await box(browser, 'button[aria-label="Hide left pane"]');
 		const pages = await box(browser, tabSelector('Pages'));
-		assert.ok(hide && pages && Math.abs(hide.y - pages.y) <= 1 && hide.x < pages.x, 'the button is at the start of the row');
-		await (await browser.$('button[aria-label="Hide left pane"]')).click();
-		await browser.waitUntil(() => browser.execute(() => !document.querySelector('aside[aria-label="Left pane"]')), {
-			timeoutMsg: 'the left pane did not close'
-		});
-		const show = await box(browser, 'button[aria-label="Show left pane"]');
-		assert.ok(show && Math.abs(show.x - hide.x) <= 1 && Math.abs(show.y - hide.y) <= 1, `the button kept its place: ${JSON.stringify({ hide, show })}`);
-		await (await browser.$('button[aria-label="Show left pane"]')).click();
+		assert.ok(hide && pages && Math.abs(hide.y - pages.y) <= 1 && hide.x < pages.x, `the button is at the start of the row: ${JSON.stringify({ hide, pages })}`);
+		for (const name of ['Hide left pane', 'Show left pane']) {
+			const places = await browser.executeAsync((label, done) => {
+				const seen = [];
+				document.querySelector(`button[aria-label="${label}"]`).click();
+				const started = performance.now();
+				const frame = () => {
+					const r = document.querySelector('button[aria-label$="left pane"]')?.getBoundingClientRect();
+					if (r) seen.push(`${Math.round(r.left)},${Math.round(r.top)}`);
+					if (performance.now() - started < 300) requestAnimationFrame(frame);
+					else done([...new Set(seen)]);
+				};
+				requestAnimationFrame(frame);
+			}, name);
+			assert.deepEqual(places, [`${Math.round(hide.left)},${Math.round(hide.top)}`], `${name}: the button stays still while the pane slides`);
+		}
 		await (await browser.$(tabSelector('Pages'))).waitForDisplayed();
 
 		// Page labels dropped on the closed right pane's button: the pane opens with it.

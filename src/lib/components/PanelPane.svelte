@@ -1,6 +1,7 @@
 <script lang="ts">
-	// A side pane's contents (section 8): a row with the pane's button at its outer end and
-	// its panels' tabs, then the panel shown. The tabs are icons with tooltips and accessible
+	// A side pane's contents (section 8): a row with its panels' tabs, leaving room at its
+	// outer end for the pane's button (which floats there, PaneToggle in App), then the
+	// panel shown. The tabs are icons with tooltips and accessible
 	// names, so they fit the narrowest pane. A tab is dragged along its row or into the other
 	// pane; from the keyboard, Ctrl+Shift+Left/Right moves it, and its context menu offers
 	// the same moves.
@@ -15,7 +16,6 @@
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
-	import PaneToggle from './PaneToggle.svelte';
 	import { PANEL_INFO, draggedPanel, dropSlot, startPanelDrag } from './panels.svelte.ts';
 	import { stepPanel, type PaneSide } from './panes.ts';
 
@@ -54,9 +54,9 @@
 	bind:value={() => app.activePanel(side) ?? '', (value) => app.setActivePanel(side, value as PanelId)}
 	class="flex min-h-0 flex-1 flex-col"
 >
-	<div class="flex h-10 shrink-0 items-center gap-1 px-1 select-none" data-panel-drop={side}>
+	<div class="flex h-[40px] shrink-0 items-center gap-1 px-[4px] select-none" data-panel-drop={side}>
 		{#if side === 'left'}
-			<PaneToggle {side} />
+			<span class="w-[32px] shrink-0" aria-hidden="true"></span>
 		{/if}
 		<ContextMenu.Root>
 			<ContextMenu.Trigger>
@@ -124,7 +124,7 @@
 		</ContextMenu.Root>
 		{#if side === 'right'}
 			<span class="flex-1"></span>
-			<PaneToggle {side} />
+			<span class="w-[32px] shrink-0" aria-hidden="true"></span>
 		{/if}
 	</div>
 	{#each list as panel (panel)}

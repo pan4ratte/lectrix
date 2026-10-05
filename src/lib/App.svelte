@@ -190,16 +190,14 @@
 
 <svelte:window onkeydown={onKeyDown} oncontextmenu={onContextMenu} />
 
-<!-- A closed pane keeps its button at the same place, at that end of the view bar's row (as
-     in Obsidian). A pane without panels has none; while a panel is dragged, a place to drop
+<!-- Room in the view bar's row for a closed pane's button, which floats at the window's edge
+     (paneButton). A pane without panels has none; while a panel is dragged, a place to drop
      it shows there instead. -->
 {#snippet paneEnd(side: PaneSide)}
 	{#if app.panels[side].length > 0 ? !app.isOpen(side) : draggedPanel() !== null}
-		<div class="flex border-b border-line bg-surface px-1">
-			<div class="flex h-10 items-center">
-				{#if app.panels[side].length > 0}
-					<PaneToggle {side} />
-				{:else}
+		<div class="flex border-b border-line bg-surface px-[4px]">
+			<div class="flex h-[40px] w-[32px] items-center">
+				{#if app.panels[side].length === 0}
 					<div
 						class="pane-drop-slot"
 						class:pane-drop-target={dropSlot(side) !== null}
@@ -212,14 +210,27 @@
 	{/if}
 {/snippet}
 
+<!-- A pane's button, at the window's edge in the row of the pane's tabs, which leaves room
+     for it, and in the same place while the pane is closed (as in Obsidian). It floats over
+     both, so it stays still while the pane slides open or closed. Pixel sizes, not spacing
+     units (a rem is 14 px here): the pane rows and the view bar are all 40 px tall. -->
+{#snippet paneButton(side: PaneSide)}
+	{#if tab && app.panels[side].length > 0}
+		<div class={['absolute top-[4px] z-20', side === 'left' ? 'left-[4px]' : 'right-[4px]']}>
+			<PaneToggle {side} />
+		</div>
+	{/if}
+{/snippet}
+
 <div class="flex h-full flex-col">
 	<TitleBar />
-	<div class="flex min-h-0 flex-1">
+	<div class="relative flex min-h-0 flex-1">
 		{#if app.combineActive && app.combine}
 			<main class="flex min-w-0 flex-1 flex-col bg-canvas">
 				<CombineView combine={app.combine} />
 			</main>
 		{:else}
+			{@render paneButton('left')}
 			{#if tab && app.panels.left.length > 0}
 				<SidePane
 					side="left"
@@ -270,6 +281,7 @@
 					<PanelPane side="right" {tab} />
 				</SidePane>
 			{/if}
+			{@render paneButton('right')}
 		{/if}
 	</div>
 	{#if tab}

@@ -10,15 +10,15 @@
 	import WindowControls from './WindowControls.svelte';
 </script>
 
-<header class="flex h-10 shrink-0 items-stretch bg-chrome" data-tauri-drag-region>
-	<!-- The app's icon and name, measured as VS Code's title bar: the 16 px icon centred in a 35 px
-	     box, the name in 12 px like its window title. They pass pointer events to the drag
+<header class="flex h-[35px] shrink-0 items-stretch bg-chrome" data-tauri-drag-region>
+	<!-- The bar is 35 px tall, as VS Code's. The app's icon and name are measured as there too:
+	     the 16 px icon centred in a 35 px box, the name in 12 px like its window title. They pass pointer events to the drag
 	     region beneath, so the window can be dragged by them. -->
-	<div class="flex shrink-0 items-center pr-2 select-none" data-tauri-drag-region>
+	<div class="flex shrink-0 items-center pr-[8px] select-none" data-tauri-drag-region>
 		<div class="pointer-events-none flex w-[35px] justify-center">
 			<img src={iconUrl} alt="" width="16" height="16" draggable="false" />
 		</div>
-		<span class="pointer-events-none text-xs">{APP_NAME}</span>
+		<span class="pointer-events-none text-[12px]">{APP_NAME}</span>
 	</div>
 	<div class="flex items-center">
 		<MenuBar />
