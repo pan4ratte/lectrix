@@ -5,17 +5,13 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { launch, waitForDocument } from '../lib/app.mjs';
+import { launch, statusText, waitForDocument } from '../lib/app.mjs';
 import { cli, sample } from '../lib/pdfcli.mjs';
-
-async function statusText(browser) {
-	return browser.execute(() => [...document.querySelectorAll('[data-view-bar], footer')].map((e) => e.textContent).join(' '));
-}
 
 async function waitForStatus(browser, text, message) {
 	await browser.waitUntil(async () => (await statusText(browser)).includes(text), {
 		timeout: 5000,
-		timeoutMsg: `${message}: status bar shows ${JSON.stringify(await statusText(browser))}`
+		timeoutMsg: `${message}: the window shows ${JSON.stringify(await statusText(browser))}`
 	});
 }
 

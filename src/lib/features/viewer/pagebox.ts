@@ -10,6 +10,18 @@ export function pagePosition(index: number, count: number, labels: readonly stri
 	return physical;
 }
 
+/**
+ * What the view bar shows after the page box, as Acrobat does: "(4 of 312)" when the box
+ * shows a label other than the page number, "of 312" otherwise.
+ */
+export function pageOf(index: number, count: number, labels: readonly string[] | null) {
+	const label = labels?.[index];
+	if (label !== undefined && label !== '' && label !== String(index + 1)) {
+		return `(${index + 1} of ${count})`;
+	}
+	return `of ${count}`;
+}
+
 /** What the page box shows while not being edited: the label, or the page number. */
 export function pageBoxText(index: number, labels: readonly string[] | null): string {
 	const label = labels?.[index];

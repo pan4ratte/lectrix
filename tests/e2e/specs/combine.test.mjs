@@ -7,7 +7,7 @@ import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { OUT, launch, waitForDocument } from '../lib/app.mjs';
+import { OUT, launch, statusText, waitForDocument } from '../lib/app.mjs';
 import { cli, outlineLines, sample } from '../lib/pdfcli.mjs';
 
 /** The cells of the Combine grid in order, as "file page". */
@@ -146,7 +146,7 @@ test('insert pages from a file, undo, redo and save', async () => {
 		await (await browser.$('input[aria-label="Pages to insert"]')).setValue('2-3');
 		await (await browser.$('input[aria-label="Page number"]')).setValue('1');
 		await (await browser.$('button=Insert')).click();
-		const status = () => browser.execute(() => [...document.querySelectorAll('[data-view-bar], footer')].map((e) => e.textContent).join(' '));
+		const status = () => statusText(browser);
 		await browser.waitUntil(async () => (await status()).includes('of 5'), {
 			timeout: 5000,
 			timeoutMsg: 'the document did not grow to 5 pages'

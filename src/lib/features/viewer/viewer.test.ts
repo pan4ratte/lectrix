@@ -13,7 +13,7 @@ import {
 	pageAtY,
 	pagesInRange
 } from './layout.ts';
-import { pageBoxText, pagePosition, resolvePageInput } from './pagebox.ts';
+import { pageBoxText, pageOf, pagePosition, resolvePageInput } from './pagebox.ts';
 import {
 	hitTest,
 	lineAt,
@@ -32,6 +32,7 @@ import {
 	pixelSize,
 	renderScale,
 	stepZoom,
+	isWheelNotch,
 	wheelZoomFactor,
 	zoomBetween
 } from './zoom.ts';
@@ -120,6 +121,10 @@ describe('zoom', () => {
 		expect(wheelZoomFactor(-100 * Math.log(0.95), 0)).toBeCloseTo(0.95);
 		expect(wheelZoomFactor(-120, 0)).toBeCloseTo(1.24, 2);
 		expect(wheelZoomFactor(100, 0)).toBeLessThan(1);
+		// Notches glide; pinches follow the fingers.
+		expect(isWheelNotch(-120, 0)).toBe(true);
+		expect(isWheelNotch(3, 1)).toBe(true);
+		expect(isWheelNotch(-100 * Math.log(1.1), 0)).toBe(false);
 		expect(wheelZoomFactor(-3, 1)).toBeCloseTo(wheelZoomFactor(-99, 0));
 	});
 
@@ -148,6 +153,9 @@ describe('page box', () => {
 		expect(pagePosition(3, 312, ['i', 'ii', 'iii', 'iv'])).toBe('iv (4 of 312)');
 		expect(pagePosition(3, 312, null)).toBe('4 of 312');
 		expect(pagePosition(3, 312, ['1', '2', '3', '4'])).toBe('4 of 312');
+		expect(pageOf(3, 312, ['i', 'ii', 'iii', 'iv'])).toBe('(4 of 312)');
+		expect(pageOf(3, 312, null)).toBe('of 312');
+		expect(pageOf(3, 312, ['1', '2', '3', '4'])).toBe('of 312');
 		expect(pageBoxText(0, labels)).toBe('i');
 		expect(pageBoxText(0, null)).toBe('1');
 	});

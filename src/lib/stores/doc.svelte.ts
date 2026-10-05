@@ -40,12 +40,10 @@ export interface ViewerApi {
 	 * back/forward history.
 	 */
 	goToPoint(page: number, x: number | null, y: number | null): void;
+	// Zooming glides there unless Settings or the system's reduced motion say otherwise.
 	/** Zooms keeping the point at the center of the viewport in place. */
 	setZoom(zoom: number, mode: ZoomMode): void;
-	/**
-	 * Zooms in (1) or out (-1) to the next preset, around the center of the viewport:
-	 * gliding there unless Settings or the system's reduced motion say otherwise.
-	 */
+	/** Zooms in (1) or out (-1) to the next preset, around the center of the viewport. */
 	zoomStep(direction: 1 | -1): void;
 	fit(mode: 'fitWidth' | 'fitPage'): void;
 	focus(): void;

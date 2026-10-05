@@ -2,8 +2,8 @@
 	// The annotation toolbar (sections 6.5 and 8): the tools, and the style the active tool
 	// draws with (remembered per tool). Settings make it float over the page canvas, at the
 	// bottom or the top, shown always or only while the pointer is near that edge (or the
-	// toolbar has focus, or a tool was just picked); or make it a panel docked above the
-	// pages, always shown (App.svelte places it).
+	// toolbar has focus, or a tool was just picked); or dock it in the bar at the top of the
+	// document, beside the page and zoom controls, always shown (ViewBar.svelte places it).
 	import {
 		Highlighter,
 		MousePointer2,
@@ -120,7 +120,7 @@
 <div
 	bind:this={bar}
 	class={panel
-		? 'flex h-10 shrink-0 items-center justify-center gap-0.5 border-b border-line bg-surface px-2'
+		? 'flex items-center gap-0.5'
 		: 'annotation-toolbar absolute left-1/2 z-20 flex items-center gap-0.5 rounded-panel border border-line bg-surface-raised p-1 shadow-[0_4px_12px_var(--color-page-shadow)]'}
 	class:top-3={!panel && position === 'top'}
 	class:bottom-4={!panel && position === 'bottom'}

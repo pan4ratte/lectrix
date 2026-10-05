@@ -6,7 +6,7 @@ import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { OUT, launch, waitForDocument } from '../lib/app.mjs';
+import { OUT, launch, statusText, waitForDocument } from '../lib/app.mjs';
 import { cli, sample } from '../lib/pdfcli.mjs';
 
 const DIR = join(OUT, 'recovery');
@@ -14,10 +14,6 @@ const DIR = join(OUT, 'recovery');
 const env = { LECTRIX_RECOVERY_DIR: DIR, LECTRIX_RECOVERY_INTERVAL_MS: '500' };
 
 const recoveryFiles = () => (existsSync(DIR) ? readdirSync(DIR) : []);
-
-async function statusText(browser) {
-	return browser.execute(() => [...document.querySelectorAll('[data-view-bar], footer')].map((e) => e.textContent).join(' '));
-}
 
 async function dialogText(browser) {
 	return browser.execute(() => document.querySelector('[role="alertdialog"]')?.textContent ?? '');

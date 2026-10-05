@@ -1,15 +1,21 @@
 <script lang="ts">
-	// View bar, docked at the top of the document (as in Acrobat): the page box (label or
-	// number, "iv (4 of 312)") and the zoom out, zoom level and zoom in controls.
-	import { Minus, Plus } from '@lucide/svelte';
+	// The bar at the top of the document, as in Acrobat (section 8): the annotation tools
+	// when Settings dock them there, then previous and next page, the page box (label or
+	// number, then "(4 of 312)" or "of 312"), and zoom out, the zoom level and zoom in.
+	// With the annotation toolbar floating, the page and zoom controls sit in the middle.
+	import { ChevronDown, ChevronUp, Minus, Plus } from '@lucide/svelte';
 	import { DropdownMenu } from 'bits-ui';
 
+	import AnnotationToolbar from '#lib/features/annotations/AnnotationToolbar.svelte';
+	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
-	import { pageBoxText, pagePosition, resolvePageInput } from './pagebox.ts';
+	import { pageBoxText, pageOf, pagePosition, resolvePageInput } from './pagebox.ts';
 	import { ZOOM_PRESETS } from './zoom.ts';
 
 	let { tab }: { tab: DocTab } = $props();
+
+	const docked = $derived(app.settings?.toolbarStyle === 'panel');
 
 	let editing = $state(false);
 	let input: HTMLInputElement | undefined = $state();
@@ -49,21 +55,57 @@
 		}
 	}
 
+	/** Goes to the top of the page before or after the current one. Like scrolling, not
+	 * recorded in back/forward history. */
+	function turn(direction: 1 | -1) {
+		const page = tab.currentPage + direction;
+		if (page < 0 || page >= tab.pageCount) return;
+		tab.viewer?.goTo({ page, offset: 0 }, { recordHistory: false });
+	}
+
 	const zoomText = $derived(`${Math.round(tab.zoom * 100)}%`);
 </script>
 
 <div
-	class="grid h-10 shrink-0 grid-cols-[1fr_auto_1fr] items-center gap-3 border-b border-line bg-surface px-3 text-sm text-fg-muted"
-	role="toolbar"
-	aria-label="Page and zoom"
+	class="flex min-h-10 shrink-0 flex-wrap items-center gap-x-3 gap-y-1 border-b border-line bg-surface px-2 py-1 text-sm text-fg-muted"
 	data-view-bar
 >
-	<div class="flex items-center justify-end gap-2">
+	{#if docked}
+		<AnnotationToolbar {tab} />
+	{/if}
+
+	<div
+		class="flex items-center gap-1"
+		class:ml-auto={docked}
+		class:mx-auto={!docked}
+		role="toolbar"
+		aria-label="Page and zoom"
+	>
+		<button
+			type="button"
+			class="icon-button size-7"
+			aria-label="Previous page"
+			title="Previous page"
+			disabled={tab.currentPage <= 0}
+			onclick={() => turn(-1)}
+		>
+			<ChevronUp size={16} aria-hidden="true" />
+		</button>
+		<button
+			type="button"
+			class="icon-button size-7"
+			aria-label="Next page"
+			title="Next page"
+			disabled={tab.currentPage >= tab.pageCount - 1}
+			onclick={() => turn(1)}
+		>
+			<ChevronDown size={16} aria-hidden="true" />
+		</button>
 		<label class="sr-only" for="page-box">Go to page</label>
 		<input
 			bind:this={input}
 			id="page-box"
-			class="field h-7 w-16 text-center tabular-nums"
+			class="field ml-1 h-7 w-14 text-center tabular-nums"
 			class:border-line={!invalid}
 			class:border-danger={invalid}
 			value={editing ? draft : pageBoxText(tab.currentPage, tab.displayLabels)}
@@ -78,21 +120,23 @@
 			aria-invalid={invalid}
 			data-page-box
 		/>
-		<!-- A fixed minimum width, so the box doesn't shift as the text changes. -->
-		<span class="min-w-28">
+		<!-- A minimum width, so the zoom controls don't shift as the text changes. -->
+		<span class="min-w-20 pl-1 whitespace-nowrap">
 			{#if invalid}
 				<span class="text-danger" role="alert">No such page</span>
 			{:else}
-				<span class="tabular-nums" aria-live="polite" data-page-position>
-					{pagePosition(tab.currentPage, tab.pageCount, tab.displayLabels)}
+				<span class="tabular-nums" aria-hidden="true">
+					{pageOf(tab.currentPage, tab.pageCount, tab.displayLabels)}
 				</span>
 			{/if}
+			<!-- The whole position for screen readers: "iv (4 of 312)". -->
+			<span class="sr-only" aria-live="polite" data-page-position>
+				{pagePosition(tab.currentPage, tab.pageCount, tab.displayLabels)}
+			</span>
 		</span>
-	</div>
 
-	<span class="h-5 w-px bg-line" aria-hidden="true"></span>
+		<span class="mx-2 h-5 w-px bg-line" aria-hidden="true"></span>
 
-	<div class="flex items-center gap-1">
 		<button
 			type="button"
 			class="icon-button size-7"

@@ -28,18 +28,37 @@ export function stepZoom(zoom: number, direction: 1 | -1): number {
 	return MIN_ZOOM;
 }
 
-/** How long a smooth zoom step takes (section 8: animations under 150 ms). */
-export const ZOOM_STEP_MS = 140;
+/** How long a zoom glide takes (section 8: animations under 150 ms). */
+export const ZOOM_GLIDE_MS = 140;
+
+/** Ease-out over `t` from 0 to 1 (clamped): fast at first, settling at the end. */
+export function easeOut(t: number): number {
+	const clamped = Math.min(1, Math.max(0, t));
+	return 1 - (1 - clamped) ** 3;
+}
 
 /**
- * The zoom a fraction `t` (0 to 1) of the way through a smooth step from `from` to `to`:
- * even in ratio, so 100% to 200% passes 141% halfway, and easing out.
+ * The zoom a fraction `t` (0 to 1) of the way through a glide from `from` to `to`: even in
+ * ratio, so 100% to 200% passes 141% halfway, and easing out.
  */
 export function zoomBetween(from: number, to: number, t: number): number {
-	const clamped = Math.min(1, Math.max(0, t));
-	if (clamped === 1) return to;
-	const eased = 1 - (1 - clamped) ** 3;
-	return from * (to / from) ** eased;
+	if (t >= 1) return to;
+	return from * (to / from) ** easeOut(t);
+}
+
+/** Wheel deltas in pixels; below this, a Ctrl+wheel event is a touchpad pinch. */
+const NOTCH_PX = 50;
+
+function wheelPixels(deltaY: number, deltaMode: number): number {
+	return deltaMode === 1 ? deltaY * 33 : deltaY;
+}
+
+/**
+ * Whether a Ctrl+wheel event is a mouse wheel notch (which glides) rather than part of a
+ * touchpad pinch (which follows the fingers).
+ */
+export function isWheelNotch(deltaY: number, deltaMode: number): boolean {
+	return Math.abs(wheelPixels(deltaY, deltaMode)) >= NOTCH_PX;
 }
 
 /**
@@ -48,8 +67,8 @@ export function zoomBetween(from: number, to: number, t: number): number {
  * wheel notch (100-150 px) zooms about 1.25x.
  */
 export function wheelZoomFactor(deltaY: number, deltaMode: number): number {
-	const delta = deltaMode === 1 ? deltaY * 33 : deltaY;
-	const perPixel = Math.abs(delta) < 50 ? 0.01 : 0.0018;
+	const delta = wheelPixels(deltaY, deltaMode);
+	const perPixel = Math.abs(delta) < NOTCH_PX ? 0.01 : 0.0018;
 	return Math.exp(-delta * perPixel);
 }
 

@@ -87,8 +87,22 @@
 			onkeydown={(e) => onKeyDown(e, tab.id)}
 		>
 			<span class="truncate" class:text-fg-muted={!active}>{tab.name}</span>
-			{#if tab.state.dirty}
-				<span class="size-2 shrink-0 rounded-full bg-fg" aria-label="unsaved changes" role="img"></span>
+			{#if tab.saving}
+				<span
+					class="size-3 shrink-0 animate-spin rounded-full border-2 border-fg-muted border-t-transparent"
+					aria-label="saving"
+					title="Saving…"
+					role="img"
+					data-saving
+				></span>
+			{:else if tab.state.dirty}
+				<span
+					class="size-2 shrink-0 rounded-full bg-fg"
+					aria-label="unsaved changes"
+					title="Unsaved changes"
+					role="img"
+					data-unsaved
+				></span>
 			{/if}
 			<button
 				type="button"

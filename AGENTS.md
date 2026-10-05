@@ -178,9 +178,9 @@ Each feature below defines behavior. The "settled details" were decided during t
 ### 6.1 Viewer
 
 - **Opening:** File > Open dialog, drag-and-drop onto the window, `.pdf` file association, and a path passed on the command line. Opening a file that is already open switches to its tab. Lectrix is single-instance: a second launch hands its files to the running window.
-- **Tabs:** one tab per document, reorderable, with a dirty marker and a close prompt for unsaved changes.
+- **Tabs:** one tab per document, reorderable, with a dirty marker (a dot; a spinning ring while saving) and a close prompt for unsaved changes.
 - **Scrolling:** continuous vertical scroll, virtualized; only pages near the viewport are rendered.
-- **Zoom:** fit width, fit page, preset percentages, Ctrl+wheel and pinch, centered on the cursor. Zooming in or out a step (the + and − buttons, Ctrl+= and Ctrl+-) glides to the next preset in 140 ms, around the center of the view; Settings can turn that off, and reduced motion always does.
+- **Zoom:** fit width, fit page, preset percentages, Ctrl+wheel and pinch, centered on the cursor. Zooming glides to the new zoom in 140 ms: the + and − buttons and Ctrl+= / Ctrl+- (to the next preset, around the center of the view), the zoom menu, fit width, fit page (ending at the top of the current page) and mouse wheel notches (around the cursor). A step pressed during a glide goes on from where it was heading. A touchpad pinch follows the fingers instead, and re-fitting as the window or a pane changes size is immediate. Settings can turn gliding off, and reduced motion always does.
 - **Navigation:** page box accepts a physical page number or a page label (typing `iv` jumps to the page labeled iv); thumbnails sidebar; back/forward history for jumps (Alt+Left/Right).
 - **Text:** selection and copy across lines and pages; search with match highlighting and next/previous.
 - **View rotation:** rotating the view does not modify the document. A separate "Rotate pages" command does modify it (sets `/Rotate`) and is undoable.
@@ -280,7 +280,7 @@ Settled details:
 
 ### 6.6 Settings, About and installers
 
-- **Settings** (File menu, Ctrl+,): author name; appearance (System by default, Light or Dark); the annotation toolbar's look (floating over the pages by default, or a panel docked above them, always shown); for the floating toolbar, its place (bottom by default, or top) and when it shows (always by default, or only while the pointer is within about 72 px of that edge, while it has keyboard focus, and for 1.5 s after a tool is picked); the quick tools for selected text; smooth zooming (on by default, section 6.1); and whether Lectrix checks for updates when it starts (on by default). Applied at once and stored in app data.
+- **Settings** (File menu, Ctrl+,): author name; appearance (System by default, Light or Dark); the annotation toolbar's look (floating over the pages by default, or docked in the bar above them, always shown); for the floating toolbar, its place (bottom by default, or top) and when it shows (always by default, or only while the pointer is within about 72 px of that edge, while it has keyboard focus, and for 1.5 s after a tool is picked); the quick tools for selected text; smooth zooming (on by default, section 6.1); and whether Lectrix checks for updates when it starts (on by default). Applied at once and stored in app data.
 - **About** (Help menu): the app icon, version, the AGPL notice, MuPDF's credit, where the license files are installed, and the source code address with a Copy button. The address is shown, never opened (the update check is Lectrix's only network access).
 - **Updates** (ADR 0011): after the startup files open, Lectrix asks GitHub for the latest release in the background. A newer one brings a floating notice: Update, Not now (asked again at the next start) or Don't ask again (that version is never offered again; a later one is). Update downloads with a progress bar and Stop, and the download must pass the updater signature check. macOS and Linux then install it and offer Restart now or Later. Windows cannot replace the running app, so it offers Restart now (after the usual unsaved-changes prompts, the installer runs and opens Lectrix again) or Later (the installer runs when Lectrix closes). Failures to check are logged, never shown.
 - **Releases** (ADR 0011, `docs/releasing.md`): a new version in `package.json` on `main` publishes a GitHub release once CI passes: Windows (NSIS, MSI), Linux (AppImage, deb, and rpm for final versions) and macOS (Apple Silicon and Intel), with build provenance attestations and the updater's signed `latest.json`. Versions follow semver; pre-releases end in a number (`1.0.0-beta.1`) because the MSI version is derived from it, and installers are built with `npm run bundle`, which sets that MSI version.
@@ -294,7 +294,7 @@ The Rust session is the single source of truth: the frontend holds only a view o
 
 **Undo/redo.** Uses MuPDF's built-in journalling, wrapped in `ffi/journal.rs`; each `Operation` is one journal step with a human-readable name ("Add highlight", "Rename bookmark"). The Edit menu shows the name of the step being undone or redone. Saving reopens the file, so undo history starts again after each save (ADR 0003); after a crash restore it starts at the restored state (MuPDF cannot load a saved journal, ADR 0001).
 
-**Dirty state.** A document is dirty when its revision differs from the last saved revision. Show a dot in the tab, and prompt on close and on app exit.
+**Dirty state.** A document is dirty when its revision differs from the last saved revision. Show a dot in the tab (a spinning ring while saving; there is no status bar), and prompt on close and on app exit.
 
 **Atomic save.**
 
@@ -317,12 +317,11 @@ The app should feel like a native Windows 11 app: calm, fast, and keyboard-frien
 
 - **Title bar:** custom (Tauri decorations off, explicit drag region), holding the sidebar and annotation pane toggles, the document tabs and the standard window buttons.
 - **Left sidebar**, collapsible (open by default), with three panels: Pages (thumbnails), Bookmarks, Page labels. The tabs are icons with tooltips and accessible names.
-- **View bar**, docked at the top of the document as in Acrobat: the page box with the page label and physical page number (e.g. "iv (4 of 312)"), then zoom out, the zoom level (a menu with fit width, fit page and the presets) and zoom in.
-- **Center:** the page canvas, below the view bar, with the annotation toolbar floating at its bottom or top, or docked above it as a panel (Settings). The search bar and inspectors move below a floating toolbar that stays at the top. The active tool has an accent border on every side.
+- **View bar**, one bar at the top of the document as in Acrobat: the annotation tools when docked there (Settings), then previous page, next page, the page box with the page label or number and the physical position after it ("iv" then "(4 of 312)", or "4" then "of 312"; screen readers hear "iv (4 of 312)"), then zoom out, the zoom level (a menu with fit width, fit page and the presets) and zoom in. With a floating annotation toolbar, the page and zoom controls are centered. Previous and next page go to the top of that page and are not recorded in back/forward history. In a narrow window the bar wraps onto a second row.
+- **Center:** the page canvas, below the view bar, with the annotation toolbar floating at its bottom or top, or docked in the view bar (Settings). The search bar and inspectors move below a floating toolbar that stays at the top. The active tool has an accent border on every side.
 - **Right pane**, collapsible (closed by default): the annotation list. Its toggle carries the "needs repair" dot.
 - **Inspector**, floating over the right edge of the page: properties of the selected annotation or bookmark, shown when opened for it (sections 6.2 and 6.5).
 - **Side panes** resize by dragging their inner edge, or from the keyboard on that edge (arrows, Home, End); a double-click resets the width. Each takes at most 40% of the window. Which panes are open and their widths are remembered in app data. Opening and closing slides (140 ms); a fit-width or fit-page view re-fits as a pane moves and renders again once it stops.
-- **Status bar:** the save state.
 
 **Visual style.**
 

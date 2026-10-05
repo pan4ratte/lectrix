@@ -1,5 +1,5 @@
 <script lang="ts">
-	// The app window: title bar, sidebar, view bar, page canvas, annotation pane, status bar, and the
+	// The app window: title bar, sidebar, view bar, page canvas, annotation pane, and the
 	// wiring between Rust events, shortcuts and the stores.
 	import { X } from '@lucide/svelte';
 	import { getCurrentWebview } from '@tauri-apps/api/webview';
@@ -30,7 +30,6 @@
 	import { update } from '#lib/features/update/update.svelte.ts';
 	import { firstPagePainted, runPerf } from '#lib/features/viewer/perfrun.ts';
 	import RotatePagesDialog from '#lib/features/viewer/RotatePagesDialog.svelte';
-	import StatusBar from '#lib/features/viewer/StatusBar.svelte';
 	import ViewBar from '#lib/features/viewer/ViewBar.svelte';
 	import Viewer from '#lib/features/viewer/Viewer.svelte';
 	import {
@@ -214,9 +213,6 @@
 				{#if tab}
 					{#key tab.id}
 						<ViewBar {tab} />
-						{#if app.settings?.toolbarStyle === 'panel'}
-							<AnnotationToolbar {tab} />
-						{/if}
 					{/key}
 					<FileBanner {tab} />
 					{#key tab.id}
@@ -264,10 +260,7 @@
 		{/if}
 	</div>
 	{#if tab}
-		<StatusBar {tab} />
 		<RotatePagesDialog {tab} />
-	{:else if !app.combineActive}
-		<footer class="h-8 shrink-0 border-t border-line bg-chrome"></footer>
 	{/if}
 </div>
 

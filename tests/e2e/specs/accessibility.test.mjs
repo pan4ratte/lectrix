@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { focused, tabWalk, unnamedControls } from '../lib/a11y.mjs';
-import { launch, waitForDocument } from '../lib/app.mjs';
+import { launch, statusText, waitForDocument } from '../lib/app.mjs';
 import { cli, outlineLines, sample } from '../lib/pdfcli.mjs';
 
 /** A 4-page sample with a sticky note on page 1. */
@@ -48,10 +48,6 @@ async function tabTo(browser, match, what, max = 60) {
 		if (stop && match(stop)) return stop;
 	}
 	throw new Error(`Tab never reached ${what}`);
-}
-
-async function statusText(browser) {
-	return browser.execute(() => [...document.querySelectorAll('[data-view-bar], footer')].map((e) => e.textContent).join(' '));
 }
 
 test('every Tab stop is named and shows focus, in every panel and dialog', async () => {

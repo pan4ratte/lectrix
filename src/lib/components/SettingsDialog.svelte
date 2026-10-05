@@ -1,10 +1,10 @@
 <script lang="ts">
 	// Settings: the author name new annotations get (section 6.5), the appearance, System
-	// (default), Light or Dark (section 8), smooth zooming (section 6.1), the annotation toolbar's look (floating or a
-	// panel above the pages) and, when floating, where it sits and when it shows, and the
-	// buttons of the bar over selected text (section 6.6), and whether Lectrix looks for
-	// updates when it starts (ADR 0011). Stored in app data by Rust; everything applies at
-	// once.
+	// (default), Light or Dark (section 8), smooth zooming (section 6.1), the annotation
+	// toolbar's look (floating, or docked in the bar above the pages) and, when floating,
+	// where it sits and when it shows, the buttons of the bar over selected text (section
+	// 6.6), and whether Lectrix looks for updates when it starts (ADR 0011). Stored in app
+	// data by Rust; everything applies at once.
 	import { Check } from '@lucide/svelte';
 	import { Checkbox, Dialog, RadioGroup } from 'bits-ui';
 
@@ -89,7 +89,7 @@
 	];
 	const styleChoices: { value: ToolbarStyle; label: string }[] = [
 		{ value: 'floating', label: 'Floating over the pages' },
-		{ value: 'panel', label: 'Panel above the pages' }
+		{ value: 'panel', label: 'In the bar above the pages' }
 	];
 	const positionChoices: { value: ToolbarPosition; label: string }[] = [
 		{ value: 'bottom', label: 'Bottom' },
@@ -156,7 +156,7 @@
 							<span>Smooth zooming</span>
 						</label>
 						<span id="settings-zoom-note" class="text-xs text-fg-muted">
-							Zoom in and out (the + and − buttons, Ctrl+= and Ctrl+-) glide to the next level instead of jumping.
+							Zooming glides to the new size instead of jumping. A touchpad pinch always follows your fingers.
 						</span>
 					</div>
 					{@render radios('Annotation toolbar', styleChoices, toolbarStyle, (v) => (toolbarStyle = v))}

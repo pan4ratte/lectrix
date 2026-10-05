@@ -8,12 +8,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { OUT, launch, waitForDocument } from '../lib/app.mjs';
+import { OUT, launch, statusText, waitForDocument } from '../lib/app.mjs';
 import { cli, sample } from '../lib/pdfcli.mjs';
-
-async function statusText(browser) {
-	return browser.execute(() => [...document.querySelectorAll('[data-view-bar], footer')].map((e) => e.textContent).join(' '));
-}
 
 /** The annotations on disk, as `pdf-cli annot list` prints them (without object numbers). */
 function onDisk(path) {
@@ -286,10 +282,10 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 			timeoutMsg: 'the toolbar did not show near the top'
 		});
 
-		// Settings: a panel above the pages instead, always shown; the floating options
-		// don't apply to it.
+		// Settings: docked in the bar above the pages instead, beside the page and zoom
+		// controls, always shown; the floating options don't apply to it.
 		await browser.keys(['Control', ',']);
-		await (await browser.$('label*=Panel above the pages')).click();
+		await (await browser.$('label*=In the bar above the pages')).click();
 		assert.equal(await (await browser.$('label*=When the pointer is near')).$('button').getAttribute('data-disabled'), '');
 		await (await browser.$('button=Save')).click();
 		await browser.waitUntil(
@@ -297,7 +293,11 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 				browser.execute(() => {
 					const bar = document.querySelector('[role=toolbar][aria-label="Annotation tools"]');
 					const pages = document.querySelector('.viewer-scroll');
-					return bar !== null && pages !== null && bar.getBoundingClientRect().bottom <= pages.getBoundingClientRect().top;
+					return (
+						bar?.closest('[data-view-bar]')?.querySelector('[aria-label="Page and zoom"]') != null &&
+						pages !== null &&
+						bar.getBoundingClientRect().bottom <= pages.getBoundingClientRect().top
+					);
 				}),
 			{ timeoutMsg: 'the toolbar did not dock above the pages' }
 		);

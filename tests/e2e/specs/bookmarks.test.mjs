@@ -4,12 +4,8 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { launch, waitForDocument } from '../lib/app.mjs';
+import { launch, statusText, waitForDocument } from '../lib/app.mjs';
 import { outlineLines, sample } from '../lib/pdfcli.mjs';
-
-async function statusText(browser) {
-	return browser.execute(() => [...document.querySelectorAll('[data-view-bar], footer')].map((e) => e.textContent).join(' '));
-}
 
 /** Visible tree rows as [title, level, expanded]. */
 async function rows(browser) {

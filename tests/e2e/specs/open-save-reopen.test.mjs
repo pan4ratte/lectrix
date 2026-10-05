@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { launch, waitForDocument } from '../lib/app.mjs';
+import { launch, statusText, waitForDocument } from '../lib/app.mjs';
 import { cli, sample } from '../lib/pdfcli.mjs';
 
 /** Width and height of the first page on screen. */
@@ -26,10 +26,6 @@ async function viewScalesOfFirstPage(browser) {
 				.filter((scale) => scale >= 0.5)
 		)
 	]);
-}
-
-async function statusText(browser) {
-	return browser.execute(() => [...document.querySelectorAll('[data-view-bar], footer')].map((e) => e.textContent).join(' '));
 }
 
 test('open, rotate a page, save, reopen', async () => {

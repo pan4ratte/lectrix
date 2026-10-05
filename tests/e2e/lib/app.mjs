@@ -210,6 +210,24 @@ export async function waitForDocument(browser) {
 	}
 }
 
+/**
+ * What the window says about the active document: the bar at the top (the page box's
+ * position for screen readers, "iv (4 of 8)"), then the save state the tab shows by its
+ * marker, in words: "Saving…", "Unsaved changes" or "All changes saved".
+ */
+export async function statusText(browser) {
+	return browser.execute(() => {
+		const bar = document.querySelector('[data-view-bar]')?.textContent ?? '';
+		const tab = document.querySelector('[role="tab"][aria-selected="true"]');
+		const state = tab?.querySelector('[data-saving]')
+			? 'Saving…'
+			: tab?.querySelector('[data-unsaved]')
+				? 'Unsaved changes'
+				: 'All changes saved';
+		return `${bar.replace(/\s+/g, ' ')} ${state}`;
+	});
+}
+
 /** Presses keys with modifiers, e.g. keys(browser, ['Control', 'b']). */
 export async function keys(browser, combo) {
 	await browser.keys(combo);

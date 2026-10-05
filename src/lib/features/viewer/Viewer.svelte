@@ -60,10 +60,12 @@
 		type Caret
 	} from './selection.ts';
 	import {
-		ZOOM_STEP_MS,
+		ZOOM_GLIDE_MS,
 		clampZoom,
+		easeOut,
 		fitPageZoom,
 		fitWidthZoom,
+		isWheelNotch,
 		stepZoom,
 		wheelZoomFactor,
 		zoomBetween,
@@ -274,8 +276,17 @@
 
 	// ----- zoom -----
 
-	/** Zooms so that the content point under (ax, ay) in the viewport stays there. */
-	async function zoomAround(zoom: number, mode: ZoomMode, ax: number, ay: number) {
+	/**
+	 * Zooms so that the content point under (ax, ay) in the viewport stays there. With
+	 * `align`, the view then moves that far (0 to 1) toward the top of `align.page`.
+	 */
+	async function zoomAround(
+		zoom: number,
+		mode: ZoomMode,
+		ax: number,
+		ay: number,
+		align?: { page: number; amount: number }
+	) {
 		if (!scroller || layout.pages.length === 0) return;
 		const before = layout;
 		const y = scrollTop + ay;
@@ -290,52 +301,73 @@
 		await tick();
 		const after = layout.pages[page]!;
 		const afterLeft = pageLeft(layout, page, contentW);
-		scroller.scrollTop = after.top + fy * after.height - ay;
+		let top = after.top + fy * after.height - ay;
+		const target = align && layout.pages[align.page];
+		// The same 8 px above the page as going to a page (scrollToPosition).
+		if (align && target) top += (target.top - 8 - top) * align.amount;
+		scroller.scrollTop = top;
 		scroller.scrollLeft = afterLeft + fx * after.width - ax;
 		onScroll();
 	}
 
-	function setZoom(zoom: number, mode: ZoomMode) {
-		if (stopZoomStep()) heldRenderZoom = null;
-		void zoomAround(zoom, mode, viewportW / 2, viewportH / 2);
-	}
-
-	// A zoom step (the + and - buttons, Ctrl+= and Ctrl+-) glides to the next preset, with
-	// pages stretched as for a wheel zoom and rendered again once it arrives.
+	// Zooming glides to the new zoom (section 6.1): the + and - buttons, the zoom menu,
+	// fitting and mouse wheel notches. Pages keep their pixels, stretched, until it
+	// arrives, then render once. Settings turn it off, and so does reduced motion.
 	let zoomGlide: { to: number; frame: number } | null = null;
 
-	function zoomStep(direction: 1 | -1) {
-		// A step during a glide goes on from where that glide was heading.
-		const to = stepZoom(zoomGlide?.to ?? tab.zoom, direction);
-		const duration = app.settings?.smoothZoom === false ? 0 : motionMs(ZOOM_STEP_MS);
+	/**
+	 * Glides to `to`, keeping the content under `anchor` (viewport pixels; the center if
+	 * null) in place. With `alignPage`, the view ends at the top of that page.
+	 */
+	function glideZoom(to: number, mode: ZoomMode, anchor: { x: number; y: number } | null, alignPage: number | null = null) {
+		const target = clampZoom(to);
+		const at = anchor ?? { x: viewportW / 2, y: viewportH / 2 };
+		const duration = app.settings?.smoothZoom === false ? 0 : motionMs(ZOOM_GLIDE_MS);
+		if (stopZoomGlide() && duration === 0) heldRenderZoom = null;
 		if (duration === 0) {
-			setZoom(to, 'custom');
+			const align = alignPage === null ? undefined : { page: alignPage, amount: 1 };
+			void zoomAround(target, mode, at.x, at.y, align);
 			return;
 		}
-		stopZoomStep();
 		heldRenderZoom ??= tab.zoom;
 		clearTimeout(settleTimer);
 		const from = tab.zoom;
 		const start = performance.now();
 		const frame = (now: number) => {
 			const t = (now - start) / duration;
-			void zoomAround(zoomBetween(from, to, t), 'custom', viewportW / 2, viewportH / 2);
+			const align = alignPage === null ? undefined : { page: alignPage, amount: easeOut(t) };
+			void zoomAround(zoomBetween(from, target, t), mode, at.x, at.y, align);
 			if (t < 1) {
-				zoomGlide = { to, frame: requestAnimationFrame(frame) };
+				zoomGlide = { to: target, frame: requestAnimationFrame(frame) };
 			} else {
 				zoomGlide = null;
 				heldRenderZoom = null;
 			}
 		};
-		zoomGlide = { to, frame: requestAnimationFrame(frame) };
+		zoomGlide = { to: target, frame: requestAnimationFrame(frame) };
 	}
 
-	/** Stops a zoom step's glide where it is; true if one was under way. */
-	function stopZoomStep(): boolean {
+	/** Stops a glide where it is; true if one was under way. */
+	function stopZoomGlide(): boolean {
 		if (!zoomGlide) return false;
 		cancelAnimationFrame(zoomGlide.frame);
 		zoomGlide = null;
 		return true;
+	}
+
+	/** Zooms at once around the center: re-fitting while the viewport changes size. */
+	function setZoomNow(zoom: number, mode: ZoomMode) {
+		if (stopZoomGlide()) heldRenderZoom = null;
+		void zoomAround(zoom, mode, viewportW / 2, viewportH / 2);
+	}
+
+	function setZoom(zoom: number, mode: ZoomMode) {
+		glideZoom(zoom, mode, null);
+	}
+
+	function zoomStep(direction: 1 | -1) {
+		// A step during a glide goes on from where that glide was heading.
+		glideZoom(stepZoom(zoomGlide?.to ?? tab.zoom, direction), 'custom', null);
 	}
 
 	function fitZoom(mode: 'fitWidth' | 'fitPage'): number {
@@ -347,23 +379,16 @@
 	}
 
 	function fit(mode: 'fitWidth' | 'fitPage') {
-		if (mode === 'fitPage') {
-			if (stopZoomStep()) heldRenderZoom = null;
-			const page = tab.currentPage;
-			tab.zoomMode = mode;
-			tab.zoom = fitZoom(mode);
-			void tick().then(() => scrollToPosition({ page, offset: 0 }));
-		} else {
-			setZoom(fitZoom(mode), mode);
-		}
+		// Fit page shows the whole current page: it ends at the page's top.
+		glideZoom(fitZoom(mode), mode, null, mode === 'fitPage' ? tab.currentPage : null);
 	}
 
-	// While a wheel or pinch zoom goes on, pages keep the pixels they have, stretched, and
-	// are rendered again once it pauses. Rendering at every step showed images of several
-	// zoom levels at once and queued renders that were stale before they started.
+	// While a pinch zoom goes on, pages keep the pixels they have, stretched, and are
+	// rendered again once it pauses. Rendering at every step showed images of several zoom
+	// levels at once and queued renders that were stale before they started.
 	const ZOOM_SETTLE_MS = 200;
 	let heldRenderZoom: number | null = $state(null);
-	/** The zoom pages are rendered for: `tab.zoom`, or where a wheel zoom started. */
+	/** The zoom pages are rendered for: `tab.zoom`, or where a glide or pinch started. */
 	const renderZoom = $derived(heldRenderZoom ?? tab.zoom);
 	let settleTimer: ReturnType<typeof setTimeout> | undefined;
 	let wheelFactor = 1;
@@ -372,14 +397,21 @@
 
 	function onWheel(event: WheelEvent) {
 		if (!event.ctrlKey || !scroller) return;
-		// Ctrl+wheel and touchpad pinch (which arrives as Ctrl+wheel): zoom at the cursor,
-		// once per frame however many events arrive.
+		// Ctrl+wheel and touchpad pinch (which arrives as Ctrl+wheel): zoom at the cursor.
 		event.preventDefault();
-		// The wheel takes over from a zoom step's glide; its pages stay held until the wheel pauses.
-		stopZoomStep();
 		const rect = scroller.getBoundingClientRect();
-		wheelFactor *= wheelZoomFactor(event.deltaY, event.deltaMode);
-		wheelAnchor = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+		const anchor = { x: event.clientX - rect.left, y: event.clientY - rect.top };
+		const factor = wheelZoomFactor(event.deltaY, event.deltaMode);
+		if (isWheelNotch(event.deltaY, event.deltaMode)) {
+			// A mouse wheel notch glides, going on from where a glide was heading.
+			glideZoom((zoomGlide?.to ?? tab.zoom) * factor, 'custom', anchor);
+			return;
+		}
+		// A pinch follows the fingers, once per frame however many events arrive; it takes
+		// over from a glide, and its pages stay held until it pauses.
+		stopZoomGlide();
+		wheelFactor *= factor;
+		wheelAnchor = anchor;
 		holdRendering();
 		if (!wheelFrame) wheelFrame = requestAnimationFrame(applyWheelZoom);
 	}
@@ -833,7 +865,7 @@
 			tab.viewer = null;
 			cancelAnimationFrame(autoScroll);
 			cancelAnimationFrame(wheelFrame);
-			stopZoomStep();
+			stopZoomGlide();
 			clearTimeout(settleTimer);
 		};
 	});
@@ -856,7 +888,7 @@
 				(tab.zoomMode === 'fitPage' && size.height !== last.height);
 			if (!relevant) return;
 			const zoom = fitZoom(tab.zoomMode);
-			if (Math.abs(zoom - tab.zoom) > 1e-3) setZoom(zoom, tab.zoomMode);
+			if (Math.abs(zoom - tab.zoom) > 1e-3) setZoomNow(zoom, tab.zoomMode);
 		});
 	});
 </script>
