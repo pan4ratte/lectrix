@@ -942,7 +942,19 @@ pub enum Appearance {
     Dark,
 }
 
-/// Which edge of the page canvas the annotation toolbar sits on (Settings, section 6.6).
+/// How the annotation toolbar looks (Settings, section 6.6): floating over the page
+/// canvas, or a panel docked above it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum ToolbarStyle {
+    #[default]
+    Floating,
+    Panel,
+}
+
+/// Which edge of the page canvas the floating annotation toolbar sits on (Settings,
+/// section 6.6).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -998,6 +1010,7 @@ pub struct Settings {
     /// What `author` is when the user has not set one (the Windows user name).
     pub default_author: String,
     pub appearance: Appearance,
+    pub toolbar_style: ToolbarStyle,
     pub toolbar_position: ToolbarPosition,
     pub toolbar_visibility: ToolbarVisibility,
     /// The buttons of the bar over selected text; empty: no bar.
@@ -1011,6 +1024,7 @@ pub struct SettingsInput {
     /// Empty: use the default (the Windows user name).
     pub author: String,
     pub appearance: Appearance,
+    pub toolbar_style: ToolbarStyle,
     pub toolbar_position: ToolbarPosition,
     pub toolbar_visibility: ToolbarVisibility,
     pub quick_tools: Vec<QuickTool>,

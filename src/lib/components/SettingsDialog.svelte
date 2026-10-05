@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Settings: the author name new annotations get (section 6.5), the appearance, System
-	// (default), Light or Dark (section 8), where the annotation toolbar sits and when it
-	// shows, and the buttons of the bar over selected text (section 6.6). Stored in app data
+	// (default), Light or Dark (section 8), the annotation toolbar's look (floating or a
+	// panel above the pages) and, when floating, where it sits and when it shows, and the
+	// buttons of the bar over selected text (section 6.6). Stored in app data
 	// by Rust; everything applies at once.
 	import { Check } from '@lucide/svelte';
 	import { Checkbox, Dialog, RadioGroup } from 'bits-ui';
@@ -14,6 +15,7 @@
 		type Appearance,
 		type QuickTool,
 		type ToolbarPosition,
+		type ToolbarStyle,
 		type ToolbarVisibility
 	} from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
@@ -22,6 +24,7 @@
 	let author = $state('');
 	let defaultAuthor = $state('');
 	let appearance = $state<Appearance>('system');
+	let toolbarStyle = $state<ToolbarStyle>('floating');
 	let toolbarPosition = $state<ToolbarPosition>('bottom');
 	let toolbarVisibility = $state<ToolbarVisibility>('always');
 	let quickTools = $state<QuickTool[]>([]);
@@ -34,6 +37,7 @@
 				author = s.author === s.defaultAuthor ? '' : s.author;
 				defaultAuthor = s.defaultAuthor;
 				appearance = s.appearance;
+				toolbarStyle = s.toolbarStyle;
 				toolbarPosition = s.toolbarPosition;
 				toolbarVisibility = s.toolbarVisibility;
 				quickTools = s.quickTools;
@@ -55,6 +59,7 @@
 			const s = await setSettings({
 				author: author.trim(),
 				appearance,
+				toolbarStyle,
 				toolbarPosition,
 				toolbarVisibility,
 				quickTools
@@ -74,6 +79,10 @@
 		{ value: 'light', label: 'Light' },
 		{ value: 'dark', label: 'Dark' }
 	];
+	const styleChoices: { value: ToolbarStyle; label: string }[] = [
+		{ value: 'floating', label: 'Floating over the pages' },
+		{ value: 'panel', label: 'Panel above the pages' }
+	];
 	const positionChoices: { value: ToolbarPosition; label: string }[] = [
 		{ value: 'bottom', label: 'Bottom' },
 		{ value: 'top', label: 'Top' }
@@ -84,10 +93,16 @@
 	];
 </script>
 
-{#snippet radios<T extends string>(label: string, choices: { value: T; label: string }[], value: T, set: (v: T) => void)}
-	<fieldset class="flex flex-col gap-1">
+{#snippet radios<T extends string>(
+	label: string,
+	choices: { value: T; label: string }[],
+	value: T,
+	set: (v: T) => void,
+	disabled = false
+)}
+	<fieldset class="flex flex-col gap-1" {disabled} class:text-fg-muted={disabled}>
 		<legend class="mb-1 text-sm">{label}</legend>
-		<RadioGroup.Root class="flex flex-col gap-1" {value} onValueChange={(v) => set(v as T)} aria-label={label}>
+		<RadioGroup.Root class="flex flex-col gap-1" {value} {disabled} onValueChange={(v) => set(v as T)} aria-label={label}>
 			{#each choices as c (c.value)}
 				<label class="flex h-7 items-center gap-2">
 					<RadioGroup.Item value={c.value} class="radio" aria-label={c.label}>
@@ -117,9 +132,22 @@
 						</span>
 					</label>
 					{@render radios('Appearance', appearanceChoices, appearance, (v) => (appearance = v))}
+					{@render radios('Annotation toolbar', styleChoices, toolbarStyle, (v) => (toolbarStyle = v))}
 					<div class="grid grid-cols-2 gap-4">
-						{@render radios('Annotation toolbar', positionChoices, toolbarPosition, (v) => (toolbarPosition = v))}
-						{@render radios('Show the toolbar', visibilityChoices, toolbarVisibility, (v) => (toolbarVisibility = v))}
+						{@render radios(
+							'Where it floats',
+							positionChoices,
+							toolbarPosition,
+							(v) => (toolbarPosition = v),
+							toolbarStyle === 'panel'
+						)}
+						{@render radios(
+							'Show the floating toolbar',
+							visibilityChoices,
+							toolbarVisibility,
+							(v) => (toolbarVisibility = v),
+							toolbarStyle === 'panel'
+						)}
 					</div>
 					<fieldset class="flex flex-col gap-1">
 						<legend class="mb-1 text-sm">Quick tools for selected text</legend>

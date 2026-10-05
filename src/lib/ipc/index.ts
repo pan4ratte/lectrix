@@ -76,6 +76,7 @@ export type { Settings } from './generated/Settings';
 export type { SettingsInput } from './generated/SettingsInput';
 export type { QuickTool } from './generated/QuickTool';
 export type { ToolbarPosition } from './generated/ToolbarPosition';
+export type { ToolbarStyle } from './generated/ToolbarStyle';
 export type { ToolbarVisibility } from './generated/ToolbarVisibility';
 import type { RepairSummary } from './generated/RepairSummary';
 import type { Settings } from './generated/Settings';

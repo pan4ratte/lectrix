@@ -421,6 +421,9 @@ button {
 .radio[data-state='checked'] {
 	border-color: var(--lectrix-accent);
 }
+.radio[data-disabled] {
+	opacity: 0.45;
+}
 .radio-dot {
 	width: 8px;
 	height: 8px;

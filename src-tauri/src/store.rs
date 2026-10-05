@@ -9,7 +9,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 use crate::ipc::{
-    Appearance, PaneLayout, QuickTool, ToolbarPosition, ToolbarVisibility, ViewState,
+    Appearance, PaneLayout, QuickTool, ToolbarPosition, ToolbarStyle, ToolbarVisibility, ViewState,
 };
 
 const MAX_RECENT: usize = 20;
@@ -50,6 +50,8 @@ pub struct StoredSettings {
     #[serde(default)]
     pub appearance: Appearance,
     #[serde(default)]
+    pub toolbar_style: ToolbarStyle,
+    #[serde(default)]
     pub toolbar_position: ToolbarPosition,
     #[serde(default)]
     pub toolbar_visibility: ToolbarVisibility,
@@ -65,6 +67,7 @@ impl Default for StoredSettings {
         StoredSettings {
             author: None,
             appearance: Appearance::default(),
+            toolbar_style: ToolbarStyle::default(),
             toolbar_position: ToolbarPosition::default(),
             toolbar_visibility: ToolbarVisibility::default(),
             quick_tools: default_quick_tools(),
@@ -271,6 +274,7 @@ mod tests {
         let settings = StoredSettings {
             author: Some("Ada Lovelace".into()),
             appearance: Appearance::Dark,
+            toolbar_style: ToolbarStyle::Panel,
             toolbar_position: ToolbarPosition::Top,
             toolbar_visibility: ToolbarVisibility::OnHover,
             quick_tools: vec![QuickTool::Squiggly, QuickTool::Bookmark],
@@ -293,6 +297,7 @@ mod tests {
         let v1 = Store::load(Some(file.clone()));
         assert_eq!(v1.settings().author.as_deref(), Some("Ada"));
         assert_eq!(v1.settings().quick_tools, QuickTool::DEFAULT.to_vec());
+        assert_eq!(v1.settings().toolbar_style, ToolbarStyle::Floating);
         // Tools from a newer version are skipped, not fatal; an empty list stays empty.
         fs::write(
             &file,

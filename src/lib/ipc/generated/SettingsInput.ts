@@ -2,10 +2,11 @@
 import type { Appearance } from "./Appearance";
 import type { QuickTool } from "./QuickTool";
 import type { ToolbarPosition } from "./ToolbarPosition";
+import type { ToolbarStyle } from "./ToolbarStyle";
 import type { ToolbarVisibility } from "./ToolbarVisibility";
 
 export type SettingsInput = { 
 /**
  * Empty: use the default (the Windows user name).
  */
-author: string, appearance: Appearance, toolbarPosition: ToolbarPosition, toolbarVisibility: ToolbarVisibility, quickTools: Array<QuickTool>, };
+author: string, appearance: Appearance, toolbarStyle: ToolbarStyle, toolbarPosition: ToolbarPosition, toolbarVisibility: ToolbarVisibility, quickTools: Array<QuickTool>, };

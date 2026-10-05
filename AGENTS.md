@@ -278,7 +278,7 @@ Settled details:
 
 ### 6.6 Settings, About and installers
 
-- **Settings** (File menu, Ctrl+,): author name; appearance (System by default, Light or Dark); the annotation toolbar's place (bottom by default, or top) and when it shows (always by default, or only while the pointer is within about 72 px of that edge, while it has keyboard focus, and for 1.5 s after a tool is picked); and the quick tools for selected text. Applied at once and stored in app data.
+- **Settings** (File menu, Ctrl+,): author name; appearance (System by default, Light or Dark); the annotation toolbar's look (floating over the pages by default, or a panel docked above them, always shown); for the floating toolbar, its place (bottom by default, or top) and when it shows (always by default, or only while the pointer is within about 72 px of that edge, while it has keyboard focus, and for 1.5 s after a tool is picked); and the quick tools for selected text. Applied at once and stored in app data.
 - **About** (Help menu): the app icon, version, the AGPL notice, MuPDF's credit, where the license files are installed, and the source code address with a Copy button. The address is shown, never opened (Lectrix stays offline).
 - **Installers** (NSIS and MSI, ADR 0007): a "PDF files" page after the folder page, "Open PDF files with Lectrix", checked by default. It registers Lectrix for PDFs (Open with, Default apps); Windows asks which app to use at the next PDF, and the installer never takes over the default itself. For silent installs, `/NOPDF` (NSIS) or `LECTRIX_ASSOCIATE_PDF=0` (MSI) leaves the registration out. Both install `LICENSE.txt` and the license notices.
 
@@ -313,7 +313,7 @@ The app should feel like a native Windows 11 app: calm, fast, and keyboard-frien
 
 - **Title bar:** custom (Tauri decorations off, explicit drag region), holding the sidebar and annotation pane toggles, the document tabs and the standard window buttons.
 - **Left sidebar**, collapsible (open by default), with three panels: Pages (thumbnails), Bookmarks, Page labels. The tabs are icons with tooltips and accessible names.
-- **Center:** the page canvas, with a floating annotation toolbar at the bottom or the top (Settings). The search bar and inspectors move below a toolbar that stays at the top.
+- **Center:** the page canvas, with the annotation toolbar floating at its bottom or top, or docked above it as a panel (Settings). The search bar and inspectors move below a floating toolbar that stays at the top. The active tool has an accent border on every side.
 - **Right pane**, collapsible (closed by default): the annotation list. Its toggle carries the "needs repair" dot.
 - **Inspector**, floating over the right edge of the page: properties of the selected annotation or bookmark, shown when opened for it (sections 6.2 and 6.5).
 - **Side panes** resize by dragging their inner edge, or from the keyboard on that edge (arrows, Home, End); a double-click resets the width. Each takes at most 40% of the window. Which panes are open and their widths are remembered in app data. Opening and closing slides (140 ms); a fit-width or fit-page view re-fits as a pane moves and renders again once it stops.

@@ -2,6 +2,7 @@
 import type { Appearance } from "./Appearance";
 import type { QuickTool } from "./QuickTool";
 import type { ToolbarPosition } from "./ToolbarPosition";
+import type { ToolbarStyle } from "./ToolbarStyle";
 import type { ToolbarVisibility } from "./ToolbarVisibility";
 
 /**
@@ -15,7 +16,7 @@ author: string,
 /**
  * What `author` is when the user has not set one (the Windows user name).
  */
-defaultAuthor: string, appearance: Appearance, toolbarPosition: ToolbarPosition, toolbarVisibility: ToolbarVisibility, 
+defaultAuthor: string, appearance: Appearance, toolbarStyle: ToolbarStyle, toolbarPosition: ToolbarPosition, toolbarVisibility: ToolbarVisibility, 
 /**
  * The buttons of the bar over selected text; empty: no bar.
  */

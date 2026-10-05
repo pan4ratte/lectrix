@@ -113,9 +113,14 @@ class AppStore {
 	/** The stored settings, once loaded. */
 	settings = $state<Settings | null>(null);
 	/** Where the search bar and inspectors start, CSS pixels from the top of the page
-	 * canvas: below the annotation toolbar when it stays there. */
+	 * canvas: below the floating annotation toolbar when it stays at the top. (The panel
+	 * sits above the canvas.) */
 	overlayTop = $derived(
-		this.settings?.toolbarPosition === 'top' && this.settings.toolbarVisibility === 'always' ? 64 : 12
+		this.settings?.toolbarStyle !== 'panel' &&
+			this.settings?.toolbarPosition === 'top' &&
+			this.settings.toolbarVisibility === 'always'
+			? 64
+			: 12
 	);
 	/** The About dialog is open. */
 	aboutOpen = $state(false);

@@ -208,11 +208,18 @@
 			{/if}
 			<main class="flex min-w-0 flex-1 flex-col bg-canvas">
 				{#if tab}
+					{#key tab.id}
+						{#if app.settings?.toolbarStyle === 'panel'}
+							<AnnotationToolbar {tab} />
+						{/if}
+					{/key}
 					<FileBanner {tab} />
 					{#key tab.id}
 						<div class="relative flex min-h-0 flex-1 flex-col">
 							<Viewer {tab} />
-							<AnnotationToolbar {tab} />
+							{#if app.settings?.toolbarStyle !== 'panel'}
+								<AnnotationToolbar {tab} />
+							{/if}
 							<AnnotationInspector {tab} />
 							<BookmarkInspector {tab} />
 						</div>

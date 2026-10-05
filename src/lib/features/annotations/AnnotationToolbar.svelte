@@ -1,8 +1,9 @@
 <script lang="ts">
-	// The floating annotation toolbar (sections 6.5 and 8): the tools, and the style the
-	// active tool draws with (remembered per tool). Settings put it at the bottom or the top
-	// of the page canvas, shown always or only while the pointer is near that edge (or the
-	// toolbar has focus, or a tool was just picked).
+	// The annotation toolbar (sections 6.5 and 8): the tools, and the style the active tool
+	// draws with (remembered per tool). Settings make it float over the page canvas, at the
+	// bottom or the top, shown always or only while the pointer is near that edge (or the
+	// toolbar has focus, or a tool was just picked); or make it a panel docked above the
+	// pages, always shown (App.svelte places it).
 	import {
 		Highlighter,
 		MousePointer2,
@@ -57,8 +58,9 @@
 	/** How long the toolbar stays after the pointer leaves, so it doesn't flicker. */
 	const LINGER_MS = 300;
 
+	const panel = $derived(app.settings?.toolbarStyle === 'panel');
 	const position = $derived(app.settings?.toolbarPosition ?? 'bottom');
-	const onHover = $derived(app.settings?.toolbarVisibility === 'onHover');
+	const onHover = $derived(!panel && app.settings?.toolbarVisibility === 'onHover');
 
 	let bar: HTMLDivElement | undefined = $state();
 	let near = $state(false);
@@ -117,10 +119,12 @@
 
 <div
 	bind:this={bar}
-	class="annotation-toolbar absolute left-1/2 z-20 flex items-center gap-0.5 rounded-panel border border-line bg-surface-raised p-1 shadow-[0_4px_12px_var(--color-page-shadow)]"
-	class:top-3={position === 'top'}
-	class:bottom-4={position === 'bottom'}
-	class:annotation-toolbar-top={position === 'top'}
+	class={panel
+		? 'flex h-10 shrink-0 items-center justify-center gap-0.5 border-b border-line bg-surface px-2'
+		: 'annotation-toolbar absolute left-1/2 z-20 flex items-center gap-0.5 rounded-panel border border-line bg-surface-raised p-1 shadow-[0_4px_12px_var(--color-page-shadow)]'}
+	class:top-3={!panel && position === 'top'}
+	class:bottom-4={!panel && position === 'bottom'}
+	class:annotation-toolbar-top={!panel && position === 'top'}
 	class:annotation-toolbar-hidden={!shown}
 	role="toolbar"
 	aria-label="Annotation tools"

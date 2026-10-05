@@ -19,19 +19,21 @@ function image(browser, selector) {
 test('the UI uses the bundled font, and the start screen and About show the icon', async () => {
 	const { browser, stop } = await launch();
 	try {
-		// The icon beside the start screen's heading.
+		// The icon beside the start screen's heading. Polled rather than held, since the
+		// start screen may render again while the app starts.
 		const startIcon = 'div:has(> div > h1) > img';
-		await (await browser.$(startIcon)).waitForDisplayed({ timeoutMsg: 'the start screen shows no icon' });
 		await browser.waitUntil(async () => (await image(browser, startIcon)).width > 0, {
-			timeoutMsg: 'the start screen icon does not load'
+			timeout: 15000,
+			timeoutMsg: 'the start screen shows no icon'
 		});
 		assert.equal((await image(browser, startIcon)).alt, '', 'the icon is decorative: the heading names the app');
 		await browser.saveScreenshot(join(OUT, 'start-screen.png'));
 
 		await (await browser.$('button=Help')).click();
 		await (await browser.$('//*[@role="menuitem"][contains(., "About")]')).click();
-		const icon = await browser.$('[role=dialog] img');
-		await icon.waitForDisplayed({ timeoutMsg: 'the About dialog shows no icon' });
+		await browser.waitUntil(async () => (await image(browser, '[role=dialog] img')).width > 0, {
+			timeoutMsg: 'the About dialog shows no icon'
+		});
 		await browser.waitUntil(() => browser.execute(() => document.fonts.status === 'loaded'));
 
 		const about = await image(browser, '[role=dialog] img');
