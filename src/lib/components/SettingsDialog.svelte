@@ -1,6 +1,6 @@
 <script lang="ts">
 	// Settings: the author name new annotations get (section 6.5), the appearance, System
-	// (default), Light or Dark (section 8), the annotation toolbar's look (floating or a
+	// (default), Light or Dark (section 8), smooth zooming (section 6.1), the annotation toolbar's look (floating or a
 	// panel above the pages) and, when floating, where it sits and when it shows, and the
 	// buttons of the bar over selected text (section 6.6), and whether Lectrix looks for
 	// updates when it starts (ADR 0011). Stored in app data by Rust; everything applies at
@@ -31,6 +31,7 @@
 	let toolbarVisibility = $state<ToolbarVisibility>('always');
 	let quickTools = $state<QuickTool[]>([]);
 	let checkForUpdates = $state(true);
+	let smoothZoom = $state(true);
 	let saving = $state(false);
 
 	$effect(() => {
@@ -45,6 +46,7 @@
 				toolbarVisibility = s.toolbarVisibility;
 				quickTools = s.quickTools;
 				checkForUpdates = s.checkForUpdates;
+				smoothZoom = s.smoothZoom;
 			})
 			.catch((e: unknown) => app.showError(toAppError(e)));
 	});
@@ -67,7 +69,8 @@
 				toolbarPosition,
 				toolbarVisibility,
 				quickTools,
-				checkForUpdates
+				checkForUpdates,
+				smoothZoom
 			});
 			app.settings = s;
 			applyAppearance(s.appearance);
@@ -137,6 +140,25 @@
 						</span>
 					</label>
 					{@render radios('Appearance', appearanceChoices, appearance, (v) => (appearance = v))}
+					<div class="flex flex-col gap-1">
+						<label class="flex h-7 items-center gap-2">
+							<Checkbox.Root
+								class="checkbox"
+								checked={smoothZoom}
+								onCheckedChange={(on) => (smoothZoom = on)}
+								aria-label="Smooth zooming"
+								aria-describedby="settings-zoom-note"
+							>
+								{#snippet children({ checked })}
+									{#if checked}<Check size={14} strokeWidth={3} aria-hidden="true" />{/if}
+								{/snippet}
+							</Checkbox.Root>
+							<span>Smooth zooming</span>
+						</label>
+						<span id="settings-zoom-note" class="text-xs text-fg-muted">
+							Zoom in and out (the + and − buttons, Ctrl+= and Ctrl+-) glide to the next level instead of jumping.
+						</span>
+					</div>
 					{@render radios('Annotation toolbar', styleChoices, toolbarStyle, (v) => (toolbarStyle = v))}
 					<div class="grid grid-cols-2 gap-4">
 						{@render radios(

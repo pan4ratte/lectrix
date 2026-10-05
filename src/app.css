@@ -234,9 +234,10 @@ button {
 	overflow-wrap: normal;
 }
 
+/* The page canvas shows no focus ring (section 8): it takes focus whenever the pages are
+   clicked or a field hands focus back, and a ring around the document is only noise. */
 .viewer-scroll:focus-visible {
-	outline: 2px solid var(--lectrix-focus);
-	outline-offset: -2px;
+	outline: none;
 }
 
 /* ----- controls ----- */

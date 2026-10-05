@@ -9,7 +9,6 @@ import { addBookmark } from '#lib/features/bookmarks/actions.ts';
 import { showLabels, startRangeAt } from '#lib/features/labels/actions.ts';
 import { copySelection } from '#lib/features/viewer/actions.ts';
 import { normalizeRotation } from '#lib/features/viewer/layout.ts';
-import { stepZoom } from '#lib/features/viewer/zoom.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -68,8 +67,8 @@ export const commands = {
 	findNext: withTab((t) => t.search.step(1)),
 	findPrevious: withTab((t) => t.search.step(-1)),
 
-	zoomIn: withTab((t) => t.viewer?.setZoom(stepZoom(t.zoom, 1), 'custom')),
-	zoomOut: withTab((t) => t.viewer?.setZoom(stepZoom(t.zoom, -1), 'custom')),
+	zoomIn: withTab((t) => t.viewer?.zoomStep(1)),
+	zoomOut: withTab((t) => t.viewer?.zoomStep(-1)),
 	fitWidth: withTab((t) => t.viewer?.fit('fitWidth')),
 	fitPage: withTab((t) => t.viewer?.fit('fitPage')),
 	rotateViewClockwise: withTab((t) => {

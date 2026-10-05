@@ -8,7 +8,7 @@ import { launch, waitForDocument } from '../lib/app.mjs';
 import { outlineLines, sample } from '../lib/pdfcli.mjs';
 
 async function statusText(browser) {
-	return browser.execute(() => document.querySelector('footer')?.textContent ?? '');
+	return browser.execute(() => [...document.querySelectorAll('[data-view-bar], footer')].map((e) => e.textContent).join(' '));
 }
 
 /** Visible tree rows as [title, level, expanded]. */

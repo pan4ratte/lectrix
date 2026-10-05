@@ -65,6 +65,8 @@ pub struct StoredSettings {
     pub quick_tools: Vec<QuickTool>,
     #[serde(default = "yes")]
     pub check_for_updates: bool,
+    #[serde(default = "yes")]
+    pub smooth_zoom: bool,
 }
 
 fn yes() -> bool {
@@ -81,6 +83,7 @@ impl Default for StoredSettings {
             toolbar_visibility: ToolbarVisibility::default(),
             quick_tools: default_quick_tools(),
             check_for_updates: true,
+            smooth_zoom: true,
         }
     }
 }
@@ -300,6 +303,7 @@ mod tests {
             toolbar_visibility: ToolbarVisibility::OnHover,
             quick_tools: vec![QuickTool::Squiggly, QuickTool::Bookmark],
             check_for_updates: false,
+            smooth_zoom: false,
         };
         store.set_settings(settings.clone());
         let reloaded = Store::load(Some(file.clone()));
@@ -321,6 +325,7 @@ mod tests {
         assert_eq!(v1.settings().quick_tools, QuickTool::DEFAULT.to_vec());
         assert_eq!(v1.settings().toolbar_style, ToolbarStyle::Floating);
         assert!(v1.settings().check_for_updates);
+        assert!(v1.settings().smooth_zoom);
         // Tools from a newer version are skipped, not fatal; an empty list stays empty.
         fs::write(
             &file,

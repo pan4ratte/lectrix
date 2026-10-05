@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Page labels panel (section 6.3): the label rules as a list (one row per range, its
 	// pages and labels), and an editor for the selected rule below it. While a field is
-	// being edited, thumbnails, the page box and the status bar show the result (live
+	// being edited, thumbnails, the page box and the page position show the result (live
 	// preview); Enter, leaving the field or picking a style applies it as one undo step, and
 	// Escape reverts it. Rows are virtualized: some files store a rule for every page.
 	import { Ellipsis, Plus, Trash, TriangleAlert } from '@lucide/svelte';

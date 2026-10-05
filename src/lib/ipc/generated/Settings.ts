@@ -24,4 +24,8 @@ quickTools: Array<QuickTool>,
 /**
  * Whether Lectrix looks for a new release when it starts (ADR 0011).
  */
-checkForUpdates: boolean, };
+checkForUpdates: boolean, 
+/**
+ * Whether zooming in or out a step glides instead of jumping (section 6.1).
+ */
+smoothZoom: boolean, };

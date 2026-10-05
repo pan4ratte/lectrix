@@ -180,7 +180,7 @@ Each feature below defines behavior. The "settled details" were decided during t
 - **Opening:** File > Open dialog, drag-and-drop onto the window, `.pdf` file association, and a path passed on the command line. Opening a file that is already open switches to its tab. Lectrix is single-instance: a second launch hands its files to the running window.
 - **Tabs:** one tab per document, reorderable, with a dirty marker and a close prompt for unsaved changes.
 - **Scrolling:** continuous vertical scroll, virtualized; only pages near the viewport are rendered.
-- **Zoom:** fit width, fit page, preset percentages, Ctrl+wheel and pinch, centered on the cursor.
+- **Zoom:** fit width, fit page, preset percentages, Ctrl+wheel and pinch, centered on the cursor. Zooming in or out a step (the + and − buttons, Ctrl+= and Ctrl+-) glides to the next preset in 140 ms, around the center of the view; Settings can turn that off, and reduced motion always does.
 - **Navigation:** page box accepts a physical page number or a page label (typing `iv` jumps to the page labeled iv); thumbnails sidebar; back/forward history for jumps (Alt+Left/Right).
 - **Text:** selection and copy across lines and pages; search with match highlighting and next/previous.
 - **View rotation:** rotating the view does not modify the document. A separate "Rotate pages" command does modify it (sets `/Rotate`) and is undoable.
@@ -216,7 +216,7 @@ Settled details:
 
 - Edited as a list of rules. Each rule has a start page, a style (none, 1 2 3, i ii iii, I II III, a b c, A B C), an optional prefix, and a start number (1 or higher).
 - A rule at the first page always exists (default: decimal from 1), because the format requires it.
-- **Live preview:** the page box, the status bar and the rule list update while typing; thumbnail captions update when the edit is applied (Enter or leaving the field), before saving.
+- **Live preview:** the page box, the page position beside it and the rule list update while typing; thumbnail captions update when the edit is applied (Enter or leaving the field), before saving.
 - **Presets:** "Roman front matter, then arabic from this page" and "Remove all labels."
 - Letter styles follow the PDF convention: a…z, then aa…zz, then aaa…zzz.
 - Opening a file shows its existing labels as rules exactly as stored; saving writes the `/PageLabels` number tree in the document catalog.
@@ -280,7 +280,7 @@ Settled details:
 
 ### 6.6 Settings, About and installers
 
-- **Settings** (File menu, Ctrl+,): author name; appearance (System by default, Light or Dark); the annotation toolbar's look (floating over the pages by default, or a panel docked above them, always shown); for the floating toolbar, its place (bottom by default, or top) and when it shows (always by default, or only while the pointer is within about 72 px of that edge, while it has keyboard focus, and for 1.5 s after a tool is picked); the quick tools for selected text; and whether Lectrix checks for updates when it starts (on by default). Applied at once and stored in app data.
+- **Settings** (File menu, Ctrl+,): author name; appearance (System by default, Light or Dark); the annotation toolbar's look (floating over the pages by default, or a panel docked above them, always shown); for the floating toolbar, its place (bottom by default, or top) and when it shows (always by default, or only while the pointer is within about 72 px of that edge, while it has keyboard focus, and for 1.5 s after a tool is picked); the quick tools for selected text; smooth zooming (on by default, section 6.1); and whether Lectrix checks for updates when it starts (on by default). Applied at once and stored in app data.
 - **About** (Help menu): the app icon, version, the AGPL notice, MuPDF's credit, where the license files are installed, and the source code address with a Copy button. The address is shown, never opened (the update check is Lectrix's only network access).
 - **Updates** (ADR 0011): after the startup files open, Lectrix asks GitHub for the latest release in the background. A newer one brings a floating notice: Update, Not now (asked again at the next start) or Don't ask again (that version is never offered again; a later one is). Update downloads with a progress bar and Stop, and the download must pass the updater signature check. macOS and Linux then install it and offer Restart now or Later. Windows cannot replace the running app, so it offers Restart now (after the usual unsaved-changes prompts, the installer runs and opens Lectrix again) or Later (the installer runs when Lectrix closes). Failures to check are logged, never shown.
 - **Releases** (ADR 0011, `docs/releasing.md`): a new version in `package.json` on `main` publishes a GitHub release once CI passes: Windows (NSIS, MSI), Linux (AppImage, deb, and rpm for final versions) and macOS (Apple Silicon and Intel), with build provenance attestations and the updater's signed `latest.json`. Versions follow semver; pre-releases end in a number (`1.0.0-beta.1`) because the MSI version is derived from it, and installers are built with `npm run bundle`, which sets that MSI version.
@@ -317,11 +317,12 @@ The app should feel like a native Windows 11 app: calm, fast, and keyboard-frien
 
 - **Title bar:** custom (Tauri decorations off, explicit drag region), holding the sidebar and annotation pane toggles, the document tabs and the standard window buttons.
 - **Left sidebar**, collapsible (open by default), with three panels: Pages (thumbnails), Bookmarks, Page labels. The tabs are icons with tooltips and accessible names.
-- **Center:** the page canvas, with the annotation toolbar floating at its bottom or top, or docked above it as a panel (Settings). The search bar and inspectors move below a floating toolbar that stays at the top. The active tool has an accent border on every side.
+- **View bar**, docked at the top of the document as in Acrobat: the page box with the page label and physical page number (e.g. "iv (4 of 312)"), then zoom out, the zoom level (a menu with fit width, fit page and the presets) and zoom in.
+- **Center:** the page canvas, below the view bar, with the annotation toolbar floating at its bottom or top, or docked above it as a panel (Settings). The search bar and inspectors move below a floating toolbar that stays at the top. The active tool has an accent border on every side.
 - **Right pane**, collapsible (closed by default): the annotation list. Its toggle carries the "needs repair" dot.
 - **Inspector**, floating over the right edge of the page: properties of the selected annotation or bookmark, shown when opened for it (sections 6.2 and 6.5).
 - **Side panes** resize by dragging their inner edge, or from the keyboard on that edge (arrows, Home, End); a double-click resets the width. Each takes at most 40% of the window. Which panes are open and their widths are remembered in app data. Opening and closing slides (140 ms); a fit-width or fit-page view re-fits as a pane moves and renders again once it stops.
-- **Status bar:** page label and physical page number (e.g. "iv (4 of 312)"), zoom level, save state.
+- **Status bar:** the save state.
 
 **Visual style.**
 
@@ -338,7 +339,7 @@ The app should feel like a native Windows 11 app: calm, fast, and keyboard-frien
 - Errors in plain language with a suggested next step; never show raw error text or crash on bad input. Log details to a rotating log file.
 - Respect reduced-motion settings; keep animations under 150 ms.
 
-**Accessibility.** Every control is reachable by keyboard with a visible focus ring, has an accessible name, and meets WCAG AA contrast (checked by `src/lib/contrast.test.ts` in both themes). Shift+F10 and the Menu key open the focused control's context menu. App-wide shortcuts such as Ctrl+S work while typing in panel fields.
+**Accessibility.** Every control is reachable by keyboard with a visible focus ring (the page canvas, which takes focus to scroll from the keyboard, has none: a ring around the document is noise), has an accessible name, and meets WCAG AA contrast (checked by `src/lib/contrast.test.ts` in both themes). Shift+F10 and the Menu key open the focused control's context menu. App-wide shortcuts such as Ctrl+S work while typing in panel fields.
 
 **Default shortcuts** (not rebindable in v1):
 

@@ -9,7 +9,7 @@ import { launch, waitForDocument } from '../lib/app.mjs';
 import { cli, sample } from '../lib/pdfcli.mjs';
 
 async function statusText(browser) {
-	return browser.execute(() => document.querySelector('footer')?.textContent ?? '');
+	return browser.execute(() => [...document.querySelectorAll('[data-view-bar], footer')].map((e) => e.textContent).join(' '));
 }
 
 async function waitForStatus(browser, text, message) {

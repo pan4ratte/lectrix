@@ -1017,6 +1017,8 @@ pub struct Settings {
     pub quick_tools: Vec<QuickTool>,
     /// Whether Lectrix looks for a new release when it starts (ADR 0011).
     pub check_for_updates: bool,
+    /// Whether zooming in or out a step glides instead of jumping (section 6.1).
+    pub smooth_zoom: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, TS)]
@@ -1031,6 +1033,7 @@ pub struct SettingsInput {
     pub toolbar_visibility: ToolbarVisibility,
     pub quick_tools: Vec<QuickTool>,
     pub check_for_updates: bool,
+    pub smooth_zoom: bool,
 }
 
 /// A newer release of Lectrix, found when it started (ADR 0011).

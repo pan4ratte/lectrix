@@ -32,7 +32,8 @@ import {
 	pixelSize,
 	renderScale,
 	stepZoom,
-	wheelZoomFactor
+	wheelZoomFactor,
+	zoomBetween
 } from './zoom.ts';
 
 const letter = { width: 612, height: 792 };
@@ -78,6 +79,21 @@ describe('zoom', () => {
 		expect(stepZoom(1.1, -1)).toBe(1);
 		expect(stepZoom(16, 1)).toBe(MAX_ZOOM);
 		expect(stepZoom(0.25, -1)).toBe(MIN_ZOOM);
+	});
+
+	it('glides between zoom levels evenly in ratio, easing out', () => {
+		expect(zoomBetween(1, 2, 0)).toBe(1);
+		expect(zoomBetween(1, 2, 1)).toBe(2);
+		expect(zoomBetween(1, 2, 1.5)).toBe(2);
+		// Eased out: more than halfway (in ratio) at half the time.
+		expect(zoomBetween(1, 2, 0.5)).toBeGreaterThan(Math.SQRT2);
+		expect(zoomBetween(2, 1, 0.5)).toBeLessThan(Math.SQRT1_2 * 2);
+		let last = 1;
+		for (let t = 0.1; t <= 1; t += 0.1) {
+			const z = zoomBetween(1, 4, t);
+			expect(z).toBeGreaterThan(last);
+			last = z;
+		}
 	});
 
 	it('fits width and page, honoring view rotation', () => {

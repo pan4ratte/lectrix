@@ -30,6 +30,9 @@ test('a closed document reopens from the recent list where it was left', async (
 		await browser.keys(['Control', '=']);
 		await browser.pause(300);
 		const zoom = await zoomText(browser);
+		// The second step, pressed while the first still glides, goes on from where that was
+		// heading, and both land on presets.
+		assert.match(zoom ?? '', /^Zoom level (50|75|100|125|150|200|300|400)%$/, `zoom after two steps: ${zoom}`);
 
 		// Close both (the view is remembered on closing), and reopen the first from the list.
 		await browser.keys(['Control', 'w']);

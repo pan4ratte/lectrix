@@ -29,7 +29,7 @@ async function viewScalesOfFirstPage(browser) {
 }
 
 async function statusText(browser) {
-	return browser.execute(() => document.querySelector('footer')?.textContent ?? '');
+	return browser.execute(() => [...document.querySelectorAll('[data-view-bar], footer')].map((e) => e.textContent).join(' '));
 }
 
 test('open, rotate a page, save, reopen', async () => {

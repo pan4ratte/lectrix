@@ -21,12 +21,16 @@ function describe(stop) {
 	return `${stop.tag}[${stop.computedRole}] "${stop.name}" .${stop.cls}`;
 }
 
-/** Every Tab stop is named and shows focus (the stop where focus leaves the page aside). */
+/**
+ * Every Tab stop is named and shows focus (the stop where focus leaves the page aside).
+ * The page canvas has no focus ring by design (AGENTS.md section 8).
+ */
 function assertStops(stops, where, atLeast = 4) {
 	const real = stops.filter((s) => s.tag !== 'none');
 	assert.ok(real.length >= atLeast, `${where}: Tab reaches controls`);
 	for (const s of real) {
 		assert.ok(s.name, `${where}: unnamed Tab stop ${describe(s)}`);
+		if (s.role === 'document') continue;
 		assert.ok(s.visibleFocus, `${where}: focus not visible on ${describe(s)}`);
 	}
 	return real.map((s) => s.name);
@@ -47,7 +51,7 @@ async function tabTo(browser, match, what, max = 60) {
 }
 
 async function statusText(browser) {
-	return browser.execute(() => document.querySelector('footer')?.textContent ?? '');
+	return browser.execute(() => [...document.querySelectorAll('[data-view-bar], footer')].map((e) => e.textContent).join(' '));
 }
 
 test('every Tab stop is named and shows focus, in every panel and dialog', async () => {

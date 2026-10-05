@@ -23,7 +23,7 @@ import { normalizeRotation, type Rotation } from '#lib/features/viewer/layout.ts
 import { prepareText, type Caret, type TextGeometry } from '#lib/features/viewer/selection.ts';
 import { clampZoom, type ZoomMode } from '#lib/features/viewer/zoom.ts';
 
-/** What the viewer component exposes to menus, shortcuts and the status bar. */
+/** What the viewer component exposes to menus, shortcuts and the view bar. */
 export interface ViewerApi {
 	position(): ViewPosition;
 	goTo(position: ViewPosition, options?: { recordHistory?: boolean }): void;
@@ -42,6 +42,11 @@ export interface ViewerApi {
 	goToPoint(page: number, x: number | null, y: number | null): void;
 	/** Zooms keeping the point at the center of the viewport in place. */
 	setZoom(zoom: number, mode: ZoomMode): void;
+	/**
+	 * Zooms in (1) or out (-1) to the next preset, around the center of the viewport:
+	 * gliding there unless Settings or the system's reduced motion say otherwise.
+	 */
+	zoomStep(direction: 1 | -1): void;
 	fit(mode: 'fitWidth' | 'fitPage'): void;
 	focus(): void;
 }
@@ -180,7 +185,7 @@ export class DocTab {
 	labelRules = $state<LabelRule[]>([]);
 	/** Labels of a rule being edited, before it is applied (live preview, section 6.3). */
 	previewLabels = $state<string[] | null>(null);
-	/** What thumbnails, the page box and the status bar show. */
+	/** What thumbnails, the page box and the page position show. */
 	displayLabels = $derived(this.previewLabels ?? this.labels);
 	/** Start page of the label rule selected in the Page labels panel. */
 	selectedLabelRule = $state<number | null>(null);

@@ -16,7 +16,7 @@ const env = { LECTRIX_RECOVERY_DIR: DIR, LECTRIX_RECOVERY_INTERVAL_MS: '500' };
 const recoveryFiles = () => (existsSync(DIR) ? readdirSync(DIR) : []);
 
 async function statusText(browser) {
-	return browser.execute(() => document.querySelector('footer')?.textContent ?? '');
+	return browser.execute(() => [...document.querySelectorAll('[data-view-bar], footer')].map((e) => e.textContent).join(' '));
 }
 
 async function dialogText(browser) {

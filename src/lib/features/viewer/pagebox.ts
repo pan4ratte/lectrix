@@ -1,6 +1,6 @@
 // The page box: shows the current page and accepts a page number or a page label.
 
-/** "iv (4 of 312)" with labels, "4 of 312" without (status bar, section 8). */
+/** "iv (4 of 312)" with labels, "4 of 312" without (view bar, section 8). */
 export function pagePosition(index: number, count: number, labels: readonly string[] | null) {
 	const physical = `${index + 1} of ${count}`;
 	const label = labels?.[index];

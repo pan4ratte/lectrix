@@ -6,6 +6,7 @@
 
 	import { chain } from '#lib/components/chain.ts';
 	import { ClickCounter } from '#lib/components/clicks.ts';
+	import { motionMs } from '#lib/components/panes.ts';
 	import {
 		commitTextDraft,
 		create,
@@ -58,7 +59,16 @@
 		wordAt,
 		type Caret
 	} from './selection.ts';
-	import { clampZoom, fitPageZoom, fitWidthZoom, wheelZoomFactor, type ZoomMode } from './zoom.ts';
+	import {
+		ZOOM_STEP_MS,
+		clampZoom,
+		fitPageZoom,
+		fitWidthZoom,
+		stepZoom,
+		wheelZoomFactor,
+		zoomBetween,
+		type ZoomMode
+	} from './zoom.ts';
 
 	let { tab }: { tab: DocTab } = $props();
 
@@ -286,7 +296,46 @@
 	}
 
 	function setZoom(zoom: number, mode: ZoomMode) {
+		if (stopZoomStep()) heldRenderZoom = null;
 		void zoomAround(zoom, mode, viewportW / 2, viewportH / 2);
+	}
+
+	// A zoom step (the + and - buttons, Ctrl+= and Ctrl+-) glides to the next preset, with
+	// pages stretched as for a wheel zoom and rendered again once it arrives.
+	let zoomGlide: { to: number; frame: number } | null = null;
+
+	function zoomStep(direction: 1 | -1) {
+		// A step during a glide goes on from where that glide was heading.
+		const to = stepZoom(zoomGlide?.to ?? tab.zoom, direction);
+		const duration = app.settings?.smoothZoom === false ? 0 : motionMs(ZOOM_STEP_MS);
+		if (duration === 0) {
+			setZoom(to, 'custom');
+			return;
+		}
+		stopZoomStep();
+		heldRenderZoom ??= tab.zoom;
+		clearTimeout(settleTimer);
+		const from = tab.zoom;
+		const start = performance.now();
+		const frame = (now: number) => {
+			const t = (now - start) / duration;
+			void zoomAround(zoomBetween(from, to, t), 'custom', viewportW / 2, viewportH / 2);
+			if (t < 1) {
+				zoomGlide = { to, frame: requestAnimationFrame(frame) };
+			} else {
+				zoomGlide = null;
+				heldRenderZoom = null;
+			}
+		};
+		zoomGlide = { to, frame: requestAnimationFrame(frame) };
+	}
+
+	/** Stops a zoom step's glide where it is; true if one was under way. */
+	function stopZoomStep(): boolean {
+		if (!zoomGlide) return false;
+		cancelAnimationFrame(zoomGlide.frame);
+		zoomGlide = null;
+		return true;
 	}
 
 	function fitZoom(mode: 'fitWidth' | 'fitPage'): number {
@@ -299,6 +348,7 @@
 
 	function fit(mode: 'fitWidth' | 'fitPage') {
 		if (mode === 'fitPage') {
+			if (stopZoomStep()) heldRenderZoom = null;
 			const page = tab.currentPage;
 			tab.zoomMode = mode;
 			tab.zoom = fitZoom(mode);
@@ -325,6 +375,8 @@
 		// Ctrl+wheel and touchpad pinch (which arrives as Ctrl+wheel): zoom at the cursor,
 		// once per frame however many events arrive.
 		event.preventDefault();
+		// The wheel takes over from a zoom step's glide; its pages stay held until the wheel pauses.
+		stopZoomStep();
 		const rect = scroller.getBoundingClientRect();
 		wheelFactor *= wheelZoomFactor(event.deltaY, event.deltaMode);
 		wheelAnchor = { x: event.clientX - rect.left, y: event.clientY - rect.top };
@@ -769,6 +821,7 @@
 			goToPoint,
 			reveal,
 			setZoom,
+			zoomStep,
 			fit,
 			focus: () => scroller?.focus({ preventScroll: true })
 		};
@@ -780,6 +833,7 @@
 			tab.viewer = null;
 			cancelAnimationFrame(autoScroll);
 			cancelAnimationFrame(wheelFrame);
+			stopZoomStep();
 			clearTimeout(settleTimer);
 		};
 	});

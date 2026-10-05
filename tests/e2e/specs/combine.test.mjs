@@ -146,7 +146,7 @@ test('insert pages from a file, undo, redo and save', async () => {
 		await (await browser.$('input[aria-label="Pages to insert"]')).setValue('2-3');
 		await (await browser.$('input[aria-label="Page number"]')).setValue('1');
 		await (await browser.$('button=Insert')).click();
-		const status = () => browser.execute(() => document.querySelector('footer')?.textContent ?? '');
+		const status = () => browser.execute(() => [...document.querySelectorAll('[data-view-bar], footer')].map((e) => e.textContent).join(' '));
 		await browser.waitUntil(async () => (await status()).includes('of 5'), {
 			timeout: 5000,
 			timeoutMsg: 'the document did not grow to 5 pages'

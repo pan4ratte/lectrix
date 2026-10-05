@@ -28,6 +28,20 @@ export function stepZoom(zoom: number, direction: 1 | -1): number {
 	return MIN_ZOOM;
 }
 
+/** How long a smooth zoom step takes (section 8: animations under 150 ms). */
+export const ZOOM_STEP_MS = 140;
+
+/**
+ * The zoom a fraction `t` (0 to 1) of the way through a smooth step from `from` to `to`:
+ * even in ratio, so 100% to 200% passes 141% halfway, and easing out.
+ */
+export function zoomBetween(from: number, to: number, t: number): number {
+	const clamped = Math.min(1, Math.max(0, t));
+	if (clamped === 1) return to;
+	const eased = 1 - (1 - clamped) ** 3;
+	return from * (to / from) ** eased;
+}
+
 /**
  * Zoom factor for one Ctrl+wheel event. A touchpad pinch arrives as Ctrl+wheel with
  * `deltaY = -100 ln(scale)` (Chromium), so small deltas follow the fingers exactly; a mouse
