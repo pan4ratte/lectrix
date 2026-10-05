@@ -19,9 +19,6 @@ pub trait Platform: Send + Sync {
     /// The backdrop the main window can use on this system.
     fn backdrop(&self) -> Backdrop;
 
-    /// The user's accent color as `#rrggbb`, if the system has one.
-    fn accent_color(&self) -> Option<String>;
-
     /// True if `a` and `b` name the same file (case rules and links of the platform).
     fn same_file(&self, a: &Path, b: &Path) -> bool {
         match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
@@ -102,9 +99,5 @@ struct Generic;
 impl Platform for Generic {
     fn backdrop(&self) -> Backdrop {
         Backdrop::Solid
-    }
-
-    fn accent_color(&self) -> Option<String> {
-        None
     }
 }

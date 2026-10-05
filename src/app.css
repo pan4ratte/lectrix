@@ -26,8 +26,9 @@
  * bg-surface, text-fg, border-line, or the component classes below); never hard-coded
  * colors. Spacing follows an 8 px grid (4 px for tight spots); radii 6 to 8 px.
  *
- * The system accent color arrives at startup as --lectrix-system-accent (set by
- * src/lib/theme.ts); --lectrix-accent-fg is chosen there for contrast.
+ * The accent is Lectrix blue from the brand kit (ADR 0010): the deeper #2f5daa with white
+ * text in the light theme, the soft brand blue #6fa3ef with ink text in the dark one, each
+ * at 3:1 or more on every surface (src/lib/contrast.test.ts).
  */
 :root {
 	color-scheme: light dark;
@@ -44,8 +45,8 @@
 	/* The bottom edge of text fields: 3:1 against the surface, so a field can be told
 	   apart from plain text (WCAG 1.4.11), as Windows 11 text boxes do. */
 	--lectrix-field-stroke: #868686;
-	--lectrix-accent: var(--lectrix-system-accent, #005fb8);
-	--lectrix-accent-fg: var(--lectrix-system-accent-fg, #ffffff);
+	--lectrix-accent: #2f5daa;
+	--lectrix-accent-fg: #ffffff;
 	--lectrix-focus: var(--lectrix-accent);
 	--lectrix-danger: #c42b1c;
 	--lectrix-danger-bg: #fde7e9;
@@ -81,9 +82,8 @@
 		--lectrix-fg-muted: #c5c5c5;
 		--lectrix-line: #3a3a3a;
 		--lectrix-field-stroke: #9a9a9a;
-		/* Windows uses a lighter shade of the accent on dark backgrounds (theme.ts). */
-		--lectrix-accent: var(--lectrix-system-accent-dark, color-mix(in srgb, #0078d4 55%, white));
-		--lectrix-accent-fg: var(--lectrix-system-accent-dark-fg, #000000);
+		--lectrix-accent: #6fa3ef;
+		--lectrix-accent-fg: #0f1a33;
 		--lectrix-danger: #ff99a4;
 		--lectrix-danger-bg: #442726;
 		--lectrix-info-bg: #1f2a35;
@@ -111,9 +111,8 @@
 	--lectrix-fg-muted: #c5c5c5;
 	--lectrix-line: #3a3a3a;
 	--lectrix-field-stroke: #9a9a9a;
-	/* Windows uses a lighter shade of the accent on dark backgrounds (theme.ts). */
-	--lectrix-accent: var(--lectrix-system-accent-dark, color-mix(in srgb, #0078d4 55%, white));
-	--lectrix-accent-fg: var(--lectrix-system-accent-dark-fg, #000000);
+	--lectrix-accent: #6fa3ef;
+	--lectrix-accent-fg: #0f1a33;
 	--lectrix-danger: #ff99a4;
 	--lectrix-danger-bg: #442726;
 	--lectrix-info-bg: #1f2a35;
@@ -324,10 +323,11 @@ button {
 .annotation-toolbar-top.annotation-toolbar-hidden {
 	transform: translate(-50%, -12px);
 }
+/* The active tool: an accent border all round, over a tint of the accent. */
 .tool-button[aria-pressed='true'] {
 	background: var(--lectrix-row-selected);
 	color: var(--lectrix-fg);
-	box-shadow: inset 0 -2px 0 var(--lectrix-accent);
+	box-shadow: inset 0 0 0 1px var(--lectrix-accent);
 }
 .swatch {
 	display: inline-flex;

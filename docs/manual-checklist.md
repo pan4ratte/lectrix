@@ -101,6 +101,5 @@ does afterwards.
 - [ ] Turn on Narrator (Ctrl+Win+Enter). Tab through the window with a document open:
       each control is announced with a sensible name (tools, page box, zoom, sidebar tabs,
       bookmarks, annotation rows). Turn Narrator off.
-- [ ] With a pale accent colour (Settings > Personalization > Colors, for example gold):
-      focus rings, the selected tab and text fields stay easy to see in both light and
-      dark appearance (Lectrix darkens or lightens the accent where needed).
+- [ ] Focus rings, the selected tab, the active annotation tool and text fields are
+      easy to see in Lectrix blue in both the light and the dark appearance.

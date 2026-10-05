@@ -3,7 +3,6 @@
 use std::path::Path;
 
 use windows_sys::Wdk::System::SystemServices::RtlGetVersion;
-use windows_sys::Win32::System::Registry::{HKEY_CURRENT_USER, RRF_RT_REG_DWORD, RegGetValueW};
 use windows_sys::Win32::System::SystemInformation::OSVERSIONINFOW;
 
 use super::{Backdrop, Platform};
@@ -22,32 +21,6 @@ fn build_number() -> u32 {
     // as RtlGetVersion requires. It always succeeds for this structure.
     let status = unsafe { RtlGetVersion(&mut info) };
     if status == 0 { info.dwBuildNumber } else { 0 }
-}
-
-fn wide(s: &str) -> Vec<u16> {
-    s.encode_utf16().chain(std::iter::once(0)).collect()
-}
-
-/// Reads a DWORD from HKEY_CURRENT_USER.
-fn read_user_dword(subkey: &str, value: &str) -> Option<u32> {
-    let (subkey, value) = (wide(subkey), wide(value));
-    let mut data: u32 = 0;
-    let mut size = std::mem::size_of::<u32>() as u32;
-    // SAFETY: the key and value names are NUL-terminated UTF-16 buffers that outlive the
-    // call; `data` and `size` describe a writable 4-byte buffer, and RRF_RT_REG_DWORD
-    // limits the result to a DWORD.
-    let status = unsafe {
-        RegGetValueW(
-            HKEY_CURRENT_USER,
-            subkey.as_ptr(),
-            value.as_ptr(),
-            RRF_RT_REG_DWORD,
-            std::ptr::null_mut(),
-            (&mut data as *mut u32).cast(),
-            &mut size,
-        )
-    };
-    (status == 0).then_some(data)
 }
 
 impl Platform for Windows {
@@ -84,16 +57,6 @@ impl Platform for Windows {
         } else {
             Backdrop::Solid
         }
-    }
-
-    fn accent_color(&self) -> Option<String> {
-        // The accent color chosen in Settings > Personalization > Colors, as 0xAABBGGRR.
-        let abgr = read_user_dword(
-            r"Software\Microsoft\Windows\CurrentVersion\Explorer\Accent",
-            "AccentColorMenu",
-        )?;
-        let [r, g, b, _] = abgr.to_le_bytes();
-        Some(format!("#{r:02x}{g:02x}{b:02x}"))
     }
 
     fn same_file(&self, a: &Path, b: &Path) -> bool {

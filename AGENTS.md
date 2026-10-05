@@ -322,7 +322,7 @@ The app should feel like a native Windows 11 app: calm, fast, and keyboard-frien
 **Visual style.**
 
 - Mica window background through Tauri's window effects, with a solid fallback where Mica is unavailable.
-- Follow the system light/dark setting and accent color by default; Settings can force light or dark. The accent is shaded per theme where needed for 3:1 contrast.
+- Follow the system light/dark setting by default; Settings can force light or dark. The accent is Lectrix blue from the brand kit (ADR 0010): `#2F5DAA` in the light theme, `#6FA3EF` in the dark one.
 - Font stack: Google Sans, bundled with the app (ADR 0009), then Segoe UI Variable, Segoe UI and the system UI fonts for characters it lacks.
 - Spacing on an 8 px grid (4 px for tight spots); corner radius 6–8 px; thin borders instead of heavy shadows.
 - All colors, sizes and radii as CSS variables (design tokens) consumed by Tailwind; no hard-coded colors in components.
@@ -334,7 +334,7 @@ The app should feel like a native Windows 11 app: calm, fast, and keyboard-frien
 - Errors in plain language with a suggested next step; never show raw error text or crash on bad input. Log details to a rotating log file.
 - Respect reduced-motion settings; keep animations under 150 ms.
 
-**Accessibility.** Every control is reachable by keyboard with a visible focus ring, has an accessible name, and meets WCAG AA contrast (checked by `src/lib/contrast.test.ts` in both themes and for every Windows accent). Shift+F10 and the Menu key open the focused control's context menu. App-wide shortcuts such as Ctrl+S work while typing in panel fields.
+**Accessibility.** Every control is reachable by keyboard with a visible focus ring, has an accessible name, and meets WCAG AA contrast (checked by `src/lib/contrast.test.ts` in both themes). Shift+F10 and the Menu key open the focused control's context menu. App-wide shortcuts such as Ctrl+S work while typing in panel fields.
 
 **Default shortcuts** (not rebindable in v1):
 

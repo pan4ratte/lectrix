@@ -9,10 +9,6 @@ export type StartupInfo = {
  */
 mainToReadyMs: number, backdrop: Backdrop, 
 /**
- * The system accent color as #rrggbb, if any.
- */
-accentColor: string | null, 
-/**
  * Set by the LECTRIX_PERF environment variable: the frontend runs its scripted
  * performance measurements (tests/perf/measure.ps1).
  */

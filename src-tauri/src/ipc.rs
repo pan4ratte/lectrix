@@ -894,8 +894,6 @@ pub struct StartupInfo {
     /// Milliseconds from the start of `main` to the frontend's first mount.
     pub main_to_ready_ms: f64,
     pub backdrop: Backdrop,
-    /// The system accent color as #rrggbb, if any.
-    pub accent_color: Option<String>,
     /// Set by the LECTRIX_PERF environment variable: the frontend runs its scripted
     /// performance measurements (tests/perf/measure.ps1).
     pub perf_mode: bool,

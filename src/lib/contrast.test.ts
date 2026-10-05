@@ -1,11 +1,11 @@
 // WCAG AA contrast of the design tokens in src/app.css (AGENTS.md section 8,
 // accessibility): text 4.5:1, marks and field edges 3:1 (WCAG 1.4.3 and 1.4.11), in
-// the light and the dark theme, for the default accent and every Windows accent preset.
+// the light and the dark theme, with the Lectrix blue accent (ADR 0010).
 import { readFileSync } from 'node:fs';
 
 import { describe, expect, it } from 'vitest';
 
-import { DARK_SURFACES, LIGHT_SURFACES, accentShades, contrast, mix } from './theme';
+import { contrast, mix } from './theme';
 
 const css = readFileSync(new URL('../app.css', import.meta.url), 'utf8');
 
@@ -122,6 +122,12 @@ describe.each([
 		for (const surface of surfaces) {
 			const bg = solid(surface, vars);
 			expect(contrast(solid('--lectrix-focus', vars), bg), `focus on ${surface}`).toBeGreaterThanOrEqual(3);
+			expect(contrast(solid('--lectrix-accent', vars), bg), `accent on ${surface}`).toBeGreaterThanOrEqual(3);
+		}
+		// The active tool's border, on its accent tint over the toolbar.
+		for (const bar of ['--lectrix-surface', '--lectrix-surface-raised']) {
+			const tint = on('--lectrix-row-selected', vars, solid(bar, vars));
+			expect(contrast(solid('--lectrix-accent', vars), tint), `active tool on ${bar}`).toBeGreaterThanOrEqual(3);
 		}
 		for (const bg of ['--lectrix-surface', '--lectrix-surface-raised']) {
 			expect(contrast(solid('--lectrix-field-stroke', vars), solid(bg, vars)), `field edge on ${bg}`).toBeGreaterThanOrEqual(3);
@@ -130,38 +136,5 @@ describe.each([
 			const bg = solid('--lectrix-surface', vars);
 			expect(contrast(solid(`--lectrix-source-${i}`, vars), bg), `source ${i}`).toBeGreaterThanOrEqual(3);
 		}
-	});
-});
-
-it('theme.ts knows the surfaces app.css paints', () => {
-	const surfaces = (vars: Record<string, string>) =>
-		['--lectrix-surface', '--lectrix-chrome', '--lectrix-surface-raised', '--lectrix-canvas'].map((n) => solid(n, vars));
-	expect(surfaces(light)).toEqual(LIGHT_SURFACES);
-	expect(surfaces(dark)).toEqual(DARK_SURFACES);
-});
-
-// Windows' 48 accent color presets (Settings > Personalization > Colors).
-const WINDOWS_ACCENTS = [
-	'#ffb900', '#ff8c00', '#f7630c', '#ca5010', '#da3b01', '#ef6950', '#d13438', '#ff4343',
-	'#e74856', '#e81123', '#ea005e', '#c30052', '#e3008c', '#bf0077', '#c239b3', '#9a0089',
-	'#0078d4', '#0063b1', '#8e8cd8', '#6b69d6', '#8764b8', '#744da9', '#b146c2', '#881798',
-	'#0099bc', '#2d7d9a', '#00b7c3', '#038387', '#00b294', '#018574', '#00cc6a', '#10893e',
-	'#7a7574', '#5d5a58', '#68768a', '#515c6b', '#567c73', '#486860', '#498205', '#107c10',
-	'#767676', '#4c4a48', '#69797e', '#4a5459', '#647c64', '#525e54', '#847545', '#7e735f'
-];
-
-describe('system accent colors', () => {
-	it.each(WINDOWS_ACCENTS)('%s marks every surface at 3:1 and carries text at 4.5:1', (accent) => {
-		const s = accentShades(accent);
-		for (const bg of LIGHT_SURFACES) expect(contrast(s.light, bg), `light on ${bg}`).toBeGreaterThanOrEqual(3);
-		for (const bg of DARK_SURFACES) expect(contrast(s.dark, bg), `dark on ${bg}`).toBeGreaterThanOrEqual(3);
-		expect(contrast(s.lightFg, s.light)).toBeGreaterThanOrEqual(4.5);
-		expect(contrast(s.darkFg, s.dark)).toBeGreaterThanOrEqual(4.5);
-	});
-
-	it('leaves accents that already stand out as they are', () => {
-		expect(accentShades('#005fb8').light).toBe('#005fb8');
-		expect(accentShades('#0078d4').dark).toBe(mix('#0078d4', '#ffffff', 0.45));
-		expect(accentShades('#ffb900').light).not.toBe('#ffb900');
 	});
 });

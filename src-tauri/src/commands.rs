@@ -731,7 +731,6 @@ pub fn app_ready(state: State<'_, AppState>) -> StartupInfo {
             platform::Backdrop::Mica => Backdrop::Mica,
             platform::Backdrop::Solid => Backdrop::Solid,
         },
-        accent_color: platform.accent_color(),
         perf_mode: std::env::var_os("LECTRIX_PERF").is_some(),
         perf_scroll_only: std::env::var("LECTRIX_PERF").as_deref() == Ok("scroll"),
         image_format: match std::env::var("LECTRIX_IMAGE_FORMAT").as_deref() {
