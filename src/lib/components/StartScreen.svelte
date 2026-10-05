@@ -2,6 +2,7 @@
 	// Shown when no document is open: open a file, or pick a recent one.
 	import { FileText, FolderOpen, Layers, X } from '@lucide/svelte';
 
+	import iconUrl from '#lib/assets/lectrix-icon.svg';
 	import { APP_NAME } from '#lib/config.ts';
 	import { removeRecent } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
@@ -14,8 +15,14 @@
 
 <div class="flex h-full flex-col items-center overflow-auto bg-canvas px-4 pt-[12vh]">
 	<div class="w-full max-w-xl">
-		<h1 class="text-2xl font-semibold">{APP_NAME}</h1>
-		<p class="mt-1 text-fg-muted">Open a PDF, or drop files anywhere in this window.</p>
+		<div class="flex items-center gap-4">
+			<!-- Decorative: the heading names the app. -->
+			<img src={iconUrl} alt="" width="56" height="56" draggable="false" />
+			<div>
+				<h1 class="text-2xl font-semibold">{APP_NAME}</h1>
+				<p class="mt-1 text-fg-muted">Open a PDF, or drop files anywhere in this window.</p>
+			</div>
+		</div>
 		<div class="mt-6 flex gap-2">
 			<button type="button" class="button button-primary gap-2" onclick={() => void app.open()}>
 				<FolderOpen size={16} aria-hidden="true" />
