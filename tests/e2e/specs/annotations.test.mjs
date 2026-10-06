@@ -82,6 +82,14 @@ async function openColours(browser, scope) {
 
 const focusedLabel = (browser) => browser.execute(() => document.activeElement?.getAttribute('aria-label') ?? '');
 
+/** Closes Settings with its close button; every change in it applies at once. */
+async function closeSettings(browser) {
+	await (await browser.$('[role="dialog"] button[aria-label="Close"]')).click();
+	await browser.waitUntil(() => browser.execute(() => document.querySelector('[role="dialog"]') === null), {
+		timeoutMsg: 'Settings did not close'
+	});
+}
+
 async function click(browser, at) {
 	await browser.action('pointer').move({ ...at, origin: 'viewport' }).down().up().perform();
 }
@@ -207,15 +215,17 @@ test('create, edit, delete, undo, save and reopen annotations', async () => {
 		await showAnnotations(browser);
 		await waitForRowCount(browser, 4, 'reopened');
 
-		// Settings: another author and the dark appearance, applied at once.
+		// Settings: another author and the dark appearance, applied at once, with no Save.
 		await browser.keys(['Control', ',']);
-		const author = await browser.$('label*=Author name');
-		await (await author.$('input')).setValue('E2E Tester');
-		await (await browser.$('label*=Dark')).click();
-		await (await browser.$('button=Save')).click();
+		await (await browser.$('button[role="tab"]*=General')).click();
+		await (await browser.$('#setting-author')).setValue('E2E Tester');
+		await (await browser.$('button[role="tab"]*=Appearance')).click();
+		await (await browser.$('#setting-appearance')).click();
+		await (await browser.$('[role="option"]*=Dark')).click();
 		await browser.waitUntil(async () => (await browser.execute(() => document.documentElement.dataset.theme)) === 'dark', {
-			timeoutMsg: 'the dark appearance did not apply'
+			timeoutMsg: 'the dark appearance did not apply while Settings was open'
 		});
+		await closeSettings(browser);
 		await browser.keys(['Control', 'g']);
 		await browser.keys(['2', 'Enter']);
 		await browser.waitUntil(async () => (await statusText(browser)).includes('2 of'), { timeoutMsg: 'not on page 2' });
@@ -441,9 +451,12 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 
 		// Settings: the annotation toolbar moves to the top, shown only near it.
 		await browser.keys(['Control', ',']);
-		await (await browser.$('label*=Top')).click();
-		await (await browser.$('label*=When the pointer is near')).click();
-		await (await browser.$('button=Save')).click();
+		await (await browser.$('button[role="tab"]*=Toolbars')).click();
+		await (await browser.$('#setting-toolbarPosition')).click();
+		await (await browser.$('[role="option"]*=Top')).click();
+		await (await browser.$('label*=Show only when the pointer is near')).click();
+		assert.equal(await (await browser.$('#setting-toolbarVisibility')).getAttribute('aria-checked'), 'true');
+		await closeSettings(browser);
 		const toolbar = await browser.$('[role=toolbar][aria-label="Annotation tools"]');
 		await browser.waitUntil(
 			() =>
@@ -471,9 +484,12 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 		// Settings: docked in the bar above the pages instead, beside the page and zoom
 		// controls, always shown; the floating options don't apply to it.
 		await browser.keys(['Control', ',']);
-		await (await browser.$('label*=In the bar above the pages')).click();
-		assert.equal(await (await browser.$('label*=When the pointer is near')).$('button').getAttribute('data-disabled'), '');
-		await (await browser.$('button=Save')).click();
+		await (await browser.$('button[role="tab"]*=Toolbars')).click();
+		await (await browser.$('#setting-toolbarStyle')).click();
+		await (await browser.$('[role="option"]*=In the bar above the pages')).click();
+		assert.equal(await (await browser.$('#setting-toolbarVisibility')).getAttribute('data-disabled'), '');
+		assert.equal(await (await browser.$('#setting-toolbarPosition')).getAttribute('data-disabled'), '');
+		await closeSettings(browser);
 		await browser.waitUntil(
 			() =>
 				browser.execute(() => {
@@ -500,8 +516,9 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 		// Settings: new markup opens its comment. A highlight then has the inspector open with
 		// the cursor in the note.
 		await browser.keys(['Control', ',']);
+		await (await browser.$('button[role="tab"]*=Annotations')).click();
 		await (await browser.$('label*=Add a comment after marking text')).click();
-		await (await browser.$('button=Save')).click();
+		await closeSettings(browser);
 		await (await browser.$('[role=document]')).click();
 		await browser.keys('h');
 		await drag(browser, await pagePoint(browser, 0, 40, 92), await pagePoint(browser, 0, 200, 92), 1);
@@ -521,8 +538,9 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 		// Settings: without the last colour, new annotations start from the defaults again
 		// (the underline's red, not the pink given to one above).
 		await browser.keys(['Control', ',']);
+		await (await browser.$('button[role="tab"]*=Annotations')).click();
 		await (await browser.$('label*=Use the last colour and opacity')).click();
-		await (await browser.$('button=Save')).click();
+		await closeSettings(browser);
 		await (await browser.$('[role=toolbar][aria-label="Annotation tools"] button[aria-label="Underline"]')).click();
 		const docked = await browser.$('[role=toolbar][aria-label="Annotation tools"]');
 		const toolColour = await openColours(browser, docked);

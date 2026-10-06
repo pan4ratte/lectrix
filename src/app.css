@@ -244,6 +244,7 @@ button,
 select,
 summary,
 label:has(input[type='checkbox'], input[type='radio'], button[role='checkbox'], button[role='radio']),
+.setting-row:has(button[role='switch']:not(:disabled)) .setting-label,
 input[type='checkbox'],
 input[type='radio'],
 input[type='range'],
@@ -813,6 +814,45 @@ input[type='color'],
 	border-color: var(--lectrix-accent);
 	background: var(--lectrix-accent);
 }
+/* An on/off switch (Switch.svelte), as Windows 11's toggle: a pill outlined in the muted text
+   colour with a thumb of that colour when off, filled with the accent and a thumb in the
+   accent's text colour when on (both 3:1 or more on the dialogs, src/lib/contrast.test.ts). */
+.switch {
+	display: inline-flex;
+	width: 40px;
+	height: 20px;
+	flex-shrink: 0;
+	align-items: center;
+	padding: 0 3px;
+	border: 1px solid var(--lectrix-fg-muted);
+	border-radius: 10px;
+	background: var(--lectrix-surface);
+}
+.switch:hover:not(:disabled) {
+	background: var(--lectrix-button-hover);
+}
+.switch[data-state='checked'] {
+	border-color: var(--lectrix-accent);
+	background: var(--lectrix-accent);
+}
+.switch[data-state='checked']:hover:not(:disabled) {
+	background: color-mix(in srgb, var(--lectrix-accent), var(--lectrix-bg) 10%);
+}
+.switch:disabled {
+	opacity: 0.45;
+}
+.switch-thumb {
+	width: 12px;
+	height: 12px;
+	border-radius: 50%;
+	background: var(--lectrix-fg-muted);
+	transition: transform 120ms ease-out;
+}
+.switch-thumb[data-state='checked'] {
+	/* Across the 32 px inside the padding. */
+	transform: translateX(20px);
+	background: var(--lectrix-accent-fg);
+}
 
 /* ----- dropdowns (Dropdown.svelte) ----- */
 
@@ -943,6 +983,122 @@ input[type='color'],
 	border-radius: var(--radius-panel);
 	background: var(--lectrix-surface-raised);
 	box-shadow: 0 16px 32px var(--lectrix-page-shadow);
+}
+
+/* Settings: the groups as tabs down the left side, in the panes' colour, and the chosen
+   group's rows at the right, which scroll under the close button. Each row has
+   its name and description at the left and its control at the right; in a narrow window the
+   control moves under the name. */
+.settings-dialog {
+	display: flex;
+	width: 760px;
+	height: min(540px, calc(100vh - 32px));
+	padding: 0;
+	overflow: hidden;
+}
+.settings-nav {
+	display: flex;
+	width: 184px;
+	flex-shrink: 0;
+	flex-direction: column;
+	gap: 8px;
+	padding: 16px 8px;
+	border-right: 1px solid var(--lectrix-line);
+	background: var(--lectrix-chrome);
+}
+.settings-title {
+	padding: 0 8px 4px;
+	color: var(--lectrix-fg-strong);
+	font-size: 16px;
+	font-weight: 600;
+}
+.settings-tab {
+	display: flex;
+	height: 32px;
+	align-items: center;
+	gap: 10px;
+	padding: 0 8px;
+	border-radius: var(--radius-control);
+	font-size: 13px;
+	text-align: left;
+}
+.settings-tab:hover:not([data-state='active']) {
+	background: var(--lectrix-hover);
+}
+.settings-tab[data-state='active'] {
+	background: var(--lectrix-row-selected);
+	color: var(--lectrix-fg-strong);
+}
+.settings-tab[data-state='active'] svg {
+	color: var(--lectrix-accent);
+}
+.settings-tab:focus-visible {
+	outline-offset: -2px;
+}
+.settings-page {
+	min-height: 0;
+	flex: 1;
+	padding: 20px 24px 16px;
+	overflow-y: auto;
+}
+.settings-page:focus-visible {
+	outline-offset: -2px;
+}
+.settings-heading {
+	margin-bottom: 4px;
+	color: var(--lectrix-fg-strong);
+	font-size: 16px;
+	font-weight: 600;
+}
+.settings-section + .settings-section {
+	margin-top: 20px;
+}
+.settings-section-title {
+	margin-bottom: 2px;
+	color: var(--lectrix-fg-strong);
+	font-size: 13px;
+	font-weight: 600;
+}
+.setting-row {
+	display: flex;
+	min-height: 52px;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 8px 24px;
+	padding: 10px 0;
+	border-bottom: 1px solid var(--lectrix-line);
+}
+.setting-row:last-child {
+	border-bottom: 0;
+}
+.setting-row > :first-child {
+	flex-basis: 200px;
+}
+.setting-label {
+	color: var(--lectrix-fg);
+	font-size: 14px;
+}
+.setting-row[data-disabled] .setting-label {
+	color: var(--lectrix-fg-muted);
+}
+.setting-note {
+	color: var(--lectrix-fg-muted);
+	font-size: 12px;
+	line-height: 1.4;
+}
+/* At the dialog's top right (the dialog is fixed, so it places it), opaque, since the rows
+   scroll under it. */
+.settings-close {
+	position: absolute;
+	top: 12px;
+	right: 12px;
+	background: var(--lectrix-surface-raised);
+}
+.settings-close:hover:not(:disabled) {
+	background: linear-gradient(var(--lectrix-hover), var(--lectrix-hover)), var(--lectrix-surface-raised);
+}
+.settings-close:active:not(:disabled) {
+	background: linear-gradient(var(--lectrix-pressed), var(--lectrix-pressed)), var(--lectrix-surface-raised);
 }
 
 /* ----- sidebar ----- */

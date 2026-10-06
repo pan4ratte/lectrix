@@ -21,13 +21,13 @@
 	import StartScreen from '#lib/components/StartScreen.svelte';
 	import TitleBar from '#lib/components/TitleBar.svelte';
 	import Toasts from '#lib/components/Toasts.svelte';
-	import SettingsDialog from '#lib/components/SettingsDialog.svelte';
 	import { cancelTextDraft } from '#lib/features/annotations/actions.ts';
 	import AnnotationPropertiesDialog from '#lib/features/annotations/AnnotationPropertiesDialog.svelte';
 	import AnnotationToolbar from '#lib/features/annotations/AnnotationToolbar.svelte';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
 	import CombineView from '#lib/features/merge/CombineView.svelte';
 	import InsertPagesDialog from '#lib/features/merge/InsertPagesDialog.svelte';
+	import SettingsDialog from '#lib/features/settings/SettingsDialog.svelte';
 	import { update } from '#lib/features/update/update.svelte.ts';
 	import { firstPagePainted, runPerf } from '#lib/features/viewer/perfrun.ts';
 	import RotatePagesDialog from '#lib/features/viewer/RotatePagesDialog.svelte';

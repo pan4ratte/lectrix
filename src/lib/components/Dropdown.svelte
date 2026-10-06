@@ -12,13 +12,26 @@
 		onchange?: (value: T) => void;
 		/** The accessible name, when no <label> around the dropdown gives one. */
 		label?: string;
+		/** The button's id, for a <label for> elsewhere. */
+		id?: string;
+		describedby?: string;
 		title?: string;
 		disabled?: boolean;
 		/** Size classes for the button (height, text size, width). */
 		class?: string;
 	}
 
-	let { value = $bindable(), options, onchange, label, title, disabled = false, class: className = '' }: Props = $props();
+	let {
+		value = $bindable(),
+		options,
+		onchange,
+		label,
+		id,
+		describedby,
+		title,
+		disabled = false,
+		class: className = ''
+	}: Props = $props();
 
 	let open = $state(false);
 	const current = $derived(options.find((o) => o.value === value));
@@ -41,7 +54,7 @@
 </script>
 
 <Select.Root type="single" bind:open value={String(value)} onValueChange={pick} {items} {disabled}>
-	<Select.Trigger class="dropdown {className}" aria-label={label} {title}>
+	<Select.Trigger class="dropdown {className}" {id} aria-label={label} aria-describedby={describedby} {title}>
 		<span class="min-w-0 flex-1 truncate text-left">{current?.label ?? ''}</span>
 		<ChevronDown size={14} aria-hidden="true" class="shrink-0 text-fg-muted" />
 	</Select.Trigger>

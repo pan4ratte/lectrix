@@ -170,6 +170,13 @@ test('menus, tabs and lists move with arrow keys; dialogs keep focus inside', as
 		assertStops(stops, 'Settings');
 		const outside = await browser.execute(() => !document.activeElement?.closest('[role="dialog"]'));
 		assert.equal(outside, false, 'focus stayed in the Settings dialog');
+		// The groups are vertical tabs: Down moves to the next one and shows its settings.
+		await (await browser.$('button[role="tab"]*=General')).click();
+		await browser.keys(['ArrowDown']);
+		const group = await focused(browser);
+		assert.equal(group.computedRole, 'tab');
+		assert.equal(group.name, 'Appearance', 'Down moved to the next settings group');
+		assert.ok(await (await browser.$('#setting-appearance')).isDisplayed(), 'the Appearance settings show');
 		await browser.keys(['Escape']);
 		await browser.waitUntil(() => browser.execute(() => document.querySelector('[role="dialog"]') === null), {
 			timeoutMsg: 'Escape did not close Settings'
