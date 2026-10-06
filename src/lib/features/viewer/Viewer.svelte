@@ -344,17 +344,34 @@
 		const left = pageLeft(before, page, contentW);
 		const fx = (scrollLeft + ax - left) / b.width;
 
-		tab.zoomMode = mode;
-		tab.zoom = clampZoom(zoom);
-		await tick();
-		const after = layout.pages[page]!;
-		const afterLeft = pageLeft(layout, page, contentW);
-		let top = after.top + fy * after.height - ay;
-		const target = align && layout.pages[align.page];
+		// Where the view goes, worked out from the layout at the new zoom before the zoom
+		// changes, so the zoom and the scroll position the mounted pages come from change
+		// together. The new layout with the old scroll position names other pages: mounted
+		// for the moment until the DOM caught up, they dropped the pages on screen and their
+		// pixels, and each frame of a glide or a pinch flickered blank (tests/e2e zoom).
+		const z = clampZoom(zoom);
+		const next = computeLayout(tab.pages, z, tab.rotation);
+		const nextW = contentWidth(next, viewportW);
+		const after = next.pages[page]!;
+		let toTop = after.top + fy * after.height - ay;
+		const target = align && next.pages[align.page];
 		// The same 8 px above the page as going to a page (scrollToPosition).
-		if (align && target) top += (target.top - 8 - top) * align.amount;
-		scroller.scrollTop = top;
-		scroller.scrollLeft = afterLeft + fx * after.width - ax;
+		if (align && target) toTop += (target.top - 8 - toTop) * align.amount;
+		// Kept within the content, as the browser will.
+		toTop = Math.min(Math.max(0, toTop), Math.max(0, next.totalHeight - viewportH));
+		const toLeft = Math.min(
+			Math.max(0, pageLeft(next, page, nextW) + fx * after.width - ax),
+			Math.max(0, nextW - viewportW)
+		);
+
+		tab.zoomMode = mode;
+		tab.zoom = z;
+		scrollTop = toTop;
+		scrollLeft = toLeft;
+		// The content takes its new size in the DOM before it can scroll there.
+		await tick();
+		scroller.scrollTop = toTop;
+		scroller.scrollLeft = toLeft;
 		onScroll();
 	}
 
