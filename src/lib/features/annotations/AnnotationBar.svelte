@@ -15,6 +15,7 @@
 	import FloatingBar from './FloatingBar.svelte';
 	import { typeIcon } from './icons.ts';
 	import { MARKUP_SUBTYPES, typeName, type MarkupKind } from './tools.ts';
+	import { toolMark } from './toolMark.ts';
 
 	interface Props {
 		tab: DocTab;
@@ -52,19 +53,22 @@
 
 	{#if controls.retype}
 		<span class="mx-1 h-6 w-px bg-line" aria-hidden="true"></span>
-		{#each MARKUP_SUBTYPES as m (m.subtype)}
-			{@const Icon = typeIcon(m.subtype)}
-			<button
-				type="button"
-				class="icon-button tool-button"
-				aria-pressed={a.subtype === m.subtype}
-				aria-label={typeName(m.subtype)}
-				title={typeName(m.subtype)}
-				onclick={() => setKind(m.kind, m.subtype)}
-			>
-				<Icon size={18} aria-hidden="true" />
-			</button>
-		{/each}
+		<span class="tool-group flex items-center gap-0.5" {@attach toolMark}>
+			<span class="tool-mark" aria-hidden="true" hidden></span>
+			{#each MARKUP_SUBTYPES as m (m.subtype)}
+				{@const Icon = typeIcon(m.subtype)}
+				<button
+					type="button"
+					class="icon-button tool-button"
+					aria-pressed={a.subtype === m.subtype}
+					aria-label={typeName(m.subtype)}
+					title={typeName(m.subtype)}
+					onclick={() => setKind(m.kind, m.subtype)}
+				>
+					<Icon size={18} aria-hidden="true" />
+				</button>
+			{/each}
+		</span>
 	{/if}
 
 	{#if controls.restyle || controls.retype}

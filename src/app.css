@@ -424,6 +424,34 @@ input[type='color'],
 	color: var(--lectrix-accent);
 	box-shadow: inset 0 0 0 1px var(--lectrix-accent);
 }
+/* In a group of tools (toolMark.ts), one mark draws that tint and border and glides to the
+   tool picked; the icon takes the accent as the mark arrives. */
+.tool-group {
+	position: relative;
+}
+.tool-mark {
+	position: absolute;
+	top: 0;
+	left: 0;
+	border-radius: var(--radius-control);
+	background: var(--lectrix-row-selected);
+	box-shadow: inset 0 0 0 1px var(--lectrix-accent);
+	pointer-events: none;
+	transition-property: transform, width, height;
+	transition-timing-function: ease-out;
+}
+/* Positioned, so the buttons draw over the mark that comes before them. */
+.tool-group > .tool-button {
+	position: relative;
+	transition: color 140ms ease-out;
+}
+.tool-group > .tool-button[aria-pressed='true'] {
+	background: transparent;
+	box-shadow: none;
+}
+.tool-group > .tool-button[aria-pressed='true']:hover:not(:disabled) {
+	background: var(--lectrix-hover);
+}
 .swatch {
 	display: inline-flex;
 	width: 22px;

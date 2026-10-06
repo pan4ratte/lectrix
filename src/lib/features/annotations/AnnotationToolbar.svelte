@@ -15,8 +15,10 @@
 		ZodiacAquarius
 	} from '@lucide/svelte';
 	import { onMount, type Component } from 'svelte';
+	import { slide } from 'svelte/transition';
 
 	import Dropdown from '#lib/components/Dropdown.svelte';
+	import { motionMs } from '#lib/components/panes.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -24,6 +26,7 @@
 	import { nearEdge } from './bars.ts';
 	import ColorPicker from './ColorPicker.svelte';
 	import { tools } from './state.svelte.ts';
+	import { GLIDE_MS, toolMark } from './toolMark.ts';
 	import { FONT_SIZES, PEN_WIDTHS, TOOLS, ptOptions, type Tool } from './tools.ts';
 
 	let { tab }: { tab: DocTab } = $props();
@@ -43,6 +46,10 @@
 	const drawTool = $derived(active === 'select' ? null : active);
 	const style = $derived(drawTool ? tools.style(drawTool) : null);
 	const locked = $derived(!tab.flags.canAnnotate);
+
+	/** The style controls slide open and shut sideways as the tool changes, as the mark
+	 * glides to it (not at all with reduced motion). */
+	const reveal = () => ({ axis: 'x' as const, duration: motionMs(GLIDE_MS) });
 
 	function pick(tool: Tool) {
 		if (tool !== 'select' && refuseIfLocked(tab)) return;
@@ -130,49 +137,58 @@
 	onfocusin={() => (focused = true)}
 	onfocusout={(e) => (focused = bar?.contains(e.relatedTarget as Node | null) ?? false)}
 >
-	{#each TOOLS as t (t.id)}
-		{@const Icon = ICONS[t.id]}
-		<button
-			type="button"
-			class="icon-button tool-button"
-			aria-pressed={active === t.id}
-			aria-label={t.label}
-			title={t.key ? `${t.label} (${t.key})` : t.label}
-			disabled={t.id !== 'select' && locked}
-			onclick={() => pick(t.id)}
-		>
-			<Icon size={18} aria-hidden="true" />
-		</button>
-	{/each}
+	<span class="tool-group flex items-center gap-0.5" {@attach toolMark}>
+		<span class="tool-mark" aria-hidden="true" hidden></span>
+		{#each TOOLS as t (t.id)}
+			{@const Icon = ICONS[t.id]}
+			<button
+				type="button"
+				class="icon-button tool-button"
+				aria-pressed={active === t.id}
+				aria-label={t.label}
+				title={t.key ? `${t.label} (${t.key})` : t.label}
+				disabled={t.id !== 'select' && locked}
+				onclick={() => pick(t.id)}
+			>
+				<Icon size={18} aria-hidden="true" />
+			</button>
+		{/each}
+	</span>
 
 	{#if style && drawTool}
-		<span class="mx-1 h-6 w-px bg-line" aria-hidden="true"></span>
-		<ColorPicker
-			color={style.color}
-			opacity={style.opacity}
-			label="Colour"
-			oncolor={(color) => tools.setStyle(drawTool, { color })}
-			onopacity={(opacity) => tools.setStyle(drawTool, { opacity })}
-		/>
-		{#if drawTool === 'ink'}
-			<Dropdown
-				class="toolbar-dropdown"
-				label="Stroke width"
-				title="Stroke width"
-				value={style.width}
-				options={ptOptions(PEN_WIDTHS)}
-				onchange={(width) => tools.setStyle('ink', { width })}
+		<span class="flex items-center gap-0.5" transition:slide={reveal()}>
+			<span class="mx-1 h-6 w-px shrink-0 bg-line" aria-hidden="true"></span>
+			<ColorPicker
+				color={style.color}
+				opacity={style.opacity}
+				label="Colour"
+				oncolor={(color) => tools.setStyle(drawTool, { color })}
+				onopacity={(opacity) => tools.setStyle(drawTool, { opacity })}
 			/>
-		{/if}
-		{#if drawTool === 'freeText'}
-			<Dropdown
-				class="toolbar-dropdown"
-				label="Font size"
-				title="Font size"
-				value={style.fontSize}
-				options={ptOptions(FONT_SIZES)}
-				onchange={(fontSize) => tools.setStyle('freeText', { fontSize })}
-			/>
-		{/if}
+			{#if drawTool === 'ink'}
+				<span class="flex" transition:slide={reveal()}>
+					<Dropdown
+						class="toolbar-dropdown"
+						label="Stroke width"
+						title="Stroke width"
+						value={style.width}
+						options={ptOptions(PEN_WIDTHS)}
+						onchange={(width) => tools.setStyle('ink', { width })}
+					/>
+				</span>
+			{/if}
+			{#if drawTool === 'freeText'}
+				<span class="flex" transition:slide={reveal()}>
+					<Dropdown
+						class="toolbar-dropdown"
+						label="Font size"
+						title="Font size"
+						value={style.fontSize}
+						options={ptOptions(FONT_SIZES)}
+						onchange={(fontSize) => tools.setStyle('freeText', { fontSize })}
+					/>
+				</span>
+			{/if}
+		</span>
 	{/if}
 </div>

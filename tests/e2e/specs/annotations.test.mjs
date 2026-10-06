@@ -507,11 +507,18 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 		await browser.pause(500);
 		const panel = await browser.$('[role=toolbar][aria-label="Annotation tools"]');
 		assert.equal((await panel.getCSSProperty('opacity')).value, 1, 'the panel stays shown');
-		// The active tool has an accent border on every side.
-		const pressed = await browser.execute(
-			() => getComputedStyle(document.querySelector('[aria-label="Annotation tools"] [aria-pressed="true"]')).boxShadow
-		);
-		assert.match(pressed, /inset 0px 0px 0px 1px$|^rgb\([^)]*\) 0px 0px 0px 1px inset$/, `active tool: ${pressed}`);
+		// The active tool has an accent border on every side: the mark that glides between the
+		// tools, lying on the pressed one.
+		const pressed = await browser.execute(() => {
+			const bar = document.querySelector('[aria-label="Annotation tools"]');
+			const mark = bar.querySelector('.tool-mark');
+			const a = mark.getBoundingClientRect();
+			const b = bar.querySelector('[aria-pressed="true"]').getBoundingClientRect();
+			const over = Math.abs(a.left - b.left) < 1 && Math.abs(a.top - b.top) < 1 && Math.abs(a.width - b.width) < 1;
+			return { shadow: getComputedStyle(mark).boxShadow, over };
+		});
+		assert.match(pressed.shadow, /inset 0px 0px 0px 1px$|^rgb\([^)]*\) 0px 0px 0px 1px inset$/, `active tool: ${pressed.shadow}`);
+		assert.ok(pressed.over, 'the mark lies on the active tool');
 
 		// Settings: new markup opens its comment. A highlight then has the inspector open with
 		// the cursor in the note.
