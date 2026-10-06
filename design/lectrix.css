@@ -1,0 +1,199 @@
+/*
+ * Lectrix — brand stylesheet
+ * Design tokens, theme (light + dark), typography and brand helpers.
+ * Typeface: Google Sans (SIL Open Font License 1.1, see fonts/OFL.txt), self-hosted.
+ *
+ * Two font builds are included:
+ *   GoogleSans-LatinCyrillicGreek.woff2  ~200 KB  Latin, Cyrillic, Greek — used below
+ *   GoogleSans-Variable.woff2 / .ttf     ~1.6 MB  all scripts (Armenian, Georgian, Hebrew,
+ *                                                  Indic, Thai, Khmer, Ethiopic …)
+ * Swap the src lines to the full build when you ship those languages.
+ * Neither build covers Chinese, Japanese, Korean or Arabic: the stack falls back to the
+ * system (or add Noto Sans SC / JP / KR / Arabic).
+ */
+
+@font-face {
+  font-family: "Google Sans";
+  src: url("fonts/GoogleSans-LatinCyrillicGreek.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: normal;
+  font-display: swap;
+}
+@font-face {
+  font-family: "Google Sans";
+  src: url("fonts/GoogleSans-Italic-LatinCyrillicGreek.woff2") format("woff2");
+  font-weight: 400 700;
+  font-style: italic;
+  font-display: swap;
+}
+
+/* ---------- 1. Raw palette ---------- */
+:root {
+  --lx-blue-50:  #EEF4FD;
+  --lx-blue-100: #D6E6FD;
+  --lx-blue-200: #A3C8F9; /* icon gradient top */
+  --lx-blue-300: #6FA3EF; /* soft blue — primary brand colour */
+  --lx-blue-400: #4A82E0; /* icon gradient bottom */
+  --lx-blue-500: #2F5DAA;
+  --lx-blue-600: #1D3B78;
+  --lx-blue-700: #142247; /* ink */
+  --lx-blue-800: #0F1A33;
+
+  --lx-red-400: #E5484D;  /* signal red — sparing accent, alerts, annotations */
+  --lx-red-600: #C9303A;
+
+  --lx-neutral-0:   #FFFFFF;
+  --lx-neutral-50:  #F2F6FC;
+  --lx-neutral-100: #E9EEF5;
+  --lx-neutral-200: #DCE5F2;
+  --lx-neutral-500: #4A5B7A;
+  --lx-neutral-900: #1B1E24;
+
+  --lx-gradient-icon: linear-gradient(180deg, var(--lx-blue-200) 0%, var(--lx-blue-400) 100%);
+
+  /* ---------- 2. Typography ---------- */
+  --lx-font-sans: "Google Sans", "Segoe UI Variable", "SF Pro Text", system-ui, -apple-system,
+                  "Segoe UI", Ubuntu, Cantarell, "Noto Sans", sans-serif;
+  --lx-font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Ubuntu Mono", Menlo, Consolas, monospace;
+
+  --lx-text-xs:  0.75rem;   /* 12 */
+  --lx-text-sm:  0.875rem;  /* 14 */
+  --lx-text-md:  1rem;      /* 16 */
+  --lx-text-lg:  1.25rem;   /* 20 */
+  --lx-text-xl:  1.75rem;   /* 28 */
+  --lx-text-2xl: 2.5rem;    /* 40 */
+
+  --lx-weight-regular: 400;   /* body */
+  --lx-weight-medium: 500;    /* menus, sidebar, secondary labels */
+  --lx-weight-semibold: 600;  /* buttons, tabs */
+  --lx-weight-bold: 700;      /* headings, wordmark (heaviest available) */
+
+  /* ---------- 3. Shape & space ---------- */
+  --lx-radius-sm: 6px;
+  --lx-radius-md: 10px;
+  --lx-radius-lg: 16px;
+  --lx-radius-xl: 24px;
+  --lx-icon-corner: 22.5%;  /* app-icon squircle corner, relative to icon size */
+
+  --lx-space-1: 4px;
+  --lx-space-2: 8px;
+  --lx-space-3: 12px;
+  --lx-space-4: 16px;
+  --lx-space-6: 24px;
+  --lx-space-8: 32px;
+
+  --lx-shadow-sm: 0 1px 2px rgb(15 37 88 / 0.10), 0 1px 1px rgb(15 37 88 / 0.06);
+  --lx-shadow-md: 0 8px 24px rgb(15 37 88 / 0.14);
+}
+
+/* ---------- 4. Semantic theme: light (default) ---------- */
+:root,
+:root[data-theme="light"] {
+  color-scheme: light;
+  --lx-bg:          var(--lx-neutral-50);
+  --lx-surface:     var(--lx-neutral-0);
+  --lx-surface-alt: var(--lx-neutral-100);
+  --lx-border:      var(--lx-neutral-200);
+  --lx-text:        var(--lx-blue-700);
+  --lx-text-muted:  var(--lx-neutral-500);
+  --lx-accent:      var(--lx-blue-500);   /* links, focus, primary buttons (6.6:1 on white) */
+  --lx-accent-soft: var(--lx-blue-100);   /* selection, hover fills */
+  --lx-on-accent:   var(--lx-neutral-0);
+  --lx-signal:      var(--lx-red-600);
+  --lx-focus-ring:  0 0 0 3px rgb(47 93 170 / 0.35);
+}
+
+/* ---------- 5. Semantic theme: dark ---------- */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --lx-bg:          var(--lx-blue-800);
+    --lx-surface:     #16233F;
+    --lx-surface-alt: #1C2B4B;
+    --lx-border:      #2A3B5E;
+    --lx-text:        #E8EEF8;
+    --lx-text-muted:  #A9B6CC;
+    --lx-accent:      var(--lx-blue-300);
+    --lx-accent-soft: #23406F;
+    --lx-on-accent:   var(--lx-blue-800);
+    --lx-signal:      var(--lx-red-400);
+    --lx-focus-ring:  0 0 0 3px rgb(111 163 239 / 0.45);
+  }
+}
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --lx-bg:          var(--lx-blue-800);
+  --lx-surface:     #16233F;
+  --lx-surface-alt: #1C2B4B;
+  --lx-border:      #2A3B5E;
+  --lx-text:        #E8EEF8;
+  --lx-text-muted:  #A9B6CC;
+  --lx-accent:      var(--lx-blue-300);
+  --lx-accent-soft: #23406F;
+  --lx-on-accent:   var(--lx-blue-800);
+  --lx-signal:      var(--lx-red-400);
+  --lx-focus-ring:  0 0 0 3px rgb(111 163 239 / 0.45);
+}
+
+/* ---------- 6. Base ---------- */
+.lx-root,
+body.lx {
+  margin: 0;
+  background: var(--lx-bg);
+  color: var(--lx-text);
+  font-family: var(--lx-font-sans);
+  font-size: var(--lx-text-md);
+  font-weight: var(--lx-weight-regular);
+  line-height: 1.5;
+  -webkit-font-smoothing: antialiased;
+}
+.lx a, .lx-root a { color: var(--lx-accent); }
+.lx ::selection, .lx-root ::selection { background: var(--lx-accent-soft); }
+.lx :focus-visible, .lx-root :focus-visible { outline: none; box-shadow: var(--lx-focus-ring); border-radius: var(--lx-radius-sm); }
+
+/* ---------- 7. Brand helpers ---------- */
+/* Live-text wordmark (use the SVG in wordmark/ when the font may be missing) */
+.lx-wordmark {
+  font-family: var(--lx-font-sans);
+  font-weight: var(--lx-weight-bold);
+  letter-spacing: -0.02em;
+  line-height: 1;
+  color: var(--lx-text);
+}
+
+/* App icon image: <img class="lx-app-icon lx-app-icon--48" src="png/lectrix-48.png" alt="Lectrix"> */
+.lx-app-icon { display: inline-block; width: 64px; height: 64px; flex: none; }
+.lx-app-icon--16  { width: 16px;  height: 16px; }
+.lx-app-icon--24  { width: 24px;  height: 24px; }
+.lx-app-icon--32  { width: 32px;  height: 32px; }
+.lx-app-icon--48  { width: 48px;  height: 48px; }
+.lx-app-icon--64  { width: 64px;  height: 64px; }
+.lx-app-icon--128 { width: 128px; height: 128px; }
+
+/* Icon + wordmark side by side; scales with font-size */
+.lx-lockup { display: inline-flex; align-items: center; gap: 0.45em; font-size: var(--lx-text-xl); }
+.lx-lockup .lx-app-icon { width: 1.75em; height: 1.75em; }
+
+/* The icon's background, for splash screens, about boxes, headers */
+.lx-brand-surface { background: var(--lx-gradient-icon); color: var(--lx-neutral-0); }
+
+/* ---------- 8. Core components ---------- */
+.lx-button {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--lx-space-2);
+  min-height: 36px; padding: 0 var(--lx-space-4);
+  font: var(--lx-weight-semibold) var(--lx-text-sm) / 1 var(--lx-font-sans);
+  color: var(--lx-text); background: var(--lx-surface);
+  border: 1px solid var(--lx-border); border-radius: var(--lx-radius-md);
+  box-shadow: var(--lx-shadow-sm); cursor: pointer;
+}
+.lx-button:hover { background: var(--lx-surface-alt); }
+.lx-button--primary { color: var(--lx-on-accent); background: var(--lx-accent); border-color: transparent; }
+.lx-button--primary:hover { filter: brightness(1.06); }
+
+.lx-card {
+  background: var(--lx-surface);
+  border: 1px solid var(--lx-border);
+  border-radius: var(--lx-radius-lg);
+  box-shadow: var(--lx-shadow-sm);
+  padding: var(--lx-space-6);
+}

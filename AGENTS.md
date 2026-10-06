@@ -109,6 +109,7 @@ lectrix/
 │  ├─ lib/stores/
 │  └─ routes/
 ├─ third_party/              # vendored mupdf crate (LECTRIX_PATCHES.md) and MuPDF headers
+├─ design/                   # brand kit sources (icons, wordmark, file icon, tokens); not shipped (ADR 0013)
 ├─ tests/
 │  ├─ corpus/                # real-world PDFs (Git LFS), read-only
 │  ├─ local-corpus/          # scripts for the user's private corpus (files git-ignored)
