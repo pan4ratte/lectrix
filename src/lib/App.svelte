@@ -47,7 +47,7 @@
 	} from '#lib/ipc/index.ts';
 	import { COMMIT_FIELD_FIRST, commandFor, isBlocked, isBrowserZoomKey, isTextInput } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
-	import { applyAppearance, applyTheme } from '#lib/theme.ts';
+	import { applyAppearance } from '#lib/theme.ts';
 
 	const tab = $derived(app.active);
 
@@ -56,7 +56,6 @@
 			const info = await appReady();
 			app.startup = info;
 			app.restorePanes(info.panes);
-			applyTheme(info);
 			void getSettings()
 				.then((s) => {
 					app.settings = s;

@@ -4,6 +4,7 @@
 	import { Dialog } from 'bits-ui';
 	import { untrack } from 'svelte';
 
+	import Dropdown from '#lib/components/Dropdown.svelte';
 	import { parsePageRanges } from '#lib/features/viewer/ranges.ts';
 	import type { BookmarkMode, InsertLabelMode } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
@@ -101,14 +102,15 @@
 					<fieldset class="flex flex-col gap-2">
 						<legend class="mb-1 text-sm font-medium">Where</legend>
 						<div class="flex items-center gap-2">
-							<select
-								class="field h-7"
+							<Dropdown
+								class="h-7 w-32"
 								bind:value={where}
-								aria-label="Before or after"
-							>
-								<option value="before">Before page</option>
-								<option value="after">After page</option>
-							</select>
+								label="Before or after"
+								options={[
+									{ value: 'before', label: 'Before page' },
+									{ value: 'after', label: 'After page' }
+								]}
+							/>
 							<input
 								class="field h-7 w-20"
 								bind:value={pageText}
@@ -120,15 +122,16 @@
 					</fieldset>
 					<fieldset class="flex flex-col gap-2">
 						<legend class="mb-1 text-sm font-medium">Bookmarks</legend>
-						<select
-							class="field h-7"
+						<Dropdown
+							class="h-7 w-full"
 							bind:value={bookmarks}
-							aria-label="Bookmarks of the inserted file"
-						>
-							<option value="nest">One bookmark for the file, with its bookmarks inside</option>
-							<option value="flat">The file’s bookmarks as they are</option>
-							<option value="drop">No bookmarks</option>
-						</select>
+							label="Bookmarks of the inserted file"
+							options={[
+								{ value: 'nest', label: 'One bookmark for the file, with its bookmarks inside' },
+								{ value: 'flat', label: 'The file’s bookmarks as they are' },
+								{ value: 'drop', label: 'No bookmarks' }
+							]}
+						/>
 					</fieldset>
 					<fieldset class="flex flex-col gap-2">
 						<legend class="mb-1 text-sm font-medium">Page labels</legend>

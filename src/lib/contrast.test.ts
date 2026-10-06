@@ -1,5 +1,5 @@
 // WCAG AA contrast of the design tokens in src/app.css (AGENTS.md section 8,
-// accessibility): text 4.5:1, marks and field edges 3:1 (WCAG 1.4.3 and 1.4.11), in
+// accessibility): text 4.5:1, focus rings and marks 3:1 (WCAG 1.4.3 and 1.4.11), in
 // the light and the dark theme, with the Lectrix blue accent (ADR 0010).
 import { readFileSync } from 'node:fs';
 
@@ -93,17 +93,24 @@ describe.each([
 	['light', light],
 	['dark', dark]
 ])('%s theme', (_name, vars) => {
-	const surfaces = ['--lectrix-bg', '--lectrix-chrome', '--lectrix-surface', '--lectrix-surface-raised', '--lectrix-canvas'];
+	const surfaces = ['--lectrix-bg', '--lectrix-chrome', '--lectrix-surface', '--lectrix-surface-raised', '--lectrix-menu', '--lectrix-canvas'];
+	// Filled controls: text on them, with no hover or selection tint on top.
+	const fills = ['--lectrix-tab-active', '--lectrix-button', '--lectrix-button-hover'];
 
 	it('text reads at 4.5:1 on every surface, also hovered or selected', () => {
 		for (const surface of surfaces) {
 			const bg = solid(surface, vars);
-			for (const text of ['--lectrix-fg', '--lectrix-fg-muted']) {
+			for (const text of ['--lectrix-fg', '--lectrix-fg-muted', '--lectrix-fg-strong']) {
 				expect(contrast(solid(text, vars), bg), `${text} on ${surface}`).toBeGreaterThanOrEqual(4.5);
 				for (const state of ['--lectrix-hover', '--lectrix-pressed', '--lectrix-row-selected']) {
 					const stateBg = on(state, vars, bg);
 					expect(contrast(solid(text, vars), stateBg), `${text} on ${state} over ${surface}`).toBeGreaterThanOrEqual(4.5);
 				}
+			}
+		}
+		for (const fill of fills) {
+			for (const text of ['--lectrix-fg', '--lectrix-fg-muted']) {
+				expect(contrast(solid(text, vars), solid(fill, vars)), `${text} on ${fill}`).toBeGreaterThanOrEqual(4.5);
 			}
 		}
 	});
@@ -119,7 +126,7 @@ describe.each([
 		expect(contrast(solid('--lectrix-close-hover-fg', vars), solid('--lectrix-close-hover', vars))).toBeGreaterThanOrEqual(4.5);
 	});
 
-	it('focus rings, accent marks, field edges and file marks stand out at 3:1', () => {
+	it('focus rings, accent marks and file marks stand out at 3:1', () => {
 		for (const surface of surfaces) {
 			const bg = solid(surface, vars);
 			expect(contrast(solid('--lectrix-focus', vars), bg), `focus on ${surface}`).toBeGreaterThanOrEqual(3);
@@ -130,12 +137,10 @@ describe.each([
 			const tint = on('--lectrix-row-selected', vars, solid(bar, vars));
 			expect(contrast(solid('--lectrix-accent', vars), tint), `active tool on ${bar}`).toBeGreaterThanOrEqual(3);
 		}
-		for (const bg of ['--lectrix-surface', '--lectrix-surface-raised']) {
-			expect(contrast(solid('--lectrix-field-stroke', vars), solid(bg, vars)), `field edge on ${bg}`).toBeGreaterThanOrEqual(3);
-		}
 		for (let i = 1; i <= 6; i++) {
-			const bg = solid('--lectrix-surface', vars);
-			expect(contrast(solid(`--lectrix-source-${i}`, vars), bg), `source ${i}`).toBeGreaterThanOrEqual(3);
+			for (const bg of ['--lectrix-surface', '--lectrix-chrome']) {
+				expect(contrast(solid(`--lectrix-source-${i}`, vars), solid(bg, vars)), `source ${i} on ${bg}`).toBeGreaterThanOrEqual(3);
+			}
 		}
 	});
 

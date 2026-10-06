@@ -3,10 +3,14 @@
 	// (section 6.5), as Acrobat has it: one button showing the colour in use, which opens a
 	// panel with the six presets, a custom colour and the opacity slider. A colour applies
 	// when picked and the panel stays open for the opacity, which applies when the slider is
-	// let go. Esc or a click elsewhere closes it.
+	// let go. The custom colour's button opens Lectrix's own picker in the panel (HexPicker),
+	// open from the start when the colour in use is not a preset. Esc or a click elsewhere
+	// closes the panel.
 	import { ChevronDown } from '@lucide/svelte';
 	import { Popover } from 'bits-ui';
+	import { untrack } from 'svelte';
 
+	import HexPicker from './HexPicker.svelte';
 	import { PRESET_COLORS } from './tools.ts';
 
 	interface Props {
@@ -29,6 +33,10 @@
 	const name = $derived(preset?.name ?? (color === null ? 'none' : 'custom'));
 
 	let open = $state(false);
+	/** The custom colour's picker is shown. */
+	let expanded = $state(false);
+	const uid = $props.id();
+	const pickerId = `${uid}-custom`;
 	let trigger = $state<HTMLElement | null>(null);
 	let content = $state<HTMLElement | null>(null);
 	/** The slider's value while it moves, before it is applied. */
@@ -37,6 +45,10 @@
 
 	$effect(() => {
 		if (open) value = opacity;
+	});
+
+	$effect(() => {
+		if (open) expanded = untrack(() => custom);
 	});
 
 	function apply() {
@@ -54,7 +66,8 @@
 	/** Opens on the colour in use, so arrows move from it. */
 	function focusChosen(event: Event) {
 		event.preventDefault();
-		const chosen = content?.querySelector<HTMLElement>('.swatch[aria-checked="true"]') ?? content?.querySelector<HTMLElement>('.swatch');
+		const chosen =
+			content?.querySelector<HTMLElement>('.swatch[aria-checked="true"], .swatch-custom-on') ?? content?.querySelector<HTMLElement>('.swatch');
 		chosen?.focus();
 	}
 
@@ -89,24 +102,37 @@
 			onOpenAutoFocus={focusChosen}
 			onCloseAutoFocus={restoreFocus}
 		>
-			<div class="flex items-center justify-between" role="radiogroup" aria-label={label}>
-				{#each PRESET_COLORS as c (c.value)}
-					<button
-						type="button"
-						class="swatch"
-						role="radio"
-						aria-checked={color === c.value}
-						aria-label={c.name}
-						title={c.name}
-						style:--swatch={c.value}
-						onclick={() => oncolor(c.value)}
-					></button>
-				{/each}
-				<label class="swatch swatch-custom" class:swatch-custom-on={custom} title="Custom colour">
-					<span class="sr-only">Custom colour</span>
-					<input type="color" class="sr-only" value={color ?? '#000000'} onchange={(e) => oncolor(e.currentTarget.value)} />
-				</label>
+			<div class="flex items-center justify-between">
+				<div class="flex flex-1 items-center justify-between pr-[6px]" role="radiogroup" aria-label={label}>
+					{#each PRESET_COLORS as c (c.value)}
+						<button
+							type="button"
+							class="swatch"
+							role="radio"
+							aria-checked={color === c.value}
+							aria-label={c.name}
+							title={c.name}
+							style:--swatch={c.value}
+							onclick={() => oncolor(c.value)}
+						></button>
+					{/each}
+				</div>
+				<button
+					type="button"
+					class="swatch swatch-custom"
+					class:swatch-custom-on={custom}
+					aria-label={custom ? `Custom colour, ${color}` : 'Custom colour'}
+					aria-expanded={expanded}
+					aria-controls={pickerId}
+					title="Custom colour"
+					onclick={() => (expanded = !expanded)}
+				></button>
 			</div>
+			{#if expanded}
+				<div id={pickerId}>
+					<HexPicker {color} onpick={oncolor} />
+				</div>
+			{/if}
 			<label class="mt-2 flex items-center gap-2">
 				<span class="text-xs text-fg-muted">Opacity</span>
 				<input

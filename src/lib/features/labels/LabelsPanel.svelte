@@ -8,6 +8,7 @@
 	import { DropdownMenu } from 'bits-ui';
 	import { tick } from 'svelte';
 
+	import Dropdown from '#lib/components/Dropdown.svelte';
 	import type { LabelRule, LabelStyle } from '#lib/ipc/index.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -335,16 +336,13 @@
 			</div>
 			<label class="flex flex-col gap-1">
 				<span class="text-xs text-fg-muted">Style</span>
-				<select
-					class={fieldClass}
+				<Dropdown
+					class="h-8 w-full min-w-0 text-sm"
 					bind:value={draft.style}
 					disabled={!editable}
+					options={STYLES.map((s) => ({ value: s.value, label: s.name }))}
 					onchange={() => void commit('pick')}
-				>
-					{#each STYLES as s (s.value)}
-						<option value={s.value}>{s.name}</option>
-					{/each}
-				</select>
+				/>
 			</label>
 			<label class="flex flex-col gap-1">
 				<span class="text-xs text-fg-muted">Prefix</span>

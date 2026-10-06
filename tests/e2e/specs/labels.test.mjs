@@ -40,7 +40,13 @@ async function goToPage(browser, page) {
 }
 
 async function field(browser, label) {
-	return (await browser.$(`label*=${label}`)).$('input, select');
+	return (await browser.$(`label*=${label}`)).$('input, [data-select-trigger]');
+}
+
+/** Picks `option` in the labelled dropdown (Dropdown.svelte: a button opening a list). */
+async function choose(browser, label, option) {
+	await (await field(browser, label)).click();
+	await (await browser.$(`//*[@role="option"][normalize-space()="${option}"]`)).click();
 }
 
 /** The labels on disk, as `pdf-cli info` prints its rules. */
@@ -86,7 +92,7 @@ test('set, preview, undo, save and reopen page labels', async () => {
 		await goToPage(browser, 7);
 		await (await browser.$('button[aria-label="New range from the current page"]')).click();
 		await waitForRows(browser, ['1–3 i – iii', '4–6 Ch-1 – Ch-3', '7–8 1 – 2'], 'new range');
-		await (await field(browser, 'Style')).selectByVisibleText('A, B, C');
+		await choose(browser, 'Style', 'A, B, C');
 		await waitForRows(browser, ['1–3 i – iii', '4–6 Ch-1 – Ch-3', '7–8 A – B'], 'lettered');
 		await waitForStatus(browser, 'A (7 of 8)', 'lettered');
 

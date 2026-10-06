@@ -2,63 +2,11 @@
 
 use std::path::Path;
 
-use windows_sys::Wdk::System::SystemServices::RtlGetVersion;
-use windows_sys::Win32::System::SystemInformation::OSVERSIONINFOW;
-
-use super::{Backdrop, Platform};
+use super::Platform;
 
 pub struct Windows;
 
-/// First Windows 11 build; Mica exists from here on.
-const WINDOWS_11_BUILD: u32 = 22000;
-
-fn build_number() -> u32 {
-    let mut info = OSVERSIONINFOW {
-        dwOSVersionInfoSize: std::mem::size_of::<OSVERSIONINFOW>() as u32,
-        ..OSVERSIONINFOW::default()
-    };
-    // SAFETY: `info` is a properly sized, writable OSVERSIONINFOW with its size field set,
-    // as RtlGetVersion requires. It always succeeds for this structure.
-    let status = unsafe { RtlGetVersion(&mut info) };
-    if status == 0 { info.dwBuildNumber } else { 0 }
-}
-
 impl Platform for Windows {
-    /// The window theme, and Mica in the same tone: the plain Mica effect follows the
-    /// system's theme, not the window's, so a forced theme would show a light material
-    /// behind dark text (or the reverse).
-    fn set_appearance(
-        &self,
-        window: &tauri::WebviewWindow,
-        dark: Option<bool>,
-    ) -> tauri::Result<()> {
-        use tauri::window::{Effect, EffectsBuilder};
-        window.set_theme(dark.map(|d| {
-            if d {
-                tauri::Theme::Dark
-            } else {
-                tauri::Theme::Light
-            }
-        }))?;
-        if self.backdrop() == Backdrop::Mica {
-            let effect = match dark {
-                Some(true) => Effect::MicaDark,
-                Some(false) => Effect::MicaLight,
-                None => Effect::Mica,
-            };
-            window.set_effects(EffectsBuilder::new().effect(effect).build())?;
-        }
-        Ok(())
-    }
-
-    fn backdrop(&self) -> Backdrop {
-        if build_number() >= WINDOWS_11_BUILD {
-            Backdrop::Mica
-        } else {
-            Backdrop::Solid
-        }
-    }
-
     fn same_file(&self, a: &Path, b: &Path) -> bool {
         // canonicalize resolves links and gives the on-disk spelling; NTFS is
         // case-insensitive, so compare case-insensitively as well.
@@ -168,12 +116,6 @@ mod tests {
             merged,
             "--disable-features=msWebOOUI,msPdfOOUI,msSmartScreenProtection,IgnoreDuplicateNavs --autoplay-policy=no-user-gesture-required --remote-debugging-port=0"
         );
-    }
-
-    #[test]
-    fn reads_a_plausible_build_number() {
-        // Windows 10 1809 is build 17763, the oldest supported version.
-        assert!(build_number() >= 17763);
     }
 
     #[test]

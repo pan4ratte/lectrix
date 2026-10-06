@@ -29,8 +29,3 @@ ts-rs = "=12.0.1"
 # WebView2's memory target level (ADR 0002). Both already in the tree through Tauri.
 webview2-com = "=0.39.1"
 windows-core = "=0.62.2"
-# Already in the dependency tree through Tauri; used directly by src/platform/windows.rs.
-windows-sys = { version = "=0.61.2", features = [
-    "Wdk_System_SystemServices",
-    "Win32_System_SystemInformation",
-] }

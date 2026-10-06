@@ -6,19 +6,7 @@ use std::path::Path;
 #[cfg(windows)]
 mod windows;
 
-/// Window backdrop the frontend should style for.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Backdrop {
-    /// The system draws a translucent material (Mica) behind transparent areas.
-    Mica,
-    /// No material: the frontend paints solid colors everywhere.
-    Solid,
-}
-
 pub trait Platform: Send + Sync {
-    /// The backdrop the main window can use on this system.
-    fn backdrop(&self) -> Backdrop;
-
     /// True if `a` and `b` name the same file (case rules and links of the platform).
     fn same_file(&self, a: &Path, b: &Path) -> bool {
         match (std::fs::canonicalize(a), std::fs::canonicalize(b)) {
@@ -33,7 +21,7 @@ pub trait Platform: Send + Sync {
     fn set_low_memory(&self, _window: &tauri::WebviewWindow, _low: bool) {}
 
     /// Light or dark window (`None`: as the system is). The webview's color scheme follows
-    /// the window theme; platforms with a backdrop material also retint it.
+    /// the window theme.
     fn set_appearance(
         &self,
         window: &tauri::WebviewWindow,
@@ -96,8 +84,4 @@ pub fn current() -> &'static dyn Platform {
 struct Generic;
 
 #[cfg(not(windows))]
-impl Platform for Generic {
-    fn backdrop(&self) -> Backdrop {
-        Backdrop::Solid
-    }
-}
+impl Platform for Generic {}

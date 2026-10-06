@@ -19,6 +19,7 @@
 	// is kept for each annotation. The author and dates are in the Properties dialog.
 	import { TriangleAlert, Wrench } from '@lucide/svelte';
 
+	import Dropdown from '#lib/components/Dropdown.svelte';
 	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -34,7 +35,7 @@
 		type ResizeEdge
 	} from './bars.ts';
 	import ColorPicker from './ColorPicker.svelte';
-	import { FONT_SIZES, PEN_WIDTHS, PROBLEM_TEXT, capabilities, typeName } from './tools.ts';
+	import { FONT_SIZES, PEN_WIDTHS, PROBLEM_TEXT, capabilities, ptOptions, typeName } from './tools.ts';
 
 	interface Props {
 		tab: DocTab;
@@ -247,30 +248,24 @@
 						onopacity={(opacity) => void restyle(tab, a, { opacity })}
 					/>
 					{#if a.kind === 'ink'}
-						<select
-							class="toolbar-select"
-							aria-label="Stroke width"
+						<Dropdown
+							class="toolbar-dropdown"
+							label="Stroke width"
 							title="Stroke width"
 							value={a.width ?? 1}
-							onchange={(e) => void update(tab, a.page, a.id, { width: Number(e.currentTarget.value) })}
-						>
-							{#each [...new Set([...PEN_WIDTHS, a.width ?? 1])].sort((x, y) => x - y) as width (width)}
-								<option value={width}>{width} pt</option>
-							{/each}
-						</select>
+							options={ptOptions([...PEN_WIDTHS, a.width ?? 1])}
+							onchange={(width) => void update(tab, a.page, a.id, { width })}
+						/>
 					{/if}
 					{#if a.kind === 'freeText'}
-						<select
-							class="toolbar-select"
-							aria-label="Font size"
+						<Dropdown
+							class="toolbar-dropdown"
+							label="Font size"
 							title="Font size"
 							value={a.fontSize ?? 12}
-							onchange={(e) => void update(tab, a.page, a.id, { fontSize: Number(e.currentTarget.value) })}
-						>
-							{#each [...new Set([...FONT_SIZES, a.fontSize ?? 12])].sort((x, y) => x - y) as points (points)}
-								<option value={points}>{points} pt</option>
-							{/each}
-						</select>
+							options={ptOptions([...FONT_SIZES, a.fontSize ?? 12])}
+							onchange={(fontSize) => void update(tab, a.page, a.id, { fontSize })}
+						/>
 					{/if}
 				</div>
 			{/if}

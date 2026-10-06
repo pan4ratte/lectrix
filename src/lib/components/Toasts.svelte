@@ -11,7 +11,7 @@
 	<UpdateNotice />
 	{#each app.toasts as toast (toast.id)}
 		<div
-			class="pointer-events-auto flex gap-3 rounded-panel border border-line p-3 shadow-[0_8px_16px_var(--color-page-shadow)]"
+			class="pointer-events-auto flex gap-3 rounded-panel border border-menu-line p-3"
 			class:bg-danger-bg={toast.kind === 'error'}
 			class:bg-info-bg={toast.kind === 'info'}
 			role={toast.kind === 'error' ? 'alert' : 'status'}

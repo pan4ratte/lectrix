@@ -21,12 +21,6 @@
         "minWidth": 640,
         "minHeight": 480,
         "decorations": false,
-        "transparent": true,
-        "windowEffects": {
-          "effects": [
-            "mica"
-          ]
-        },
         "dragDropEnabled": true
       }
     ],

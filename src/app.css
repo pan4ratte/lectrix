@@ -26,114 +26,148 @@
  * bg-surface, text-fg, border-line, or the component classes below); never hard-coded
  * colors. Spacing follows an 8 px grid (4 px for tight spots); radii 6 to 8 px.
  *
+ * The neutrals are the Neo theme for Obsidian (x0aa7i/obsidian-neo, MIT): its light theme
+ * and its Midnight dark theme, with the grey tint moved to Lectrix blue's hue, 217 (Neo's
+ * "accent affects background"), ADR 0014. Neo's steps run from base-05 (text) to base-60
+ * (the deepest background in Midnight, the brightest in light). Where they go:
+ *   chrome   title bar and side panes: Neo's secondary background (base-55)
+ *   surface  view bar and fields: Neo's primary background (base-60)
+ *   raised   floating panels and dialogs: light base-60; dark base-50, Neo's prompt
+ *   menu     menus, popovers and notices, flat: Neo's menus and notices (base-50)
+ *   canvas   behind the pages, darker than the panes in both themes so white pages stand
+ *            out: light base-50; dark base-60, Neo's editor
+ *
  * The accent is Lectrix blue from the brand kit (ADR 0010): the deeper #2f5daa with white
  * text in the light theme, the soft brand blue #6fa3ef with ink text in the dark one, each
- * at 3:1 or more on every surface (src/lib/contrast.test.ts).
+ * at 3:1 or more on every surface (src/lib/contrast.test.ts). Reds are the brand's signal
+ * red; the Combine view's file marks are Neo's named colours.
  */
 :root {
 	color-scheme: light dark;
-	--lectrix-bg: #f3f3f3;
-	--lectrix-chrome: #f3f3f3;
-	--lectrix-surface: #fbfbfb;
-	--lectrix-surface-raised: #ffffff;
-	--lectrix-canvas: #e6e6e6;
-	--lectrix-hover: rgb(0 0 0 / 0.05);
-	--lectrix-pressed: rgb(0 0 0 / 0.08);
-	--lectrix-fg: #1b1b1b;
-	--lectrix-fg-muted: #575757;
-	--lectrix-line: #e0e0e0;
-	/* The bottom edge of text fields: 3:1 against the surface, so a field can be told
-	   apart from plain text (WCAG 1.4.11), as Windows 11 text boxes do. */
-	--lectrix-field-stroke: #868686;
+	--lectrix-bg: #f2f4f7;
+	--lectrix-chrome: #f2f4f7;
+	--lectrix-surface: #f9fafb;
+	--lectrix-surface-raised: #f9fafb;
+	--lectrix-menu: #e4e9f1;
+	/* Light menus have the canvas's colour, so their edge is a step darker than other lines. */
+	--lectrix-menu-line: var(--lectrix-line-strong);
+	--lectrix-canvas: #e4e9f1;
+	/* The active document tab: a pill, ringed with a line in the light theme. */
+	--lectrix-tab-active: #f9fafb;
+	--lectrix-tab-active-line: var(--lectrix-line);
+	--lectrix-button: #f2f4f7;
+	--lectrix-button-hover: #e4e9f1;
+	--lectrix-hover: rgb(77 116 179 / 0.14);
+	--lectrix-pressed: rgb(77 116 179 / 0.2);
+	--lectrix-fg: #22252a;
+	--lectrix-fg-muted: #505762;
+	/* Headings and titles. */
+	--lectrix-fg-strong: #121417;
+	/* Neo's base-45 a step darker, so pane and bar edges show. */
+	--lectrix-line: #ccd3dd;
+	/* The edge of a control under the pointer (fields, dropdowns, buttons): Neo's
+	   base-40, a step stronger than the line. */
+	--lectrix-line-strong: #bec5cf;
 	--lectrix-accent: #2f5daa;
 	--lectrix-accent-fg: #ffffff;
 	--lectrix-focus: var(--lectrix-accent);
-	--lectrix-danger: #c42b1c;
-	--lectrix-danger-bg: #fde7e9;
-	--lectrix-info-bg: #f0f6fc;
+	--lectrix-danger: #c9303a;
+	--lectrix-danger-bg: #f9edef;
+	--lectrix-info-bg: #eef4fd;
 	--lectrix-page-shadow: rgb(0 0 0 / 0.14);
-	--lectrix-overlay: rgb(0 0 0 / 0.3);
+	--lectrix-overlay: rgb(0 0 0 / 0.5);
 	--lectrix-selection: color-mix(in srgb, var(--lectrix-accent) 32%, transparent);
 	--lectrix-search-hit: rgb(255 196 0 / 0.38);
 	--lectrix-search-current: rgb(255 120 0 / 0.5);
 	--lectrix-row-selected: color-mix(in srgb, var(--lectrix-accent) 16%, transparent);
-	--lectrix-close-hover: #c42b1c;
+	--lectrix-close-hover: #c9303a;
 	--lectrix-close-hover-fg: #ffffff;
-	/* Marks telling files apart in the Combine view (3:1 against the chrome). */
-	--lectrix-source-1: #0f6cbd;
-	--lectrix-source-2: #c239b3;
-	--lectrix-source-3: #107c10;
-	--lectrix-source-4: #ca5010;
-	--lectrix-source-5: #8764b8;
-	--lectrix-source-6: #038387;
+	/* Marks telling files apart in the Combine view: Neo's blue, pink, green, orange, purple
+	   and teal, deepened where needed for 3:1 against the chrome and the surface. */
+	--lectrix-source-1: #5680db;
+	--lectrix-source-2: #d44993;
+	--lectrix-source-3: #0ca339;
+	--lectrix-source-4: #df6b1e;
+	--lectrix-source-5: #6f55f1;
+	--lectrix-source-6: #25949e;
 }
 
-/* Dark: the system's choice unless Settings forces light, or forced (data-theme). */
+/* Dark, Neo's Midnight: the system's choice unless Settings forces light, or forced
+   (data-theme). */
 @media (prefers-color-scheme: dark) {
 	:root:not([data-theme='light']) {
-		--lectrix-bg: #202020;
-		--lectrix-chrome: #202020;
-		--lectrix-surface: #2b2b2b;
-		--lectrix-surface-raised: #2c2c2c;
-		--lectrix-canvas: #1a1a1a;
-		--lectrix-hover: rgb(255 255 255 / 0.06);
-		--lectrix-pressed: rgb(255 255 255 / 0.09);
-		--lectrix-fg: #ffffff;
-		--lectrix-fg-muted: #c5c5c5;
-		--lectrix-line: #3a3a3a;
-		--lectrix-field-stroke: #9a9a9a;
+		--lectrix-bg: #131416;
+		--lectrix-chrome: #131416;
+		--lectrix-surface: #0c0d0e;
+		--lectrix-surface-raised: #1c1e22;
+		--lectrix-menu: #1c1e22;
+		--lectrix-menu-line: var(--lectrix-line-strong);
+		--lectrix-canvas: #0c0d0e;
+		--lectrix-tab-active: #2a2f37;
+		--lectrix-tab-active-line: transparent;
+		--lectrix-button: #262a31;
+		--lectrix-button-hover: #2a2f37;
+		--lectrix-hover: rgb(179 198 230 / 0.1);
+		--lectrix-pressed: rgb(179 198 230 / 0.12);
+		--lectrix-fg: #a9b0bc;
+		/* Neo's base-20 two steps lighter, for 4.5:1 on a selected row in a floating panel. */
+		--lectrix-fg-muted: #929baa;
+		--lectrix-fg-strong: #e1e5ea;
+		--lectrix-line: #303540;
+		--lectrix-line-strong: #3a404a;
 		--lectrix-accent: #6fa3ef;
 		--lectrix-accent-fg: #0f1a33;
-		--lectrix-danger: #ff99a4;
-		--lectrix-danger-bg: #442726;
-		--lectrix-info-bg: #1f2a35;
+		--lectrix-danger: #e85a5f;
+		--lectrix-danger-bg: #2f1618;
+		--lectrix-info-bg: #181f29;
 		--lectrix-page-shadow: rgb(0 0 0 / 0.5);
-		--lectrix-overlay: rgb(0 0 0 / 0.5);
-		--lectrix-source-1: #479ef5;
-		--lectrix-source-2: #e370d9;
-		--lectrix-source-3: #54b054;
-		--lectrix-source-4: #f7894a;
-		--lectrix-source-5: #b59ae6;
-		--lectrix-source-6: #4fb7b9;
+		--lectrix-overlay: rgb(0 0 0 / 0.6);
+		--lectrix-source-1: #7ab0f7;
+		--lectrix-source-2: #ff97cf;
+		--lectrix-source-3: #22d0a2;
+		--lectrix-source-4: #ed8b4f;
+		--lectrix-source-5: #9580ff;
+		--lectrix-source-6: #3eb4bf;
 	}
 }
 
 :root[data-theme='dark'] {
 	color-scheme: dark;
-	--lectrix-bg: #202020;
-	--lectrix-chrome: #202020;
-	--lectrix-surface: #2b2b2b;
-	--lectrix-surface-raised: #2c2c2c;
-	--lectrix-canvas: #1a1a1a;
-	--lectrix-hover: rgb(255 255 255 / 0.06);
-	--lectrix-pressed: rgb(255 255 255 / 0.09);
-	--lectrix-fg: #ffffff;
-	--lectrix-fg-muted: #c5c5c5;
-	--lectrix-line: #3a3a3a;
-	--lectrix-field-stroke: #9a9a9a;
+	--lectrix-bg: #131416;
+	--lectrix-chrome: #131416;
+	--lectrix-surface: #0c0d0e;
+	--lectrix-surface-raised: #1c1e22;
+	--lectrix-menu: #1c1e22;
+	--lectrix-menu-line: var(--lectrix-line-strong);
+	--lectrix-canvas: #0c0d0e;
+	--lectrix-tab-active: #2a2f37;
+	--lectrix-tab-active-line: transparent;
+	--lectrix-button: #262a31;
+	--lectrix-button-hover: #2a2f37;
+	--lectrix-hover: rgb(179 198 230 / 0.1);
+	--lectrix-pressed: rgb(179 198 230 / 0.12);
+	--lectrix-fg: #a9b0bc;
+	--lectrix-fg-muted: #929baa;
+	--lectrix-fg-strong: #e1e5ea;
+	--lectrix-line: #303540;
+	--lectrix-line-strong: #3a404a;
 	--lectrix-accent: #6fa3ef;
 	--lectrix-accent-fg: #0f1a33;
-	--lectrix-danger: #ff99a4;
-	--lectrix-danger-bg: #442726;
-	--lectrix-info-bg: #1f2a35;
+	--lectrix-danger: #e85a5f;
+	--lectrix-danger-bg: #2f1618;
+	--lectrix-info-bg: #181f29;
 	--lectrix-page-shadow: rgb(0 0 0 / 0.5);
-	--lectrix-overlay: rgb(0 0 0 / 0.5);
-	--lectrix-source-1: #479ef5;
-	--lectrix-source-2: #e370d9;
-	--lectrix-source-3: #54b054;
-	--lectrix-source-4: #f7894a;
-	--lectrix-source-5: #b59ae6;
-	--lectrix-source-6: #4fb7b9;
+	--lectrix-overlay: rgb(0 0 0 / 0.6);
+	--lectrix-source-1: #7ab0f7;
+	--lectrix-source-2: #ff97cf;
+	--lectrix-source-3: #22d0a2;
+	--lectrix-source-4: #ed8b4f;
+	--lectrix-source-5: #9580ff;
+	--lectrix-source-6: #3eb4bf;
 }
 
 :root[data-theme='light'] {
 	color-scheme: light;
-}
-
-/* With Mica, the chrome is transparent and the system material shows through. */
-:root[data-backdrop='mica'] {
-	--lectrix-bg: transparent;
-	--lectrix-chrome: transparent;
 }
 
 @theme inline {
@@ -142,9 +176,12 @@
 	--color-surface: var(--lectrix-surface);
 	--color-surface-raised: var(--lectrix-surface-raised);
 	--color-canvas: var(--lectrix-canvas);
+	--color-menu: var(--lectrix-menu);
+	--color-menu-line: var(--lectrix-menu-line);
 	--color-hover: var(--lectrix-hover);
 	--color-fg: var(--lectrix-fg);
 	--color-fg-muted: var(--lectrix-fg-muted);
+	--color-fg-strong: var(--lectrix-fg-strong);
 	--color-line: var(--lectrix-line);
 	--color-accent: var(--lectrix-accent);
 	--color-accent-fg: var(--lectrix-accent-fg);
@@ -174,7 +211,8 @@ body {
 	touch-action: pan-x pan-y;
 }
 
-/* In the base layer, so a field's own size class (text-sm...) wins over inheriting. */
+/* In the base layer, so a field's own size class (text-sm...) wins over inheriting, and a
+   heading's own colour (text-fg-muted) over the heading colour. */
 @layer base {
 	input,
 	textarea {
@@ -183,11 +221,44 @@ body {
 		font: inherit;
 		color: inherit;
 	}
+	h1,
+	h2,
+	h3 {
+		color: var(--lectrix-fg-strong);
+	}
 }
 
 button {
 	font: inherit;
 	color: inherit;
+}
+
+/* Native radio buttons, checkboxes and sliders in the accent. */
+:root {
+	accent-color: var(--lectrix-accent);
+}
+
+/* A hand over everything that can be clicked, as Neo has it (ADR 0014). The window buttons
+   keep the arrow, as Windows' own do (WindowControls). */
+button,
+select,
+summary,
+label:has(input[type='checkbox'], input[type='radio'], button[role='checkbox'], button[role='radio']),
+input[type='checkbox'],
+input[type='radio'],
+input[type='range'],
+input[type='color'],
+[role='tab'],
+[role='option'],
+[role='treeitem'],
+[role='radio'],
+[role='checkbox'],
+[role='menuitem'],
+[role='menuitemradio'],
+[role='menuitemcheckbox'] {
+	cursor: pointer;
+}
+:is(button, select, input, [role]):is(:disabled, [aria-disabled='true'], [data-disabled]) {
 	cursor: default;
 }
 
@@ -265,6 +336,8 @@ button {
 	opacity: 0.4;
 }
 
+/* Controls (buttons, fields, dropdowns) have the same edge on every side: the theme's line,
+   a step stronger under the pointer, and an even accent ring when focused or open. */
 .button {
 	display: inline-flex;
 	height: 32px;
@@ -274,10 +347,11 @@ button {
 	padding: 0 12px;
 	border: 1px solid var(--lectrix-line);
 	border-radius: var(--radius-control);
-	background: var(--lectrix-surface-raised);
+	background: var(--lectrix-button);
 }
 .button:hover:not(:disabled) {
-	background: color-mix(in srgb, var(--lectrix-surface-raised), var(--lectrix-fg) 4%);
+	border-color: var(--lectrix-line-strong);
+	background: var(--lectrix-button-hover);
 }
 .button:disabled {
 	opacity: 0.45;
@@ -294,16 +368,19 @@ button {
 .field {
 	padding: 0 8px;
 	border: 1px solid var(--lectrix-line);
-	border-bottom-color: var(--lectrix-field-stroke);
 	border-radius: var(--radius-control);
 	background: var(--lectrix-surface);
 	color: var(--lectrix-fg);
 	outline: none;
 }
-/* Focus: an accent border with a 2 px accent bottom edge (Windows 11 text boxes). */
-.field:focus {
+.field:hover:not(:disabled, :focus, :focus-within) {
+	border-color: var(--lectrix-line-strong);
+}
+/* Focus: a 2 px accent ring, the border and a ring just inside it. */
+.field:focus,
+.field:focus-within {
 	border-color: var(--lectrix-accent);
-	box-shadow: inset 0 -1px 0 var(--lectrix-accent);
+	box-shadow: inset 0 0 0 1px var(--lectrix-accent);
 }
 .field[readonly] {
 	color: var(--lectrix-fg-muted);
@@ -340,27 +417,71 @@ button {
 	flex-shrink: 0;
 	align-items: center;
 	justify-content: center;
-	border: 1px solid color-mix(in srgb, var(--lectrix-fg) 25%, transparent);
+	border: 1px solid color-mix(in srgb, var(--lectrix-fg) 45%, transparent);
 	border-radius: 50%;
 	background: var(--swatch);
-	cursor: default;
 }
 .swatch[aria-checked='true'],
 .swatch-custom-on {
 	outline: 2px solid var(--lectrix-accent);
 	outline-offset: 1px;
 }
-/* The custom colour's input is hidden inside its swatch: show its focus on the swatch. */
-.swatch-custom:has(input:focus-visible) {
-	outline: 2px solid var(--lectrix-focus);
-	outline-offset: 3px;
-}
+/* The swatches show colours, not theme tokens: the custom colour's is a colour wheel. */
 .swatch-custom {
 	background: conic-gradient(#e53935, #ffd400, #5fd35f, #33a7ff, #b04ad6, #e53935);
 }
-.swatch-custom:focus-within {
-	outline: 2px solid var(--lectrix-focus);
-	outline-offset: 2px;
+/* The custom colour picker (HexPicker): a square of saturation (across) and brightness (up)
+   for the hue, the hue bar, round handles in the colour they mark, and the hex field. */
+.hue-square {
+	position: relative;
+	height: 132px;
+	border-radius: var(--radius-control);
+	background:
+		linear-gradient(to top, #000, transparent),
+		linear-gradient(to right, #fff, hsl(var(--hue) 100% 50%));
+	touch-action: none;
+	cursor: crosshair;
+}
+.hue-bar {
+	position: relative;
+	height: 12px;
+	margin: 0 6px;
+	border-radius: 6px;
+	background: linear-gradient(to right, #f00, #ff0, #0f0, #0ff, #00f, #f0f, #f00);
+	touch-action: none;
+	cursor: pointer;
+}
+.hue-square:focus-visible,
+.hue-bar:focus-visible {
+	outline-offset: 3px;
+}
+.picker-handle {
+	position: absolute;
+	width: 14px;
+	height: 14px;
+	border: 2px solid #fff;
+	border-radius: 50%;
+	background: var(--swatch);
+	box-shadow:
+		0 0 0 1px rgb(0 0 0 / 0.6),
+		inset 0 0 0 1px rgb(0 0 0 / 0.25);
+	transform: translate(-50%, -50%);
+	pointer-events: none;
+}
+.hex-field {
+	display: flex;
+	height: 28px;
+	min-width: 0;
+	flex: 1;
+	align-items: center;
+	gap: 2px;
+	font-variant-numeric: tabular-nums;
+}
+.hex-field-invalid,
+.hex-field-invalid:hover,
+.hex-field-invalid:focus-within {
+	border-color: var(--lectrix-danger);
+	box-shadow: inset 0 0 0 1px var(--lectrix-danger);
 }
 .settings-slider {
 	flex: 1;
@@ -470,7 +591,7 @@ button {
 .swatch-dot {
 	width: 18px;
 	height: 18px;
-	border: 1px solid color-mix(in srgb, var(--lectrix-fg) 25%, transparent);
+	border: 1px solid color-mix(in srgb, var(--lectrix-fg) 45%, transparent);
 	border-radius: 50%;
 	background: var(--swatch);
 }
@@ -478,27 +599,22 @@ button {
 	z-index: 50;
 	width: 236px;
 	padding: 8px;
-	border: 1px solid var(--lectrix-line);
+	border: 1px solid var(--lectrix-menu-line);
 	border-radius: var(--radius-panel);
-	background: var(--lectrix-surface-raised);
-	box-shadow: 0 8px 16px var(--lectrix-page-shadow);
+	background: var(--lectrix-menu);
 	outline: none;
 }
-.toolbar-select {
+.toolbar-dropdown {
+	width: 72px;
 	height: 28px;
 	margin-left: 4px;
-	padding: 0 4px;
-	border: 1px solid var(--lectrix-line);
-	border-radius: var(--radius-control);
-	background: var(--lectrix-surface);
-	color: var(--lectrix-fg);
 	font-size: 12px;
 }
 .annotation-dot {
 	width: 10px;
 	height: 10px;
 	flex-shrink: 0;
-	border: 1px solid color-mix(in srgb, var(--lectrix-fg) 25%, transparent);
+	border: 1px solid color-mix(in srgb, var(--lectrix-fg) 45%, transparent);
 	border-radius: 50%;
 	background: var(--swatch);
 }
@@ -548,10 +664,9 @@ button {
 	max-width: 320px;
 	padding: 4px 8px;
 	overflow: hidden;
-	border: 1px solid var(--lectrix-line);
+	border: 1px solid var(--lectrix-menu-line);
 	border-radius: var(--radius-control);
-	background: var(--lectrix-surface-raised);
-	box-shadow: 0 4px 12px var(--color-page-shadow);
+	background: var(--lectrix-menu);
 	color: var(--lectrix-fg);
 	font-size: 12px;
 	line-height: 1.4;
@@ -569,7 +684,7 @@ button {
 	/* Lined up with the rows' text. */
 	padding: 8px 8px 0;
 	border-top: 1px solid var(--lectrix-line);
-	color: var(--lectrix-fg);
+	color: var(--lectrix-fg-strong);
 	font-size: 12px;
 	font-weight: 600;
 }
@@ -639,16 +754,51 @@ button {
 	background: var(--lectrix-accent);
 }
 
+/* ----- dropdowns (Dropdown.svelte) ----- */
+
+/* The button: a filled control (edges as the other controls'), the list a menu. */
+.dropdown {
+	display: inline-flex;
+	align-items: center;
+	gap: 4px;
+	padding: 0 6px 0 8px;
+	border: 1px solid var(--lectrix-line);
+	border-radius: var(--radius-control);
+	background: var(--lectrix-button);
+	color: var(--lectrix-fg);
+}
+.dropdown:hover:not(:disabled) {
+	border-color: var(--lectrix-line-strong);
+	background: var(--lectrix-button-hover);
+}
+.dropdown[data-state='open'] {
+	border-color: var(--lectrix-accent);
+	box-shadow: inset 0 0 0 1px var(--lectrix-accent);
+}
+.dropdown:disabled {
+	opacity: 0.5;
+}
+.dropdown-list {
+	min-width: var(--bits-select-anchor-width);
+	max-height: min(320px, var(--bits-select-content-available-height));
+	overflow-y: auto;
+}
+.dropdown-item {
+	height: 28px;
+	padding: 0 8px 0 10px;
+	font-size: 13px;
+}
+
 /* ----- menus (bits-ui) ----- */
 
+/* Flat, as Neo's menus: their own colour and a thin edge, no shadow. */
 .menu-content {
 	z-index: 50;
 	min-width: 220px;
 	padding: 4px;
-	border: 1px solid var(--lectrix-line);
+	border: 1px solid var(--lectrix-menu-line);
 	border-radius: var(--radius-panel);
-	background: var(--lectrix-surface-raised);
-	box-shadow: 0 8px 16px var(--lectrix-page-shadow);
+	background: var(--lectrix-menu);
 	outline: none;
 }
 .menu-item {
@@ -696,6 +846,21 @@ button {
 .menubar-trigger:hover,
 .menubar-trigger[data-state='open'] {
 	background: var(--lectrix-hover);
+}
+
+/* ----- document tabs ----- */
+
+/* Neo's tabs: pills in the title bar, the active one raised (ringed with a line in the light
+   theme), the others plain until hovered. */
+.doc-tab {
+	border-radius: var(--radius-control);
+}
+.doc-tab:hover:not([aria-selected='true']) {
+	background: var(--lectrix-hover);
+}
+.doc-tab[aria-selected='true'] {
+	background: var(--lectrix-tab-active);
+	box-shadow: inset 0 0 0 1px var(--lectrix-tab-active-line);
 }
 
 /* ----- dialogs ----- */

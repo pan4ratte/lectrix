@@ -10,6 +10,7 @@
 	import { MediaQuery } from 'svelte/reactivity';
 
 	import { chain } from '#lib/components/chain.ts';
+	import Dropdown from '#lib/components/Dropdown.svelte';
 	import type { Annotation } from '#lib/ipc/index.ts';
 	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
@@ -217,18 +218,18 @@
 <div class="flex h-full flex-col">
 	<div class="flex shrink-0 flex-col gap-2 border-b border-line p-2">
 		<div class="flex gap-2">
-			<select class="field h-7 min-w-0 flex-1 text-xs" aria-label="Show type" bind:value={typeFilter}>
-				<option value="all">All types</option>
-				{#each types as t (t)}
-					<option value={t}>{typeName(t)}</option>
-				{/each}
-			</select>
-			<select class="field h-7 min-w-0 flex-1 text-xs" aria-label="Show author" bind:value={authorFilter}>
-				<option value="all">All authors</option>
-				{#each authors as name (name)}
-					<option value={name}>{name || 'Unknown'}</option>
-				{/each}
-			</select>
+			<Dropdown
+				class="h-7 min-w-0 flex-1 text-xs"
+				label="Show type"
+				bind:value={typeFilter}
+				options={[{ value: 'all', label: 'All types' }, ...types.map((t) => ({ value: t, label: typeName(t) }))]}
+			/>
+			<Dropdown
+				class="h-7 min-w-0 flex-1 text-xs"
+				label="Show author"
+				bind:value={authorFilter}
+				options={[{ value: 'all', label: 'All authors' }, ...authors.map((name) => ({ value: name, label: name || 'Unknown' }))]}
+			/>
 		</div>
 		{#if needing > 0}
 			<button

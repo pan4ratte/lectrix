@@ -192,13 +192,29 @@ fn dark(appearance: ipc::Appearance) -> Option<bool> {
     }
 }
 
-/// Applies the Settings appearance to the main window: its frame, backdrop and the
+/// Applies the Settings appearance to the main window: its frame, background and the
 /// webview's `prefers-color-scheme` (the frontend also marks the forced theme itself).
 pub(crate) fn apply_appearance(app: &AppHandle, appearance: ipc::Appearance) {
-    if let Some(window) = app.get_webview_window("main")
-        && let Err(e) = platform::current().set_appearance(&window, dark(appearance))
-    {
-        applog::warn(format!("could not change the window theme: {e}"));
+    if let Some(window) = app.get_webview_window("main") {
+        if let Err(e) = platform::current().set_appearance(&window, dark(appearance)) {
+            applog::warn(format!("could not change the window theme: {e}"));
+        }
+        paint_window_background(&window);
+    }
+}
+
+/// The title bar's colour in the light and the dark theme (`--lectrix-chrome` in
+/// src/app.css, ADR 0014; a test keeps them in step).
+const CHROME_LIGHT: [u8; 3] = [0xf2, 0xf4, 0xf7];
+const CHROME_DARK: [u8; 3] = [0x13, 0x14, 0x16];
+
+/// Gives the window and the webview the chrome's colour for the theme in use, so the window
+/// shows that, not white, before the page first paints and at its edges while resizing.
+fn paint_window_background(window: &tauri::WebviewWindow) {
+    let dark = matches!(window.theme(), Ok(tauri::Theme::Dark));
+    let [r, g, b] = if dark { CHROME_DARK } else { CHROME_LIGHT };
+    if let Err(e) = window.set_background_color(Some(tauri::window::Color(r, g, b, 255))) {
+        applog::warn(format!("could not set the window background: {e}"));
     }
 }
 
@@ -289,14 +305,16 @@ pub fn run() {
                 if let Some(args) = platform::current().webview_browser_args() {
                     window = window.additional_browser_args(&args);
                 }
-                window.build()?;
+                let window = window.build()?;
                 let appearance = app
                     .state::<AppState>()
                     .store
                     .lock()
                     .map(|s| s.settings().appearance)
                     .unwrap_or_default();
-                if appearance != ipc::Appearance::System {
+                if appearance == ipc::Appearance::System {
+                    paint_window_background(&window);
+                } else {
                     apply_appearance(app.handle(), appearance);
                 }
             }
@@ -319,6 +337,12 @@ pub fn run() {
                 ) && MINIMIZED.swap(minimized, Ordering::Relaxed) != minimized
                 {
                     platform::current().set_low_memory(&webview, minimized);
+                }
+            }
+            // The system switched between light and dark (with Settings on System).
+            WindowEvent::ThemeChanged(_) => {
+                if let Some(webview) = window.app_handle().get_webview_window(window.label()) {
+                    paint_window_background(&webview);
                 }
             }
             _ => {}
@@ -400,6 +424,17 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn window_background_is_the_chrome_colour() {
+        let css =
+            std::fs::read_to_string(Path::new(env!("CARGO_MANIFEST_DIR")).join("../src/app.css"))
+                .unwrap();
+        let hex = |[r, g, b]: [u8; 3]| format!("--lectrix-chrome: #{r:02x}{g:02x}{b:02x};");
+        // Once in the light theme; twice in the dark one (system and forced).
+        assert_eq!(css.matches(&hex(CHROME_LIGHT)).count(), 1);
+        assert_eq!(css.matches(&hex(CHROME_DARK)).count(), 2);
+    }
 
     #[test]
     fn command_line_keeps_existing_pdfs_only() {

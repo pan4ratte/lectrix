@@ -20,14 +20,14 @@ use tauri_plugin_dialog::DialogExt;
 use crate::annotations::RepairSummary;
 use crate::combine::{self, Progress};
 use crate::ipc::{
-    AppError, Backdrop, DocumentChange, DocumentInfo, ImageFormat, LabelMode, MergeOutcome,
-    MergePlan, MergeProgress, MergeRequest, MergeStage, OpenResult, OperationInput, PageHits,
-    PageText, PaneLayout, RecentFile, RecoveredDocument, SaveResult, SearchChunk, Settings,
-    SettingsInput, StartupInfo, UnsavedSource, ViewState,
+    AppError, DocumentChange, DocumentInfo, ImageFormat, LabelMode, MergeOutcome, MergePlan,
+    MergeProgress, MergeRequest, MergeStage, OpenResult, OperationInput, PageHits, PageText,
+    PaneLayout, RecentFile, RecoveredDocument, SaveResult, SearchChunk, Settings, SettingsInput,
+    StartupInfo, UnsavedSource, ViewState,
 };
 use crate::platform::Platform;
 use crate::store::StoredSettings;
-use crate::{AppState, MAIN_START, platform};
+use crate::{AppState, MAIN_START};
 
 /// The most pages one `search_text` call visits; the frontend searches in chunks so it
 /// can show progress and stop early.
@@ -735,18 +735,13 @@ pub fn remember_view(state: State<'_, AppState>, id: u32, view: ViewState) -> Re
     Ok(())
 }
 
-/// Called by the frontend on first mount: startup time and how to style the window.
+/// Called by the frontend on first mount: startup time and how to start up.
 #[tauri::command]
 pub fn app_ready(state: State<'_, AppState>) -> StartupInfo {
     let elapsed = MAIN_START.get().map(Instant::elapsed).unwrap_or_default();
-    let platform = platform::current();
     let panes = state.store.lock().map(|s| s.panes()).unwrap_or_default();
     StartupInfo {
         main_to_ready_ms: elapsed.as_secs_f64() * 1000.0,
-        backdrop: match platform.backdrop() {
-            platform::Backdrop::Mica => Backdrop::Mica,
-            platform::Backdrop::Solid => Backdrop::Solid,
-        },
         perf_mode: std::env::var_os("LECTRIX_PERF").is_some(),
         perf_scroll_only: std::env::var("LECTRIX_PERF").as_deref() == Ok("scroll"),
         image_format: match std::env::var("LECTRIX_IMAGE_FORMAT").as_deref() {

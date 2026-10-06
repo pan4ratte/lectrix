@@ -1,8 +1,8 @@
-// Applies the system look reported at startup, the window backdrop (Mica or solid), and the
-// appearance chosen in Settings (section 8). Also the WCAG contrast arithmetic the token
-// tests use. The accent is Lectrix blue, fixed in src/app.css (ADR 0010).
+// Applies the appearance chosen in Settings (section 8). Also the WCAG contrast arithmetic
+// the token tests use. The colours are Neo's (ADR 0014) with the Lectrix blue accent
+// (ADR 0010), fixed in src/app.css.
 
-import type { Appearance, StartupInfo } from '#lib/ipc/index.ts';
+import type { Appearance } from '#lib/ipc/index.ts';
 
 /** Relative luminance of a #rrggbb color (WCAG 2.x). */
 export function luminance(hex: string): number {
@@ -40,8 +40,8 @@ export function mix(hex: string, toward: string, amount: number): string {
  * `--lectrix-fg` and `--lectrix-accent` tokens; the contrast test keeps them in step), for
  * colours worked out in code. */
 export const PANE_COLORS = {
-	light: { pane: '#f3f3f3', fg: '#1b1b1b', accent: '#2f5daa' },
-	dark: { pane: '#202020', fg: '#ffffff', accent: '#6fa3ef' }
+	light: { pane: '#f2f4f7', fg: '#22252a', accent: '#2f5daa' },
+	dark: { pane: '#131416', fg: '#a9b0bc', accent: '#6fa3ef' }
 } as const;
 
 /** The share of the accent in a selected row's background (`--lectrix-row-selected`). */
@@ -71,8 +71,4 @@ export function applyAppearance(appearance: Appearance) {
 	const root = document.documentElement;
 	if (appearance === 'system') delete root.dataset.theme;
 	else root.dataset.theme = appearance;
-}
-
-export function applyTheme(info: StartupInfo) {
-	document.documentElement.dataset.backdrop = info.backdrop;
 }

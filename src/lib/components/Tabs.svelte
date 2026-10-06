@@ -71,14 +71,12 @@
 
 <svelte:window onpointermove={onPointerMove} onpointerup={onPointerUp} onpointercancel={onPointerUp} />
 
-<div bind:this={strip} class="flex h-full min-w-0 items-end gap-0.5" role="tablist" aria-label="Open documents">
+<div bind:this={strip} class="flex h-full min-w-0 items-center gap-0.5" role="tablist" aria-label="Open documents">
 	{#each app.tabs as tab (tab.id)}
 		{@const active = tab.id === app.activeId && !app.combineActive}
 		<div
 			data-tab={tab.id}
-			class="group relative flex h-8 max-w-56 min-w-28 shrink items-center gap-1 rounded-t-panel pr-1 pl-3"
-			class:bg-surface={active}
-			class:hover:bg-hover={!active}
+			class="doc-tab group relative flex h-8 max-w-56 min-w-28 shrink items-center gap-1 pr-1 pl-3"
 			role="tab"
 			tabindex={active ? 0 : -1}
 			aria-selected={active}
@@ -121,9 +119,7 @@
 		{@const active = app.combineActive}
 		<div
 			data-combine-tab
-			class="group relative flex h-8 max-w-56 min-w-28 shrink items-center gap-2 rounded-t-panel pr-1 pl-3"
-			class:bg-surface={active}
-			class:hover:bg-hover={!active}
+			class="doc-tab group relative flex h-8 max-w-56 min-w-28 shrink items-center gap-2 pr-1 pl-3"
 			role="tab"
 			tabindex={active ? 0 : -1}
 			aria-selected={active}

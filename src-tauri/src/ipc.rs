@@ -882,14 +882,6 @@ pub struct RecoveredDocument {
     pub exists: bool,
 }
 
-#[derive(Debug, Clone, Copy, Serialize, TS)]
-#[serde(rename_all = "camelCase")]
-#[ts(export)]
-pub enum Backdrop {
-    Mica,
-    Solid,
-}
-
 /// How page images travel to the webview (ADR 0004).
 #[derive(Debug, Clone, Copy, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -907,7 +899,6 @@ pub enum ImageFormat {
 pub struct StartupInfo {
     /// Milliseconds from the start of `main` to the frontend's first mount.
     pub main_to_ready_ms: f64,
-    pub backdrop: Backdrop,
     /// Set by the LECTRIX_PERF environment variable: the frontend runs its scripted
     /// performance measurements (tests/perf/measure.ps1).
     pub perf_mode: bool,

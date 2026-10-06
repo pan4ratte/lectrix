@@ -110,6 +110,11 @@ export function changedStyles(styles: Readonly<Record<DrawTool, ToolStyle>>): Pa
 export const PEN_WIDTHS: readonly number[] = [0.5, 1, 2, 3, 5, 8];
 export const FONT_SIZES: readonly number[] = [8, 9, 10, 11, 12, 14, 16, 18, 24, 36];
 
+/** Sizes in points as dropdown options, smallest first, each once. */
+export function ptOptions(sizes: readonly number[]): { value: number; label: string }[] {
+	return [...new Set(sizes)].sort((x, y) => x - y).map((value) => ({ value, label: `${value} pt` }));
+}
+
 /** The tool that makes annotations of `kind`. */
 export function toolFor(kind: AnnotationKind): DrawTool {
 	return kind;

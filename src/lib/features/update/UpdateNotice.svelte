@@ -13,7 +13,7 @@
 
 {#if stage.kind !== 'idle'}
 	<section
-		class="pointer-events-auto flex gap-3 rounded-panel border border-line bg-surface-raised p-3 shadow-[0_8px_16px_var(--color-page-shadow)]"
+		class="pointer-events-auto flex gap-3 rounded-panel border border-menu-line bg-menu p-3"
 		aria-labelledby="update-title"
 		aria-live="polite"
 	>

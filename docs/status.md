@@ -84,9 +84,8 @@ Nothing has been run interactively there.
 - **Fonts:** no index of installed fonts (ADR 0005). Non-embedded fonts other than the
   base 14 render with MuPDF's substitutes, and non-embedded CJK text has no glyphs. This
   needs fontconfig (Linux) and Core Text (macOS) behind the existing `SystemFonts` trait.
-- **Window:** no Mica or theme tint. A translucent window on macOS needs
-  `macOSPrivateApi`, and the title bar's window buttons follow Windows (macOS puts them on
-  the left).
+- **Window:** the title bar's window buttons follow Windows (macOS puts them on the
+  left).
 - **Touchpad pinch** is wired for WebView2 only (`webview_needs_zoom_controls`); WebKit
   delivers pinches as gesture events, which the viewer does not handle.
 - **Platform services:** the default author comes from `USER`. WebView2's memory target

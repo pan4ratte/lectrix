@@ -62,6 +62,8 @@
 		justify-content: center;
 		border: 0;
 		background: transparent;
+		/* The arrow, as Windows' own window buttons (not the hand of other buttons). */
+		cursor: default;
 	}
 	.window-button:hover {
 		background: var(--lectrix-hover);

@@ -23,7 +23,7 @@
 	<div class="flex items-center">
 		<MenuBar />
 	</div>
-	<div class="ml-2 flex min-w-0 flex-1 items-end" data-tauri-drag-region>
+	<div class="ml-2 flex min-w-0 flex-1 items-center" data-tauri-drag-region>
 		<Tabs />
 		<div class="h-full min-w-12 flex-1" data-tauri-drag-region></div>
 	</div>

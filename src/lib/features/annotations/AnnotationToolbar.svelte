@@ -16,6 +16,7 @@
 	} from '@lucide/svelte';
 	import { onMount, type Component } from 'svelte';
 
+	import Dropdown from '#lib/components/Dropdown.svelte';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -23,7 +24,7 @@
 	import { nearEdge } from './bars.ts';
 	import ColorPicker from './ColorPicker.svelte';
 	import { tools } from './state.svelte.ts';
-	import { FONT_SIZES, PEN_WIDTHS, TOOLS, type Tool } from './tools.ts';
+	import { FONT_SIZES, PEN_WIDTHS, TOOLS, ptOptions, type Tool } from './tools.ts';
 
 	let { tab }: { tab: DocTab } = $props();
 
@@ -154,30 +155,24 @@
 			onopacity={(opacity) => tools.setStyle(drawTool, { opacity })}
 		/>
 		{#if drawTool === 'ink'}
-			<select
-				class="toolbar-select"
-				aria-label="Stroke width"
+			<Dropdown
+				class="toolbar-dropdown"
+				label="Stroke width"
 				title="Stroke width"
 				value={style.width}
-				onchange={(e) => tools.setStyle('ink', { width: Number(e.currentTarget.value) })}
-			>
-				{#each PEN_WIDTHS as w (w)}
-					<option value={w}>{w} pt</option>
-				{/each}
-			</select>
+				options={ptOptions(PEN_WIDTHS)}
+				onchange={(width) => tools.setStyle('ink', { width })}
+			/>
 		{/if}
 		{#if drawTool === 'freeText'}
-			<select
-				class="toolbar-select"
-				aria-label="Font size"
+			<Dropdown
+				class="toolbar-dropdown"
+				label="Font size"
 				title="Font size"
 				value={style.fontSize}
-				onchange={(e) => tools.setStyle('freeText', { fontSize: Number(e.currentTarget.value) })}
-			>
-				{#each FONT_SIZES as s (s)}
-					<option value={s}>{s} pt</option>
-				{/each}
-			</select>
+				options={ptOptions(FONT_SIZES)}
+				onchange={(fontSize) => tools.setStyle('freeText', { fontSize })}
+			/>
 		{/if}
 	{/if}
 </div>
