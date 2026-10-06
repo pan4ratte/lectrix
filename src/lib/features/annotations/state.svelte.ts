@@ -1,14 +1,18 @@
 // The active annotation tool and the last-used style of each tool (section 6.5). The styles
 // are a per-user convenience kept in the webview's storage; losing them only resets the
-// defaults.
+// defaults. Only styles that differ from the defaults are kept, so a tool the user never
+// restyled follows the defaults of the running version.
 
-import { DEFAULT_STYLES, type DrawTool, type Tool, type ToolStyle } from './tools.ts';
+import { changedStyles, DEFAULT_STYLES, type DrawTool, type Tool, type ToolStyle } from './tools.ts';
 
-const STORAGE_KEY = 'lectrix.annotationStyles';
+const STORAGE_KEY = 'lectrix.toolStyles';
+/** Every tool's style, defaults included, as versions before Acrobat's defaults kept them. */
+const OLD_STORAGE_KEY = 'lectrix.annotationStyles';
 
 function loadStyles(): Record<DrawTool, ToolStyle> {
 	const styles = structuredClone(DEFAULT_STYLES) as Record<DrawTool, ToolStyle>;
 	try {
+		localStorage.removeItem(OLD_STORAGE_KEY);
 		const raw = localStorage.getItem(STORAGE_KEY);
 		if (!raw) return styles;
 		const saved = JSON.parse(raw) as Partial<Record<DrawTool, Partial<ToolStyle>>>;
@@ -37,7 +41,7 @@ class ToolState {
 	setStyle(tool: DrawTool, patch: Partial<ToolStyle>) {
 		this.styles[tool] = { ...this.styles[tool], ...patch };
 		try {
-			localStorage.setItem(STORAGE_KEY, JSON.stringify(this.styles));
+			localStorage.setItem(STORAGE_KEY, JSON.stringify(changedStyles(this.styles)));
 		} catch {
 			// Not remembered this time.
 		}

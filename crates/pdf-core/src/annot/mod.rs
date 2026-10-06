@@ -203,10 +203,11 @@ pub struct Rgb {
 }
 
 impl Rgb {
+    /// Acrobat's yellow for notes and highlights (`/C [1 0.819611 0]`).
     pub const YELLOW: Rgb = Rgb {
         r: 1.0,
-        g: 0.92,
-        b: 0.23,
+        g: 0.819_611,
+        b: 0.0,
     };
 
     pub const BLACK: Rgb = Rgb {

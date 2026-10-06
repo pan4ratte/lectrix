@@ -36,4 +36,9 @@ smoothAnnotationScroll: boolean,
 /**
  * How long the pointer rests on an annotation before its comment shows, in ms.
  */
-tooltipDelayMs: number, };
+tooltipDelayMs: number, 
+/**
+ * Whether marking text up selects the new annotation and opens the inspector on its
+ * comment (section 6.5); otherwise nothing is selected.
+ */
+openCommentAfterMarkup: boolean, };

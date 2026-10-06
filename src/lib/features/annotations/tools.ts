@@ -54,13 +54,18 @@ export const MARKUP_SUBTYPES: readonly { subtype: string; kind: MarkupKind }[] =
 	{ subtype: 'Squiggly', kind: 'squiggly' }
 ];
 
+/** Acrobat's yellow and red, as it writes them (`/C [1 0.819611 0]`, `/C [0.898041
+ * 0.133331 0.215683]`), so its annotations show these swatches as their colour. */
+const ACROBAT_YELLOW = '#ffd100';
+const ACROBAT_RED = '#e52237';
+
 /** Six preset colours (section 6.5), chosen to read well as highlights and as lines. */
 export const PRESET_COLORS: readonly { value: string; name: string }[] = [
-	{ value: '#ffd400', name: 'Yellow' },
+	{ value: ACROBAT_YELLOW, name: 'Yellow' },
 	{ value: '#5fd35f', name: 'Green' },
 	{ value: '#33a7ff', name: 'Blue' },
 	{ value: '#ff6fae', name: 'Pink' },
-	{ value: '#e53935', name: 'Red' },
+	{ value: ACROBAT_RED, name: 'Red' },
 	{ value: '#202020', name: 'Black' }
 ];
 
@@ -75,15 +80,32 @@ export interface ToolStyle {
 	fontSize: number;
 }
 
+/**
+ * Each tool's style until the user changes it: the colours and opacity Acrobat gives new
+ * annotations (highlights yellow at 40%; notes yellow; underline, strikeout, pen and
+ * text-box text red). Acrobat has no squiggly tool; it gets the red of the other lines.
+ */
 export const DEFAULT_STYLES: Readonly<Record<DrawTool, ToolStyle>> = {
-	highlight: { color: '#ffd400', opacity: 1, width: 2, fontSize: 12 },
-	underline: { color: '#5fd35f', opacity: 1, width: 2, fontSize: 12 },
-	strikeOut: { color: '#e53935', opacity: 1, width: 2, fontSize: 12 },
-	squiggly: { color: '#33a7ff', opacity: 1, width: 2, fontSize: 12 },
-	note: { color: '#ffd400', opacity: 1, width: 2, fontSize: 12 },
-	ink: { color: '#e53935', opacity: 1, width: 2, fontSize: 12 },
-	freeText: { color: '#202020', opacity: 1, width: 2, fontSize: 12 }
+	highlight: { color: ACROBAT_YELLOW, opacity: 0.4, width: 2, fontSize: 12 },
+	underline: { color: ACROBAT_RED, opacity: 1, width: 2, fontSize: 12 },
+	strikeOut: { color: ACROBAT_RED, opacity: 1, width: 2, fontSize: 12 },
+	squiggly: { color: ACROBAT_RED, opacity: 1, width: 2, fontSize: 12 },
+	note: { color: ACROBAT_YELLOW, opacity: 1, width: 2, fontSize: 12 },
+	ink: { color: ACROBAT_RED, opacity: 1, width: 2, fontSize: 12 },
+	freeText: { color: ACROBAT_RED, opacity: 1, width: 2, fontSize: 12 }
 };
+
+/** The parts of `styles` that differ from the defaults: what is remembered of them. */
+export function changedStyles(styles: Readonly<Record<DrawTool, ToolStyle>>): Partial<Record<DrawTool, Partial<ToolStyle>>> {
+	const changed: Partial<Record<DrawTool, Partial<ToolStyle>>> = {};
+	for (const tool of Object.keys(DEFAULT_STYLES) as DrawTool[]) {
+		const diff = Object.fromEntries(
+			Object.entries(styles[tool]).filter(([key, v]) => v !== DEFAULT_STYLES[tool][key as keyof ToolStyle])
+		) as Partial<ToolStyle>;
+		if (Object.keys(diff).length) changed[tool] = diff;
+	}
+	return changed;
+}
 
 export const PEN_WIDTHS: readonly number[] = [0.5, 1, 2, 3, 5, 8];
 export const FONT_SIZES: readonly number[] = [8, 9, 10, 11, 12, 14, 16, 18, 24, 36];

@@ -1056,6 +1056,9 @@ pub struct Settings {
     pub smooth_annotation_scroll: bool,
     /// How long the pointer rests on an annotation before its comment shows, in ms.
     pub tooltip_delay_ms: u32,
+    /// Whether marking text up selects the new annotation and opens the inspector on its
+    /// comment (section 6.5); otherwise nothing is selected.
+    pub open_comment_after_markup: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, TS)]
@@ -1073,6 +1076,7 @@ pub struct SettingsInput {
     pub smooth_zoom: bool,
     pub smooth_annotation_scroll: bool,
     pub tooltip_delay_ms: u32,
+    pub open_comment_after_markup: bool,
 }
 
 /// A newer release of Lectrix, found when it started (ADR 0011).

@@ -17,7 +17,7 @@
 	import type { QuickTool } from '#lib/ipc/index.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
-	import { markSelection, openInspector } from './actions.ts';
+	import { markSelection, markupOpensComment } from './actions.ts';
 	import { quickToolAllowed, type Area } from './bars.ts';
 	import FloatingBar from './FloatingBar.svelte';
 	import { QUICK_TOOLS } from './tools.ts';
@@ -57,11 +57,11 @@
 				await addBookmark(tab);
 				return;
 			case 'highlightNote':
-				if (await markSelection(tab, 'highlight')) openInspector(true);
+				await markSelection(tab, 'highlight', true);
 				return;
 			default:
 				await markSelection(tab, tool);
-				tab.viewer?.focus();
+				if (!markupOpensComment()) tab.viewer?.focus();
 		}
 	}
 </script>

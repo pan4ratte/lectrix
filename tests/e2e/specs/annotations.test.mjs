@@ -93,9 +93,9 @@ test('create, edit, delete, undo, save and reopen annotations', async () => {
 		await waitForRowCount(browser, 1, 'highlight');
 		assert.match(await statusText(browser), /Unsaved changes/);
 
-		// Note: N, click, type its text in the inspector. Escape first deselects the highlight,
-		// whose inspector would otherwise cover the spot on the page (the annotation pane
-		// leaves the page narrower).
+		// Note: N, click, type its text in the inspector. The new highlight is not selected
+		// (section 6.5); Escape would deselect it, since its inspector would cover the spot on
+		// the page (the annotation pane leaves the page narrower).
 		await browser.keys(['Escape']);
 		await browser.keys(['Escape']);
 		await browser.keys('n');
@@ -254,11 +254,14 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 		await waitForRowCount(browser, 1, 'highlight from the quick tools');
 		await quick.waitForExist({ reverse: true, timeoutMsg: 'the quick tools stayed after marking' });
 
-		// The new highlight is selected: its bar, not the inspector. The bar turns it into an
-		// underline, then makes it pink.
+		// The new highlight is not selected: no bar, no inspector. A click selects it, and its
+		// bar turns it into an underline, then makes it pink.
 		const highlightBar = await browser.$('[role=toolbar][aria-label="Highlight actions"]');
-		await highlightBar.waitForDisplayed({ timeoutMsg: 'no bar for the new highlight' });
+		assert.equal(await highlightBar.isExisting(), false, 'the new highlight was selected');
 		assert.equal(await (await browser.$('aside[aria-label="Annotation properties"]')).isExisting(), false);
+		// (Away from where the double-click below lands, which would count this press as its first.)
+		await click(browser, await pagePoint(browser, 0, 60, 92));
+		await highlightBar.waitForDisplayed({ timeoutMsg: 'no bar for the clicked highlight' });
 		await (await highlightBar.$('button[aria-label="Underline"]')).click();
 		const underlineBar = await browser.$('[role=toolbar][aria-label="Underline actions"]');
 		await underlineBar.waitForDisplayed({ timeoutMsg: 'the highlight did not become an underline' });
@@ -349,12 +352,34 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 			() => getComputedStyle(document.querySelector('[aria-label="Annotation tools"] [aria-pressed="true"]')).boxShadow
 		);
 		assert.match(pressed, /inset 0px 0px 0px 1px$|^rgb\([^)]*\) 0px 0px 0px 1px inset$/, `active tool: ${pressed}`);
+
+		// Settings: new markup opens its comment. A highlight then has the inspector open with
+		// the cursor in the note.
+		await browser.keys(['Control', ',']);
+		await (await browser.$('label*=Add a comment after marking text')).click();
+		await (await browser.$('button=Save')).click();
+		await (await browser.$('[role=document]')).click();
+		await browser.keys('h');
+		await drag(browser, await pagePoint(browser, 0, 40, 92), await pagePoint(browser, 0, 200, 92), 1);
+		await waitForRowCount(browser, 2, 'highlight with its comment open');
+		await browser.waitUntil(
+			() =>
+				browser.execute(
+					() => document.activeElement?.closest('aside[aria-label="Annotation properties"]') !== null && document.activeElement?.tagName === 'TEXTAREA'
+				),
+			{ timeoutMsg: 'the new highlight’s note is not focused' }
+		);
+		await browser.keys([...'Comment at once']);
+		await browser.keys(['Control', 'Enter']);
+		await browser.keys(['Control', 's']);
+		await browser.waitUntil(async () => (await statusText(browser)).includes('All changes saved'), { timeoutMsg: 'not saved' });
 	} finally {
 		await stop();
 	}
 	const saved = onDisk(path);
-	assert.equal(saved.length, 1, saved.join('\n'));
-	assert.match(saved[0], /Underline .*text "Quick note"/);
+	assert.equal(saved.length, 2, saved.join('\n'));
+	assert.ok(saved.some((l) => /Underline .*text "Quick note"/.test(l)), saved.join('\n'));
+	assert.ok(saved.some((l) => /Highlight .*text "Comment at once"/.test(l)), saved.join('\n'));
 });
 
 /** A file written by hand, as another app might: a highlight with no appearance and its

@@ -10,6 +10,7 @@
 	import {
 		commitTextDraft,
 		create,
+		createMarkup,
 		markSelection,
 		openInspector,
 		refuseIfLocked,
@@ -797,7 +798,7 @@
 				const box = normalizeBox(tab.draft?.kind === 'area' ? tab.draft.box : [0, 0, 0, 0]);
 				tab.draft = null;
 				if (isMarkupTool(tool) && box[2] - box[0] > px(3) && box[3] - box[1] > px(3)) {
-					await create(tab, tool, [
+					await createMarkup(tab, tool, [
 						{ page: g.page, body: { tool: 'markup', kind: tool, quads: boxQuad(box), note: null } }
 					]);
 				}

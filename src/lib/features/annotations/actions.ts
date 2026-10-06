@@ -29,8 +29,14 @@ export function refuseIfLocked(tab: DocTab): boolean {
 	return true;
 }
 
-/** Creates annotations with `tool`'s current style (one undo step); selects the first. */
-export async function create(tab: DocTab, tool: DrawTool, items: { page: number; body: AnnotationBody }[]) {
+/** Creates annotations with `tool`'s current style (one undo step); with `select`, selects
+ * the first. */
+export async function create(
+	tab: DocTab,
+	tool: DrawTool,
+	items: { page: number; body: AnnotationBody }[],
+	select = true
+) {
 	if (!items.length || refuseIfLocked(tab)) return null;
 	const style = tools.style(tool);
 	const annotations: NewAnnotationInput[] = items.map(({ page, body }) => ({
@@ -40,21 +46,43 @@ export async function create(tab: DocTab, tool: DrawTool, items: { page: number;
 		body
 	}));
 	const change = await app.apply(tab, { kind: 'addAnnotation', annotations });
-	if (change?.created != null) tab.selectAnnotation(items[0]!.page, change.created);
+	if (select && change?.created != null) tab.selectAnnotation(items[0]!.page, change.created);
+	return change;
+}
+
+/** Whether new text markup opens its comment (Settings); otherwise it isn't selected. */
+export function markupOpensComment(): boolean {
+	return app.settings?.openCommentAfterMarkup === true;
+}
+
+/**
+ * Creates text markup (one undo step). It is not selected, so marking text up leaves
+ * nothing in the way of reading on; with `openComment` (by default the setting), it is
+ * selected and the inspector opens with the cursor in its comment.
+ */
+export async function createMarkup(
+	tab: DocTab,
+	kind: MarkupKind,
+	items: { page: number; body: AnnotationBody }[],
+	openComment = markupOpensComment()
+) {
+	const change = await create(tab, kind, items, openComment);
+	if (openComment && change?.created != null) openInspector(true);
 	return change;
 }
 
 /** Marks the selected text with `kind` (one undo step) and clears the selection. */
-export async function markSelection(tab: DocTab, kind: MarkupKind) {
+export async function markSelection(tab: DocTab, kind: MarkupKind, openComment = markupOpensComment()) {
 	const sel = tab.selection;
 	if (!sel) return null;
 	const [start, end] = ordered(sel.anchor, sel.focus);
 	const pages = selectionRanges(tab.textMap(), start, end);
 	tab.selection = null;
-	return create(
+	return createMarkup(
 		tab,
 		kind,
-		pages.map((p) => ({ page: p.page, body: { tool: 'textMarkup', kind, ranges: p.ranges, note: null } }))
+		pages.map((p) => ({ page: p.page, body: { tool: 'textMarkup', kind, ranges: p.ranges, note: null } })),
+		openComment
 	);
 }
 

@@ -4,7 +4,8 @@
 	// annotations and the comment tooltip's delay (section 6.5), the annotation toolbar's
 	// look (floating, or docked in the bar above the pages) and, when floating, where it
 	// sits and when it shows, the buttons of the bar over selected text (section 6.6), and
-	// whether Lectrix looks for updates when it starts (ADR 0011). Stored in app data by
+	// whether new text markup opens its comment (section 6.5), and whether Lectrix looks for
+	// updates when it starts (ADR 0011). Stored in app data by
 	// Rust; everything applies at once.
 	import { Check } from '@lucide/svelte';
 	import { Checkbox, Dialog, RadioGroup } from 'bits-ui';
@@ -36,6 +37,7 @@
 	let smoothZoom = $state(true);
 	let smoothAnnotationScroll = $state(true);
 	let tooltipDelayMs = $state(DEFAULT_TIP_DELAY_MS);
+	let openCommentAfterMarkup = $state(false);
 	const delayText = $derived(`${(tooltipDelayMs / 1000).toFixed(1)} s`);
 	let saving = $state(false);
 
@@ -54,6 +56,7 @@
 				smoothZoom = s.smoothZoom;
 				smoothAnnotationScroll = s.smoothAnnotationScroll;
 				tooltipDelayMs = s.tooltipDelayMs;
+				openCommentAfterMarkup = s.openCommentAfterMarkup;
 			})
 			.catch((e: unknown) => app.showError(toAppError(e)));
 	});
@@ -79,7 +82,8 @@
 				checkForUpdates,
 				smoothZoom,
 				smoothAnnotationScroll,
-				tooltipDelayMs: Number(tooltipDelayMs)
+				tooltipDelayMs: Number(tooltipDelayMs),
+				openCommentAfterMarkup
 			});
 			app.settings = s;
 			applyAppearance(s.appearance);
@@ -247,6 +251,25 @@
 							Shown over text you select with the Select tool. With none chosen, no bar appears.
 						</span>
 					</fieldset>
+					<div class="flex flex-col gap-1">
+						<label class="flex h-7 items-center gap-2">
+							<Checkbox.Root
+								class="checkbox"
+								checked={openCommentAfterMarkup}
+								onCheckedChange={(on) => (openCommentAfterMarkup = on)}
+								aria-label="Add a comment after marking text"
+								aria-describedby="settings-markup-comment-note"
+							>
+								{#snippet children({ checked })}
+									{#if checked}<Check size={14} strokeWidth={3} aria-hidden="true" />{/if}
+								{/snippet}
+							</Checkbox.Root>
+							<span>Add a comment after marking text</span>
+						</label>
+						<span id="settings-markup-comment-note" class="text-xs text-fg-muted">
+							A new highlight, underline, strikeout or squiggly opens its properties with the cursor in the comment.
+						</span>
+					</div>
 					<div class="flex flex-col gap-1">
 						<label class="flex h-7 items-center gap-2">
 							<Checkbox.Root

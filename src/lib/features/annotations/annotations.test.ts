@@ -15,7 +15,18 @@ import {
 	resizeBox,
 	selectionRanges
 } from './geometry.ts';
-import { capabilities, isMarkupTool, lineBreaks, shortDate, typeName } from './tools.ts';
+import {
+	capabilities,
+	changedStyles,
+	DEFAULT_STYLES,
+	isMarkupTool,
+	lineBreaks,
+	PRESET_COLORS,
+	shortDate,
+	typeName,
+	type DrawTool,
+	type ToolStyle
+} from './tools.ts';
 
 function annotation(patch: Partial<Annotation>): Annotation {
 	return {
@@ -276,5 +287,25 @@ describe('dates in the list', () => {
 		expect(shortDate(new Date(2026, 0, 1).getTime(), now, 'en-GB')).toBe('1 Jan');
 		expect(shortDate(new Date(2025, 11, 31).getTime(), now, 'en-GB')).toBe('31 Dec 2025');
 		expect(shortDate(new Date(2026, 9, 5, 9, 7).getTime(), now, 'en-US')).toBe('9:07 AM');
+	});
+});
+
+describe('tool styles', () => {
+	it('start with Acrobat’s colours and highlight opacity, which are preset swatches', () => {
+		expect(DEFAULT_STYLES.highlight).toMatchObject({ color: '#ffd100', opacity: 0.4 });
+		expect(DEFAULT_STYLES.note.color).toBe('#ffd100');
+		for (const tool of ['underline', 'strikeOut', 'squiggly', 'ink', 'freeText'] as const) {
+			expect(DEFAULT_STYLES[tool]).toMatchObject({ color: '#e52237', opacity: 1 });
+		}
+		const presets = PRESET_COLORS.map((c) => c.value);
+		for (const style of Object.values(DEFAULT_STYLES)) expect(presets).toContain(style.color);
+	});
+
+	it('remember only what differs from the defaults', () => {
+		const styles = structuredClone(DEFAULT_STYLES) as Record<DrawTool, ToolStyle>;
+		expect(changedStyles(styles)).toEqual({});
+		styles.underline = { ...styles.underline, color: '#5fd35f' };
+		styles.ink = { ...styles.ink, width: 5 };
+		expect(changedStyles(styles)).toEqual({ underline: { color: '#5fd35f' }, ink: { width: 5 } });
 	});
 });
