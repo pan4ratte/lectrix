@@ -896,6 +896,15 @@ input[type='color'],
 /* The edge of a side pane that resizes it: a wide, invisible grip, with a thin accent
    line while hovered or dragged, and the usual focus ring (inset, so the pane does not
    clip it). */
+/* A side pane's inner edge, from the line under the top row down. */
+.pane-edge {
+	position: absolute;
+	top: 39px;
+	bottom: 0;
+	width: 1px;
+	background: var(--lectrix-line);
+	pointer-events: none;
+}
 .pane-resizer {
 	position: absolute;
 	top: 0;

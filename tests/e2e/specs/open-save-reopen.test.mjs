@@ -41,8 +41,7 @@ test('open, rotate a page, save, reopen', async () => {
 		const before = await firstPageShape(browser);
 		assert.ok(before && before.height > before.width, 'portrait page');
 
-		await (await browser.$('.page')).click({ button: 'right' });
-		await (await browser.$('div=Rotate page clockwise')).click();
+		await (await browser.$('button[aria-label="Rotate current page clockwise"]')).click();
 		await browser.waitUntil(async () => (await statusText(browser)).includes('Unsaved changes'), {
 			timeoutMsg: 'the rotation did not mark the document as changed'
 		});

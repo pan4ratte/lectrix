@@ -912,7 +912,8 @@ pub struct StartupInfo {
 }
 
 /// The side panes (section 8): which are open, how wide they are, which panels each holds
-/// in which order, and the panel each shows. Remembered in app data. Widths are CSS pixels;
+/// in which order, the panel each shows, and the size of page thumbnails. Remembered in app
+/// data. Widths are CSS pixels;
 /// the frontend keeps them within its limits, and puts each panel in exactly one pane.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
@@ -927,6 +928,12 @@ pub struct PaneLayout {
     /// The panel each pane shows; none means its first one.
     pub left_active: Option<PanelId>,
     pub right_active: Option<PanelId>,
+    /// The width of page thumbnails in the Pages panel, CSS pixels (at most the panel's).
+    pub thumbnail_width: u32,
+    /// Page thumbnails fill the Pages panel's width, and follow it as it changes.
+    pub thumbnails_fit: bool,
+    /// Page thumbnails in a grid of as many columns as fit, rather than one column.
+    pub thumbnails_grid: bool,
 }
 
 impl Default for PaneLayout {
@@ -940,6 +947,9 @@ impl Default for PaneLayout {
             right_panels: vec![PanelId::Annotations],
             left_active: None,
             right_active: None,
+            thumbnail_width: 112,
+            thumbnails_fit: false,
+            thumbnails_grid: false,
         }
     }
 }

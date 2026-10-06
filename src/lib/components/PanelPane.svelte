@@ -54,7 +54,7 @@
 	bind:value={() => app.activePanel(side) ?? '', (value) => app.setActivePanel(side, value as PanelId)}
 	class="flex min-h-0 flex-1 flex-col"
 >
-	<div class="flex h-[40px] shrink-0 items-center gap-1 px-[4px] select-none" data-panel-drop={side}>
+	<div class="flex h-[40px] shrink-0 items-center gap-1 border-b border-line px-[4px] select-none" data-panel-drop={side}>
 		{#if side === 'left'}
 			<span class="w-[32px] shrink-0" aria-hidden="true"></span>
 		{/if}

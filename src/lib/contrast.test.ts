@@ -132,8 +132,9 @@ describe.each([
 			expect(contrast(solid('--lectrix-focus', vars), bg), `focus on ${surface}`).toBeGreaterThanOrEqual(3);
 			expect(contrast(solid('--lectrix-accent', vars), bg), `accent on ${surface}`).toBeGreaterThanOrEqual(3);
 		}
-		// The active tool's icon and border, on its accent tint over the toolbar.
-		for (const bar of ['--lectrix-surface', '--lectrix-surface-raised']) {
+		// The active tool's icon and border, on its accent tint over the toolbar (floating, or
+		// docked in the view bar, which is the panes' colour).
+		for (const bar of ['--lectrix-surface', '--lectrix-surface-raised', '--lectrix-chrome']) {
 			const tint = on('--lectrix-row-selected', vars, solid(bar, vars));
 			expect(contrast(solid('--lectrix-accent', vars), tint), `active tool on ${bar}`).toBeGreaterThanOrEqual(3);
 		}

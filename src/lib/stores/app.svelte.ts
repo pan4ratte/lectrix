@@ -52,6 +52,7 @@ import {
 } from '#lib/components/panes.ts';
 import { CombineState } from '#lib/features/merge/combine.svelte.ts';
 import { reportDetail, signedWarning } from '#lib/features/merge/pages.ts';
+import { clampThumbWidth, DEFAULT_THUMB_WIDTH } from '#lib/features/viewer/thumbs.ts';
 import { discardQuestion, recoveryQuestion } from '#lib/features/recovery/recovery.ts';
 
 import { DocTab } from './doc.svelte.ts';
@@ -110,6 +111,12 @@ class AppStore {
 	rightOpen = $state(false);
 	rightWidth = $state(RIGHT_LIMITS.initial);
 	panels = $state<PanelArrangement>({ left: [...DEFAULT_ARRANGEMENT.left], right: [...DEFAULT_ARRANGEMENT.right] });
+	/** The width chosen for page thumbnails (Smaller, Larger), CSS pixels. */
+	thumbnailWidth = $state(DEFAULT_THUMB_WIDTH);
+	/** Page thumbnails fill the Pages panel's width. */
+	thumbnailsFit = $state(false);
+	/** Page thumbnails in a grid of as many columns as fit, rather than one column. */
+	thumbnailsGrid = $state(false);
 	#leftActive = $state<PanelId | null>(null);
 	#rightActive = $state<PanelId | null>(null);
 	/** The remembered pane layout is in; until then panes neither animate nor are saved. */
@@ -201,6 +208,9 @@ class AppStore {
 		this.panels = normalizeArrangement(panes.leftPanels, panes.rightPanels);
 		this.#leftActive = panes.leftActive;
 		this.#rightActive = panes.rightActive;
+		this.thumbnailWidth = clampThumbWidth(panes.thumbnailWidth);
+		this.thumbnailsFit = panes.thumbnailsFit;
+		this.thumbnailsGrid = panes.thumbnailsGrid;
 		this.panesRestored = true;
 	}
 
@@ -213,7 +223,10 @@ class AppStore {
 			leftPanels: [...this.panels.left],
 			rightPanels: [...this.panels.right],
 			leftActive: this.activePanel('left'),
-			rightActive: this.activePanel('right')
+			rightActive: this.activePanel('right'),
+			thumbnailWidth: this.thumbnailWidth,
+			thumbnailsFit: this.thumbnailsFit,
+			thumbnailsGrid: this.thumbnailsGrid
 		};
 	}
 

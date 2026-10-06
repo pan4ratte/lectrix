@@ -2,7 +2,8 @@
 	// A side pane (section 8): slides open and closed, and resizes from its inner edge with
 	// the pointer or the keyboard (a window splitter: arrows, Home, End; double-click resets).
 	// The content keeps its width while the pane slides, clipped, so it does not reflow on
-	// every frame.
+	// every frame. A line on its inner edge parts it from the page, below the top row: that
+	// row and the view bar beside it read as one bar.
 	import type { Snippet } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 
@@ -65,9 +66,9 @@
 
 {#if open}
 	<aside
-		class="relative flex shrink-0 border-line bg-chrome"
-		class:border-r={side === 'left'}
-		class:border-l={side === 'right'}
+		class="relative flex shrink-0 bg-chrome"
+		class:pr-px={side === 'left'}
+		class:pl-px={side === 'right'}
 		style:width="{shown}px"
 		aria-label={label}
 		transition:slide
@@ -77,6 +78,7 @@
 				{@render children()}
 			</div>
 		</div>
+		<span class="pane-edge" class:right-0={side === 'left'} class:left-0={side === 'right'} aria-hidden="true"></span>
 		<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
 		<div
 			class="pane-resizer"

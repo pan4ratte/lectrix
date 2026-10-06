@@ -126,3 +126,72 @@ test('pane buttons keep their place; panels move between the panes', async () =>
 		await stop();
 	}
 });
+
+test('the Pages panel makes thumbnails smaller, larger, or as wide as the panel', async () => {
+	const { browser, stop } = await launch([sample('thumbs.pdf', 3)]);
+	try {
+		await waitForDocument(browser);
+		const thumb = () =>
+			browser.execute(() => {
+				const image = document.querySelector('[data-thumb="0"] > span');
+				const list = document.querySelector('[aria-label="Page thumbnails"]');
+				return image && list ? { width: image.getBoundingClientRect().width, list: list.clientWidth } : null;
+			});
+		const button = (label) => browser.$(`button[aria-label="${label}"]`);
+		await browser.waitUntil(async () => (await thumb()) !== null, { timeoutMsg: 'no thumbnails' });
+		assert.equal((await thumb()).width, 112, 'thumbnails start 112 px wide');
+
+		// Larger glides to the next size in 140 ms (at once if the system asks for reduced
+		// motion): the widths seen frame by frame pass between the two.
+		const glide = await browser.executeAsync((done) => {
+			const width = () => document.querySelector('[data-thumb="0"] > span').getBoundingClientRect().width;
+			const seen = [];
+			document.querySelector('button[aria-label="Larger thumbnails"]').click();
+			const start = performance.now();
+			const step = () => {
+				seen.push(width());
+				if (performance.now() - start < 400) requestAnimationFrame(step);
+				else done({ seen, reduced: matchMedia('(prefers-reduced-motion: reduce)').matches });
+			};
+			requestAnimationFrame(step);
+		});
+		assert.equal(glide.seen.at(-1), 144, `Larger made them ${glide.seen.at(-1)} px`);
+		if (!glide.reduced) assert.ok(glide.seen.some((w) => w > 112 && w < 144), `no glide: ${glide.seen.join(', ')}`);
+		await (await button('Smaller thumbnails')).click();
+		await (await button('Smaller thumbnails')).click();
+		await browser.waitUntil(async () => (await thumb()).width === 88, { timeoutMsg: `Smaller made them ${(await thumb()).width} px` });
+
+		// The layout switch: one column, then a grid where pages 1 and 2 sit side by side.
+		const tops = () =>
+			browser.execute(() => [0, 1].map((i) => document.querySelector(`[data-thumb="${i}"]`).getBoundingClientRect().top));
+		const layoutSwitch = await button('Thumbnails in a grid');
+		assert.equal(await layoutSwitch.getAttribute('aria-pressed'), 'false');
+		const [a1, b1] = await tops();
+		assert.ok(b1 > a1, 'one column puts page 2 under page 1');
+		await layoutSwitch.click();
+		assert.equal(await layoutSwitch.getAttribute('aria-pressed'), 'true');
+		await browser.waitUntil(async () => {
+			const [a, b] = await tops();
+			return a === b;
+		}, { timeoutMsg: `the grid did not put pages 1 and 2 side by side: ${await tops()}` });
+		await layoutSwitch.click();
+
+		// Fit: as wide as the panel, less the space beside them; Smaller leaves it.
+		const fit = await button('Fit thumbnails to the panel width');
+		await fit.click();
+		assert.equal(await fit.getAttribute('aria-pressed'), 'true');
+		await browser.waitUntil(async () => {
+			const t = await thumb();
+			return t.width === t.list - 32;
+		}, { timeoutMsg: `fitted thumbnails are ${JSON.stringify(await thumb())}` });
+		assert.equal(await (await button('Larger thumbnails')).isEnabled(), false, 'Larger is not disabled at the panel width');
+		await (await button('Smaller thumbnails')).click();
+		assert.equal(await fit.getAttribute('aria-pressed'), 'false', 'Smaller kept fitting the panel');
+		await browser.waitUntil(async () => {
+			const t = await thumb();
+			return t.width < t.list - 32;
+		}, { timeoutMsg: `Smaller from the panel width left them ${JSON.stringify(await thumb())}` });
+	} finally {
+		await stop();
+	}
+});

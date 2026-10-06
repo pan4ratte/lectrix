@@ -951,10 +951,8 @@
 
 	// ----- context menu -----
 
-	let contextPage = $state(0);
-
 	function onContextMenu(event: MouseEvent) {
-		contextPage = pageUnder(event.clientY);
+		const contextPage = pageUnder(event.clientY);
 		// A right-click on an annotation selects it (unless text is selected, so Copy still
 		// acts on the text); from the keyboard, the menu is for what is already selected.
 		if (!tab.selection && (event.target as HTMLElement).closest('.page')) {
@@ -1152,21 +1150,6 @@
 				>
 					Copy
 					<span class="menu-shortcut">Ctrl+C</span>
-				</ContextMenu.Item>
-				<ContextMenu.Separator class="menu-separator" />
-				<ContextMenu.Item
-					class="menu-item"
-					disabled={!tab.flags.canAssemble}
-					onSelect={() => void app.rotatePages(tab, [contextPage], 90)}
-				>
-					Rotate page clockwise
-				</ContextMenu.Item>
-				<ContextMenu.Item
-					class="menu-item"
-					disabled={!tab.flags.canAssemble}
-					onSelect={() => void app.rotatePages(tab, [contextPage], -90)}
-				>
-					Rotate page counter-clockwise
 				</ContextMenu.Item>
 			</ContextMenu.Content>
 		</ContextMenu.Portal>

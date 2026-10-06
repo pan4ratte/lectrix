@@ -66,7 +66,7 @@
 </script>
 
 <div
-	class="flex min-h-[40px] shrink-0 flex-wrap items-center justify-center gap-x-2 gap-y-1 border-b border-line bg-surface px-2 py-1 text-sm text-fg-muted"
+	class="flex min-h-[40px] shrink-0 flex-wrap items-center justify-center gap-x-2 gap-y-1 border-b border-line bg-chrome px-2 py-1 text-sm text-fg-muted"
 	data-view-bar
 >
 	<div class="flex items-center gap-1" role="toolbar" aria-label="Page and zoom">

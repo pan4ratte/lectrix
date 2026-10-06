@@ -195,7 +195,7 @@
      it shows there instead. -->
 {#snippet paneEnd(side: PaneSide)}
 	{#if app.panels[side].length > 0 ? !app.isOpen(side) : draggedPanel() !== null}
-		<div class="flex border-b border-line bg-surface px-[4px]">
+		<div class="flex border-b border-line bg-chrome px-[4px]">
 			<div class="flex h-[40px] w-[32px] items-center">
 				{#if app.panels[side].length === 0}
 					<div

@@ -3,11 +3,24 @@ import type { PanelId } from "./PanelId";
 
 /**
  * The side panes (section 8): which are open, how wide they are, which panels each holds
- * in which order, and the panel each shows. Remembered in app data. Widths are CSS pixels;
+ * in which order, the panel each shows, and the size of page thumbnails. Remembered in app
+ * data. Widths are CSS pixels;
  * the frontend keeps them within its limits, and puts each panel in exactly one pane.
  */
 export type PaneLayout = { leftOpen: boolean, leftWidth: number, rightOpen: boolean, rightWidth: number, leftPanels: Array<PanelId>, rightPanels: Array<PanelId>, 
 /**
  * The panel each pane shows; none means its first one.
  */
-leftActive: PanelId | null, rightActive: PanelId | null, };
+leftActive: PanelId | null, rightActive: PanelId | null, 
+/**
+ * The width of page thumbnails in the Pages panel, CSS pixels (at most the panel's).
+ */
+thumbnailWidth: number, 
+/**
+ * Page thumbnails fill the Pages panel's width, and follow it as it changes.
+ */
+thumbnailsFit: boolean, 
+/**
+ * Page thumbnails in a grid of as many columns as fit, rather than one column.
+ */
+thumbnailsGrid: boolean, };

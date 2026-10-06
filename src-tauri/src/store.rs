@@ -408,6 +408,9 @@ mod tests {
             right_panels: vec![PanelId::Labels, PanelId::Bookmarks],
             left_active: Some(PanelId::Pages),
             right_active: None,
+            thumbnail_width: 184,
+            thumbnails_fit: true,
+            thumbnails_grid: true,
         };
         store.set_panes(panes.clone());
         assert_eq!(Store::load(Some(file.clone())).panes(), panes);
@@ -423,6 +426,9 @@ mod tests {
         assert_eq!(partial.left_width, 300);
         assert!(partial.left_open);
         assert_eq!(partial.right_panels, vec![PanelId::Annotations]);
+        assert_eq!(partial.thumbnail_width, 112);
+        assert!(!partial.thumbnails_fit);
+        assert!(!partial.thumbnails_grid);
         // From before panels could move: the sidebar and annotation pane's names.
         fs::write(
             &file,

@@ -19,11 +19,10 @@ async function dialogText(browser) {
 	return browser.execute(() => document.querySelector('[role="alertdialog"]')?.textContent ?? '');
 }
 
-/** Rotates page 1 through its context menu and waits for a recovery copy of it. */
+/** Rotates page 1 from the Pages panel and waits for a recovery copy of it. */
 async function changeAndWaitForCopy(browser) {
 	await waitForDocument(browser);
-	await (await browser.$('.page')).click({ button: 'right' });
-	await (await browser.$('div=Rotate page clockwise')).click();
+	await (await browser.$('button[aria-label="Rotate current page clockwise"]')).click();
 	await browser.waitUntil(async () => (await statusText(browser)).includes('Unsaved changes'), {
 		timeoutMsg: 'the rotation did not mark the document as changed'
 	});

@@ -208,7 +208,7 @@
 </script>
 
 <div class="flex h-full min-h-0 flex-col">
-	<div class="flex h-9 shrink-0 items-center gap-1 px-2">
+	<div class="flex shrink-0 items-center gap-1 border-b border-line px-2 py-[6px]">
 		<h2 class="flex-1 px-1 text-xs font-semibold tracking-wide text-fg-muted uppercase">Page labels</h2>
 		<button
 			type="button"
