@@ -2,6 +2,10 @@
 // release exists; a notice offers Update, Not now (asked again next launch) and Don't ask
 // again (this version is never offered again). Updating downloads with progress, then offers
 // a restart: on Windows the installer runs as Lectrix restarts, or when it closes.
+// Help > Check for updates asks at any time, and says what it found either way.
+import { getVersion } from '@tauri-apps/api/app';
+
+import { APP_NAME } from '#lib/config.ts';
 import {
 	cancelUpdateDownload,
 	checkForUpdate,
@@ -16,6 +20,8 @@ import { app } from '#lib/stores/app.svelte.ts';
 
 export type UpdateStage =
 	| { kind: 'idle' }
+	/** Help > Check for updates, waiting for GitHub. */
+	| { kind: 'checking' }
 	| { kind: 'available'; info: UpdateInfo }
 	| { kind: 'downloading'; info: UpdateInfo; progress: UpdateProgress | null; stopping: boolean }
 	/** `installed`: macOS and Linux install at once; Windows installs on restart or exit. */
@@ -41,6 +47,9 @@ export function downloadStatus(progress: UpdateProgress | null): string {
 
 class UpdateState {
 	stage = $state<UpdateStage>({ kind: 'idle' });
+	/** The update downloaded this run, kept after Later so asking again offers the restart
+	 * instead of downloading it again. */
+	downloaded: { info: UpdateInfo; installed: boolean } | null = null;
 
 	/** Looks for an update in the background; shows the notice if there is one. */
 	async check() {
@@ -49,6 +58,36 @@ class UpdateState {
 			if (info && this.stage.kind === 'idle') this.stage = { kind: 'available', info };
 		} catch {
 			// Rust logs failures and reports them as no update; nothing to show.
+		}
+	}
+
+	/** Help > Check for updates: whatever Settings say, a skipped version included. Shows
+	 * what it finds: the update, that this version is the latest, or why it couldn't ask. */
+	async checkNow() {
+		// The notice is up already (an update found, downloading, checking): it stays.
+		if (this.stage.kind !== 'idle') return;
+		if (this.downloaded) {
+			this.stage = { kind: 'ready', ...this.downloaded, restarting: false };
+			return;
+		}
+		this.stage = { kind: 'checking' };
+		try {
+			const info = await checkForUpdate(true);
+			if (this.stage.kind !== 'checking') return;
+			if (info) {
+				this.stage = { kind: 'available', info };
+				return;
+			}
+			this.stage = { kind: 'idle' };
+			const version = await getVersion().catch(() => null);
+			app.notify({
+				kind: 'info',
+				message: `${APP_NAME} is up to date`,
+				suggestion: version ? `You have the latest version, ${version}.` : 'You have the latest version.'
+			});
+		} catch (e) {
+			if (this.stage.kind === 'checking') this.stage = { kind: 'idle' };
+			app.showError(toAppError(e));
 		}
 	}
 
@@ -72,6 +111,7 @@ class UpdateState {
 			const ready = await downloadUpdate((progress) => {
 				if (this.stage.kind === 'downloading') this.stage.progress = progress;
 			});
+			this.downloaded = { info, installed: ready.installed };
 			this.stage = { kind: 'ready', info, installed: ready.installed, restarting: false };
 		} catch (e) {
 			const error = toAppError(e);

@@ -123,6 +123,12 @@ Needs an installed earlier release and a newer one published (ADR 0011,
       default app: PDFs show the Lectrix PDF icon afterwards.
 - [ ] Settings: turn off "Check for updates when Lectrix starts": no notice at the next
       start.
+- [ ] With that setting still off, Help > Check for updates…: "Checking for updates…",
+      then the notice for the new version (on the earlier version) or "Lectrix is up to
+      date" (on the latest). Don't ask again, then Check for updates… once more: the same
+      version is offered.
+- [ ] With the network unplugged, Check for updates…: a plain error naming the internet
+      connection.
 
 ## Crash recovery
 

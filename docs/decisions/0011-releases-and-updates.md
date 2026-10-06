@@ -35,6 +35,15 @@ The user chose (2026-10-05):
    with `LECTRIX_EPHEMERAL` (measurement and test runs). `LECTRIX_UPDATES=0` or `1` turns
    checks off or forces them on. Failures (offline, GitHub down) are logged and show
    nothing.
+
+   *Amended 2026-10-07:* Help > Check for updates asks at any time the user picks it,
+   whether or not the startup check is on, and offers a skipped version too, since the
+   user asked. It says what it found: the notice for a newer release, a notification that
+   Lectrix is up to date, or a plain error when GitHub can't be reached. In debug builds
+   and with `LECTRIX_EPHEMERAL` it doesn't ask, and says that this copy doesn't check
+   (`LECTRIX_UPDATES` overrides this as above). The Settings switch governs the startup
+   check only, as its name says; the alternative, refusing a manual check while the
+   switch is off, would answer an explicit request with a detour through Settings.
 3. **The notice** floats above the notifications, bottom right. It never takes focus and
    is announced politely. "Not now" hides it until the next start. "Don't ask again"
    stores that version in app data (`skipped_update`), and only that version is skipped.

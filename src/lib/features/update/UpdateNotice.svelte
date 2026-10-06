@@ -21,7 +21,13 @@
 			<CircleArrowDown size={16} aria-hidden="true" />
 		</span>
 		<div class="min-w-0 flex-1">
-			{#if stage.kind === 'available'}
+			{#if stage.kind === 'checking'}
+				<h2 id="update-title" class="font-medium">Checking for updates…</h2>
+				<p class="mt-1 text-sm text-fg-muted">Asking GitHub for the latest release of {APP_NAME}.</p>
+				<div class="mt-3 h-1.5 overflow-hidden rounded-full bg-line" role="progressbar" aria-label="Checking for updates">
+					<div class="progress-indeterminate h-full w-1/3 rounded-full bg-accent"></div>
+				</div>
+			{:else if stage.kind === 'available'}
 				<h2 id="update-title" class="font-medium">{APP_NAME} {stage.info.version} is available</h2>
 				<p class="mt-1 text-sm text-fg-muted">You have version {stage.info.currentVersion}.</p>
 				<div class="mt-3 flex flex-wrap gap-2">

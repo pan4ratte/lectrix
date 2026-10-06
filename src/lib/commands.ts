@@ -7,6 +7,7 @@ import { tools } from '#lib/features/annotations/state.svelte.ts';
 import type { Tool } from '#lib/features/annotations/tools.ts';
 import { addBookmark } from '#lib/features/bookmarks/actions.ts';
 import { showLabels, startRangeAt } from '#lib/features/labels/actions.ts';
+import { update } from '#lib/features/update/update.svelte.ts';
 import { copySelection } from '#lib/features/viewer/actions.ts';
 import { normalizeRotation } from '#lib/features/viewer/layout.ts';
 import { app } from '#lib/stores/app.svelte.ts';
@@ -45,6 +46,7 @@ export const commands = {
 	about: () => {
 		app.aboutOpen = true;
 	},
+	checkForUpdates: () => void update.checkNow(),
 
 	undo: () => {
 		if (app.combineActive) app.combine?.undo();

@@ -1,7 +1,8 @@
 //! Updates from Lectrix's GitHub releases (ADR 0011), the only network access the app
-//! makes. When the window is ready, the frontend asks whether a newer release exists; the
-//! user can update, wait, or skip that version. The updater plugin checks every download
-//! against Lectrix's signing key before anything is installed.
+//! makes. When the window is ready, the frontend asks whether a newer release exists, and
+//! Help > Check for updates asks again whenever the user wants; the user can update, wait,
+//! or skip that version. The updater plugin checks every download against Lectrix's
+//! signing key before anything is installed.
 //!
 //! Windows cannot replace a running program, so there the verified installer waits until
 //! Lectrix restarts or closes. On macOS and Linux the new version is installed at once and
@@ -48,17 +49,22 @@ fn checks_allowed(env: Option<&str>, debug_build: bool, ephemeral: bool) -> bool
 fn update_error(message: &str) -> AppError {
     AppError::new(
         message,
-        Some("Check your internet connection and try again the next time Lectrix starts."),
+        Some("Check your internet connection, then try again from Help > Check for updates."),
     )
 }
 
-/// Looks for a newer release, unless Settings turned checks off or the user skipped it.
-/// Failures (no network, GitHub unreachable) are logged and reported as no update: the
-/// check runs in the background and is not worth interrupting anyone for.
+/// Looks for a newer release.
+///
+/// At startup (`manual` false), only if Settings leave the check on, and never offering a
+/// version the user skipped; failures (no network, GitHub unreachable) are logged and
+/// reported as no update, since a background check is not worth interrupting anyone for.
+/// From Help > Check for updates (`manual` true), whatever Settings say and offering a
+/// skipped version too, since the user asked; failures are reported.
 #[tauri::command]
 pub async fn check_for_update(
     app: AppHandle,
     state: State<'_, AppState>,
+    manual: bool,
 ) -> Result<Option<UpdateInfo>, AppError> {
     let (enabled, skipped) = {
         let store = state.store.lock().map_err(|_| AppError::bad_state())?;
@@ -72,7 +78,15 @@ pub async fn check_for_update(
         cfg!(debug_assertions),
         std::env::var_os("LECTRIX_EPHEMERAL").is_some(),
     );
-    if !enabled || !allowed {
+    if !allowed && manual {
+        return Err(AppError::new(
+            "This copy of Lectrix doesn’t check for updates.",
+            Some(
+                "Development builds and test runs leave update checks out; set LECTRIX_UPDATES=1 to check anyway.",
+            ),
+        ));
+    }
+    if !allowed || !(enabled || manual) {
         return Ok(None);
     }
     let checked = match app.updater() {
@@ -84,11 +98,15 @@ pub async fn check_for_update(
         Ok(None) => return Ok(None),
         Err(e) => {
             applog::warn(format!("could not check for updates: {e}"));
-            return Ok(None);
+            return if manual {
+                Err(update_error("Lectrix couldn’t check for updates."))
+            } else {
+                Ok(None)
+            };
         }
     };
     applog::info(format!("Lectrix {} is available", update.version));
-    if skipped.as_deref() == Some(update.version.as_str()) {
+    if !manual && skipped.as_deref() == Some(update.version.as_str()) {
         return Ok(None);
     }
     let info = UpdateInfo {

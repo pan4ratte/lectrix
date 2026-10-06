@@ -4,6 +4,7 @@
 
 	import { commands } from '#lib/commands.ts';
 	import { APP_NAME } from '#lib/config.ts';
+	import { update } from '#lib/features/update/update.svelte.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 
 	const tab = $derived(app.active);
@@ -205,6 +206,10 @@
 		<Menubar.Trigger class="menubar-trigger">Help</Menubar.Trigger>
 		<Menubar.Portal>
 			<Menubar.Content class="menu-content" align="start" sideOffset={7}>
+				<Menubar.Item class="menu-item" disabled={update.stage.kind === 'checking'} onSelect={commands.checkForUpdates}>
+					Check for updates…
+				</Menubar.Item>
+				<Menubar.Separator class="menu-separator" />
 				<Menubar.Item class="menu-item" onSelect={commands.about}>About {APP_NAME}</Menubar.Item>
 			</Menubar.Content>
 		</Menubar.Portal>

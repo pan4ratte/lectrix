@@ -148,8 +148,10 @@ export function executeMerge(request: MergeRequest, onProgress: (p: MergeProgres
 }
 export const cancelMerge = () => invoke<void>('cancel_merge');
 // Updates from GitHub releases (ADR 0011).
-/** A newer release, or null: none, checks are off, it was skipped, or there is no network. */
-export const checkForUpdate = () => invoke<UpdateInfo | null>('check_for_update');
+/** A newer release, or null: none, checks are off, it was skipped, or there is no network.
+ * `manual` (Help > Check for updates): checks whatever Settings say, offers a skipped
+ * version, and rejects when the check fails. */
+export const checkForUpdate = (manual = false) => invoke<UpdateInfo | null>('check_for_update', { manual });
 /** "Don't ask again" for this version. */
 export const skipUpdate = (version: string) => invoke<void>('skip_update', { version });
 /** Downloads and verifies the update found by the check; on macOS and Linux it is installed too. */
