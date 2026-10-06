@@ -15,7 +15,7 @@ Everything in AGENTS.md sections 1 and 6: the viewer with tabs, bookmarks, page 
 combining files and inserting pages, the seven annotation types with an annotation list,
 and repair. Also: undo and redo for every edit, atomic and incremental saving, crash
 recovery, recent files with each file's last view, Settings (author name; System, Light
-or Dark appearance), an About dialog with the AGPL source address, and NSIS and MSI
+or Dark appearance), an About dialog with a button to the AGPL source on GitHub, and NSIS and MSI
 installers that can register Lectrix for PDF files (ADR 0007).
 
 Since v1: releases on GitHub for Windows, Linux and macOS, built by the Release

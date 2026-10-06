@@ -99,6 +99,9 @@ does afterwards.
       Large icons views. If the old icon stays, sign out and in again: Explorer caches icons.
 - [ ] The install folder holds `LICENSE.txt`, `THIRD_PARTY_NOTICES.md` and
       `THIRD_PARTY_LICENSES.md`.
+- [ ] Help > About shows the installed version and "by Mark Ingrem"; the name turns blue
+      under the pointer and opens github.com/pan4ratte, and "Source code on GitHub" opens
+      github.com/pan4ratte/lectrix, both in the default browser.
 - [ ] Uninstall (Settings > Apps): Lectrix disappears from Open with and Default apps.
 - [ ] Install again with the box unchecked: Lectrix is not offered for PDFs. Uninstall.
 - [ ] `Lectrix_<version>_x64_en-US.msi`: the same two runs (the page comes after the folder

@@ -397,6 +397,7 @@ pub fn run() {
             commands::set_pane_layout,
             commands::log_metric,
             commands::log_error,
+            commands::open_web_page,
             update::check_for_update,
             update::skip_update,
             update::download_update,

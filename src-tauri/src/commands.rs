@@ -23,7 +23,7 @@ use crate::ipc::{
     AppError, DocumentChange, DocumentInfo, ImageFormat, LabelMode, MergeOutcome, MergePlan,
     MergeProgress, MergeRequest, MergeStage, OpenResult, OperationInput, PageHits, PageText,
     PaneLayout, RecentFile, RecoveredDocument, SaveResult, SearchChunk, Settings, SettingsInput,
-    StartupInfo, UnsavedSource, ViewState,
+    StartupInfo, UnsavedSource, ViewState, WebPage,
 };
 use crate::platform::Platform;
 use crate::store::StoredSettings;
@@ -780,9 +780,43 @@ pub fn log_metric(name: String, ms: f64) {
     println!("[lectrix-metric] {name}={ms:.1}");
 }
 
+/// About: opens the source code's page or the author's profile in the default browser.
+/// The addresses are fixed in Rust, so the webview can't have any other page opened.
+#[tauri::command]
+pub fn open_web_page(page: WebPage) -> Result<(), AppError> {
+    let url = page.url();
+    crate::platform::current().open_web_page(url).map_err(|e| {
+        crate::applog::warn(format!("could not open {url}: {e}"));
+        let shown = url.trim_start_matches("https://");
+        AppError::new(
+            "The browser couldn’t be opened.",
+            Some(&format!("Go to {shown} in your browser.")),
+        )
+    })
+}
+
 /// Records a frontend error in the app log (the user sees a plain message instead).
 #[tauri::command]
 pub fn log_error(message: String) {
     let message: String = message.chars().take(2000).collect();
     crate::applog::error(format!("frontend: {message}"));
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::ipc::WebPage;
+
+    #[test]
+    fn web_pages_match_the_frontend() {
+        let config = include_str!("../../src/lib/config.ts");
+        for (name, page) in [
+            ("SOURCE_URL", WebPage::Source),
+            ("AUTHOR_URL", WebPage::Author),
+        ] {
+            assert!(
+                config.contains(&format!("{name} = '{}'", page.url())),
+                "{name} differs between ipc.rs and src/lib/config.ts"
+            );
+        }
+    }
 }

@@ -105,7 +105,7 @@
 					</Tabs.Content>
 				{/each}
 			</Tabs.Root>
-			<Dialog.Close class="icon-button settings-close" aria-label="Close">
+			<Dialog.Close class="icon-button dialog-close" aria-label="Close">
 				<X size={16} aria-hidden="true" />
 			</Dialog.Close>
 		</Dialog.Content>

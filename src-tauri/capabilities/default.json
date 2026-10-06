@@ -50,6 +50,7 @@
     "allow-set-pane-layout",
     "allow-log-metric",
     "allow-log-error",
+    "allow-open-web-page",
     "allow-check-for-update",
     "allow-skip-update",
     "allow-download-update",

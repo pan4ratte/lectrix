@@ -97,6 +97,14 @@ The user chose (2026-10-05):
 
 - Lectrix contacts github.com once per start unless the user turns that off. The About
   dialog still shows the source address instead of opening it.
+
+  *Amended 2026-10-07:* at the user's request, About's "Source code on GitHub" button
+  opens the repository, and the author's name their GitHub profile, in the default browser (`Platform::open_web_page`: ShellExecuteW
+  on Windows, `open` or `xdg-open` elsewhere; no new dependency). It is the browser that
+  goes online, not Lectrix, and only when the user presses one; the command takes which
+  page (`WebPage`), not an address, so the webview cannot have any other page opened. Considered:
+  `tauri-plugin-opener` (a dependency for one call) and keeping the Copy button (what
+  the user asked to replace).
 - Losing the private key or its password means installed copies refuse every later
   update: users would have to reinstall by hand. Back both up.
 - Without Authenticode, SmartScreen warns when people first run a downloaded installer.

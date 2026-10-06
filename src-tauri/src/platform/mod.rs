@@ -58,6 +58,20 @@ pub trait Platform: Send + Sync {
             .find(|v| !v.is_empty())
     }
 
+    /// Opens a web page in the user's default browser, outside the app (the webview never
+    /// goes online). Used only with addresses fixed in Rust.
+    fn open_web_page(&self, url: &str) -> std::io::Result<()> {
+        let program = if cfg!(target_os = "macos") {
+            "open"
+        } else {
+            "xdg-open"
+        };
+        std::process::Command::new(program)
+            .arg(url)
+            .spawn()
+            .map(|_| ())
+    }
+
     /// A stable key for remembering things about a file (recent files, view position).
     fn file_key(&self, path: &Path) -> String {
         std::fs::canonicalize(path)

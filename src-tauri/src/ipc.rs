@@ -286,6 +286,27 @@ impl From<BookmarkMode> for pdf_core::merge::BookmarkMode {
     }
 }
 
+/// A web page the About dialog opens in the default browser. The addresses are Rust's
+/// own (`WebPage::url`), so the webview can't have any other page opened.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum WebPage {
+    /// Lectrix's source code (AGPL-3.0 section 6).
+    Source,
+    /// The author's GitHub profile.
+    Author,
+}
+
+impl WebPage {
+    pub fn url(self) -> &'static str {
+        match self {
+            WebPage::Source => "https://github.com/pan4ratte/lectrix",
+            WebPage::Author => "https://github.com/pan4ratte",
+        }
+    }
+}
+
 /// Page labels of a combined file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]

@@ -182,19 +182,24 @@ test('menus, tabs and lists move with arrow keys; dialogs keep focus inside', as
 			timeoutMsg: 'Escape did not close Settings'
 		});
 
-		// Help > About: the version and where the source code is (AGPL section 6).
+		// Help > About: the version and its author, the license, and the button to the source
+		// code (AGPL section 6). The author and the button aren't pressed here: they open the
+		// browser.
 		await (await browser.$('button[role="menuitem"]=Help')).click();
 		await (await browser.$('[role="menuitem"]*=About')).click();
 		await browser.waitUntil(() => browser.execute(() => document.querySelector('[role="dialog"]') !== null));
 		const about = await browser.execute(() => ({
 			text: document.querySelector('[role="dialog"]')?.textContent ?? '',
-			source: document.querySelector('[role="dialog"] input')?.value ?? ''
+			source: [...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent.includes('GitHub'))?.title ?? ''
 		}));
-		assert.match(about.text, /Version \d+\.\d+\.\d+/);
-		assert.match(about.text, /GNU Affero\s+General Public License/);
-		assert.match(about.source, /^https:\/\//);
+		assert.match(about.text, /Version \d+\.\d+\.\d+\S*\s*by Mark Ingrem/);
+		assert.match(about.text, /GNU Affero\s+General\s+Public License/);
+		assert.match(about.source, /^https:\/\/github\.com\//);
 		const aboutStops = assertStops(await tabWalk(browser, { max: 20 }), 'About', 3);
-		assert.ok(aboutStops.includes('Source code') && aboutStops.includes('Copy'), `About reaches ${aboutStops.join(', ')}`);
+		assert.ok(
+			['Mark Ingrem', 'Source code on GitHub', 'Close'].every((s) => aboutStops.includes(s)),
+			`About reaches ${aboutStops.join(', ')}`
+		);
 		await browser.keys(['Escape']);
 		await browser.waitUntil(() => browser.execute(() => document.querySelector('[role="dialog"]') === null), {
 			timeoutMsg: 'Escape did not close About'

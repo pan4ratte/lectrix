@@ -50,6 +50,45 @@ impl Platform for Windows {
         }
     }
 
+    /// The shell opens the address with the default browser, as Run (Win+R) would.
+    fn open_web_page(&self, url: &str) -> std::io::Result<()> {
+        #[link(name = "shell32")]
+        unsafe extern "system" {
+            fn ShellExecuteW(
+                hwnd: *mut std::ffi::c_void,
+                operation: *const u16,
+                file: *const u16,
+                parameters: *const u16,
+                directory: *const u16,
+                show: i32,
+            ) -> isize;
+        }
+        /// SW_SHOWNORMAL: the browser's window as it last was.
+        const SW_SHOWNORMAL: i32 = 1;
+        let wide = |s: &str| s.encode_utf16().chain([0]).collect::<Vec<u16>>();
+        let (operation, file) = (wide("open"), wide(url));
+        // SAFETY: both strings are NUL-terminated UTF-16 that outlive the call; the window,
+        // parameters and directory may be null. ShellExecuteW returns a value above 32 on
+        // success and an error code otherwise.
+        let result = unsafe {
+            ShellExecuteW(
+                std::ptr::null_mut(),
+                operation.as_ptr(),
+                file.as_ptr(),
+                std::ptr::null(),
+                std::ptr::null(),
+                SW_SHOWNORMAL,
+            )
+        };
+        if result > 32 {
+            Ok(())
+        } else {
+            Err(std::io::Error::other(format!(
+                "ShellExecuteW returned {result}"
+            )))
+        }
+    }
+
     /// WebView2 drops touchpad pinches unless `IsPinchZoomEnabled` is on, which wry ties
     /// to Tauri's zoom hotkeys setting. A change at runtime would only apply after the
     /// next navigation, so it is set when the webview is made.

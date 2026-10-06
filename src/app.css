@@ -1366,16 +1366,26 @@ input[type='color'],
 }
 /* At the dialog's top right (the dialog is fixed, so it places it), opaque, since the rows
    scroll under it. */
-.settings-close {
+/* A link in running text (About's author): the text's own colour, the accent under the
+   pointer. A button, since a real link would navigate the webview. */
+.text-link {
+	color: inherit;
+	transition: color 100ms;
+}
+.text-link:hover {
+	color: var(--lectrix-accent);
+}
+/* A dialog's close button, in its top-right corner (Settings, About). */
+.dialog-close {
 	position: absolute;
 	top: 12px;
 	right: 12px;
 	background: var(--lectrix-surface-raised);
 }
-.settings-close:hover:not(:disabled) {
+.dialog-close:hover:not(:disabled) {
 	background: linear-gradient(var(--lectrix-hover), var(--lectrix-hover)), var(--lectrix-surface-raised);
 }
-.settings-close:active:not(:disabled) {
+.dialog-close:active:not(:disabled) {
 	background: linear-gradient(var(--lectrix-pressed), var(--lectrix-pressed)), var(--lectrix-surface-raised);
 }
 

@@ -23,6 +23,7 @@ following third-party components. Every one has an AGPL-compatible license.
 | Tailwind CSS | MIT | styling |
 | Bits UI | MIT | headless UI primitives |
 | Lucide icons (`@lucide/svelte`) | ISC | icons |
+| The GitHub mark from Simple Icons 16.34.0 | CC0-1.0 (the mark is GitHub's trademark) | About dialog's source code button, copied into `AboutDialog.svelte` |
 | Google Sans 14.000 (The Google Sans Project Authors), Latin, Cyrillic and Greek build | OFL-1.1 | UI font, bundled into the frontend (ADR 0009); license text in `src/lib/assets/fonts/OFL.txt` |
 
 Test-only tools (not distributed): pdfjs-dist (Apache-2.0), @napi-rs/canvas (MIT),

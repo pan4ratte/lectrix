@@ -39,6 +39,7 @@ const COMMANDS: &[&str] = &[
     "set_pane_layout",
     "log_metric",
     "log_error",
+    "open_web_page",
     "check_for_update",
     "skip_update",
     "download_update",

@@ -52,6 +52,7 @@ export type { Bookmark } from './generated/Bookmark';
 export type { BookmarkMode } from './generated/BookmarkMode';
 export type { InsertLabelMode } from './generated/InsertLabelMode';
 export type { LabelMode } from './generated/LabelMode';
+export type { WebPage } from './generated/WebPage';
 export type { MergePage } from './generated/MergePage';
 export type { MergeReport } from './generated/MergeReport';
 export type { MergeStage } from './generated/MergeStage';
@@ -87,6 +88,7 @@ export type { ToolbarStyle } from './generated/ToolbarStyle';
 export type { ToolbarVisibility } from './generated/ToolbarVisibility';
 import type { RepairSummary } from './generated/RepairSummary';
 import type { Settings } from './generated/Settings';
+import type { WebPage } from './generated/WebPage';
 import type { SettingsInput } from './generated/SettingsInput';
 
 export function isAppError(value: unknown): value is AppError {
@@ -183,6 +185,8 @@ export const appReady = () => invoke<StartupInfo>('app_ready');
 export const setPaneLayout = (panes: PaneLayout) => invoke<void>('set_pane_layout', { panes });
 export const logMetric = (name: string, ms: number) => invoke<void>('log_metric', { name, ms });
 export const logError = (message: string) => invoke<void>('log_error', { message });
+/** Opens Lectrix's source code page or its author's profile in the default browser. */
+export const openWebPage = (page: WebPage) => invoke<void>('open_web_page', { page });
 
 /** Files opened by drag-and-drop or by launching Lectrix again with a file. */
 export const onDocumentsOpened = (handler: (results: OpenResult[]) => void): Promise<UnlistenFn> =>
