@@ -1,7 +1,7 @@
 <script lang="ts">
 	// The annotation toolbar (sections 6.5 and 8): the tools, and the style the active tool
-	// draws with (remembered per tool). Settings make it float over the page canvas, at the
-	// bottom or the top, shown always or only while the pointer is near that edge (or the
+	// draws with (remembered per tool; the colour button opens the colours and the opacity).
+	// Settings make it float over the page canvas, at the bottom or the top, shown always or only while the pointer is near that edge (or the
 	// toolbar has focus, or a tool was just picked); or dock it in the bar at the top of the
 	// document, beside the page and zoom controls, always shown (ViewBar.svelte places it).
 	import {
@@ -21,8 +21,9 @@
 
 	import { refuseIfLocked } from './actions.ts';
 	import { nearEdge } from './bars.ts';
+	import ColorPicker from './ColorPicker.svelte';
 	import { tools } from './state.svelte.ts';
-	import { FONT_SIZES, PEN_WIDTHS, PRESET_COLORS, TOOLS, type Tool } from './tools.ts';
+	import { FONT_SIZES, PEN_WIDTHS, TOOLS, type Tool } from './tools.ts';
 
 	let { tab }: { tab: DocTab } = $props();
 
@@ -37,14 +38,10 @@
 		freeText: Type
 	};
 
-	/** The opacity slider's low end: below it, a mark is hard to find again. */
-	const MIN_OPACITY = 0.1;
-
 	const active = $derived(tools.tool);
 	const drawTool = $derived(active === 'select' ? null : active);
 	const style = $derived(drawTool ? tools.style(drawTool) : null);
 	const locked = $derived(!tab.flags.canAnnotate);
-	const custom = $derived(style !== null && !PRESET_COLORS.some((c) => c.value === style.color));
 
 	function pick(tool: Tool) {
 		if (tool !== 'select' && refuseIfLocked(tab)) return;
@@ -149,29 +146,13 @@
 
 	{#if style && drawTool}
 		<span class="mx-1 h-6 w-px bg-line" aria-hidden="true"></span>
-		<div class="flex items-center gap-0.5" role="radiogroup" aria-label="Colour">
-			{#each PRESET_COLORS as c (c.value)}
-				<button
-					type="button"
-					class="swatch"
-					role="radio"
-					aria-checked={style.color === c.value}
-					aria-label={c.name}
-					title={c.name}
-					style:--swatch={c.value}
-					onclick={() => tools.setStyle(drawTool, { color: c.value })}
-				></button>
-			{/each}
-			<label class="swatch swatch-custom" class:swatch-custom-on={custom} title="Custom colour">
-				<span class="sr-only">Custom colour</span>
-				<input
-					type="color"
-					class="sr-only"
-					value={style.color}
-					onchange={(e) => tools.setStyle(drawTool, { color: e.currentTarget.value })}
-				/>
-			</label>
-		</div>
+		<ColorPicker
+			color={style.color}
+			opacity={style.opacity}
+			label="Colour"
+			oncolor={(color) => tools.setStyle(drawTool, { color })}
+			onopacity={(opacity) => tools.setStyle(drawTool, { opacity })}
+		/>
 		{#if drawTool === 'ink'}
 			<select
 				class="toolbar-select"
@@ -198,17 +179,5 @@
 				{/each}
 			</select>
 		{/if}
-		<input
-			type="range"
-			class="toolbar-slider"
-			min={MIN_OPACITY}
-			max="1"
-			step="0.05"
-			aria-label="Opacity"
-			aria-valuetext="{Math.round(style.opacity * 100)}%"
-			title="Opacity {Math.round(style.opacity * 100)}%"
-			value={style.opacity}
-			oninput={(e) => tools.setStyle(drawTool, { opacity: Number(e.currentTarget.value) })}
-		/>
 	{/if}
 </div>

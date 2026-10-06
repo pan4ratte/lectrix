@@ -4,7 +4,8 @@
 	// annotations and the comment tooltip's delay (section 6.5), the annotation toolbar's
 	// look (floating, or docked in the bar above the pages) and, when floating, where it
 	// sits and when it shows, the buttons of the bar over selected text (section 6.6), and
-	// whether new text markup opens its comment (section 6.5), and whether Lectrix looks for
+	// whether new text markup opens its comment and whether new annotations take the last
+	// colour and opacity (section 6.5), and whether Lectrix looks for
 	// updates when it starts (ADR 0011). Stored in app data by
 	// Rust; everything applies at once.
 	import { Check } from '@lucide/svelte';
@@ -12,6 +13,7 @@
 
 	import { APP_NAME } from '#lib/config.ts';
 	import { DEFAULT_TIP_DELAY_MS, MAX_TIP_DELAY_MS } from '#lib/features/annotations/bars.ts';
+	import { tools } from '#lib/features/annotations/state.svelte.ts';
 	import { QUICK_TOOLS } from '#lib/features/annotations/tools.ts';
 	import {
 		getSettings,
@@ -38,6 +40,7 @@
 	let smoothAnnotationScroll = $state(true);
 	let tooltipDelayMs = $state(DEFAULT_TIP_DELAY_MS);
 	let openCommentAfterMarkup = $state(false);
+	let rememberAnnotationStyle = $state(true);
 	const delayText = $derived(`${(tooltipDelayMs / 1000).toFixed(1)} s`);
 	let saving = $state(false);
 
@@ -57,6 +60,7 @@
 				smoothAnnotationScroll = s.smoothAnnotationScroll;
 				tooltipDelayMs = s.tooltipDelayMs;
 				openCommentAfterMarkup = s.openCommentAfterMarkup;
+				rememberAnnotationStyle = s.rememberAnnotationStyle;
 			})
 			.catch((e: unknown) => app.showError(toAppError(e)));
 	});
@@ -83,10 +87,12 @@
 				smoothZoom,
 				smoothAnnotationScroll,
 				tooltipDelayMs: Number(tooltipDelayMs),
-				openCommentAfterMarkup
+				openCommentAfterMarkup,
+				rememberAnnotationStyle
 			});
 			app.settings = s;
 			applyAppearance(s.appearance);
+			tools.setRemember(s.rememberAnnotationStyle);
 			app.settingsOpen = false;
 		} catch (e) {
 			app.showError(toAppError(e));
@@ -267,7 +273,27 @@
 							<span>Add a comment after marking text</span>
 						</label>
 						<span id="settings-markup-comment-note" class="text-xs text-fg-muted">
-							A new highlight, underline, strikeout or squiggly opens its properties with the cursor in the comment.
+							A new highlight, underline, strikeout or squiggly opens its comment beside it, ready to type.
+						</span>
+					</div>
+					<div class="flex flex-col gap-1">
+						<label class="flex h-7 items-center gap-2">
+							<Checkbox.Root
+								class="checkbox"
+								checked={rememberAnnotationStyle}
+								onCheckedChange={(on) => (rememberAnnotationStyle = on)}
+								aria-label="Use the last colour and opacity for new annotations"
+								aria-describedby="settings-remember-style-note"
+							>
+								{#snippet children({ checked })}
+									{#if checked}<Check size={14} strokeWidth={3} aria-hidden="true" />{/if}
+								{/snippet}
+							</Checkbox.Root>
+							<span>Use the last colour and opacity for new annotations</span>
+						</label>
+						<span id="settings-remember-style-note" class="text-xs text-fg-muted">
+							Each type keeps the colour you last gave one, even after {APP_NAME} restarts. When off, new
+							annotations start from the default colours each time.
 						</span>
 					</div>
 					<div class="flex flex-col gap-1">

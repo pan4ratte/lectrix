@@ -97,6 +97,10 @@ pub struct StoredSettings {
     /// Whether marking text up selects the new annotation and opens its comment.
     #[serde(default)]
     pub open_comment_after_markup: bool,
+    /// Whether the last colour and opacity given to an annotation of a type is what new
+    /// ones of that type get.
+    #[serde(default = "yes")]
+    pub remember_annotation_style: bool,
 }
 
 fn yes() -> bool {
@@ -126,6 +130,7 @@ impl Default for StoredSettings {
             smooth_annotation_scroll: true,
             tooltip_delay_ms: DEFAULT_TOOLTIP_DELAY_MS,
             open_comment_after_markup: false,
+            remember_annotation_style: true,
         }
     }
 }
@@ -349,6 +354,7 @@ mod tests {
             smooth_annotation_scroll: false,
             tooltip_delay_ms: 800,
             open_comment_after_markup: true,
+            remember_annotation_style: false,
         };
         store.set_settings(settings.clone());
         let reloaded = Store::load(Some(file.clone()));
@@ -374,6 +380,7 @@ mod tests {
         assert!(v1.settings().smooth_annotation_scroll);
         assert_eq!(v1.settings().tooltip_delay_ms, DEFAULT_TOOLTIP_DELAY_MS);
         assert!(!v1.settings().open_comment_after_markup);
+        assert!(v1.settings().remember_annotation_style);
         // Tools from a newer version are skipped, not fatal; an empty list stays empty.
         fs::write(
             &file,

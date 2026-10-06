@@ -72,6 +72,16 @@ async function drag(browser, from, to, steps = 8) {
 	await action.move({ ...to, origin: 'viewport' }).up().perform();
 }
 
+/** Opens the colour panel of the colour button inside `scope` (Acrobat's picker). */
+async function openColours(browser, scope) {
+	await (await scope.$('[data-color-button]')).click();
+	const panel = await browser.$('.color-panel');
+	await panel.waitForDisplayed({ timeoutMsg: 'the colour button opened no panel' });
+	return panel;
+}
+
+const focusedLabel = (browser) => browser.execute(() => document.activeElement?.getAttribute('aria-label') ?? '');
+
 async function click(browser, at) {
 	await browser.action('pointer').move({ ...at, origin: 'viewport' }).down().up().perform();
 }
@@ -101,7 +111,7 @@ test('create, edit, delete, undo, save and reopen annotations', async () => {
 		await browser.keys('n');
 		await click(browser, await pagePoint(browser, 0, 400, 150));
 		await waitForRowCount(browser, 2, 'note');
-		const note = await browser.$('aside[aria-label="Annotation properties"] textarea');
+		const note = await browser.$('aside[aria-label="Annotation comment"] textarea');
 		await note.waitForDisplayed();
 		await browser.waitUntil(async () => (await browser.execute(() => document.activeElement?.tagName)) === 'TEXTAREA', {
 			timeoutMsg: 'the note text is not focused'
@@ -258,21 +268,28 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 		// bar turns it into an underline, then makes it pink.
 		const highlightBar = await browser.$('[role=toolbar][aria-label="Highlight actions"]');
 		assert.equal(await highlightBar.isExisting(), false, 'the new highlight was selected');
-		assert.equal(await (await browser.$('aside[aria-label="Annotation properties"]')).isExisting(), false);
+		assert.equal(await (await browser.$('aside[aria-label="Annotation comment"]')).isExisting(), false);
 		// (Away from where the double-click below lands, which would count this press as its first.)
 		await click(browser, await pagePoint(browser, 0, 60, 92));
 		await highlightBar.waitForDisplayed({ timeoutMsg: 'no bar for the clicked highlight' });
 		await (await highlightBar.$('button[aria-label="Underline"]')).click();
 		const underlineBar = await browser.$('[role=toolbar][aria-label="Underline actions"]');
 		await underlineBar.waitForDisplayed({ timeoutMsg: 'the highlight did not become an underline' });
-		await (await underlineBar.$('button[aria-label="Pink"]')).click();
-		await browser.waitUntil(
-			async () => (await (await underlineBar.$('button[aria-label="Pink"]')).getAttribute('aria-checked')) === 'true',
-			{ timeoutMsg: 'the underline did not turn pink' }
-		);
+		// The bar shows only the colour in use; its button opens the colours, on the one in use.
+		assert.equal((await underlineBar.$$('.swatch')).length, 0, 'the bar shows every colour');
+		const colours = await openColours(browser, underlineBar);
+		await browser.waitUntil(async () => (await focusedLabel(browser)) === 'Yellow', { timeoutMsg: 'the colours did not open on the one in use' });
+		await (await colours.$('button[aria-label="Pink"]')).click();
+		await browser.waitUntil(async () => (await (await colours.$('button[aria-label="Pink"]')).getAttribute('aria-checked')) === 'true', {
+			timeoutMsg: 'the underline did not turn pink'
+		});
+		await browser.keys(['Escape']);
+		await colours.waitForExist({ reverse: true, timeoutMsg: 'Esc left the colours open' });
+		assert.match(await focusedLabel(browser), /^Colour: Pink/, 'the focus did not return to the colour button');
 		assert.match((await listRows(browser))[0], /^Underline/);
 
-		// A double-click opens the inspector with the cursor in the note.
+		// With the annotation list showing, a double-click puts the cursor at the end of the
+		// annotation's comment there, instead of opening its comment panel.
 		const on = await pagePoint(browser, 0, 120, 92);
 		await browser
 			.action('pointer')
@@ -284,14 +301,119 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 			.up()
 			.perform();
 		await browser.waitUntil(
-			() =>
-				browser.execute(
-					() => document.activeElement?.closest('aside[aria-label="Annotation properties"]') !== null && document.activeElement?.tagName === 'TEXTAREA'
-				),
-			{ timeoutMsg: 'the double-click did not focus the note' }
+			() => browser.execute(() => document.activeElement?.matches('.annotation-row[aria-selected="true"] textarea.comment-field') === true),
+			{ timeoutMsg: 'the double-click did not focus the comment in the list' }
 		);
+		assert.equal(await (await browser.$('aside[aria-label="Annotation comment"]')).isExisting(), false, 'the double-click opened the comment panel');
 		await browser.keys([...'Quick note']);
 		await browser.keys(['Control', 'Enter']);
+
+		// The bar's Note button opens the comment panel with the cursor in the note, which
+		// shows the comment typed in the list.
+		await (await underlineBar.$('button[aria-label="Note"]')).click();
+		await browser.waitUntil(
+			() =>
+				browser.execute(
+					() => document.activeElement?.closest('aside[aria-label="Annotation comment"]') !== null && document.activeElement?.tagName === 'TEXTAREA'
+				),
+			{ timeoutMsg: 'the Note button did not focus the note' }
+		);
+		assert.equal(await browser.execute(() => document.activeElement.value), 'Quick note', 'the comment typed in the list was not kept');
+		await browser.keys(['Control', 'Enter']);
+
+		// The comment panel takes the bar's place, beside the underline.
+		assert.equal(await underlineBar.isExisting(), false, 'the bar stayed beside the comment panel');
+		const commentPanel = await browser.$('aside[aria-label="Annotation comment"]');
+		const panelBox = () =>
+			browser.execute(() => document.querySelector('aside[aria-label="Annotation comment"]').getBoundingClientRect().toJSON());
+		const placed = await panelBox();
+		assert.ok(placed.left > on.x && Math.abs(placed.top - on.y) < 60, `panel at ${JSON.stringify(placed)}, underline at ${JSON.stringify(on)}`);
+
+		// The colour panel has the opacity slider too; it applies when let go.
+		let colourPanel = await openColours(browser, commentPanel);
+		const slider = await colourPanel.$('input[type=range][aria-label="Opacity"]');
+		// (It was a highlight, made at the highlight's 40%.)
+		assert.equal(await slider.getValue(), '0.4');
+		await browser.execute(() => document.querySelector('.color-panel input[type=range]').focus());
+		await browser.keys(['ArrowLeft']);
+		await browser.keys(['Escape']);
+		await colourPanel.waitForExist({ reverse: true, timeoutMsg: 'Esc left the colours open' });
+		colourPanel = await openColours(browser, commentPanel);
+		assert.equal(await (await colourPanel.$('input[type=range][aria-label="Opacity"]')).getValue(), '0.35', 'the opacity was not applied');
+		await browser.keys(['Escape']);
+		await colourPanel.waitForExist({ reverse: true });
+
+		// Properties, from the page's menu: the author (changed here) and the dates.
+		await browser.action('pointer').move({ ...on, origin: 'viewport' }).down({ button: 2 }).up({ button: 2 }).perform();
+		await (await browser.$('//*[@role="menuitem"][contains(., "Properties")]')).click();
+		const dialog = await browser.$('[role=dialog]');
+		await dialog.waitForDisplayed({ timeoutMsg: 'Properties opened no dialog' });
+		assert.match(await dialog.getText(), /Underline properties[\s\S]*Created[\s\S]*Modified/);
+		const authorField = await dialog.$('input');
+		await authorField.setValue('Reviewer');
+		await (await dialog.$('button=Save')).click();
+		await dialog.waitForExist({ reverse: true });
+		await browser.waitUntil(async () => (await listRows(browser))[0]?.includes('Reviewer'), {
+			timeoutMsg: `the author did not change: ${JSON.stringify(await listRows(browser))}`
+		});
+
+		// A tail on its border points at the underline, from the side facing it.
+		assert.equal(
+			await browser.execute(() => document.querySelector('[data-annotation-panel] .comment-tail') !== null),
+			true,
+			'no tail on the comment panel'
+		);
+
+		// It drags from anywhere but its controls, never past the edges of the view.
+		const blank = { x: Math.round(placed.left + placed.width / 2), y: Math.round(placed.top + 7) };
+		await browser
+			.action('pointer')
+			.move({ ...blank, origin: 'viewport' })
+			.down()
+			.move({ x: blank.x - 150, y: blank.y + 40, origin: 'viewport', duration: 60 })
+			.move({ x: 1, y: 1, origin: 'viewport', duration: 60 })
+			.up()
+			.perform();
+		const dragged = await panelBox();
+		const viewer = await browser.execute(() => document.querySelector('.viewer-scroll').getBoundingClientRect().toJSON());
+		assert.ok(Math.abs(dragged.left - (viewer.left + 8)) <= 2 && Math.abs(dragged.top - (viewer.top + 8)) <= 2, `dragged to ${JSON.stringify(dragged)} in ${JSON.stringify(viewer)}`);
+
+		// Its bottom-right corner resizes it.
+		const corner = { x: Math.round(dragged.right - 1), y: Math.round(dragged.bottom - 1) };
+		await browser
+			.action('pointer')
+			.move({ ...corner, origin: 'viewport' })
+			.down()
+			.move({ x: corner.x + 60, y: corner.y + 50, origin: 'viewport', duration: 60 })
+			.up()
+			.perform();
+		const grown = await panelBox();
+		assert.ok(Math.abs(grown.width - dragged.width - 60) <= 2 && Math.abs(grown.height - dragged.height - 50) <= 2, `resized from ${JSON.stringify(dragged)} to ${JSON.stringify(grown)}`);
+		assert.ok(Math.abs(grown.left - dragged.left) <= 1 && Math.abs(grown.top - dragged.top) <= 1, 'resizing from the corner moved the panel');
+
+		// Closed and opened again, it comes back where it was put.
+		const away = await pagePoint(browser, 0, 450, 200);
+		assert.ok(away.x > grown.right && away.y < viewer.bottom, `the blank spot ${JSON.stringify(away)} is under the panel or off screen`);
+		await click(browser, away);
+		await browser.waitUntil(() => browser.execute(() => document.querySelector('aside[aria-label="Annotation comment"]') === null), {
+			timeoutMsg: 'a click on the page left the comment panel open'
+		});
+		await click(browser, on);
+		const reselected = await browser.$('[role=toolbar][aria-label="Underline actions"]');
+		await reselected.waitForDisplayed({ timeoutMsg: 'a click on the underline showed no bar' });
+		await (await reselected.$('button[aria-label="Note"]')).click();
+		await (await browser.$('aside[aria-label="Annotation comment"]')).waitForDisplayed({ timeoutMsg: 'the Note button opened no comment panel' });
+		const back = await panelBox();
+		assert.ok(Math.abs(back.left - grown.left) <= 1 && Math.abs(back.top - grown.top) <= 1, `back at ${JSON.stringify(back)}, put at ${JSON.stringify(grown)}`);
+
+		// The colour given to the underline (pink, above) is what new underlines get.
+		await browser.keys(['Escape']);
+		await browser.keys('u');
+		const tools = await browser.$('[role=toolbar][aria-label="Annotation tools"]');
+		await (await tools.$('[data-color-button]')).waitForDisplayed({ timeoutMsg: 'no colour for the Underline tool' });
+		assert.match(await (await tools.$('[data-color-button]')).getAttribute('aria-label'), /^Colour: Pink/, 'new underlines are not pink');
+		await browser.keys(['Escape']);
+
 		await browser.keys(['Control', 's']);
 		await browser.waitUntil(async () => (await statusText(browser)).includes('All changes saved'), { timeoutMsg: 'not saved' });
 
@@ -365,7 +487,7 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 		await browser.waitUntil(
 			() =>
 				browser.execute(
-					() => document.activeElement?.closest('aside[aria-label="Annotation properties"]') !== null && document.activeElement?.tagName === 'TEXTAREA'
+					() => document.activeElement?.closest('aside[aria-label="Annotation comment"]') !== null && document.activeElement?.tagName === 'TEXTAREA'
 				),
 			{ timeoutMsg: 'the new highlight’s note is not focused' }
 		);
@@ -373,6 +495,39 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 		await browser.keys(['Control', 'Enter']);
 		await browser.keys(['Control', 's']);
 		await browser.waitUntil(async () => (await statusText(browser)).includes('All changes saved'), { timeoutMsg: 'not saved' });
+
+		// Settings: without the last colour, new annotations start from the defaults again
+		// (the underline's red, not the pink given to one above).
+		await browser.keys(['Control', ',']);
+		await (await browser.$('label*=Use the last colour and opacity')).click();
+		await (await browser.$('button=Save')).click();
+		await (await browser.$('[role=toolbar][aria-label="Annotation tools"] button[aria-label="Underline"]')).click();
+		const docked = await browser.$('[role=toolbar][aria-label="Annotation tools"]');
+		const toolColour = await openColours(browser, docked);
+		assert.equal(await (await toolColour.$('button[aria-label="Red"]')).getAttribute('aria-checked'), 'true', 'new underlines kept the last colour');
+		await browser.keys(['Escape']);
+		await toolColour.waitForExist({ reverse: true });
+		await browser.keys(['Escape']);
+
+		// With the annotation list hidden, a double-click opens the comment panel instead.
+		await (await browser.$('button[aria-label="Hide right pane"]')).click();
+		await browser.waitUntil(() => browser.execute(() => document.querySelector('aside[aria-label="Right pane"]') === null), {
+			timeoutMsg: 'the right pane did not close'
+		});
+		await (await browser.$('[role=toolbar][aria-label="Annotation tools"] button[aria-label="Select"]')).click();
+		// The page re-fits the wider view; back to its top, where the marks are.
+		await browser.pause(300);
+		await browser.execute(() => document.querySelector('.viewer-scroll').scrollTo(0, 0));
+		await browser.pause(200);
+		const marked = await pagePoint(browser, 0, 120, 92);
+		await browser.action('pointer').move({ ...marked, origin: 'viewport' }).down().up().pause(60).down().up().perform();
+		await browser.waitUntil(
+			() =>
+				browser.execute(
+					() => document.activeElement?.closest('aside[aria-label="Annotation comment"]') !== null && document.activeElement?.tagName === 'TEXTAREA'
+				),
+			{ timeoutMsg: 'without the list, the double-click did not open the comment panel' }
+		);
 	} finally {
 		await stop();
 	}

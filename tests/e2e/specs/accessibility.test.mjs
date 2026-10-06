@@ -86,13 +86,12 @@ test('every Tab stop is named and shows focus, in every panel and dialog', async
 		}
 		await assertAllNamed(browser, 'annotation pane');
 
-		// A selected annotation: its row, the inspector and the toolbar's colours.
+		// A selected annotation: its row and its comment panel (colour button, note).
 		await (await browser.$('.annotation-row')).click();
 		await browser.pause(300);
 		const withInspector = assertStops(await tabWalk(browser, { max: 100 }), 'annotation inspector');
-		for (const name of ['Yellow', 'Custom colour', 'Opacity', 'Author', 'Delete']) {
-			assert.ok(withInspector.includes(name), `inspector reaches ${name}`);
-		}
+		assert.ok(withInspector.some((name) => name.startsWith('Colour: ')), 'inspector reaches its colour button');
+		assert.ok(withInspector.includes('Note'), 'inspector reaches Note');
 		await assertAllNamed(browser, 'annotation inspector');
 
 		await browser.keys(['Control', 'f']);

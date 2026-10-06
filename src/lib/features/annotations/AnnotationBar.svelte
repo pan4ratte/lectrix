@@ -1,7 +1,8 @@
 <script lang="ts">
-	// The bar of a clicked annotation (section 6.5): its colour, its type among the text
-	// markup types, its note (or a text box's text), and delete. What the annotation or the
-	// document doesn't allow is left out; a read-only annotation shows its properties.
+	// The bar of a clicked annotation (section 6.5): its colour and opacity (one
+	// button that opens them), its type among the text markup types, its note (or a text box's text), and
+	// delete. What the annotation or the document doesn't allow is left out; a read-only
+	// annotation shows its properties. It gives way to the comment panel while that is open.
 	import {
 		Highlighter,
 		Info,
@@ -17,10 +18,11 @@
 	import type { Annotation } from '#lib/ipc/index.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
-	import { openInspector, remove, update } from './actions.ts';
+	import { openInspector, openProperties, remove, restyle, update } from './actions.ts';
 	import { barControls, type Area } from './bars.ts';
+	import ColorPicker from './ColorPicker.svelte';
 	import FloatingBar from './FloatingBar.svelte';
-	import { MARKUP_SUBTYPES, PRESET_COLORS, typeName, type MarkupKind } from './tools.ts';
+	import { MARKUP_SUBTYPES, typeName, type MarkupKind } from './tools.ts';
 
 	interface Props {
 		tab: DocTab;
@@ -42,11 +44,6 @@
 	};
 
 	const controls = $derived(barControls(a, tab.flags.canAnnotate));
-	const custom = $derived(a.color !== null && !PRESET_COLORS.some((c) => c.value === a.color));
-
-	function setColor(color: string) {
-		void update(tab, a.page, a.id, { color });
-	}
 
 	function setKind(kind: MarkupKind, subtype: string) {
 		if (subtype !== a.subtype) void update(tab, a.page, a.id, { kind });
@@ -59,33 +56,13 @@
 
 <FloatingBar label="{typeName(a.subtype)} actions" {anchor} {view} {contentWidth} prefer="above">
 	{#if controls.restyle}
-		<div
-			class="flex items-center gap-0.5 px-0.5"
-			role="radiogroup"
-			aria-label={a.kind === 'freeText' ? 'Text colour' : 'Colour'}
-		>
-			{#each PRESET_COLORS as c (c.value)}
-				<button
-					type="button"
-					class="swatch"
-					role="radio"
-					aria-checked={a.color === c.value}
-					aria-label={c.name}
-					title={c.name}
-					style:--swatch={c.value}
-					onclick={() => setColor(c.value)}
-				></button>
-			{/each}
-			<label class="swatch swatch-custom" class:swatch-custom-on={custom} title="Custom colour">
-				<span class="sr-only">Custom colour</span>
-				<input
-					type="color"
-					class="sr-only"
-					value={a.color ?? '#000000'}
-					onchange={(e) => setColor(e.currentTarget.value)}
-				/>
-			</label>
-		</div>
+		<ColorPicker
+			color={a.color}
+			opacity={a.opacity}
+			label={a.kind === 'freeText' ? 'Text colour' : 'Colour'}
+			oncolor={(color) => void restyle(tab, a, { color })}
+			onopacity={(opacity) => void restyle(tab, a, { opacity })}
+		/>
 	{/if}
 
 	{#if controls.retype}
@@ -123,7 +100,7 @@
 			<MessageSquareText size={18} aria-hidden="true" />
 		</button>
 	{:else}
-		<button type="button" class="icon-button" aria-label="Properties" title="Properties" onclick={() => openInspector(false)}>
+		<button type="button" class="icon-button" aria-label="Properties" title="Properties" onclick={openProperties}>
 			<Info size={18} aria-hidden="true" />
 		</button>
 	{/if}

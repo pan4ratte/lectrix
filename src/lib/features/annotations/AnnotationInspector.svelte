@@ -1,60 +1,166 @@
+<script lang="ts" module>
+	import { SvelteMap } from 'svelte/reactivity';
+
+	/** Where the user put each annotation's panel ("tab:page:id"), from the annotation's
+	 * top-left corner, kept while the app runs. */
+	const positions = new SvelteMap<string, { dx: number; dy: number }>();
+	/** The size the user last gave the panel, kept while the app runs. */
+	let lastSize: { w: number; h: number } | null = null;
+</script>
+
 <script lang="ts">
-	// Inspector for the selected annotation (sections 6.5 and 8): colour, opacity, note text,
-	// author and dates. It floats over the page canvas, like the bookmark inspector. It opens
-	// from the annotation's bar, a double-click, the context menu or the annotation list, and
-	// then follows the selection until closed or until nothing is selected.
-	import { Trash, TriangleAlert, Wrench, X } from '@lucide/svelte';
+	// The comment panel of the selected annotation (sections 6.5 and 8): its colour and
+	// opacity (one button that opens them), stroke width or font size, note text, replies and
+	// repair. It opens from the annotation's bar, a double-click or the annotation list, then
+	// follows the selection; it closes with Esc or when nothing is selected. It sits beside the
+	// annotation in the viewer's scrolled content, so it scrolls with the page, and a tail on
+	// its border points at the annotation. Dragged from anywhere but its controls it moves
+	// within the visible part of the view; its edges and corners resize it. Where it was put
+	// is kept for each annotation. The author and dates are in the Properties dialog.
+	import { TriangleAlert, Wrench } from '@lucide/svelte';
 
 	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
-	import { remove, repair, update } from './actions.ts';
+	import { repair, restyle, update } from './actions.ts';
 	import {
-		FONT_SIZES,
-		PEN_WIDTHS,
-		PRESET_COLORS,
-		PROBLEM_TEXT,
-		capabilities,
-		formatDate,
-		typeName
-	} from './tools.ts';
+		BAR_GAP,
+		clampPanel,
+		placePanel,
+		resizePanel,
+		tailShape,
+		type Area,
+		type ResizeEdge
+	} from './bars.ts';
+	import ColorPicker from './ColorPicker.svelte';
+	import { FONT_SIZES, PEN_WIDTHS, PROBLEM_TEXT, capabilities, typeName } from './tools.ts';
 
-	let { tab }: { tab: DocTab } = $props();
+	interface Props {
+		tab: DocTab;
+		/** The selected annotation, in the scrolled content. */
+		anchor: Area;
+		/** The visible part of the content. */
+		view: Area;
+		contentWidth: number;
+	}
 
-	const OPACITIES = [1, 0.8, 0.6, 0.4, 0.2];
+	let { tab, anchor, view, contentWidth }: Props = $props();
+
+	const DEFAULT_WIDTH = 288;
+	/** The panel's corner radius (--radius-panel), which the tail keeps clear of. */
+	const RADIUS = 8;
+	const EDGES: readonly ResizeEdge[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
 
 	const a = $derived(tab.selectedAnnotationInfo);
+	const key = $derived(a ? `${tab.id}:${a.page}:${a.id}` : null);
 	const caps = $derived(a ? capabilities(a, tab.flags.canAnnotate) : null);
 	const replies = $derived(a ? tab.repliesTo(a.page, a.id) : []);
 	const parent = $derived(a?.replyTo != null ? tab.annotation(a.page, a.replyTo) : null);
-	const label = $derived(a ? (tab.displayLabels?.[a.page] ?? String(a.page + 1)) : '');
 
 	let noteField: HTMLTextAreaElement | undefined = $state();
+	let w = $state(0);
+	let h = $state(0);
+	/** Set by resizing; until then the default width and the content's height. */
+	let size = $state<{ w: number; h: number } | null>(lastSize);
 
-	$effect(() => {
-		if (!tab.selectedAnnotation) app.annotationInspectorOpen = false;
-	});
+	// ----- where it is -----
 
-	// A note just placed with the Note tool: type its text right away.
-	$effect(() => {
-		if (app.focusNoteText && noteField) {
-			app.focusNoteText = false;
-			noteField.focus();
+	const saved = $derived(key ? positions.get(key) : undefined);
+	const at = $derived(
+		saved ? { left: anchor.x0 + saved.dx, top: anchor.y0 + saved.dy } : placePanel(anchor, { w, h }, view, contentWidth)
+	);
+	const tail = $derived(
+		w === 0
+			? null
+			: tailShape(
+					w,
+					h,
+					{ x0: anchor.x0 - at.left, y0: anchor.y0 - at.top, x1: anchor.x1 - at.left, y1: anchor.y1 - at.top },
+					RADIUS
+				)
+	);
+	const tailSides = $derived(
+		tail
+			? `M${tail.e1.x} ${tail.e1.y} Q${tail.c1.x} ${tail.c1.y} ${tail.tip.x} ${tail.tip.y} Q${tail.c2.x} ${tail.c2.y} ${tail.e2.x} ${tail.e2.y}`
+			: ''
+	);
+
+	function putAt(left: number, top: number) {
+		if (key) positions.set(key, { dx: left - anchor.x0, dy: top - anchor.y0 });
+	}
+
+	type Gesture =
+		| { kind: 'move'; pointer: number; x: number; y: number; left: number; top: number }
+		| { kind: 'resize'; pointer: number; x: number; y: number; start: Area; edge: ResizeEdge };
+	let gesture: Gesture | null = null;
+
+	/** Controls keep their own pointer behaviour; anywhere else drags the panel. */
+	const CONTROLS = 'textarea, input, select, button, label, a, .panel-handle';
+
+	function onPanelDown(event: PointerEvent) {
+		if (event.button !== 0) return;
+		const target = event.target as HTMLElement;
+		if (target.closest(CONTROLS)) return;
+		// Not on the content's own scrollbar.
+		const scroll = target.closest<HTMLElement>('[data-panel-scroll]');
+		if (scroll && target === scroll) {
+			const r = scroll.getBoundingClientRect();
+			if (event.clientX - r.left > scroll.clientWidth || event.clientY - r.top > scroll.clientHeight) return;
 		}
+		event.preventDefault();
+		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+		gesture = { kind: 'move', pointer: event.pointerId, x: event.clientX, y: event.clientY, left: at.left, top: at.top };
+	}
+
+	function onHandleDown(event: PointerEvent, edge: ResizeEdge) {
+		if (event.button !== 0) return;
+		event.preventDefault();
+		event.stopPropagation();
+		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+		const start = { x0: at.left, y0: at.top, x1: at.left + w, y1: at.top + h };
+		gesture = { kind: 'resize', pointer: event.pointerId, x: event.clientX, y: event.clientY, start, edge };
+	}
+
+	function onPointerMove(event: PointerEvent) {
+		const g = gesture;
+		if (!g || event.pointerId !== g.pointer) return;
+		const dx = event.clientX - g.x;
+		const dy = event.clientY - g.y;
+		if (g.kind === 'move') {
+			const to = clampPanel({ left: g.left + dx, top: g.top + dy }, { w, h }, view, contentWidth);
+			putAt(to.left, to.top);
+		} else {
+			const r = resizePanel(g.start, g.edge, dx, dy, view, contentWidth);
+			size = { w: r.x1 - r.x0, h: r.y1 - r.y0 };
+			putAt(r.x0, r.y0);
+		}
+	}
+
+	function onPointerUp(event: PointerEvent) {
+		if (gesture?.pointer !== event.pointerId) return;
+		if (gesture.kind === 'resize') lastSize = size;
+		gesture = null;
+	}
+
+	// ----- what it shows -----
+
+	// Opened for its note (a double-click, a new note or markup): type right away, once
+	// measured and shown (a hidden field can't take the focus).
+	$effect(() => {
+		const field = noteField;
+		if (!app.focusNoteText || !field || w === 0) return;
+		const frame = requestAnimationFrame(() => {
+			field.focus({ preventScroll: true });
+			if (document.activeElement === field) app.focusNoteText = false;
+		});
+		return () => cancelAnimationFrame(frame);
 	});
 
 	function commitText(event: Event) {
 		if (!a) return;
 		const value = (event.currentTarget as HTMLTextAreaElement).value;
 		if (value !== a.contents) void update(tab, a.page, a.id, { contents: value });
-	}
-
-	function commitAuthor(event: Event) {
-		if (!a) return;
-		const value = (event.currentTarget as HTMLInputElement).value.trim();
-		if (value && value !== a.author) void update(tab, a.page, a.id, { author: value });
-		else (event.currentTarget as HTMLInputElement).value = a.author;
 	}
 
 	function textKey(event: KeyboardEvent) {
@@ -69,135 +175,111 @@
 		}
 	}
 
-	function authorKey(event: KeyboardEvent) {
-		stopUnlessShortcut(event);
-		if (event.key === 'Enter') {
-			event.preventDefault();
-			(event.currentTarget as HTMLElement).blur();
-		} else if (event.key === 'Escape') {
-			event.preventDefault();
-			(event.currentTarget as HTMLInputElement).value = a?.author ?? '';
-			(event.currentTarget as HTMLElement).blur();
-		}
-	}
-
-	function close() {
+	/** Esc on the panel's other controls closes it. */
+	function onPanelKey(event: KeyboardEvent) {
+		if (event.key !== 'Escape' || event.defaultPrevented) return;
+		event.preventDefault();
+		event.stopPropagation();
 		app.annotationInspectorOpen = false;
 		tab.viewer?.focus();
 	}
+
+	/** No page menu over the panel (a text field keeps the browser's, for spelling). */
+	function onContextMenu(event: MouseEvent) {
+		event.stopPropagation();
+		const target = event.target as HTMLElement;
+		if (!target.closest('textarea, input')) event.preventDefault();
+	}
 </script>
 
-{#if a && caps && app.annotationInspectorOpen}
-	<aside
-		class="absolute right-6 z-10 flex max-h-[calc(100%-24px)] w-72 flex-col gap-3 overflow-y-auto rounded-panel border border-line bg-surface-raised p-3 shadow-[0_4px_12px_var(--color-page-shadow)]"
-		style:top="{app.overlayTop + (tab.search.open ? 52 : 0)}px"
-		aria-label="Annotation properties"
+{#if a && caps}
+	<!-- The panel drags from anywhere but its controls: a pointer convenience, as the
+	     viewer's own dragging is. -->
+	<!-- svelte-ignore a11y_no_static_element_interactions -->
+	<div
+		class="absolute z-20 cursor-move"
+		class:invisible={w === 0}
+		style:left="{at.left}px"
+		style:top="{at.top}px"
+		style:width="{size?.w ?? DEFAULT_WIDTH}px"
+		style:height={size ? `${size.h}px` : null}
+		data-annotation-panel
+		bind:offsetWidth={w}
+		bind:offsetHeight={h}
+		onpointerdown={onPanelDown}
+		onpointermove={onPointerMove}
+		onpointerup={onPointerUp}
+		onpointercancel={onPointerUp}
+		onkeydown={onPanelKey}
+		oncontextmenu={onContextMenu}
 	>
-		<div class="flex items-center gap-2">
-			{#if a.color}
-				<span class="annotation-dot" style:--swatch={a.color} aria-hidden="true"></span>
+		{#if tail}
+			<svg class="comment-tail" width={w} height={h} aria-hidden="true">
+				<path class="comment-tail-fill" d="{tailSides} Z" />
+				<path class="comment-tail-edge" d={tailSides} />
+			</svg>
+		{/if}
+		<aside
+			class="flex h-full flex-col gap-[12px] overflow-auto rounded-panel border border-line bg-surface-raised p-[12px] shadow-[0_4px_12px_var(--color-page-shadow)]"
+			style:max-height={size ? null : `${Math.max(120, view.y1 - view.y0 - 2 * BAR_GAP)}px`}
+			aria-label="Annotation comment"
+			data-panel-scroll
+		>
+			{#if !tab.flags.canAnnotate}
+				<p class="text-xs text-fg-muted">This document’s security settings don’t allow changing annotations.</p>
+			{:else if a.id === 0}
+				<p class="text-xs text-fg-muted">This annotation is stored in a way Lectrix can show but not change.</p>
 			{/if}
-			<h2 class="flex-1 text-sm font-semibold">
-				{typeName(a.subtype)}<span class="font-normal text-fg-muted"> · page {label}</span>
-			</h2>
-			<button type="button" class="icon-button" aria-label="Close properties" onclick={close}>
-				<X size={16} aria-hidden="true" />
-			</button>
-		</div>
 
-		{#if !tab.flags.canAnnotate}
-			<p class="text-xs text-fg-muted">This document’s security settings don’t allow changing annotations.</p>
-		{:else if a.id === 0}
-			<p class="text-xs text-fg-muted">This annotation is stored in a way Lectrix can show but not change.</p>
-		{/if}
+			{#if parent}
+				<p class="text-xs text-fg-muted">
+					Reply to {typeName(parent.subtype).toLowerCase()} by {parent.author || 'unknown'}. Replies are read-only.
+				</p>
+			{/if}
 
-		{#if parent}
-			<p class="text-xs text-fg-muted">
-				Reply to {typeName(parent.subtype).toLowerCase()} by {parent.author || 'unknown'}. Replies are read-only.
-			</p>
-		{/if}
-
-		{#if caps.restyle}
-			<div class="flex flex-col gap-1">
-				<span class="text-xs text-fg-muted">{a.kind === 'freeText' ? 'Text colour' : 'Colour'}</span>
-				<div class="flex items-center gap-1" role="radiogroup" aria-label="Colour">
-					{#each PRESET_COLORS as c (c.value)}
-						<button
-							type="button"
-							class="swatch"
-							role="radio"
-							aria-checked={a.color === c.value}
-							aria-label={c.name}
-							title={c.name}
-							style:--swatch={c.value}
-							onclick={() => void update(tab, a.page, a.id, { color: c.value })}
-						></button>
-					{/each}
-					<label
-						class="swatch swatch-custom"
-						class:swatch-custom-on={a.color !== null && !PRESET_COLORS.some((c) => c.value === a.color)}
-						title="Custom colour"
-					>
-						<span class="sr-only">Custom colour</span>
-						<input
-							type="color"
-							class="sr-only"
-							value={a.color ?? '#000000'}
-							onchange={(e) => void update(tab, a.page, a.id, { color: e.currentTarget.value })}
-						/>
-					</label>
-				</div>
-			</div>
-			<div class="flex gap-3">
-				<label class="flex flex-1 flex-col gap-1">
-					<span class="text-xs text-fg-muted">Opacity</span>
-					<select
-						class="field"
-						value={OPACITIES.reduce((best, o) => (Math.abs(o - a.opacity) < Math.abs(best - a.opacity) ? o : best))}
-						onchange={(e) => void update(tab, a.page, a.id, { opacity: Number(e.currentTarget.value) })}
-					>
-						{#each OPACITIES as o (o)}
-							<option value={o}>{Math.round(o * 100)}%</option>
-						{/each}
-					</select>
-				</label>
-				{#if a.kind === 'ink'}
-					<label class="flex flex-1 flex-col gap-1">
-						<span class="text-xs text-fg-muted">Stroke width</span>
+			{#if caps.restyle}
+				<div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
+					<ColorPicker
+						color={a.color}
+						opacity={a.opacity}
+						label={a.kind === 'freeText' ? 'Text colour' : 'Colour'}
+						oncolor={(color) => void restyle(tab, a, { color })}
+						onopacity={(opacity) => void restyle(tab, a, { opacity })}
+					/>
+					{#if a.kind === 'ink'}
 						<select
-							class="field"
+							class="toolbar-select"
+							aria-label="Stroke width"
+							title="Stroke width"
 							value={a.width ?? 1}
 							onchange={(e) => void update(tab, a.page, a.id, { width: Number(e.currentTarget.value) })}
 						>
-							{#each [...new Set([...PEN_WIDTHS, a.width ?? 1])].sort((x, y) => x - y) as w (w)}
-								<option value={w}>{w} pt</option>
+							{#each [...new Set([...PEN_WIDTHS, a.width ?? 1])].sort((x, y) => x - y) as width (width)}
+								<option value={width}>{width} pt</option>
 							{/each}
 						</select>
-					</label>
-				{/if}
-				{#if a.kind === 'freeText'}
-					<label class="flex flex-1 flex-col gap-1">
-						<span class="text-xs text-fg-muted">Font size</span>
+					{/if}
+					{#if a.kind === 'freeText'}
 						<select
-							class="field"
+							class="toolbar-select"
+							aria-label="Font size"
+							title="Font size"
 							value={a.fontSize ?? 12}
 							onchange={(e) => void update(tab, a.page, a.id, { fontSize: Number(e.currentTarget.value) })}
 						>
-							{#each [...new Set([...FONT_SIZES, a.fontSize ?? 12])].sort((x, y) => x - y) as s (s)}
-								<option value={s}>{s} pt</option>
+							{#each [...new Set([...FONT_SIZES, a.fontSize ?? 12])].sort((x, y) => x - y) as points (points)}
+								<option value={points}>{points} pt</option>
 							{/each}
 						</select>
-					</label>
-				{/if}
-			</div>
-		{/if}
+					{/if}
+				</div>
+			{/if}
 
-		<label class="flex flex-col gap-1">
-			<span class="text-xs text-fg-muted">{a.kind === 'freeText' ? 'Text' : 'Note'}</span>
-			{#key `${a.page}:${a.id}`}
+			{#key key}
 				<textarea
 					bind:this={noteField}
-					class="field min-h-20 resize-y py-1"
+					class="field panel-note resize-none {size ? 'min-h-[60px] flex-1' : 'h-[140px] shrink-0'}"
+					aria-label={a.kind === 'freeText' ? 'Text' : 'Note'}
 					value={a.contents}
 					readonly={!caps.text}
 					placeholder={caps.text ? 'Add a note' : ''}
@@ -205,56 +287,39 @@
 					onblur={commitText}
 				></textarea>
 			{/key}
-		</label>
 
-		<label class="flex flex-col gap-1">
-			<span class="text-xs text-fg-muted">Author</span>
-			{#key `${a.page}:${a.id}`}
-				<input class="field h-8" value={a.author} readonly={!caps.text} onkeydown={authorKey} onblur={commitAuthor} />
-			{/key}
-		</label>
-
-		<dl class="grid grid-cols-[auto_1fr] gap-x-3 gap-y-1 text-xs">
-			<dt class="text-fg-muted">Created</dt>
-			<dd>{formatDate(a.created)}</dd>
-			<dt class="text-fg-muted">Modified</dt>
-			<dd>{formatDate(a.modified)}</dd>
-		</dl>
-
-		{#if replies.length}
-			<div class="flex flex-col gap-1">
-				<span class="text-xs text-fg-muted">Replies</span>
-				{#each replies as r (r.id)}
-					<div class="rounded-control border border-line p-2 text-xs">
-						<p class="font-semibold">{r.author || 'Unknown'}</p>
-						<p class="break-words whitespace-pre-wrap select-text">{r.contents}</p>
-					</div>
-				{/each}
-			</div>
-		{/if}
-
-		{#if a.problems.length}
-			<div class="flex flex-col gap-2 rounded-control bg-info-bg p-2 text-xs">
-				<p class="flex items-center gap-1 font-semibold">
-					<TriangleAlert size={14} aria-hidden="true" />Needs repair
-				</p>
-				<ul class="list-disc pl-4">
-					{#each a.problems as p (p)}
-						<li>It {PROBLEM_TEXT[p]}.</li>
+			{#if replies.length}
+				<div class="flex flex-col gap-1">
+					<span class="text-xs text-fg-muted">Replies</span>
+					{#each replies as r (r.id)}
+						<div class="rounded-control border border-line p-2 text-xs">
+							<p class="font-semibold">{r.author || 'Unknown'}</p>
+							<p class="break-words whitespace-pre-wrap select-text">{r.contents}</p>
+						</div>
 					{/each}
-				</ul>
-				{#if tab.flags.canAnnotate}
-					<button type="button" class="button gap-1 self-start" onclick={() => void repair(tab)}>
-						<Wrench size={14} aria-hidden="true" />Repair annotations…
-					</button>
-				{/if}
-			</div>
-		{/if}
+				</div>
+			{/if}
 
-		{#if caps.delete}
-			<button type="button" class="button gap-1 self-start" onclick={() => void remove(tab, a.page, a.id)}>
-				<Trash size={14} aria-hidden="true" />Delete
-			</button>
-		{/if}
-	</aside>
+			{#if a.problems.length}
+				<div class="flex flex-col gap-2 rounded-control bg-info-bg p-2 text-xs">
+					<p class="flex items-center gap-1 font-semibold">
+						<TriangleAlert size={14} aria-hidden="true" />Needs repair
+					</p>
+					<ul class="list-disc pl-4">
+						{#each a.problems as p (p)}
+							<li>It {PROBLEM_TEXT[p]}.</li>
+						{/each}
+					</ul>
+					{#if tab.flags.canAnnotate}
+						<button type="button" class="button gap-1 self-start" onclick={() => void repair(tab)}>
+							<Wrench size={14} aria-hidden="true" />Repair annotations…
+						</button>
+					{/if}
+				</div>
+			{/if}
+		</aside>
+		{#each EDGES as edge (edge)}
+			<div class="panel-handle" data-edge={edge} aria-hidden="true" onpointerdown={(e) => onHandleDown(e, edge)}></div>
+		{/each}
+	</div>
 {/if}

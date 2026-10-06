@@ -33,6 +33,9 @@ function loadStyles(): Record<DrawTool, ToolStyle> {
 class ToolState {
 	tool = $state<Tool>('select');
 	styles = $state<Record<DrawTool, ToolStyle>>(loadStyles());
+	/** Settings: styles are kept across restarts, and restyling an annotation sets its
+	 * tool's style. Off, every start begins from the defaults. */
+	remember = true;
 
 	style(tool: DrawTool): ToolStyle {
 		return this.styles[tool];
@@ -40,6 +43,26 @@ class ToolState {
 
 	setStyle(tool: DrawTool, patch: Partial<ToolStyle>) {
 		this.styles[tool] = { ...this.styles[tool], ...patch };
+		if (this.remember) this.save();
+	}
+
+	/** Follows the setting; turning it off forgets the remembered styles. */
+	setRemember(on: boolean) {
+		if (on === this.remember) return;
+		this.remember = on;
+		if (on) {
+			this.save();
+			return;
+		}
+		this.styles = structuredClone(DEFAULT_STYLES) as Record<DrawTool, ToolStyle>;
+		try {
+			localStorage.removeItem(STORAGE_KEY);
+		} catch {
+			// Nothing stored to forget.
+		}
+	}
+
+	private save() {
 		try {
 			localStorage.setItem(STORAGE_KEY, JSON.stringify(changedStyles(this.styles)));
 		} catch {

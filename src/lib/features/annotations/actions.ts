@@ -5,6 +5,7 @@ import {
 	repairAnnotations as repairCommand,
 	scanAnnotationsForRepair,
 	toAppError,
+	type Annotation,
 	type AnnotationBody,
 	type AnnotationEditInput,
 	type NewAnnotationInput
@@ -90,6 +91,31 @@ export async function markSelection(tab: DocTab, kind: MarkupKind, openComment =
 export function openInspector(focusNote: boolean) {
 	app.annotationInspectorOpen = true;
 	if (focusNote) app.focusNoteText = true;
+}
+
+/**
+ * Gives annotation `a` another colour or opacity (one undo step). With Settings' "Use the
+ * last colour and opacity" on, new annotations of its type get it too.
+ */
+export async function restyle(tab: DocTab, a: Annotation, patch: { color?: string; opacity?: number }) {
+	const change = await update(tab, a.page, a.id, patch);
+	if (change && tools.remember && a.kind !== null && a.replyTo === null) tools.setStyle(a.kind, patch);
+	return change;
+}
+
+/**
+ * What a double-click on the selected annotation opens: its comment in the annotation list
+ * when the list is on screen, otherwise the comment panel beside it (`focusNote`: with the
+ * cursor in its note).
+ */
+export function openComment(focusNote: boolean) {
+	if (app.isShown('annotations')) app.focusListComment = true;
+	else openInspector(focusNote);
+}
+
+/** Opens the Properties dialog of the selected annotation (its author and dates). */
+export function openProperties() {
+	app.annotationPropertiesOpen = true;
 }
 
 export async function update(tab: DocTab, page: number, id: number, edit: AnnotationEditInput) {

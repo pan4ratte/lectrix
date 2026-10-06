@@ -1059,6 +1059,9 @@ pub struct Settings {
     /// Whether marking text up selects the new annotation and opens the inspector on its
     /// comment (section 6.5); otherwise nothing is selected.
     pub open_comment_after_markup: bool,
+    /// Whether new annotations get the colour and opacity last given to one of their type
+    /// (section 6.5); otherwise the defaults, and the toolbar's choice until Lectrix closes.
+    pub remember_annotation_style: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, TS)]
@@ -1077,6 +1080,7 @@ pub struct SettingsInput {
     pub smooth_annotation_scroll: bool,
     pub tooltip_delay_ms: u32,
     pub open_comment_after_markup: bool,
+    pub remember_annotation_style: bool,
 }
 
 /// A newer release of Lectrix, found when it started (ADR 0011).

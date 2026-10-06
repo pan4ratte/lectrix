@@ -41,4 +41,9 @@ tooltipDelayMs: number,
  * Whether marking text up selects the new annotation and opens the inspector on its
  * comment (section 6.5); otherwise nothing is selected.
  */
-openCommentAfterMarkup: boolean, };
+openCommentAfterMarkup: boolean, 
+/**
+ * Whether new annotations get the colour and opacity last given to one of their type
+ * (section 6.5); otherwise the defaults, and the toolbar's choice until Lectrix closes.
+ */
+rememberAnnotationStyle: boolean, };

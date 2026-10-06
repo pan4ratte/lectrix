@@ -1,7 +1,8 @@
 <script lang="ts">
 	// The annotation list (section 6.5): grouped by page, filtered by type and author. Each
 	// row shows the type as an icon in the annotation's colour, the author and a short date,
-	// and the whole comment, then its replies. Clicking one shows it; a right-click offers
+	// and the whole comment, then its replies. Clicking one shows it; double-clicking an
+	// annotation on the page while the list shows focuses its comment here; a right-click offers
 	// replying, copying the comment and deleting, and on a reply editing, copying and
 	// deleting it (ADR 0012). A badge marks annotations that need repair.
 	import { MessageSquareText, TriangleAlert, Wrench } from '@lucide/svelte';
@@ -60,6 +61,31 @@
 
 	const selectedKey = $derived(tab.selectedAnnotation ? `${tab.selectedAnnotation.page}:${tab.selectedAnnotation.id}` : null);
 	const selected = $derived(tab.selectedAnnotationInfo);
+
+	// A double-click on the annotation in the page while the list shows: its row comes into
+	// view with the cursor at the end of its comment (the row itself when the comment can't
+	// change). Hidden by a filter, it opens in the comment panel instead.
+	$effect(() => {
+		const key = selectedKey;
+		if (!app.focusListComment || !key) return;
+		const frame = requestAnimationFrame(() => {
+			app.focusListComment = false;
+			const row = document.getElementById(`annotation-row-${tab.id}-${key.replace(':', '-')}`);
+			if (!row) {
+				openInspector(true);
+				return;
+			}
+			row.scrollIntoView({ block: 'nearest' });
+			const field = row.querySelector<HTMLTextAreaElement>('textarea.comment-field');
+			if (field) {
+				field.focus({ preventScroll: true });
+				field.setSelectionRange(field.value.length, field.value.length);
+			} else {
+				row.closest<HTMLElement>('.annotation-list')?.focus({ preventScroll: true });
+			}
+		});
+		return () => cancelAnimationFrame(frame);
+	});
 
 	function show(a: Annotation) {
 		tab.selectAnnotation(a.page, a.id);

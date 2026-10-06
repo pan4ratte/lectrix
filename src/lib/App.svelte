@@ -23,7 +23,7 @@
 	import Toasts from '#lib/components/Toasts.svelte';
 	import SettingsDialog from '#lib/components/SettingsDialog.svelte';
 	import { cancelTextDraft } from '#lib/features/annotations/actions.ts';
-	import AnnotationInspector from '#lib/features/annotations/AnnotationInspector.svelte';
+	import AnnotationPropertiesDialog from '#lib/features/annotations/AnnotationPropertiesDialog.svelte';
 	import AnnotationToolbar from '#lib/features/annotations/AnnotationToolbar.svelte';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
 	import CombineView from '#lib/features/merge/CombineView.svelte';
@@ -61,6 +61,7 @@
 				.then((s) => {
 					app.settings = s;
 					applyAppearance(s.appearance);
+					tools.setRemember(s.rememberAnnotationStyle);
 				})
 				.catch(() => {});
 			setImageFormat(info.imageFormat);
@@ -261,7 +262,7 @@
 							{#if app.settings?.toolbarStyle !== 'panel'}
 								<AnnotationToolbar {tab} />
 							{/if}
-							<AnnotationInspector {tab} />
+							<AnnotationPropertiesDialog {tab} />
 							<BookmarkInspector {tab} />
 						</div>
 					{/key}

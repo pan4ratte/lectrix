@@ -12,12 +12,15 @@
 		create,
 		createMarkup,
 		markSelection,
+		openComment,
 		openInspector,
+		openProperties,
 		refuseIfLocked,
 		remove,
 		update
 	} from '#lib/features/annotations/actions.ts';
 	import AnnotationBar from '#lib/features/annotations/AnnotationBar.svelte';
+	import AnnotationInspector from '#lib/features/annotations/AnnotationInspector.svelte';
 	import CommentTip from '#lib/features/annotations/CommentTip.svelte';
 	import { DEFAULT_TIP_DELAY_MS, quickToolAllowed, releaseAnchor, type Area } from '#lib/features/annotations/bars.ts';
 	import {
@@ -560,7 +563,7 @@
 		hideTip();
 		if (event.button !== 0 || !scroller) return;
 		const target = event.target as HTMLElement;
-		if (target.closest('[data-annotation-editor], [data-floating-bar]')) return;
+		if (target.closest('[data-annotation-editor], [data-floating-bar], [data-annotation-panel]')) return;
 		const clicks = clickCounter.count(event);
 		if (tab.draft?.kind === 'text') {
 			// A click outside the text box being typed finishes it.
@@ -593,10 +596,11 @@
 				const caps = capabilities(hit, tab.flags.canAnnotate);
 				if (clicks === 2) {
 					// A double-click opens what the annotation says: a text box's text in place,
-					// anything else's note in the inspector.
+					// anything else's note in the annotation list when that shows, otherwise
+					// in the comment panel.
 					event.preventDefault();
 					if (hit.kind === 'freeText' && caps.text) openTextEditor(hit);
-					else openInspector(caps.text);
+					else openComment(caps.text);
 				} else if (caps.move) {
 					begin(event, { kind: 'move', page, id: hit.id, start: [x, y], box: [...hit.bounds], handle: null, moved: false });
 				} else {
@@ -879,11 +883,25 @@
 		return { area: lineArea, prefer: order < 0 ? ('below' as const) : ('above' as const) };
 	});
 
-	/** The selected annotation, for its bar, while it isn't being dragged or typed in. */
+	/** The selected annotation, for its bar, while it isn't being dragged or typed in, and
+	 * while its comment panel (which has its colours) is closed. */
 	const barAnnotation = $derived.by(() => {
 		const a = tab.selectedAnnotationInfo;
-		if (!a || dragging || tab.draft?.kind === 'text' || !layout.pages[a.page]) return null;
+		if (!a || dragging || tab.draft?.kind === 'text' || app.annotationInspectorOpen || !layout.pages[a.page]) return null;
 		return { annotation: a, area: contentArea(a.page, a.bounds) };
+	});
+
+	// The comment panel closes when nothing is selected (it goes away with the selection, so
+	// it can't do this itself): the next click on an annotation shows only its bar.
+	$effect(() => {
+		if (!tab.selectedAnnotation) app.annotationInspectorOpen = false;
+	});
+
+	/** Where the selected annotation is, for its comment panel while that is open. */
+	const panelAnchor = $derived.by(() => {
+		const a = tab.selectedAnnotationInfo;
+		if (!a || !app.annotationInspectorOpen || !layout.pages[a.page]) return null;
+		return contentArea(a.page, a.bounds);
 	});
 
 	/** Scrolls while something is dragged past the top or bottom edge. */
@@ -903,6 +921,8 @@
 	}
 
 	function onKeyDown(event: KeyboardEvent) {
+		// Keys in the comment panel are its own: Delete there doesn't delete the annotation.
+		if ((event.target as HTMLElement).closest('[data-annotation-panel]')) return;
 		if ((event.key === 'Delete' || event.key === 'Backspace') && tab.selectedAnnotation && !event.ctrlKey) {
 			const { page, id } = tab.selectedAnnotation;
 			const a = tab.annotation(page, id);
@@ -1084,6 +1104,9 @@
 								}}
 							/>
 						{/if}
+						{#if panelAnchor}
+							<AnnotationInspector {tab} anchor={panelAnchor} {view} contentWidth={contentW} />
+						{/if}
 						{#if tipShown}
 							<CommentTip text={tipShown.text} pointer={tipPointer} {view} contentWidth={contentW} />
 						{/if}
@@ -1095,7 +1118,7 @@
 			<ContextMenu.Content class="menu-content">
 				{#if contextAnnotation}
 					{@const caps = capabilities(contextAnnotation, tab.flags.canAnnotate)}
-					<ContextMenu.Item class="menu-item" onSelect={() => openInspector(false)}>Properties</ContextMenu.Item>
+					<ContextMenu.Item class="menu-item" onSelect={openProperties}>Properties</ContextMenu.Item>
 					<ContextMenu.Item
 						class="menu-item"
 						disabled={!caps.delete}

@@ -3,7 +3,22 @@ import { describe, expect, it } from 'vitest';
 import type { Annotation, DocumentFlags } from '#lib/ipc/index.ts';
 import { prepareText } from '#lib/features/viewer/selection.ts';
 
-import { BAR_GAP, TIP_OFFSET, barControls, nearEdge, placeBar, placeTip, quickToolAllowed, releaseAnchor } from './bars.ts';
+import {
+	BAR_GAP,
+	TIP_OFFSET,
+	barControls,
+	clampPanel,
+	PANEL_MIN,
+	nearEdge,
+	placeBar,
+	placePanel,
+	placeTip,
+	quickToolAllowed,
+	releaseAnchor,
+	resizePanel,
+	TAIL,
+	tailShape
+} from './bars.ts';
 import {
 	annotationAt,
 	boxQuad,
@@ -307,5 +322,87 @@ describe('tool styles', () => {
 		styles.underline = { ...styles.underline, color: '#5fd35f' };
 		styles.ink = { ...styles.ink, width: 5 };
 		expect(changedStyles(styles)).toEqual({ underline: { color: '#5fd35f' }, ink: { width: 5 } });
+	});
+});
+
+describe('comment panel placement', () => {
+	const view = { x0: 0, y0: 1000, x1: 800, y1: 1600 };
+	const size = { w: 288, h: 200 };
+
+	it('goes beside the annotation: right, else left, else below', () => {
+		expect(placePanel({ x0: 100, y0: 1100, x1: 300, y1: 1120 }, size, view, 800)).toEqual({ left: 300 + BAR_GAP, top: 1100 });
+		expect(placePanel({ x0: 400, y0: 1100, x1: 700, y1: 1120 }, size, view, 800)).toEqual({
+			left: 400 - BAR_GAP - 288,
+			top: 1100
+		});
+		const below = placePanel({ x0: 100, y0: 1100, x1: 700, y1: 1120 }, size, view, 800);
+		expect(below.top).toBe(1120 + BAR_GAP);
+	});
+
+	it('stays inside the view while the annotation shows, and goes with it once scrolled away', () => {
+		const low = { x0: 100, y0: 1550, x1: 300, y1: 1570 };
+		expect(placePanel(low, size, view, 800).top).toBe(1600 - BAR_GAP - 200);
+		const away = { x0: 100, y0: 2000, x1: 300, y1: 2020 };
+		expect(placePanel(away, size, view, 800).top).toBe(2000);
+	});
+
+	it('is dragged only within the visible content', () => {
+		expect(clampPanel({ left: -50, top: 900 }, size, view, 800)).toEqual({ left: BAR_GAP, top: 1000 + BAR_GAP });
+		expect(clampPanel({ left: 700, top: 1500 }, size, view, 600)).toEqual({ left: 600 - BAR_GAP - 288, top: 1600 - BAR_GAP - 200 });
+	});
+});
+
+describe('comment panel tail and resizing', () => {
+	const panel = { x0: 400, y0: 100, x1: 688, y1: 300 };
+
+	it('points straight at the centre of an annotation beside it, from opposite that centre', () => {
+		const t = tailShape(288, 200, { x0: -180, y0: 50, x1: -20, y1: 70 }, 8)!;
+		// Base on the left side, 2 px in, centred level with the annotation's centre (-100, 60).
+		expect(t.e1).toEqual({ x: 2, y: 60 - TAIL.width / 2 });
+		expect(t.e2).toEqual({ x: 2, y: 60 + TAIL.width / 2 });
+		expect(t.tip.y).toBeCloseTo(60);
+		expect(t.tip.x).toBeCloseTo(2 - TAIL.length - 2);
+		// Near a corner the base stays clear of it and the point leans to the centre.
+		const low = tailShape(288, 200, { x0: -80, y0: 195, x1: -40, y1: 199 }, 8)!;
+		expect(low.e2.y).toBe(200 - 8);
+		const mid = { x: 2, y: (low.e1.y + low.e2.y) / 2 };
+		const cross = (low.tip.x - mid.x) * (197 - mid.y) - (low.tip.y - mid.y) * (-60 - mid.x);
+		expect(Math.abs(cross)).toBeLessThan(1e-6);
+	});
+
+	it('comes out of a corner for an annotation off it, and stops short of a close annotation', () => {
+		const t = tailShape(288, 200, { x0: -80, y0: -70, x1: -40, y1: -50 }, 8)!;
+		expect(t.e1).toEqual({ x: 12, y: 2 });
+		expect(t.e2).toEqual({ x: 2, y: 12 });
+		expect(t.tip.x).toBeLessThan(0);
+		expect(t.tip.y).toBeLessThan(0);
+		// 8 px from the panel: the point stops 2 px short of it, not on it.
+		const near = tailShape(288, 200, { x0: 296, y0: 90, x1: 400, y1: 110 }, 8)!;
+		expect(near.tip.x).toBeCloseTo(296 - 2);
+		// Over the annotation's centre: no tail.
+		expect(tailShape(288, 200, { x0: 100, y0: 50, x1: 200, y1: 60 }, 8)).toBeNull();
+	});
+
+	it('curves its sides in towards its axis', () => {
+		const t = tailShape(288, 200, { x0: 50, y0: -60, x1: 150, y1: -40 }, 8)!;
+		const mid = { x: (t.e1.x + t.e2.x) / 2, y: (t.e1.y + t.e2.y) / 2 };
+		const axisX = (x: number, y: number) => mid.x + ((t.tip.x - mid.x) * (y - mid.y)) / (t.tip.y - mid.y);
+		// Each control point is nearer the axis than the straight side's middle.
+		for (const [e, c] of [
+			[t.e1, t.c1],
+			[t.e2, t.c2]
+		] as const) {
+			const side = { x: (e.x + t.tip.x) / 2, y: (e.y + t.tip.y) / 2 };
+			expect(Math.abs(c.x - axisX(c.x, c.y))).toBeLessThan(Math.abs(side.x - axisX(side.x, side.y)));
+		}
+	});
+
+	it('resizes from any edge or corner, keeping the opposite ones and the minimum size, inside the view', () => {
+		const view = { x0: 0, y0: 0, x1: 1000, y1: 800 };
+		expect(resizePanel(panel, 'e', 50, 0, view, 1000)).toEqual({ ...panel, x1: 738 });
+		expect(resizePanel(panel, 'nw', -20, -30, view, 1000)).toEqual({ x0: 380, y0: 70, x1: 688, y1: 300 });
+		expect(resizePanel(panel, 'w', 200, 0, view, 1000).x0).toBe(688 - PANEL_MIN.w);
+		expect(resizePanel(panel, 's', 0, 2000, view, 1000).y1).toBe(800 - BAR_GAP);
+		expect(resizePanel(panel, 'n', 0, 500, view, 1000).y0).toBe(300 - PANEL_MIN.h);
 	});
 });
