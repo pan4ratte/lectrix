@@ -81,7 +81,7 @@ test('every Tab stop is named and shows focus, in every panel and dialog', async
 		await (await browser.$('button[aria-label="Show right pane"]')).click();
 		await browser.pause(300);
 		const withPane = assertStops(await tabWalk(browser, { max: 100 }), 'annotation pane');
-		for (const name of ['Hide right pane', 'Show type', 'Resize left pane', 'Resize right pane']) {
+		for (const name of ['Hide right pane', 'Filter annotations', 'Resize left pane', 'Resize right pane']) {
 			assert.ok(withPane.includes(name), `annotation pane reaches ${name}`);
 		}
 		await assertAllNamed(browser, 'annotation pane');

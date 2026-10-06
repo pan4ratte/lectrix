@@ -1,16 +1,21 @@
 <script lang="ts">
-	// The annotation list (section 6.5): grouped by page, filtered by type and author. Each
+	// The annotation list (section 6.5). Its header counts the annotations, and has Search
+	// (in comments, or with its switch in the text they mark), Sort (by page, author, date
+	// created or modified, each under its own headings) and Filter, which opens the types (as
+	// their icons), colours and authors (as pills) to pick from. Each
 	// row shows the type as an icon in the annotation's colour, the author and a short date,
 	// and the whole comment, then its replies. Clicking one shows it; double-clicking an
 	// annotation on the page while the list shows focuses its comment here; a right-click offers
 	// replying, copying the comment and deleting, and on a reply editing, copying and
 	// deleting it (ADR 0012). A badge marks annotations that need repair.
-	import { MessageSquareText, TriangleAlert, Wrench } from '@lucide/svelte';
-	import { ContextMenu } from 'bits-ui';
-	import { MediaQuery } from 'svelte/reactivity';
+	import { ArrowDownUp, ListFilter, MessageSquareText, Search, TextQuote, TriangleAlert, Wrench, X } from '@lucide/svelte';
+	import { ContextMenu, DropdownMenu } from 'bits-ui';
+	import { untrack } from 'svelte';
+	import { MediaQuery, SvelteMap } from 'svelte/reactivity';
+	import { slide } from 'svelte/transition';
 
 	import { chain } from '#lib/components/chain.ts';
-	import Dropdown from '#lib/components/Dropdown.svelte';
+	import { motionMs } from '#lib/components/panes.ts';
 	import type { Annotation } from '#lib/ipc/index.ts';
 	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
@@ -19,35 +24,142 @@
 
 	import { addReply, copyComment, openInspector, remove, repair, update } from './actions.ts';
 	import { typeIcon } from './icons.ts';
-	import { PROBLEM_SUMMARY, capabilities, formatDate, shortDate, typeName } from './tools.ts';
+	import {
+		colorKey,
+		emptyFilter,
+		filterCount,
+		groupAnnotations,
+		markedText,
+		marksText,
+		matchesFilter,
+		matchesSearch,
+		orderLabels,
+		sortAnnotations,
+		SORTS,
+		type AnnotationFilter,
+		type ListSort,
+		type SortOrder
+	} from './listing.ts';
+	import { PRESET_COLORS, PROBLEM_SUMMARY, capabilities, formatDate, shortDate, typeName } from './tools.ts';
 
 	let { tab }: { tab: DocTab } = $props();
 
-	let typeFilter = $state('all');
-	let authorFilter = $state('all');
-
 	const all = $derived(tab.allAnnotations);
-	const types = $derived([...new Set(all.map((a) => a.subtype))].sort((a, b) => typeName(a).localeCompare(typeName(b))));
-	const authors = $derived([...new Set(all.map((a) => a.author))].sort((a, b) => a.localeCompare(b)));
+	/** The list's own rows: replies show in their thread. */
+	const listed = $derived(all.filter((a) => !tab.isThreadReply(a)));
+	const types = $derived([...new Set(listed.map((a) => a.subtype))].sort((a, b) => typeName(a).localeCompare(typeName(b))));
+	const colors = $derived([...new Set(listed.map(colorKey).filter((c) => c !== null))].sort());
+	const authors = $derived([...new Set(listed.map((a) => a.author))].sort((a, b) => a.localeCompare(b)));
 	const needing = $derived(all.filter((a) => a.problems.length > 0).length);
 
-	const shown = $derived(
-		all.filter(
-			(a) =>
-				!tab.isThreadReply(a) &&
-				(typeFilter === 'all' || a.subtype === typeFilter) &&
-				(authorFilter === 'all' || a.author === authorFilter)
+	// ----- filter -----
+
+	let filterOpen = $state(false);
+	let filter = $state<AnnotationFilter>(emptyFilter());
+	const filtering = $derived(filterCount(filter));
+
+	function toggle(set: ReadonlySet<string>, value: string): Set<string> {
+		const next = new Set(set);
+		if (next.has(value)) next.delete(value);
+		else next.add(value);
+		return next;
+	}
+
+	function colorName(hex: string): string {
+		return PRESET_COLORS.find((c) => c.value === hex)?.name ?? hex.toUpperCase();
+	}
+
+	// ----- search -----
+
+	let searchOpen = $state(false);
+	let query = $state('');
+	/** Search the text the annotations mark rather than their comments. */
+	let searchMarked = $state(false);
+	let searchField: HTMLInputElement | undefined = $state();
+
+	/** Marked text by annotation and quads ("page:id:quads"): the same marks on the same
+	 * page mark the same text, whatever else changed. */
+	const marked = new SvelteMap<string, string>();
+	const markedKey = (a: Annotation) => `${a.page}:${a.id}:${a.quads.join(',')}`;
+	let readingMarked = $state(false);
+
+	// Searching the marked text reads the text of each page with text markup, once.
+	$effect(() => {
+		if (!searchOpen || !searchMarked) return;
+		const rows = listed;
+		// Filling the cache must not start this again.
+		const missing = untrack(() => rows.filter((a) => marksText(a) && !marked.has(markedKey(a))));
+		if (!missing.length) return;
+		let cancelled = false;
+		readingMarked = true;
+		void (async () => {
+			for (const page of new Set(missing.map((a) => a.page))) {
+				const text = await tab.loadText(page);
+				if (cancelled) return;
+				for (const a of missing) {
+					if (a.page === page) marked.set(markedKey(a), text ? markedText(text.lines, a.quads) : '');
+				}
+			}
+			readingMarked = false;
+		})();
+		return () => {
+			cancelled = true;
+			readingMarked = false;
+		};
+	});
+
+	function found(a: Annotation): boolean {
+		if (!searchOpen || !query.trim()) return true;
+		if (searchMarked) return marksText(a) && matchesSearch(marked.get(markedKey(a)) ?? '', query);
+		return matchesSearch(a.contents, query) || tab.repliesTo(a.page, a.id).some((r) => matchesSearch(r.contents, query));
+	}
+
+	function openSearch() {
+		searchOpen = !searchOpen;
+		if (searchOpen) requestAnimationFrame(() => searchField?.focus());
+		else query = '';
+	}
+
+	/** Esc empties the field, then closes it. */
+	function searchKey(event: KeyboardEvent) {
+		stopUnlessShortcut(event);
+		if (event.key !== 'Escape') return;
+		event.preventDefault();
+		if (query) {
+			query = '';
+		} else {
+			searchOpen = false;
+			focusList();
+		}
+	}
+
+	// ----- sort -----
+
+	let sort = $state<ListSort>('page');
+	let order = $state<SortOrder>('asc');
+	const orders = $derived(orderLabels(sort));
+	const sortLabel = $derived(`Sort by ${(SORTS.find((s) => s.id === sort)?.label ?? '').toLowerCase()}, ${orders[order]}`);
+
+	/** The search field and the filters slide open and shut (in under 150 ms; not at all
+	 * with reduced motion). */
+	const reveal = () => ({ duration: motionMs(140) });
+
+	const shown = $derived(listed.filter((a) => matchesFilter(a, filter) && found(a)));
+	const groups = $derived(
+		groupAnnotations(
+			sortAnnotations(shown, sort, order),
+			sort,
+			(page) => `Page ${tab.displayLabels?.[page] ?? page + 1}`,
+			(ms) => new Date(ms).toLocaleDateString(undefined, { dateStyle: 'medium' })
 		)
 	);
-	const groups = $derived.by(() => {
-		const out: { page: number; items: Annotation[] }[] = [];
-		for (const a of shown) {
-			const last = out.at(-1);
-			if (last && last.page === a.page) last.items.push(a);
-			else out.push({ page: a.page, items: [a] });
-		}
-		return out;
-	});
+	/** The rows in the order they show. */
+	const ordered = $derived(groups.flatMap((g) => g.items));
+	const countText = $derived(
+		shown.length === listed.length
+			? `${listed.length} ${listed.length === 1 ? 'annotation' : 'annotations'}`
+			: `${shown.length} of ${listed.length} annotations`
+	);
 
 	// Icons take the annotation's colour, made just dark (or light) enough to show on the
 	// pane: a yellow highlight's icon on the light theme, a black one's on the dark.
@@ -95,16 +207,16 @@
 	}
 
 	function onListKey(event: KeyboardEvent) {
-		const index = shown.findIndex((a) => `${a.page}:${a.id}` === selectedKey);
+		const index = ordered.findIndex((a) => `${a.page}:${a.id}` === selectedKey);
 		if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
 			event.preventDefault();
-			const next = shown[Math.max(0, Math.min(shown.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))];
+			const next = ordered[Math.max(0, Math.min(ordered.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))];
 			if (next) {
 				show(next);
 				document.querySelector(`[data-annotation-row="${next.page}:${next.id}"]`)?.scrollIntoView({ block: 'nearest' });
 			}
 		} else if (event.key === 'Delete' && index >= 0) {
-			const a = shown[index]!;
+			const a = ordered[index]!;
 			if (capabilities(a, tab.flags.canAnnotate).delete) {
 				event.preventDefault();
 				void remove(tab, a.page, a.id);
@@ -216,25 +328,173 @@
 </script>
 
 <div class="flex h-full flex-col">
-	<div class="flex shrink-0 flex-col gap-2 border-b border-line p-2">
-		<div class="flex gap-2">
-			<Dropdown
-				class="h-7 min-w-0 flex-1 text-xs"
-				label="Show type"
-				bind:value={typeFilter}
-				options={[{ value: 'all', label: 'All types' }, ...types.map((t) => ({ value: t, label: typeName(t) }))]}
-			/>
-			<Dropdown
-				class="h-7 min-w-0 flex-1 text-xs"
-				label="Show author"
-				bind:value={authorFilter}
-				options={[{ value: 'all', label: 'All authors' }, ...authors.map((name) => ({ value: name, label: name || 'Unknown' }))]}
-			/>
+	<div class="flex shrink-0 flex-col border-b border-line px-2 py-[6px]">
+		<div class="flex items-center gap-0.5">
+			<p class="min-w-0 flex-1 truncate px-1 text-sm text-fg-muted" aria-live="polite">{countText}</p>
+			<button
+				type="button"
+				class="icon-button tool-button"
+				aria-label="Search annotations"
+				title="Search annotations"
+				aria-pressed={searchOpen}
+				disabled={listed.length === 0}
+				onclick={openSearch}
+			>
+				<Search size={16} aria-hidden="true" />
+			</button>
+			<DropdownMenu.Root>
+				<DropdownMenu.Trigger
+					class="icon-button"
+					aria-label={sortLabel}
+					title={sortLabel}
+					disabled={listed.length === 0}
+				>
+					<ArrowDownUp size={16} aria-hidden="true" />
+				</DropdownMenu.Trigger>
+				<DropdownMenu.Portal>
+					<DropdownMenu.Content class="menu-content" align="end" sideOffset={4}>
+						<DropdownMenu.RadioGroup value={sort} onValueChange={(v) => (sort = v as ListSort)}>
+							{#each SORTS as s (s.id)}
+								<DropdownMenu.RadioItem class="menu-item" value={s.id}>
+									{#snippet children({ checked })}
+										<span class="w-4" aria-hidden="true">{checked ? '✓' : ''}</span>{s.label}
+									{/snippet}
+								</DropdownMenu.RadioItem>
+							{/each}
+						</DropdownMenu.RadioGroup>
+						<DropdownMenu.Separator class="menu-separator" />
+						<DropdownMenu.RadioGroup value={order} onValueChange={(v) => (order = v as SortOrder)}>
+							{#each ['asc', 'desc'] as const as o (o)}
+								<DropdownMenu.RadioItem class="menu-item" value={o}>
+									{#snippet children({ checked })}
+										<span class="w-4" aria-hidden="true">{checked ? '✓' : ''}</span>{orders[o]}
+									{/snippet}
+								</DropdownMenu.RadioItem>
+							{/each}
+						</DropdownMenu.RadioGroup>
+					</DropdownMenu.Content>
+				</DropdownMenu.Portal>
+			</DropdownMenu.Root>
+			<button
+				type="button"
+				class="icon-button tool-button relative"
+				aria-label={filtering ? `Filter annotations (${filtering} picked)` : 'Filter annotations'}
+				title="Filter annotations"
+				aria-pressed={filterOpen}
+				aria-expanded={filterOpen}
+				disabled={listed.length === 0}
+				onclick={() => (filterOpen = !filterOpen)}
+			>
+				<ListFilter size={16} aria-hidden="true" />
+				{#if filtering}
+					<span class="filter-dot" aria-hidden="true"></span>
+				{/if}
+			</button>
 		</div>
+
+		{#if searchOpen}
+			<div class="flex flex-col gap-2 pt-2" transition:slide={reveal()}>
+				<div class="field flex h-[34px] shrink-0 items-center gap-1 pr-[3px] pl-2">
+					<Search size={14} class="shrink-0 text-fg-muted" aria-hidden="true" />
+					<input
+						bind:this={searchField}
+						bind:value={query}
+						class="search-input min-w-0 flex-1 bg-transparent text-sm"
+						type="search"
+						aria-label={searchMarked ? 'Search the marked text' : 'Search the comments'}
+						placeholder={searchMarked ? 'Search the marked text' : 'Search the comments'}
+						onkeydown={searchKey}
+					/>
+					{#if query}
+						<button
+							type="button"
+							class="icon-button field-button"
+							aria-label="Clear the search"
+							title="Clear the search"
+							onclick={() => {
+								query = '';
+								searchField?.focus();
+							}}
+						>
+							<X size={14} aria-hidden="true" />
+						</button>
+					{/if}
+					<button
+						type="button"
+						class="icon-button tool-button field-button"
+						aria-label="Search the text annotations mark, not their comments"
+						title="Search the text annotations mark, not their comments"
+						aria-pressed={searchMarked}
+						onclick={() => (searchMarked = !searchMarked)}
+					>
+						<TextQuote size={14} aria-hidden="true" />
+					</button>
+				</div>
+				{#if searchMarked && readingMarked && query.trim()}
+					<p class="px-1 text-xs text-fg-muted">Reading the marked text…</p>
+				{/if}
+			</div>
+		{/if}
+
+		{#if filterOpen}
+			<div class="flex flex-col gap-2 pt-2" role="group" aria-label="Filters" transition:slide={reveal()}>
+				<h3 class="filter-heading" id="filter-types-{tab.id}">Type</h3>
+				<div class="flex flex-wrap items-center gap-0.5" role="group" aria-labelledby="filter-types-{tab.id}">
+					{#each types as t (t)}
+						{@const Icon = typeIcon(t)}
+						<button
+							type="button"
+							class="icon-button tool-button"
+							aria-label={typeName(t)}
+							title={typeName(t)}
+							aria-pressed={filter.types.has(t)}
+							onclick={() => (filter = { ...filter, types: toggle(filter.types, t) })}
+						>
+							<Icon size={16} aria-hidden="true" />
+						</button>
+					{/each}
+				</div>
+				{#if colors.length}
+					<h3 class="filter-heading" id="filter-colours-{tab.id}">Colour</h3>
+					<div class="flex flex-wrap items-center gap-2 px-1" role="group" aria-labelledby="filter-colours-{tab.id}">
+						{#each colors as c (c)}
+							<button
+								type="button"
+								class="swatch"
+								aria-label={colorName(c)}
+								title={colorName(c)}
+								aria-pressed={filter.colors.has(c)}
+								style:--swatch={c}
+								onclick={() => (filter = { ...filter, colors: toggle(filter.colors, c) })}
+							></button>
+						{/each}
+					</div>
+				{/if}
+				<h3 class="filter-heading" id="filter-authors-{tab.id}">Author</h3>
+				<div class="flex flex-wrap items-center gap-1 px-1" role="group" aria-labelledby="filter-authors-{tab.id}">
+					{#each authors as name (name)}
+						<button
+							type="button"
+							class="filter-pill"
+							aria-pressed={filter.authors.has(name)}
+							onclick={() => (filter = { ...filter, authors: toggle(filter.authors, name) })}
+						>
+							{name || 'Unknown'}
+						</button>
+					{/each}
+				</div>
+				{#if filtering}
+					<button type="button" class="button h-7 gap-1 self-start text-xs" onclick={() => (filter = emptyFilter())}>
+						<X size={14} aria-hidden="true" />Clear filters
+					</button>
+				{/if}
+			</div>
+		{/if}
+
 		{#if needing > 0}
 			<button
 				type="button"
-				class="button h-7 gap-1 text-xs"
+				class="button mt-2 h-7 gap-1 text-xs"
 				disabled={!tab.flags.canAnnotate}
 				onclick={() => void repair(tab)}
 				title="Fix annotations other apps may not show correctly"
@@ -250,7 +510,13 @@
 			No annotations yet. Pick a tool in the toolbar to add one.
 		</p>
 	{:else if shown.length === 0}
-		<p class="p-4 text-sm text-fg-muted">No annotations match the filters.</p>
+		<p class="p-4 text-sm text-fg-muted">
+			{searchOpen && query.trim() ? 'No annotations match the search' : 'No annotations match the filters'}{filtering &&
+			searchOpen &&
+			query.trim()
+				? ' and the filters'
+				: ''}.
+		</p>
 	{:else}
 		<ContextMenu.Root>
 			<ContextMenu.Trigger>
@@ -266,10 +532,8 @@
 						onkeydown={onListKey}
 						oncontextmenu={chain(props, 'oncontextmenu', onContextMenu)}
 					>
-						{#each groups as g (g.page)}
-							<div class="annotation-page" role="presentation">
-								Page {tab.displayLabels?.[g.page] ?? g.page + 1}
-							</div>
+						{#each groups as g (g.key)}
+							<div class="annotation-page" role="presentation">{g.title}</div>
 							{#each g.items as a, i (`${a.page}:${a.id || `direct-${i}`}`)}
 								{@const key = `${a.page}:${a.id}`}
 								{@const isSelected = key === selectedKey}

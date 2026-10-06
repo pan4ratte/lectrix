@@ -715,3 +715,88 @@ test('reply to an annotation from the list, edit the reply and delete it', async
 		await stop();
 	}
 });
+
+test('the list counts, searches, filters and sorts annotations', async () => {
+	const { browser, stop } = await launch([sample('list.pdf', 3)]);
+	try {
+		await waitForDocument(browser);
+		await showAnnotations(browser);
+		// A highlight over the marker line ("The quick brown fox..."), and a note with a comment.
+		await (await browser.$('[role=document]')).click();
+		await browser.keys('h');
+		await drag(browser, await pagePoint(browser, 0, 40, 92), await pagePoint(browser, 0, 200, 92), 1);
+		await waitForRowCount(browser, 1, 'highlight');
+		await browser.keys(['Escape']);
+		await browser.keys(['Escape']);
+		await browser.keys('n');
+		await click(browser, await pagePoint(browser, 0, 400, 150));
+		await waitForRowCount(browser, 2, 'note');
+		await browser.waitUntil(async () => (await browser.execute(() => document.activeElement?.tagName)) === 'TEXTAREA', {
+			timeoutMsg: 'the note text is not focused'
+		});
+		await browser.keys([...'Hello from the note']);
+		await browser.keys(['Control', 'Enter']);
+		// Nothing selected, so the rows show their comments as text.
+		await click(browser, await pagePoint(browser, 0, 300, 600));
+		await browser.waitUntil(async () => (await listRows(browser)).some((r) => r.includes('Hello from the note')), {
+			timeoutMsg: 'the note kept no comment'
+		});
+
+		// The header counts them.
+		const count = () => browser.execute(() => document.querySelector('aside[aria-label="Right pane"] [aria-live="polite"]')?.textContent?.trim());
+		assert.equal(await count(), '2 annotations');
+
+		// Search: the comments, as typed.
+		await (await browser.$('button[aria-label="Search annotations"]')).click();
+		await browser.waitUntil(() => browser.execute(() => document.activeElement?.matches('input[type=search]') === true), {
+			timeoutMsg: 'Search did not focus its field'
+		});
+		await browser.keys([...'HELLO']);
+		await waitForRowCount(browser, 1, 'searching the comments for "hello"');
+		assert.match((await listRows(browser))[0], /^Note/);
+		assert.equal(await count(), '1 of 2 annotations');
+		// With the switch, the text the annotations mark instead.
+		await browser.keys(['Control', 'a']);
+		await browser.keys([...'quick']);
+		await waitForRowCount(browser, 0, 'no comment says "quick"');
+		await (await browser.$('button[aria-label="Search the text annotations mark, not their comments"]')).click();
+		await waitForRowCount(browser, 1, 'searching the marked text for "quick"');
+		assert.match((await listRows(browser))[0], /^Highlight/);
+		// Esc empties the field, then closes it.
+		await browser.execute(() => document.querySelector('input[type=search]').focus());
+		await browser.keys(['Escape']);
+		await waitForRowCount(browser, 2, 'Esc emptied the search');
+		await browser.keys(['Escape']);
+		await (await browser.$('input[type=search]')).waitForExist({ reverse: true, timeoutMsg: 'Esc left the search open' });
+
+		// Filter: the types as their icons, the colours, the authors as pills.
+		await (await browser.$('button[aria-label="Filter annotations"]')).click();
+		const types = await browser.$('[role=group][aria-labelledby^="filter-types-"]');
+		await (await types.$('button[aria-label="Note"]')).click();
+		await waitForRowCount(browser, 1, 'the Note filter');
+		assert.match((await listRows(browser))[0], /^Note/);
+		assert.ok(await (await browser.$('[role=group][aria-labelledby^="filter-colours-"] button[aria-label="Yellow"]')).isExisting(), 'no yellow in the colours');
+		assert.equal((await browser.$$('[role=group][aria-labelledby^="filter-authors-"] .filter-pill')).length, 1);
+		const subheadings = await browser.execute(() => [...document.querySelectorAll('.filter-heading')].map((h) => h.textContent.trim()));
+		assert.deepEqual(subheadings, ['Type', 'Colour', 'Author']);
+		await (await browser.$('button=Clear filters')).click();
+		await waitForRowCount(browser, 2, 'Clear filters');
+
+		// Sort by author: one heading, the author's name, in place of the pages.
+		const headings = () => browser.execute(() => [...document.querySelectorAll('.annotation-page')].map((h) => h.textContent.trim()));
+		assert.deepEqual(await headings(), ['Page 1']);
+		await (await browser.$('button[aria-label^="Sort by page, A–Z"]')).click();
+		await (await browser.$('//*[@role="menuitemradio"][contains(., "Author")]')).click();
+		await browser.waitUntil(async () => !(await headings()).includes('Page 1'), { timeoutMsg: 'sorting by author kept the page headings' });
+		assert.equal((await headings()).length, 1);
+		// Z to A: the order is a second choice in the same menu, kept for every sort.
+		await (await browser.$('button[aria-label="Sort by author, A–Z"]')).click();
+		await (await browser.$('//*[@role="menuitemradio"][contains(., "Z–A")]')).click();
+		await (await browser.$('button[aria-label="Sort by author, Z–A"]')).waitForExist({ timeoutMsg: 'Z–A was not picked' });
+		await (await browser.$('button[aria-label="Sort by author, Z–A"]')).click();
+		await (await browser.$('//*[@role="menuitemradio"][contains(., "Page")]')).click();
+		await (await browser.$('button[aria-label="Sort by page, Z–A (last page first)"]')).waitForExist({ timeoutMsg: 'the order did not stay Z–A' });
+	} finally {
+		await stop();
+	}
+});

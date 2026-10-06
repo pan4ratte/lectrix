@@ -428,6 +428,7 @@ input[type='color'],
 	gap: 8px 10px;
 }
 .swatch[aria-checked='true'],
+.swatch[aria-pressed='true'],
 .swatch-custom-on {
 	outline: 2px solid var(--lectrix-accent);
 	outline-offset: 1px;
@@ -685,6 +686,59 @@ input[type='color'],
 }
 /* A page's group in the annotation list: a rule above each but the first, and a header that
    stands apart from the rows. */
+/* The annotation list's filters: authors as pills, picked ones as the active tool is. */
+.filter-pill {
+	height: 24px;
+	max-width: 100%;
+	overflow: hidden;
+	padding: 0 10px;
+	border: 1px solid var(--lectrix-line);
+	border-radius: 12px;
+	font-size: 12px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.filter-pill:hover {
+	background: var(--lectrix-hover);
+}
+.filter-pill[aria-pressed='true'] {
+	border-color: var(--lectrix-accent);
+	background: var(--lectrix-row-selected);
+	box-shadow: inset 0 0 0 1px var(--lectrix-accent);
+}
+/* The annotation filters' subheadings: Type, Colour, Author. */
+.filter-heading {
+	/* Nearer its row than the row before it. */
+	margin-bottom: -4px;
+	padding: 4px 4px 0;
+	color: var(--lectrix-fg-muted);
+	font-size: 12px;
+	font-weight: 600;
+}
+/* Some filter is picked (on the Filter button). */
+.filter-dot {
+	position: absolute;
+	top: 5px;
+	right: 5px;
+	width: 7px;
+	height: 7px;
+	border-radius: 50%;
+	background: var(--lectrix-accent);
+}
+/* The annotation search's input: the field around it shows the focus, and its own
+   button clears it. */
+.search-input,
+.search-input:focus-visible {
+	outline: none;
+}
+.search-input::-webkit-search-cancel-button {
+	display: none;
+}
+/* A button inside a field (the search's "marked text" switch). */
+.field-button {
+	width: 26px;
+	height: 26px;
+}
 .annotation-page {
 	margin: 12px 4px 4px;
 	/* Lined up with the rows' text. */
