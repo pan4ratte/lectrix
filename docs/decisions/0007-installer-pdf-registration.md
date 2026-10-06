@@ -22,7 +22,8 @@ chosen at install" (AGENTS.md section 10). Two facts shape this:
 
 1. **Register, don't take over.** When the user chooses it, the installers write:
    - a ProgID `Lectrix.Document` (description, icon, `shell\open\command` = `"…\lectrix.exe" "%1"`,
-     which the app already handles: command line and single-instance hand-off, Phase 1);
+     which the app already handles: command line and single-instance hand-off, Phase 1).
+     The icon is the Lectrix PDF file icon (point 5);
    - `.pdf\OpenWithProgids\Lectrix.Document`;
    - `Software\Lectrix\Capabilities` (name, description, `FileAssociations\.pdf`) and
      `RegisteredApplications\Lectrix`, so Lectrix appears in Default apps.
@@ -49,6 +50,22 @@ chosen at install" (AGENTS.md section 10). Two facts shape this:
    installer is installed silently with and without the registration, the registry and
    install folder are checked, it is uninstalled, and everything must be gone. The
    default value of `.pdf` must be unchanged throughout.
+5. **PDFs get the Lectrix PDF icon** (added 2026-10-06; until then `DefaultIcon` was
+   `lectrix.exe,0`, the app icon). The brand kit's `lectrix-pdf.ico` (`design/file-icon/`,
+   ADR 0013) is copied to `src-tauri/icons/lectrix-pdf.ico` and installed next to
+   `lectrix.exe` as a resource. That resource is set in `src-tauri/tauri.windows.conf.json`,
+   so the macOS and Linux packages don't carry it. `DefaultIcon` is
+   `"…\lectrix-pdf.ico",0` in both installers; an in-app update rewrites the registration,
+   so it reaches existing installs. CI checks that `DefaultIcon` names that file, that the
+   file exists, and that uninstalling removes it. Explorer shows the icon for PDFs only
+   while Lectrix is the default app for them.
+
+   Embedding the icon in `lectrix.exe` as a second icon resource was not chosen.
+   `tauri-build` already compiles the exe's one resource file, so a second icon would need
+   another resource compiler step in `build.rs` (or a new dependency). `DefaultIcon` would
+   also have to name it by index or resource ID, which depends on how the icons are
+   ordered in the exe. A separate file needs no build change, and both bundlers already
+   install and remove resources.
 
 ## Consequences
 

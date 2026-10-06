@@ -16,13 +16,15 @@
   <Fragment>
     <Property Id="LECTRIX_ASSOCIATE_PDF" Value="1" Secure="yes" />
 
-    <!-- lectrix.exe is the app's main binary (the Cargo package name). It cannot be named
-         through its file entry ([#Path]): that belongs to another feature (ICE69). -->
+    <!-- lectrix.exe is the app's main binary (the Cargo package name), and lectrix-pdf.ico
+         the PDF icon installed next to it as a resource (tauri.windows.conf.json). Neither
+         can be named through its file entry ([#Path]): those belong to another feature
+         (ICE69). -->
     <DirectoryRef Id="INSTALLDIR">
       <Component Id="PdfAssociationEntries" Guid="6B0F3C52-8E1D-4C7A-9F2B-3D5E7A1C9B40">
         <RegistryKey Root="HKLM" Key="Software\Classes\[ProductName].Document">
           <RegistryValue Type="string" Value="PDF Document" KeyPath="yes" />
-          <RegistryValue Key="DefaultIcon" Type="string" Value="&quot;[INSTALLDIR]lectrix.exe&quot;,0" />
+          <RegistryValue Key="DefaultIcon" Type="string" Value="&quot;[INSTALLDIR]lectrix-pdf.ico&quot;,0" />
           <RegistryValue Key="shell\open\command" Type="string" Value="&quot;[INSTALLDIR]lectrix.exe&quot; &quot;%1&quot;" />
         </RegistryKey>
         <RegistryValue Root="HKLM" Key="Software\Classes\.pdf\OpenWithProgids" Name="[ProductName].Document" Type="string" Value="" />

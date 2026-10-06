@@ -38,8 +38,12 @@ function Has-Value([string]$key, [string]$name) {
 function Check-Registration([string]$hive, [bool]$expected, [string]$exe) {
     $classes = "${hive}:\Software\Classes"
     $command = Get-Value "$classes\$progId\shell\open\command" '(default)'
+    $icon = Join-Path (Split-Path $exe) 'lectrix-pdf.ico'
     if ($expected) {
         Check ($command -eq "`"$exe`" `"%1`"") "$hive open command is `"$exe`" `"%1`" (found: $command)"
+        $defaultIcon = Get-Value "$classes\$progId\DefaultIcon" '(default)'
+        Check ($defaultIcon -eq "`"$icon`",0") "$hive DefaultIcon is `"$icon`",0 (found: $defaultIcon)"
+        Check (Test-Path -LiteralPath $icon) "the PDF icon $icon exists"
         Check (Has-Value "$classes\.pdf\OpenWithProgids" $progId) "$hive .pdf lists $progId under OpenWithProgids"
         Check ((Get-Value "${hive}:\Software\RegisteredApplications" $product) -eq "Software\$product\Capabilities") "$hive RegisteredApplications names Lectrix's capabilities"
         Check ((Get-Value "${hive}:\Software\$product\Capabilities\FileAssociations" '.pdf') -eq $progId) "$hive capabilities map .pdf to $progId"
@@ -74,6 +78,7 @@ foreach ($case in @(@{ Args = @('/S'); Registered = $true }, @{ Args = @('/S', '
     # _?= runs the uninstaller in place, so Start-Process can wait for it.
     Run (Join-Path $nsisDir 'uninstall.exe') @('/S', "_?=$nsisDir")
     Check (-not (Test-Path $nsisExe)) 'lectrix.exe removed'
+    Check (-not (Test-Path (Join-Path $nsisDir 'lectrix-pdf.ico'))) 'PDF icon removed'
     Check-Registration 'HKCU' $false $nsisExe
     # The MSI would otherwise read this and install into the per-user folder.
     Check ($null -eq (Get-Value "HKCU:\Software\$manufacturer\$product" '(default)')) 'install location forgotten'
@@ -101,6 +106,7 @@ foreach ($case in @(@{ Props = @(); Registered = $true; Log = 'msi-default' }, @
     Check-Registration 'HKLM' $case.Registered $msiExe
     Run 'msiexec.exe' @('/x', "`"$($msi.FullName)`"", '/qn', '/norestart', '/l*v', "`"$logs\$($case.Log)-uninstall.log`"")
     Check (-not (Test-Path $msiExe)) 'lectrix.exe removed'
+    Check (-not (Test-Path (Join-Path (Split-Path $msiExe) 'lectrix-pdf.ico'))) 'PDF icon removed'
     Check-Registration 'HKLM' $false $msiExe
 }
 

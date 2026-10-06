@@ -94,6 +94,9 @@ does afterwards.
 - [ ] Double-click a PDF in Explorer: Windows asks which app to use and offers Lectrix (or,
       if you had chosen a default before, it keeps it; Lectrix is then listed under Open with
       and in Settings > Apps > Default apps). Choosing Lectrix opens the file in it.
+- [ ] With Lectrix as the default app, Explorer shows the Lectrix PDF icon (the page with
+      the blue swan and "PDF", the swan alone at small sizes) for PDFs, in the Details and
+      Large icons views. If the old icon stays, sign out and in again: Explorer caches icons.
 - [ ] The install folder holds `LICENSE.txt`, `THIRD_PARTY_NOTICES.md` and
       `THIRD_PARTY_LICENSES.md`.
 - [ ] Uninstall (Settings > Apps): Lectrix disappears from Open with and Default apps.
@@ -116,6 +119,8 @@ Needs an installed earlier release and a newer one published (ADR 0011,
       reopen Lectrix. The next start is the new version.
 - [ ] If Lectrix was installed without "Open PDF files with Lectrix", it is still not
       offered for PDFs after updating.
+- [ ] Updating from `1.0.0-beta.1` (where PDFs showed the app icon), with Lectrix as the
+      default app: PDFs show the Lectrix PDF icon afterwards.
 - [ ] Settings: turn off "Check for updates when Lectrix starts": no notice at the next
       start.
 

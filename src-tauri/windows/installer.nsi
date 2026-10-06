@@ -88,13 +88,14 @@ Var AssociatePdfCheckbox
 
 ; Lectrix: how Lectrix is registered for PDF files. It joins the apps Windows offers for
 ; .pdf (Open with, Default apps) without taking over the default: Windows asks the user
-; which app to use the next time they open a PDF, and keeps their choice.
+; which app to use the next time they open a PDF, and keeps their choice. PDFs show the
+; Lectrix PDF icon, installed next to the app as a resource (tauri.windows.conf.json).
 !define LECTRIX_PROGID "${PRODUCTNAME}.Document"
 !define LECTRIX_CAPABILITIES "Software\${PRODUCTNAME}\Capabilities"
 
 !macro LECTRIX_REGISTER_PDF
   WriteRegStr SHCTX "Software\Classes\${LECTRIX_PROGID}" "" "PDF Document"
-  WriteRegStr SHCTX "Software\Classes\${LECTRIX_PROGID}\DefaultIcon" "" "$\"$INSTDIR\${MAINBINARYNAME}.exe$\",0"
+  WriteRegStr SHCTX "Software\Classes\${LECTRIX_PROGID}\DefaultIcon" "" "$\"$INSTDIR\lectrix-pdf.ico$\",0"
   WriteRegStr SHCTX "Software\Classes\${LECTRIX_PROGID}\shell\open\command" "" "$\"$INSTDIR\${MAINBINARYNAME}.exe$\" $\"%1$\""
   WriteRegStr SHCTX "Software\Classes\.pdf\OpenWithProgids" "${LECTRIX_PROGID}" ""
   WriteRegStr SHCTX "${LECTRIX_CAPABILITIES}" "ApplicationName" "${PRODUCTNAME}"

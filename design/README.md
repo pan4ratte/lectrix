@@ -7,6 +7,7 @@ into the app or shipped as it is. The app keeps its own copies where it uses the
 | Used in the app | Copied from |
 | --- | --- |
 | `src-tauri/icons/`, `src-tauri/app-icon.png` | the kit's platform exports of `app-icon/` |
+| `src-tauri/icons/lectrix-pdf.ico` (PDF files on Windows) | `file-icon/windows/lectrix-pdf.ico` |
 | `src/lib/assets/lectrix-icon.svg` (About dialog) | `app-icon/lectrix-icon.svg` |
 | `src/lib/assets/fonts/` (ADR 0009) | the kit's Latin, Cyrillic and Greek font build |
 | accent colours in `src/app.css` (ADR 0010) | `tokens.json` |
@@ -15,9 +16,11 @@ When a file here changes, copy it to the app in the same change and say so in th
 
 ## Licence
 
-Lectrix's own artwork in this folder (everything except `yaru/`) is © 2026 the Lectrix
-authors, **all rights reserved**. It is not covered by the repository's AGPL-3.0-or-later
-licence, and it may not be reused or adapted without permission.
+Lectrix's own artwork in this folder (everything except `yaru/`) is © 2026 Mark Ingrem,
+**all rights reserved**. It is not covered by the repository's AGPL-3.0-or-later licence,
+and it may not be reused or adapted without permission. The same holds for the copies the
+app ships (`src-tauri/icons/`, `src-tauri/app-icon.png`, `src/lib/assets/lectrix-icon.svg`),
+as `THIRD_PARTY_NOTICES.md` says.
 
 `yaru/` is derived from the Yaru icon theme and is licensed under **CC BY-SA 4.0**
 (`yaru/LICENSE.md`).
@@ -98,7 +101,9 @@ colours, not the brand red (AGENTS.md section 6.5).
   label is Google Sans Bold at −0.02em in ink `#142247`, converted to outlines.
 - **32 px and below:** `lectrix-file-icon-small.svg`, with no label, a thicker frame and a
   larger swan. `windows/lectrix-pdf.ico` (16 to 256 px) switches to it at 32 px and below.
-- **Windows:** `lectrix-pdf.ico` is meant for the `Lectrix.Document` file type.
+- **Windows:** `lectrix-pdf.ico` is the icon of the `Lectrix.Document` file type. The app
+  ships a copy, `src-tauri/icons/lectrix-pdf.ico`, installed next to `lectrix.exe`
+  (ADR 0007).
 
 ## Yaru versions
 
