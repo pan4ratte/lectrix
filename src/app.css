@@ -404,10 +404,10 @@ input[type='color'],
 .annotation-toolbar-top.annotation-toolbar-hidden {
 	transform: translate(-50%, -12px);
 }
-/* The active tool: an accent border all round, over a tint of the accent. */
+/* The active tool: an accent icon and an accent border all round, over a tint of the accent. */
 .tool-button[aria-pressed='true'] {
 	background: var(--lectrix-row-selected);
-	color: var(--lectrix-fg);
+	color: var(--lectrix-accent);
 	box-shadow: inset 0 0 0 1px var(--lectrix-accent);
 }
 .swatch {
@@ -420,6 +420,12 @@ input[type='color'],
 	border: 1px solid color-mix(in srgb, var(--lectrix-fg) 45%, transparent);
 	border-radius: 50%;
 	background: var(--swatch);
+}
+/* Acrobat's presets: three rows of six. */
+.swatch-grid {
+	display: grid;
+	grid-template-columns: repeat(6, 22px);
+	gap: 8px 10px;
 }
 .swatch[aria-checked='true'],
 .swatch-custom-on {

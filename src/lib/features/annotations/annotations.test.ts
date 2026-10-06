@@ -38,6 +38,7 @@ import {
 	lineBreaks,
 	PRESET_COLORS,
 	shortDate,
+	showsComment,
 	typeName,
 	type DrawTool,
 	type ToolStyle
@@ -174,6 +175,15 @@ describe('what may change', () => {
 		expect(capabilities({ ...ink, id: 0 }, true).delete).toBe(false);
 		// A reply's text can change, nothing else (ADR 0012).
 		expect(capabilities({ ...note, replyTo: 7 }, true)).toEqual({ restyle: false, text: true, move: false, resize: false, delete: true });
+	});
+
+	it('shows the comment panel when selected only with a comment', () => {
+		expect(showsComment(annotation({ contents: 'Check this' }))).toBe(true);
+		expect(showsComment(annotation({ contents: '' }))).toBe(false);
+		expect(showsComment(annotation({ contents: ' \n ' }))).toBe(false);
+		// A text box's text is on the page: it gets its bar.
+		expect(showsComment(annotation({ subtype: 'FreeText', kind: 'freeText', contents: 'Hi' }))).toBe(false);
+		expect(showsComment(annotation({ subtype: 'Stamp', kind: null, contents: 'Approved' }))).toBe(true);
 	});
 
 	it('names tools and types', () => {

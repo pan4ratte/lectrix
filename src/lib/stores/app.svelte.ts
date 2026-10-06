@@ -116,10 +116,10 @@ class AppStore {
 	panesRestored = $state(false);
 	/** The inspector (properties of the selected bookmark) is open. */
 	inspectorOpen = $state(false);
-	/** The annotation inspector (the comment panel beside the annotation) is open; it shows
-	 * the selected annotation until closed or until nothing is selected. A click on an
-	 * annotation shows only its bar. */
-	annotationInspectorOpen = $state(false);
+	/** Whether the selected annotation ("tab:page:id") shows its comment panel (the
+	 * inspector beside it) rather than its bar. Set when it is selected (open if it has a
+	 * comment), opened from its bar, a double-click or the list, closed with Esc. */
+	annotationPanel = $state<{ key: string; open: boolean } | null>(null);
 	/** The Properties dialog of the selected annotation (author, dates) is open. */
 	annotationPropertiesOpen = $state(false);
 	/** A note was just placed: the annotation inspector focuses its text. */

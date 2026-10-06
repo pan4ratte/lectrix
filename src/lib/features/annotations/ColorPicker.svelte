@@ -1,7 +1,8 @@
 <script lang="ts">
 	// The colour control of the annotation toolbar, an annotation's bar and its comment panel
 	// (section 6.5), as Acrobat has it: one button showing the colour in use, which opens a
-	// panel with the six presets, a custom colour and the opacity slider. A colour applies
+	// panel with Acrobat's 18 presets (a grid the arrow keys move in, one Tab stop), a custom
+	// colour and the opacity slider. A colour applies
 	// when picked and the panel stays open for the opacity, which applies when the slider is
 	// let go. The custom colour's button opens Lectrix's own picker in the panel (HexPicker),
 	// open from the start when the colour in use is not a preset. Esc or a click elsewhere
@@ -11,7 +12,7 @@
 	import { untrack } from 'svelte';
 
 	import HexPicker from './HexPicker.svelte';
-	import { PRESET_COLORS } from './tools.ts';
+	import { PRESET_COLORS, PRESET_COLUMNS } from './tools.ts';
 
 	interface Props {
 		/** #rrggbb, or null for an annotation without a colour. */
@@ -63,6 +64,27 @@
 		open = false;
 	}
 
+	/** The swatch Tab reaches: the colour in use, else the first. */
+	const tabStop = $derived(Math.max(0, PRESET_COLORS.findIndex((c) => c.value === color)));
+
+	/** Arrows move among the swatches, a row at a time up and down; Enter or Space picks. */
+	function onSwatchKey(event: KeyboardEvent, index: number) {
+		const last = PRESET_COLORS.length - 1;
+		const steps: Record<string, number> = {
+			ArrowRight: index + 1,
+			ArrowLeft: index - 1,
+			ArrowDown: index + PRESET_COLUMNS,
+			ArrowUp: index - PRESET_COLUMNS,
+			Home: 0,
+			End: last
+		};
+		const next = steps[event.key];
+		if (next === undefined) return;
+		event.preventDefault();
+		if (next < 0 || next > last) return;
+		content?.querySelectorAll<HTMLElement>('[role=radiogroup] .swatch')[next]?.focus();
+	}
+
 	/** Opens on the colour in use, so arrows move from it. */
 	function focusChosen(event: Event) {
 		event.preventDefault();
@@ -102,9 +124,9 @@
 			onOpenAutoFocus={focusChosen}
 			onCloseAutoFocus={restoreFocus}
 		>
-			<div class="flex items-center justify-between">
-				<div class="flex flex-1 items-center justify-between pr-[6px]" role="radiogroup" aria-label={label}>
-					{#each PRESET_COLORS as c (c.value)}
+			<div class="flex items-start justify-between">
+				<div class="swatch-grid" role="radiogroup" aria-label={label}>
+					{#each PRESET_COLORS as c, i (c.value)}
 						<button
 							type="button"
 							class="swatch"
@@ -112,8 +134,10 @@
 							aria-checked={color === c.value}
 							aria-label={c.name}
 							title={c.name}
+							tabindex={i === tabStop ? 0 : -1}
 							style:--swatch={c.value}
 							onclick={() => oncolor(c.value)}
+							onkeydown={(e) => onSwatchKey(e, i)}
 						></button>
 					{/each}
 				</div>

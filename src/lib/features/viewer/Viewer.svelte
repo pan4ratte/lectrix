@@ -15,8 +15,11 @@
 		openComment,
 		openInspector,
 		openProperties,
+		panelOpen,
 		refuseIfLocked,
 		remove,
+		selectedKey,
+		setPanel,
 		update
 	} from '#lib/features/annotations/actions.ts';
 	import AnnotationBar from '#lib/features/annotations/AnnotationBar.svelte';
@@ -36,7 +39,7 @@
 	} from '#lib/features/annotations/geometry.ts';
 	import SelectionBar from '#lib/features/annotations/SelectionBar.svelte';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
-	import { DEFAULT_QUICK_TOOLS, capabilities, isMarkupTool } from '#lib/features/annotations/tools.ts';
+	import { DEFAULT_QUICK_TOOLS, capabilities, isMarkupTool, showsComment } from '#lib/features/annotations/tools.ts';
 	import type { Annotation } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -593,14 +596,17 @@
 			const hit = annotationAt(tab.hitTargets(page), x, y, px(4));
 			if (hit) {
 				tab.selectAnnotation(page, hit.id);
+				// A click shows the comment panel of an annotation with a comment (again, after
+				// Esc closed it); without one, its bar.
+				if (clicks !== 2 && showsComment(hit)) setPanel(tab, true);
 				const caps = capabilities(hit, tab.flags.canAnnotate);
 				if (clicks === 2) {
-					// A double-click opens what the annotation says: a text box's text in place,
-					// anything else's note in the annotation list when that shows, otherwise
-					// in the comment panel.
+					// A double-click opens what the annotation says for editing: a text box's
+					// text in place, anything else's note in its comment panel when that shows,
+					// else in the annotation list when that shows, otherwise in the panel.
 					event.preventDefault();
 					if (hit.kind === 'freeText' && caps.text) openTextEditor(hit);
-					else openComment(caps.text);
+					else openComment(tab, caps.text);
 				} else if (caps.move) {
 					begin(event, { kind: 'move', page, id: hit.id, start: [x, y], box: [...hit.bounds], handle: null, moved: false });
 				} else {
@@ -635,7 +641,7 @@
 			void create(tab, 'note', [{ page, body: { tool: 'note', x: at[0], y: at[1], text: '' } }]).then((change) => {
 				if (change) {
 					tools.tool = 'select';
-					openInspector(true);
+					openInspector(tab, true);
 				}
 			});
 		} else if (tool === 'freeText') {
@@ -883,24 +889,34 @@
 		return { area: lineArea, prefer: order < 0 ? ('below' as const) : ('above' as const) };
 	});
 
+	/** The selected annotation shows its comment panel (which has the bar's controls)
+	 * rather than its bar. */
+	const showPanel = $derived(panelOpen(tab));
+
 	/** The selected annotation, for its bar, while it isn't being dragged or typed in, and
-	 * while its comment panel (which has its colours) is closed. */
+	 * while it doesn't show its comment panel. */
 	const barAnnotation = $derived.by(() => {
 		const a = tab.selectedAnnotationInfo;
-		if (!a || dragging || tab.draft?.kind === 'text' || app.annotationInspectorOpen || !layout.pages[a.page]) return null;
+		if (!a || dragging || tab.draft?.kind === 'text' || showPanel || !layout.pages[a.page]) return null;
 		return { annotation: a, area: contentArea(a.page, a.bounds) };
 	});
 
-	// The comment panel closes when nothing is selected (it goes away with the selection, so
-	// it can't do this itself): the next click on an annotation shows only its bar.
+	// Each newly selected annotation decides for itself: its comment panel if it has a
+	// comment, otherwise its bar. Kept from then on, so emptying the comment leaves the panel
+	// open; set before this runs (the list opens the panel as it selects), it stays.
+	const selKey = $derived(selectedKey(tab));
 	$effect(() => {
-		if (!tab.selectedAnnotation) app.annotationInspectorOpen = false;
+		const key = selKey;
+		untrack(() => {
+			const a = tab.selectedAnnotationInfo;
+			if (key && a && app.annotationPanel?.key !== key) app.annotationPanel = { key, open: showsComment(a) };
+		});
 	});
 
-	/** Where the selected annotation is, for its comment panel while that is open. */
+	/** Where the selected annotation is, for its comment panel while that shows. */
 	const panelAnchor = $derived.by(() => {
 		const a = tab.selectedAnnotationInfo;
-		if (!a || !app.annotationInspectorOpen || !layout.pages[a.page]) return null;
+		if (!a || !showPanel || !layout.pages[a.page]) return null;
 		return contentArea(a.page, a.bounds);
 	});
 

@@ -17,7 +17,7 @@ import { ordered } from '#lib/features/viewer/selection.ts';
 
 import { selectionRanges } from './geometry.ts';
 import { tools } from './state.svelte.ts';
-import { PROBLEM_SUMMARY, type DrawTool, type MarkupKind } from './tools.ts';
+import { PROBLEM_SUMMARY, showsComment, type DrawTool, type MarkupKind } from './tools.ts';
 
 /** Tells the user why nothing happens in a document that forbids annotating. */
 export function refuseIfLocked(tab: DocTab): boolean {
@@ -68,7 +68,7 @@ export async function createMarkup(
 	openComment = markupOpensComment()
 ) {
 	const change = await create(tab, kind, items, openComment);
-	if (openComment && change?.created != null) openInspector(true);
+	if (openComment && change?.created != null) openInspector(tab, true);
 	return change;
 }
 
@@ -87,9 +87,30 @@ export async function markSelection(tab: DocTab, kind: MarkupKind, openComment =
 	);
 }
 
-/** Opens the inspector on the selected annotation; `focusNote` puts the cursor in its note. */
-export function openInspector(focusNote: boolean) {
-	app.annotationInspectorOpen = true;
+/** The key `app.annotationPanel` knows the selected annotation by. */
+export function selectedKey(tab: DocTab): string | null {
+	const sel = tab.selectedAnnotation;
+	return sel ? `${tab.id}:${sel.page}:${sel.id}` : null;
+}
+
+/** Whether the selected annotation shows its comment panel rather than its bar. */
+export function panelOpen(tab: DocTab): boolean {
+	const a = tab.selectedAnnotationInfo;
+	const key = selectedKey(tab);
+	if (!a || !key) return false;
+	const panel = app.annotationPanel;
+	return panel?.key === key ? panel.open : showsComment(a);
+}
+
+/** Shows (or, `open` false, closes) the selected annotation's comment panel. */
+export function setPanel(tab: DocTab, open: boolean) {
+	const key = selectedKey(tab);
+	if (key) app.annotationPanel = { key, open };
+}
+
+/** Opens the comment panel of the selected annotation; `focusNote` puts the cursor in its note. */
+export function openInspector(tab: DocTab, focusNote: boolean) {
+	setPanel(tab, true);
 	if (focusNote) app.focusNoteText = true;
 }
 
@@ -104,13 +125,13 @@ export async function restyle(tab: DocTab, a: Annotation, patch: { color?: strin
 }
 
 /**
- * What a double-click on the selected annotation opens: its comment in the annotation list
- * when the list is on screen, otherwise the comment panel beside it (`focusNote`: with the
- * cursor in its note).
+ * What a double-click on the selected annotation opens: its comment panel with the cursor in
+ * the note when the panel shows; otherwise its comment in the annotation list when the list
+ * is on screen, or else the comment panel (`focusNote`: with the cursor in its note).
  */
-export function openComment(focusNote: boolean) {
-	if (app.isShown('annotations')) app.focusListComment = true;
-	else openInspector(focusNote);
+export function openComment(tab: DocTab, focusNote: boolean) {
+	if (!panelOpen(tab) && app.isShown('annotations')) app.focusListComment = true;
+	else openInspector(tab, focusNote);
 }
 
 /** Opens the Properties dialog of the selected annotation (its author and dates). */

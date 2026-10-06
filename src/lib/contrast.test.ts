@@ -132,7 +132,7 @@ describe.each([
 			expect(contrast(solid('--lectrix-focus', vars), bg), `focus on ${surface}`).toBeGreaterThanOrEqual(3);
 			expect(contrast(solid('--lectrix-accent', vars), bg), `accent on ${surface}`).toBeGreaterThanOrEqual(3);
 		}
-		// The active tool's border, on its accent tint over the toolbar.
+		// The active tool's icon and border, on its accent tint over the toolbar.
 		for (const bar of ['--lectrix-surface', '--lectrix-surface-raised']) {
 			const tint = on('--lectrix-row-selected', vars, solid(bar, vars));
 			expect(contrast(solid('--lectrix-accent', vars), tint), `active tool on ${bar}`).toBeGreaterThanOrEqual(3);
@@ -152,7 +152,7 @@ describe.each([
 		expect(theme.accent).toBe(solid('--lectrix-accent', vars));
 		expect(on('--lectrix-row-selected', vars, theme.pane)).toBe(mix(theme.pane, theme.accent, ROW_SELECTED_SHARE));
 		const selected = mix(theme.pane, theme.accent, ROW_SELECTED_SHARE);
-		for (const { value, name } of [...PRESET_COLORS, { value: '#ffffff', name: 'White' }]) {
+		for (const { value, name } of PRESET_COLORS) {
 			const shown = legibleOnPane(value, _name === 'dark');
 			expect(contrast(shown, theme.pane), `${name} on the pane`).toBeGreaterThanOrEqual(3);
 			expect(contrast(shown, selected), `${name} on a selected row`).toBeGreaterThanOrEqual(3);

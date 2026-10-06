@@ -4,29 +4,36 @@
 	/** Where the user put each annotation's panel ("tab:page:id"), from the annotation's
 	 * top-left corner, kept while the app runs. */
 	const positions = new SvelteMap<string, { dx: number; dy: number }>();
-	/** The size the user last gave the panel, kept while the app runs. */
-	let lastSize: { w: number; h: number } | null = null;
+	/** The size the user gave each annotation's panel, kept exactly while the app runs. */
+	const sizes = new SvelteMap<string, { w: number; h: number }>();
+	/** The size the user last gave a panel, kept while the app runs: other annotations' panels
+	 * take its width, and its height as the most they take. */
+	let lastSize = $state<{ w: number; h: number } | null>(null);
 </script>
 
 <script lang="ts">
-	// The comment panel of the selected annotation (sections 6.5 and 8): its colour and
-	// opacity (one button that opens them), stroke width or font size, note text, replies and
-	// repair. It opens from the annotation's bar, a double-click or the annotation list, then
-	// follows the selection; it closes with Esc or when nothing is selected. It sits beside the
+	// The comment panel of the selected annotation (sections 6.5 and 8): a header with the
+	// bar's controls (colour and opacity, stroke width or font size, type, properties, delete),
+	// then note text, replies and repair. An annotation with a comment shows it when selected;
+	// one without shows it when opened from its bar, a double-click or the annotation list. It
+	// closes with Esc (the bar shows instead) or when nothing is selected. It sits beside the
 	// annotation in the viewer's scrolled content, so it scrolls with the page, and a tail on
 	// its border points at the annotation. Dragged from anywhere but its controls it moves
-	// within the visible part of the view; its edges and corners resize it. Where it was put
+	// within the visible part of the view; its edges and corners resize it. The size given
+	// stays on that annotation's panel; another annotation's takes its width, and its height
+	// only as a limit, so a short comment gets a shorter panel. Where it was put
 	// is kept for each annotation. The author and dates are in the Properties dialog.
-	import { TriangleAlert, Wrench } from '@lucide/svelte';
+	import { Info, Trash, TriangleAlert, Wrench } from '@lucide/svelte';
 
 	import Dropdown from '#lib/components/Dropdown.svelte';
 	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
-	import { repair, restyle, update } from './actions.ts';
+	import { openProperties, remove, repair, restyle, setPanel, update } from './actions.ts';
 	import {
 		BAR_GAP,
+		barControls,
 		clampPanel,
 		placePanel,
 		resizePanel,
@@ -35,7 +42,8 @@
 		type ResizeEdge
 	} from './bars.ts';
 	import ColorPicker from './ColorPicker.svelte';
-	import { FONT_SIZES, PEN_WIDTHS, PROBLEM_TEXT, capabilities, ptOptions, typeName } from './tools.ts';
+	import { typeIcon } from './icons.ts';
+	import { FONT_SIZES, MARKUP_SUBTYPES, PEN_WIDTHS, PROBLEM_TEXT, ptOptions, typeName, type MarkupKind } from './tools.ts';
 
 	interface Props {
 		tab: DocTab;
@@ -55,15 +63,19 @@
 
 	const a = $derived(tab.selectedAnnotationInfo);
 	const key = $derived(a ? `${tab.id}:${a.page}:${a.id}` : null);
-	const caps = $derived(a ? capabilities(a, tab.flags.canAnnotate) : null);
+	const caps = $derived(a ? barControls(a, tab.flags.canAnnotate) : null);
 	const replies = $derived(a ? tab.repliesTo(a.page, a.id) : []);
 	const parent = $derived(a?.replyTo != null ? tab.annotation(a.page, a.replyTo) : null);
 
 	let noteField: HTMLTextAreaElement | undefined = $state();
 	let w = $state(0);
 	let h = $state(0);
-	/** Set by resizing; until then the default width and the content's height. */
-	let size = $state<{ w: number; h: number } | null>(lastSize);
+	/** The size given to this annotation's panel by resizing it. */
+	const exact = $derived(key ? sizes.get(key) : undefined);
+	/** Another panel was resized: its width, and its height as this one's limit. */
+	const limit = $derived(exact ? null : lastSize);
+	/** The most the content may take before it scrolls: the visible part of the view. */
+	const viewMax = $derived(Math.max(120, view.y1 - view.y0 - 2 * BAR_GAP));
 
 	// ----- where it is -----
 
@@ -133,14 +145,14 @@
 			putAt(to.left, to.top);
 		} else {
 			const r = resizePanel(g.start, g.edge, dx, dy, view, contentWidth);
-			size = { w: r.x1 - r.x0, h: r.y1 - r.y0 };
+			if (key) sizes.set(key, { w: r.x1 - r.x0, h: r.y1 - r.y0 });
 			putAt(r.x0, r.y0);
 		}
 	}
 
 	function onPointerUp(event: PointerEvent) {
 		if (gesture?.pointer !== event.pointerId) return;
-		if (gesture.kind === 'resize') lastSize = size;
+		if (gesture.kind === 'resize' && exact) lastSize = exact;
 		gesture = null;
 	}
 
@@ -181,8 +193,16 @@
 		if (event.key !== 'Escape' || event.defaultPrevented) return;
 		event.preventDefault();
 		event.stopPropagation();
-		app.annotationInspectorOpen = false;
+		setPanel(tab, false);
 		tab.viewer?.focus();
+	}
+
+	function setKind(kind: MarkupKind, subtype: string) {
+		if (a && subtype !== a.subtype) void update(tab, a.page, a.id, { kind });
+	}
+
+	function del() {
+		if (a) void remove(tab, a.page, a.id).then(() => tab.viewer?.focus());
 	}
 
 	/** No page menu over the panel (a text field keeps the browser's, for spelling). */
@@ -202,8 +222,8 @@
 		class:invisible={w === 0}
 		style:left="{at.left}px"
 		style:top="{at.top}px"
-		style:width="{size?.w ?? DEFAULT_WIDTH}px"
-		style:height={size ? `${size.h}px` : null}
+		style:width="{(exact ?? limit)?.w ?? DEFAULT_WIDTH}px"
+		style:height={exact ? `${exact.h}px` : null}
 		data-annotation-panel
 		bind:offsetWidth={w}
 		bind:offsetHeight={h}
@@ -222,7 +242,7 @@
 		{/if}
 		<aside
 			class="flex h-full flex-col gap-[12px] overflow-auto rounded-panel border border-line bg-surface-raised p-[12px] shadow-[0_4px_12px_var(--color-page-shadow)]"
-			style:max-height={size ? null : `${Math.max(120, view.y1 - view.y0 - 2 * BAR_GAP)}px`}
+			style:max-height={exact ? null : `${Math.min(limit?.h ?? Infinity, viewMax)}px`}
 			aria-label="Annotation comment"
 			data-panel-scroll
 		>
@@ -238,16 +258,18 @@
 				</p>
 			{/if}
 
-			{#if caps.restyle}
-				<div class="flex flex-wrap items-center justify-center gap-x-3 gap-y-2">
-					<ColorPicker
-						color={a.color}
-						opacity={a.opacity}
-						label={a.kind === 'freeText' ? 'Text colour' : 'Colour'}
-						oncolor={(color) => void restyle(tab, a, { color })}
-						onopacity={(opacity) => void restyle(tab, a, { opacity })}
-					/>
-					{#if a.kind === 'ink'}
+			{#if caps.restyle || caps.retype || caps.delete || !caps.text}
+				<div class="flex flex-wrap items-center gap-1">
+					{#if caps.restyle}
+						<ColorPicker
+							color={a.color}
+							opacity={a.opacity}
+							label={a.kind === 'freeText' ? 'Text colour' : 'Colour'}
+							oncolor={(color) => void restyle(tab, a, { color })}
+							onopacity={(opacity) => void restyle(tab, a, { opacity })}
+						/>
+					{/if}
+					{#if caps.restyle && a.kind === 'ink'}
 						<Dropdown
 							class="toolbar-dropdown"
 							label="Stroke width"
@@ -257,7 +279,7 @@
 							onchange={(width) => void update(tab, a.page, a.id, { width })}
 						/>
 					{/if}
-					{#if a.kind === 'freeText'}
+					{#if caps.restyle && a.kind === 'freeText'}
 						<Dropdown
 							class="toolbar-dropdown"
 							label="Font size"
@@ -267,13 +289,45 @@
 							onchange={(fontSize) => void update(tab, a.page, a.id, { fontSize })}
 						/>
 					{/if}
+					{#if caps.retype}
+						{#if caps.restyle}<span class="mx-1 h-6 w-px bg-line" aria-hidden="true"></span>{/if}
+						{#each MARKUP_SUBTYPES as m (m.subtype)}
+							{@const Icon = typeIcon(m.subtype)}
+							<button
+								type="button"
+								class="icon-button tool-button"
+								aria-pressed={a.subtype === m.subtype}
+								aria-label={typeName(m.subtype)}
+								title={typeName(m.subtype)}
+								onclick={() => setKind(m.kind, m.subtype)}
+							>
+								<Icon size={18} aria-hidden="true" />
+							</button>
+						{/each}
+					{/if}
+					<span class="ml-auto flex items-center gap-1">
+						{#if !caps.text}
+							<button type="button" class="icon-button" aria-label="Properties" title="Properties" onclick={openProperties}>
+								<Info size={18} aria-hidden="true" />
+							</button>
+						{/if}
+						{#if caps.delete}
+							<button type="button" class="icon-button" aria-label="Delete" title="Delete (Del)" onclick={del}>
+								<Trash size={18} aria-hidden="true" />
+							</button>
+						{/if}
+					</span>
 				</div>
 			{/if}
 
 			{#key key}
 				<textarea
 					bind:this={noteField}
-					class="field panel-note resize-none {size ? 'min-h-[60px] flex-1' : 'h-[140px] shrink-0'}"
+					class="field panel-note resize-none {exact
+						? 'min-h-[60px] flex-1'
+						: limit
+							? 'min-h-[60px] w-full [field-sizing:content]'
+							: 'h-[140px] shrink-0'}"
 					aria-label={a.kind === 'freeText' ? 'Text' : 'Note'}
 					value={a.contents}
 					readonly={!caps.text}

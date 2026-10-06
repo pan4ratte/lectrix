@@ -1,19 +1,10 @@
 <script lang="ts">
-	// The bar of a clicked annotation (section 6.5): its colour and opacity (one
-	// button that opens them), its type among the text markup types, its note (or a text box's text), and
-	// delete. What the annotation or the document doesn't allow is left out; a read-only
-	// annotation shows its properties. It gives way to the comment panel while that is open.
-	import {
-		Highlighter,
-		Info,
-		MessageSquareText,
-		Spline,
-		Strikethrough,
-		Trash,
-		Type,
-		Underline
-	} from '@lucide/svelte';
-	import type { Component } from 'svelte';
+	// The bar of a clicked annotation without a comment (section 6.5): its colour and opacity
+	// (one button that opens them), its type among the text markup types, its note (or a text
+	// box's text), and delete. What the annotation or the document doesn't allow is left out; a
+	// read-only annotation shows its properties. An annotation that shows its comment panel has
+	// these controls in the panel's header instead.
+	import { Info, MessageSquareText, Trash, Type } from '@lucide/svelte';
 
 	import type { Annotation } from '#lib/ipc/index.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -22,6 +13,7 @@
 	import { barControls, type Area } from './bars.ts';
 	import ColorPicker from './ColorPicker.svelte';
 	import FloatingBar from './FloatingBar.svelte';
+	import { typeIcon } from './icons.ts';
 	import { MARKUP_SUBTYPES, typeName, type MarkupKind } from './tools.ts';
 
 	interface Props {
@@ -35,13 +27,6 @@
 	}
 
 	let { tab, annotation: a, anchor, view, contentWidth, onedittext }: Props = $props();
-
-	const ICONS: Record<MarkupKind, Component<{ size?: number; 'aria-hidden'?: boolean | 'true' }>> = {
-		highlight: Highlighter,
-		underline: Underline,
-		strikeOut: Strikethrough,
-		squiggly: Spline
-	};
 
 	const controls = $derived(barControls(a, tab.flags.canAnnotate));
 
@@ -68,7 +53,7 @@
 	{#if controls.retype}
 		<span class="mx-1 h-6 w-px bg-line" aria-hidden="true"></span>
 		{#each MARKUP_SUBTYPES as m (m.subtype)}
-			{@const Icon = ICONS[m.kind]}
+			{@const Icon = typeIcon(m.subtype)}
 			<button
 				type="button"
 				class="icon-button tool-button"
@@ -95,7 +80,7 @@
 			class="icon-button"
 			aria-label="Note"
 			title="Note (double-click)"
-			onclick={() => openInspector(true)}
+			onclick={() => openInspector(tab, true)}
 		>
 			<MessageSquareText size={18} aria-hidden="true" />
 		</button>

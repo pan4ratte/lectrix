@@ -73,7 +73,7 @@
 			app.focusListComment = false;
 			const row = document.getElementById(`annotation-row-${tab.id}-${key.replace(':', '-')}`);
 			if (!row) {
-				openInspector(true);
+				openInspector(tab, true);
 				return;
 			}
 			row.scrollIntoView({ block: 'nearest' });
@@ -91,7 +91,7 @@
 	function show(a: Annotation) {
 		tab.selectAnnotation(a.page, a.id);
 		tab.viewer?.reveal(a.page, a.bounds, { smooth: app.settings?.smoothAnnotationScroll !== false });
-		openInspector(false);
+		openInspector(tab, false);
 	}
 
 	function onListKey(event: KeyboardEvent) {

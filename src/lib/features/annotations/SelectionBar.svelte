@@ -6,9 +6,9 @@
 		Copy,
 		Highlighter,
 		MessageSquarePlus,
-		Spline,
 		Strikethrough,
-		Underline
+		Underline,
+		ZodiacAquarius
 	} from '@lucide/svelte';
 	import type { Component } from 'svelte';
 
@@ -40,7 +40,7 @@
 		highlight: Highlighter,
 		underline: Underline,
 		strikeOut: Strikethrough,
-		squiggly: Spline,
+		squiggly: ZodiacAquarius,
 		highlightNote: MessageSquarePlus,
 		copy: Copy,
 		bookmark: BookmarkPlus

@@ -59,14 +59,33 @@ export const MARKUP_SUBTYPES: readonly { subtype: string; kind: MarkupKind }[] =
 const ACROBAT_YELLOW = '#ffd100';
 const ACROBAT_RED = '#e52237';
 
-/** Six preset colours (section 6.5), chosen to read well as highlights and as lines. */
+/** Columns of the preset grid. */
+export const PRESET_COLUMNS = 6;
+
+/**
+ * Acrobat's 18 preset colours (section 6.5), in its grid of three rows: bright colours,
+ * their light tints, and white to black. Read from Acrobat DC's own table (`Acrobat.dll`,
+ * beside `AVInPlaceColorPickerView`), so the swatches match the colours its annotations have.
+ */
 export const PRESET_COLORS: readonly { value: string; name: string }[] = [
+	{ value: '#0000ff', name: 'Blue' },
+	{ value: '#6ad928', name: 'Green' },
 	{ value: ACROBAT_YELLOW, name: 'Yellow' },
-	{ value: '#5fd35f', name: 'Green' },
-	{ value: '#33a7ff', name: 'Blue' },
-	{ value: '#ff6fae', name: 'Pink' },
+	{ value: '#ff7002', name: 'Orange' },
 	{ value: ACROBAT_RED, name: 'Red' },
-	{ value: '#202020', name: 'Black' }
+	{ value: '#a33086', name: 'Purple' },
+	{ value: '#38e5ff', name: 'Light blue' },
+	{ value: '#c5fb72', name: 'Light green' },
+	{ value: '#fcf485', name: 'Light yellow' },
+	{ value: '#ffc09e', name: 'Light orange' },
+	{ value: '#ff809d', name: 'Pink' },
+	{ value: '#fb88ff', name: 'Light purple' },
+	{ value: '#ffffff', name: 'White' },
+	{ value: '#cccccc', name: 'Light grey' },
+	{ value: '#aaaaaa', name: 'Grey' },
+	{ value: '#777777', name: 'Dark grey' },
+	{ value: '#444444', name: 'Charcoal' },
+	{ value: '#000000', name: 'Black' }
 ];
 
 export interface ToolStyle {
@@ -212,6 +231,14 @@ export const PROBLEM_SUMMARY: Readonly<Record<AnnotationProblem, string>> = {
 	missingPage: 'No page reference',
 	malformedQuads: 'Unreadable text marking (can’t be fixed)'
 };
+
+/**
+ * Whether selecting `a` shows its comment panel rather than its bar: it has a comment. A
+ * text box's text is on the page, so it gets its bar.
+ */
+export function showsComment(a: Annotation): boolean {
+	return a.subtype !== 'FreeText' && a.contents.trim() !== '';
+}
 
 export function needsRepair(a: Annotation): boolean {
 	return a.problems.length > 0;

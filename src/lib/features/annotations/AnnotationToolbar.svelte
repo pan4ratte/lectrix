@@ -6,13 +6,13 @@
 	// document, beside the page and zoom controls, always shown (ViewBar.svelte places it).
 	import {
 		Highlighter,
-		MousePointer2,
 		PenLine,
-		Spline,
 		StickyNote,
 		Strikethrough,
+		TextCursor,
 		Type,
-		Underline
+		Underline,
+		ZodiacAquarius
 	} from '@lucide/svelte';
 	import { onMount, type Component } from 'svelte';
 
@@ -29,11 +29,11 @@
 	let { tab }: { tab: DocTab } = $props();
 
 	const ICONS: Record<Tool, Component<{ size?: number; 'aria-hidden'?: boolean | 'true' }>> = {
-		select: MousePointer2,
+		select: TextCursor,
 		highlight: Highlighter,
 		underline: Underline,
 		strikeOut: Strikethrough,
-		squiggly: Spline,
+		squiggly: ZodiacAquarius,
 		note: StickyNote,
 		ink: PenLine,
 		freeText: Type

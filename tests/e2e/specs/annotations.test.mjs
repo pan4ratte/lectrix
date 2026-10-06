@@ -391,7 +391,8 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 		assert.ok(Math.abs(grown.width - dragged.width - 60) <= 2 && Math.abs(grown.height - dragged.height - 50) <= 2, `resized from ${JSON.stringify(dragged)} to ${JSON.stringify(grown)}`);
 		assert.ok(Math.abs(grown.left - dragged.left) <= 1 && Math.abs(grown.top - dragged.top) <= 1, 'resizing from the corner moved the panel');
 
-		// Closed and opened again, it comes back where it was put.
+		// Closed and opened again, it comes back where it was put: with a comment now, a click
+		// shows the underline's comment panel rather than its bar.
 		const away = await pagePoint(browser, 0, 450, 200);
 		assert.ok(away.x > grown.right && away.y < viewer.bottom, `the blank spot ${JSON.stringify(away)} is under the panel or off screen`);
 		await click(browser, away);
@@ -399,12 +400,33 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 			timeoutMsg: 'a click on the page left the comment panel open'
 		});
 		await click(browser, on);
-		const reselected = await browser.$('[role=toolbar][aria-label="Underline actions"]');
-		await reselected.waitForDisplayed({ timeoutMsg: 'a click on the underline showed no bar' });
-		await (await reselected.$('button[aria-label="Note"]')).click();
-		await (await browser.$('aside[aria-label="Annotation comment"]')).waitForDisplayed({ timeoutMsg: 'the Note button opened no comment panel' });
+		await (await browser.$('aside[aria-label="Annotation comment"]')).waitForDisplayed({ timeoutMsg: 'a click on the commented underline showed no comment panel' });
+		assert.equal(await underlineBar.isExisting(), false, 'a click on the commented underline showed its bar');
 		const back = await panelBox();
 		assert.ok(Math.abs(back.left - grown.left) <= 1 && Math.abs(back.top - grown.top) <= 1, `back at ${JSON.stringify(back)}, put at ${JSON.stringify(grown)}`);
+		assert.ok(Math.abs(back.width - grown.width) <= 1 && Math.abs(back.height - grown.height) <= 1, `back as ${JSON.stringify(back)}, sized ${JSON.stringify(grown)}`);
+		// Its header has the bar's controls: the type buttons and Delete.
+		assert.equal(
+			await browser.execute(() => document.querySelector('aside[aria-label="Annotation comment"] button[aria-label="Underline"]')?.getAttribute('aria-pressed')),
+			'true',
+			'no type buttons in the comment panel'
+		);
+		// Esc from its controls closes it, and the bar takes its place.
+		await browser.execute(() => document.querySelector('aside[aria-label="Annotation comment"] button[aria-label="Delete"]').focus());
+		await browser.keys(['Escape']);
+		await (await browser.$('[role=toolbar][aria-label="Underline actions"]')).waitForDisplayed({ timeoutMsg: 'Esc on the comment panel did not bring the bar back' });
+		assert.equal(await (await browser.$('aside[aria-label="Annotation comment"]')).isExisting(), false, 'Esc left the comment panel open');
+
+		// Another annotation's panel takes the width given above, but no more height than its
+		// comment needs: a new note, with no comment yet, gets a shorter one.
+		await browser.keys('n');
+		await click(browser, await pagePoint(browser, 0, 450, 260));
+		await (await browser.$('aside[aria-label="Annotation comment"]')).waitForDisplayed({ timeoutMsg: 'the new note opened no comment panel' });
+		const trimmed = await panelBox();
+		assert.ok(Math.abs(trimmed.width - grown.width) <= 1, `the note's panel is ${trimmed.width} wide, the last size ${grown.width}`);
+		assert.ok(trimmed.height < grown.height - 40, `the note's panel is ${trimmed.height} tall, the last size ${grown.height}`);
+		await (await browser.$('aside[aria-label="Annotation comment"] button[aria-label="Delete"]')).click();
+		await (await browser.$('aside[aria-label="Annotation comment"]')).waitForExist({ reverse: true, timeoutMsg: 'Delete in the panel left the note' });
 
 		// The colour given to the underline (pink, above) is what new underlines get.
 		await browser.keys(['Escape']);

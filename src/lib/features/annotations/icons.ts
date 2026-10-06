@@ -11,7 +11,6 @@ import {
 	Paperclip,
 	PenLine,
 	Pentagon,
-	Spline,
 	Square,
 	Stamp,
 	StickyNote,
@@ -19,7 +18,8 @@ import {
 	Type,
 	Underline,
 	Volume2,
-	Waypoints
+	Waypoints,
+	ZodiacAquarius
 } from '@lucide/svelte';
 import type { Component } from 'svelte';
 
@@ -29,7 +29,7 @@ const SUBTYPE_ICONS: Record<string, Icon> = {
 	Highlight: Highlighter,
 	Underline: Underline,
 	StrikeOut: Strikethrough,
-	Squiggly: Spline,
+	Squiggly: ZodiacAquarius,
 	Text: StickyNote,
 	Ink: PenLine,
 	FreeText: Type,
