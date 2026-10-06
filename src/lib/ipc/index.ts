@@ -227,6 +227,15 @@ export function pageUrl(
 	return url;
 }
 
+/**
+ * URL of a preview of a recent file's first page, `width` device pixels wide. `openedAt`
+ * is the entry's, so the URL fails rather than shows another file once the list changes.
+ */
+export function recentPreviewUrl(index: number, openedAt: number, width: number): string {
+	const base = isWindows() ? 'http://lectrix.localhost' : 'lectrix://localhost';
+	return `${base}/recent/${index}?w=${Math.round(width)}&opened=${openedAt}`;
+}
+
 function isWindows(): boolean {
 	return typeof navigator !== 'undefined' && /Windows/i.test(navigator.userAgent);
 }

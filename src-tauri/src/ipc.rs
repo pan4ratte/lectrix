@@ -865,6 +865,12 @@ pub struct RecentFile {
     pub folder: String,
     /// False when the file is no longer where it was.
     pub exists: bool,
+    /// When it was last opened, in milliseconds since the Unix epoch.
+    #[ts(type = "number")]
+    pub opened_at: u64,
+    /// Its size in bytes; `None` when it is not found.
+    #[ts(type = "number | null")]
+    pub size: Option<u64>,
 }
 
 /// Unsaved changes a crash left behind, offered for restoring (section 7).
@@ -912,8 +918,8 @@ pub struct StartupInfo {
 }
 
 /// The side panes (section 8): which are open, how wide they are, which panels each holds
-/// in which order, the panel each shows, and the size of page thumbnails. Remembered in app
-/// data. Widths are CSS pixels;
+/// in which order, the panel each shows, and the size of page thumbnails; also how the start
+/// screen shows recent files. Remembered in app data. Widths are CSS pixels;
 /// the frontend keeps them within its limits, and puts each panel in exactly one pane.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
@@ -934,6 +940,8 @@ pub struct PaneLayout {
     pub thumbnails_fit: bool,
     /// Page thumbnails in a grid of as many columns as fit, rather than one column.
     pub thumbnails_grid: bool,
+    /// The start screen shows recent files as a grid of previews, rather than a table.
+    pub recent_files_grid: bool,
 }
 
 impl Default for PaneLayout {
@@ -950,6 +958,7 @@ impl Default for PaneLayout {
             thumbnail_width: 112,
             thumbnails_fit: false,
             thumbnails_grid: false,
+            recent_files_grid: false,
         }
     }
 }

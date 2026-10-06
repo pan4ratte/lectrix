@@ -8,6 +8,7 @@
 //! frontend asks for 512 px tiles instead of whole pages.
 
 use std::collections::HashMap;
+use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
@@ -121,6 +122,38 @@ pub fn render_rgba(list: &DisplayList, scale: f32, region: Option<PixelRect>) ->
         height: area.height,
         data: packed_samples(&pixmap, 4)?,
     })
+}
+
+/// The tallest a preview may be, as a multiple of its width: a very tall page (a receipt,
+/// a scroll) is shown at a width that keeps it this tall.
+pub const PREVIEW_MAX_ASPECT: f32 = 2.0;
+
+/// The first page of the PDF at `path`, `width` pixels wide (narrower for a page taller
+/// than [`PREVIEW_MAX_ASPECT`]), with its annotations: a preview of a file that is not
+/// open (the start screen's recent files). The file is read through the share-delete
+/// stream, as open documents are, and closed again. A file that needs a password is
+/// refused, since a preview would show its content.
+pub fn first_page_preview(path: &Path, width: u32) -> Result<RgbaImage> {
+    if width == 0 || width > TILE_SIZE * 2 {
+        return Err(Error::InvalidArgument(format!(
+            "preview width {width} is out of range"
+        )));
+    }
+    let doc = crate::ffi::open_pdf_shared(path)?;
+    if doc.needs_password()? {
+        return Err(Error::PasswordRequired);
+    }
+    let list = display_list(&doc, 0)?;
+    let bounds = list.bounds();
+    let (page_w, page_h) = (bounds.width(), bounds.height());
+    if !(page_w > 0.0 && page_h > 0.0) {
+        return Err(Error::InvalidArgument("the first page has no area".into()));
+    }
+    let width = width as f32;
+    let scale = (width / page_w)
+        .min(width * PREVIEW_MAX_ASPECT / page_h)
+        .min(MAX_SCALE);
+    render_rgba(&list, scale, None)
 }
 
 /// Encodes opaque RGBA pixels as an RGB PNG at the fastest compression level (the alpha
@@ -470,6 +503,60 @@ mod tests {
             .max()
             .unwrap();
         assert!(max_diff <= 2, "tiles differ from the page by {max_diff}");
+    }
+
+    fn saved_sample(name: &str, spec: &SampleSpec) -> std::path::PathBuf {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../../target/test-output/preview");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join(name);
+        let doc = sample_document(spec).unwrap();
+        crate::save::save_atomic(&doc, crate::save::SaveKind::Full, None, &path).unwrap();
+        path
+    }
+
+    #[test]
+    fn previews_the_first_page_at_the_asked_width() {
+        let path = saved_sample("letter.pdf", &SampleSpec::default());
+        let image = first_page_preview(&path, 200).unwrap();
+        // 612 x 792 pt, 200 px wide.
+        assert_eq!((image.width, image.height), (200, 259));
+        assert!(
+            image.data.chunks(4).any(|p| p[0] < 128),
+            "the page's text is drawn"
+        );
+
+        // A turned page is previewed as it is shown: landscape.
+        let turned = saved_sample(
+            "turned.pdf",
+            &SampleSpec {
+                rotate: 90,
+                ..SampleSpec::default()
+            },
+        );
+        let image = first_page_preview(&turned, 200).unwrap();
+        assert_eq!((image.width, image.height), (200, 155));
+    }
+
+    #[test]
+    fn previews_a_tall_page_narrower() {
+        let path = saved_sample(
+            "receipt.pdf",
+            &SampleSpec {
+                media_box: crate::geometry::Rect::new(0.0, 0.0, 200.0, 1000.0),
+                ..SampleSpec::default()
+            },
+        );
+        let image = first_page_preview(&path, 100).unwrap();
+        assert_eq!((image.width, image.height), (40, 200));
+    }
+
+    #[test]
+    fn refuses_previews_it_cannot_make() {
+        let path = saved_sample("ok.pdf", &SampleSpec::default());
+        assert!(first_page_preview(&path, 0).is_err());
+        assert!(first_page_preview(&path, 5000).is_err());
+        let missing = path.with_file_name("missing.pdf");
+        assert!(first_page_preview(&missing, 200).is_err());
     }
 
     #[test]

@@ -1,5 +1,6 @@
 //! The page-image protocol:
-//! `lectrix://page/{docId}/{pageIndex}?scale={s}&rev={r}[&tile={x},{y},{w},{h}][&fmt=png]`.
+//! `lectrix://page/{docId}/{pageIndex}?scale={s}&rev={r}[&tile={x},{y},{w},{h}][&fmt=png]`,
+//! and previews of recent files: `lectrix://recent/{index}?w={px}&opened={ms}`.
 //!
 //! On Windows (WebView2) the same URL is served as `http://lectrix.localhost/page/...`. The
 //! revision is part of the URL, so a URL always means the same pixels.
@@ -10,8 +11,10 @@
 //! three times faster through WebView2 (ADR 0004).
 
 use std::borrow::Cow;
+use std::collections::HashMap;
+use std::path::PathBuf;
 use std::sync::{Arc, Condvar, Mutex};
-use std::time::Instant;
+use std::time::{Instant, SystemTime};
 
 use pdf_core::render::{ImageCache, ImageKey, PixelRect, RgbaImage, TILE_SIZE};
 use tauri::http::{Request, Response, StatusCode, header};
@@ -148,6 +151,9 @@ pub fn handle(state: &AppState, request: &Request<Vec<u8>>) -> Response<Body> {
 
 fn serve(state: &AppState, request: &Request<Vec<u8>>) -> Result<Response<Body>, Failure> {
     let uri = request.uri();
+    if uri.path().starts_with("/recent/") {
+        return serve_preview(state, parse_preview(uri.path(), uri.query())?);
+    }
     let req = parse(uri.path(), uri.query())?;
     let session = state
         .documents
@@ -198,6 +204,129 @@ fn serve(state: &AppState, request: &Request<Vec<u8>>) -> Result<Response<Body>,
         &timing,
         body,
     )
+}
+
+/// A preview of a recent file: the entry at `index` in the recent list, which must still
+/// be the one opened at `opened` (ms since the Unix epoch), so a URL never shows another
+/// file after the list changes. The webview names no path (section 2, security).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct PreviewRequest {
+    index: usize,
+    width: u32,
+    opened: u64,
+}
+
+fn parse_preview(path: &str, query: Option<&str>) -> Result<PreviewRequest, Failure> {
+    let mut segments = path.trim_matches('/').split('/');
+    let (Some("recent"), Some(index), None) = (segments.next(), segments.next(), segments.next())
+    else {
+        return Err((StatusCode::NOT_FOUND, "unknown resource"));
+    };
+    let index = index
+        .parse()
+        .map_err(|_| (StatusCode::BAD_REQUEST, "bad recent index"))?;
+    let (mut width, mut opened) = (None, None);
+    for pair in query.unwrap_or("").split('&') {
+        match pair.split_once('=') {
+            Some(("w", v)) => width = v.parse().ok().filter(|w| (1..=2 * TILE_SIZE).contains(w)),
+            Some(("opened", v)) => opened = v.parse().ok(),
+            _ => {}
+        }
+    }
+    Ok(PreviewRequest {
+        index,
+        width: width.ok_or((StatusCode::BAD_REQUEST, "bad preview width"))?,
+        opened: opened.ok_or((StatusCode::BAD_REQUEST, "bad opened time"))?,
+    })
+}
+
+/// How many previews are kept; the recent list holds 20 files, and a screen's pixel ratio
+/// can change the width asked for.
+const MAX_PREVIEWS: usize = 64;
+
+/// First-page previews of recent files as PNG, keyed by path and width. An entry is used
+/// only while the file's size and modification time are the ones it was made from.
+#[derive(Default)]
+pub struct PreviewCache {
+    entries: Mutex<HashMap<(PathBuf, u32), Preview>>,
+}
+
+struct Preview {
+    stamp: (u64, Option<SystemTime>),
+    width: u32,
+    height: u32,
+    png: Arc<Vec<u8>>,
+}
+
+fn serve_preview(state: &AppState, req: PreviewRequest) -> Result<Response<Body>, Failure> {
+    let not_found = (StatusCode::NOT_FOUND, "no such recent file");
+    let path = {
+        let store = state
+            .store
+            .lock()
+            .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "state unavailable"))?;
+        let entry = store.recent().get(req.index).ok_or(not_found)?;
+        if entry.opened_at.saturating_mul(1000) != req.opened {
+            return Err(not_found);
+        }
+        entry.path.clone()
+    };
+    let meta = std::fs::metadata(&path)
+        .ok()
+        .filter(std::fs::Metadata::is_file)
+        .ok_or(not_found)?;
+    let stamp = (meta.len(), meta.modified().ok());
+    let key = (path, req.width);
+    let cached = state.previews.entries.lock().ok().and_then(|entries| {
+        entries
+            .get(&key)
+            .filter(|p| p.stamp == stamp)
+            .map(|p| (p.width, p.height, p.png.clone()))
+    });
+    let t0 = Instant::now();
+    let (width, height, png, was_cached) = match cached {
+        Some((w, h, png)) => (w, h, png, true),
+        None => {
+            let image = state
+                .render_gate
+                .run(|| pdf_core::render::first_page_preview(&key.0, req.width))
+                .map_err(preview_failed)?;
+            let png = Arc::new(pdf_core::render::encode_rgba_png(&image).map_err(preview_failed)?);
+            if let Ok(mut entries) = state.previews.entries.lock() {
+                if entries.len() >= MAX_PREVIEWS {
+                    entries.clear();
+                }
+                entries.insert(
+                    key,
+                    Preview {
+                        stamp,
+                        width: image.width,
+                        height: image.height,
+                        png: png.clone(),
+                    },
+                );
+            }
+            (image.width, image.height, png, false)
+        }
+    };
+    let timing = format!(
+        "render={:.2};cached={}",
+        t0.elapsed().as_secs_f64() * 1000.0,
+        u8::from(was_cached)
+    );
+    respond("image/png", width, height, 0, &timing, png.as_ref().clone())
+}
+
+/// A file that needs a password or cannot be read has no preview; the start screen shows
+/// its icon instead. Only unexpected failures are logged.
+fn preview_failed(e: pdf_core::Error) -> Failure {
+    match e {
+        pdf_core::Error::PasswordRequired => (StatusCode::FORBIDDEN, "needs a password"),
+        e => {
+            crate::applog::warn(format!("preview of a recent file: {e:?}"));
+            (StatusCode::INTERNAL_SERVER_ERROR, "preview failed")
+        }
+    }
 }
 
 fn insert(cache: &ImageCache, key: ImageKey, image: &Arc<RgbaImage>) {
@@ -281,6 +410,25 @@ mod tests {
             })
         );
         assert_eq!(r.format, Format::Png);
+    }
+
+    #[test]
+    fn parses_previews_of_recent_files() {
+        let r = parse_preview("/recent/3", Some("w=240&opened=1791315108000")).unwrap();
+        assert_eq!(
+            r,
+            PreviewRequest {
+                index: 3,
+                width: 240,
+                opened: 1_791_315_108_000
+            }
+        );
+        assert!(parse_preview("/recent/x", Some("w=240&opened=1")).is_err());
+        assert!(parse_preview("/recent/1/2", Some("w=240&opened=1")).is_err());
+        assert!(parse_preview("/recent/1", Some("opened=1")).is_err());
+        assert!(parse_preview("/recent/1", Some("w=0&opened=1")).is_err());
+        assert!(parse_preview("/recent/1", Some("w=5000&opened=1")).is_err());
+        assert!(parse_preview("/recent/1", Some("w=240")).is_err());
     }
 
     #[test]

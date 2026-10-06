@@ -1,6 +1,6 @@
 // Recent files and the remembered view of each file (AGENTS.md section 6.1).
 // E2E runs keep app state in memory (LECTRIX_EPHEMERAL), so this happens in one session:
-// close a document, open it again from the start screen's recent list.
+// close a document, open it again from the start screen's recent files (as a grid).
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -37,14 +37,47 @@ test('a closed document reopens from the recent list where it was left', async (
 		// Close both (the view is remembered on closing), and reopen the first from the list.
 		await browser.keys(['Control', 'w']);
 		await browser.keys(['Control', 'w']);
-		const entry = await browser.$('button*=recent-a.pdf');
-		await entry.waitForDisplayed({ timeoutMsg: 'recent-a.pdf is not in the recent list' });
-		const order = await browser.execute(() =>
-			[...document.querySelectorAll('[aria-label="Recent files"] li')].map((li) => li.textContent?.trim() ?? '')
+		await (await browser.$('button*=recent-a.pdf')).waitForDisplayed({ timeoutMsg: 'recent-a.pdf is not in the recent list' });
+		// A table: name, when it was opened, size; newest first.
+		const rows = await browser.execute(() =>
+			[...document.querySelectorAll('table tbody tr')].map((tr) => [...tr.cells].slice(0, 3).map((td) => td.textContent?.trim() ?? ''))
 		);
-		assert.ok(order[0]?.includes('recent-b.pdf') && order[1]?.includes('recent-a.pdf'), `newest first: ${order.join(' | ')}`);
+		const order = rows.map((r) => r[0]);
+		assert.ok(order[0] === 'recent-b.pdf' && order[1] === 'recent-a.pdf', `newest first: ${order.join(' | ')}`);
+		assert.match(rows[1][1], /^Today, \d{1,2}:\d{2}/, `opened: ${rows[1][1]}`);
+		assert.match(rows[1][2], /^[\d.,]+ (bytes|KB)$/, `size: ${rows[1][2]}`);
 
-		await entry.click();
+		// The grid: each file's first page, then its name, then when it was opened and its size.
+		await (await browser.$('button[aria-label="Grid"]')).click();
+		await browser.waitUntil(
+			() =>
+				browser.execute(() => {
+					const pages = [...document.querySelectorAll('.recent-card img.recent-page')];
+					return pages.length === 2 && pages.every((img) => img.complete && img.naturalWidth > 0);
+				}),
+			{ timeoutMsg: 'the first pages did not show in the grid' }
+		);
+		const cards = await browser.execute(() =>
+			[...document.querySelectorAll('.recent-card')].map((card) => ({
+				name: card.querySelector('.recent-name')?.textContent?.trim() ?? '',
+				details: card.querySelector('.recent-details')?.textContent?.replace(/\s+/g, ' ').trim() ?? '',
+				ratio: (() => {
+					const img = card.querySelector('img.recent-page');
+					return img ? img.naturalHeight / img.naturalWidth : 0;
+				})()
+			}))
+		);
+		assert.deepEqual(
+			cards.map((c) => c.name),
+			['recent-b.pdf', 'recent-a.pdf'],
+			'the grid is newest first'
+		);
+		assert.match(cards[1].details, /^Today, \d{1,2}:\d{2}.* · [\d.,]+ (bytes|KB)$/, `details: ${cards[1].details}`);
+		// The sample pages are US Letter, 612 x 792 pt.
+		assert.ok(Math.abs(cards[1].ratio - 792 / 612) < 0.02, `the preview has the page's shape: ${cards[1].ratio}`);
+
+		const card = await (await browser.$('.recent-card*=recent-a.pdf')).$('button.recent-open');
+		await card.click();
 		await waitForDocument(browser);
 		await browser.waitUntil(async () => (await pageBox(browser)) === '6', {
 			timeoutMsg: 'the document did not reopen on page 6'

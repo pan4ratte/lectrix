@@ -70,6 +70,13 @@
 	--lectrix-line-strong: #bec5cf;
 	--lectrix-accent: #2f5daa;
 	--lectrix-accent-fg: #ffffff;
+	/* The brand gradient (ADR 0010), for the start screen's tools, whose text is in it too:
+	   so both ends read at 4.5:1 on the canvas and on the wash (how much of it tints a tool
+	   under the pointer). In the light theme blue-500 deepening towards the ink; in the dark
+	   one the icon gradient, its lower end a shade lighter than blue-400. */
+	--lectrix-brand-from: #2d5aa5;
+	--lectrix-brand-to: #1f4485;
+	--lectrix-brand-wash: 0.12;
 	--lectrix-focus: var(--lectrix-accent);
 	--lectrix-danger: #c9303a;
 	--lectrix-danger-bg: #f9edef;
@@ -117,6 +124,9 @@
 		--lectrix-line-strong: #3a404a;
 		--lectrix-accent: #6fa3ef;
 		--lectrix-accent-fg: #0f1a33;
+		--lectrix-brand-from: #a3c8f9;
+		--lectrix-brand-to: #5089e6;
+		--lectrix-brand-wash: 0.16;
 		--lectrix-danger: #e85a5f;
 		--lectrix-danger-bg: #2f1618;
 		--lectrix-info-bg: #181f29;
@@ -153,6 +163,9 @@
 	--lectrix-line-strong: #3a404a;
 	--lectrix-accent: #6fa3ef;
 	--lectrix-accent-fg: #0f1a33;
+	--lectrix-brand-from: #a3c8f9;
+	--lectrix-brand-to: #5089e6;
+	--lectrix-brand-wash: 0.16;
 	--lectrix-danger: #e85a5f;
 	--lectrix-danger-bg: #2f1618;
 	--lectrix-info-bg: #181f29;
@@ -961,6 +974,243 @@ input[type='color'],
 .doc-tab[aria-selected='true'] {
 	background: var(--lectrix-tab-active);
 	box-shadow: inset 0 0 0 1px var(--lectrix-tab-active-line);
+}
+
+/* ----- start screen ----- */
+
+/* The tools (Open, Combine files...): tiles in a grid with room for more, twice a button's
+   height, in the start screen's colour. Their borders, icons and text are cut from one brand gradient laid
+   over the whole grid (StartScreen.svelte measures where each tile sits in it: --tool-x,
+   --tool-y in the tools' --tools-w x --tools-h); under the pointer, a wash of the same
+   gradient fills the tile. */
+.start-tools {
+	--brand-gradient: linear-gradient(135deg, var(--lectrix-brand-from), var(--lectrix-brand-to));
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+	gap: 8px;
+}
+/* One element draws it all, from three layers of the gradient's backgrounds: on top, the
+   gradient clipped to the text; under it, the start screen's colour filling the inside;
+   at the bottom, the gradient, which shows only in the border around that. The border is
+   two device pixels wide at any display scale (--tool-border, set from the pixel ratio):
+   a one-pixel line in a strong colour can only be drawn round a corner as faint, partial
+   pixels, so its corners look thinner than its sides; two keep a solid core. */
+.start-tool {
+	--tool-border: var(--tools-border, 1px);
+	--tool-gradient-at: calc(-1px * var(--tool-x, 0)) calc(-1px * var(--tool-y, 0));
+	--tool-gradient-size: calc(1px * var(--tools-w, 0)) calc(1px * var(--tools-h, 0));
+	position: relative;
+	display: flex;
+	height: 64px;
+	align-items: center;
+	gap: 12px;
+	padding: 0 calc(16px - var(--tool-border));
+	border: var(--tool-border) solid transparent;
+	border-radius: var(--radius-panel);
+	background-image:
+		var(--brand-gradient), linear-gradient(var(--lectrix-canvas), var(--lectrix-canvas)),
+		var(--brand-gradient);
+	background-clip: text, padding-box, border-box;
+	background-origin: border-box, padding-box, border-box;
+	background-position: var(--tool-gradient-at), 0 0, var(--tool-gradient-at);
+	background-size: var(--tool-gradient-size), 100% 100%, var(--tool-gradient-size);
+	background-repeat: no-repeat;
+	color: transparent;
+	font-size: 14px;
+	font-weight: 500;
+	isolation: isolate;
+	text-align: left;
+}
+/* The wash under the pointer, inside the border. */
+.start-tool::after {
+	position: absolute;
+	inset: 0;
+	z-index: -1;
+	border-radius: calc(var(--radius-panel) - var(--tool-border));
+	background: var(--brand-gradient) calc(-1px * var(--tool-x, 0) - var(--tool-border))
+		calc(-1px * var(--tool-y, 0) - var(--tool-border)) / var(--tool-gradient-size) no-repeat;
+	content: '';
+	opacity: 0;
+	transition: opacity 120ms ease-out;
+}
+.start-tool:hover::after {
+	opacity: var(--lectrix-brand-wash);
+}
+.start-tool:active::after {
+	opacity: calc(var(--lectrix-brand-wash) * 1.6);
+}
+.start-tool-shortcut {
+	margin-left: auto;
+	font-size: 12px;
+	font-weight: 400;
+}
+
+/* Recent files, as a table or a grid of first pages (a switch beside the heading). Each row
+   or card is one button (stretched over it), plus a remove button that shows while the row
+   or card is hovered or focused. */
+.recent-heading {
+	color: var(--lectrix-fg-muted);
+	font-size: 14px;
+	font-weight: 600;
+}
+.recent-open {
+	border: 0;
+	background: transparent;
+	color: inherit;
+	text-align: left;
+}
+.recent-open::after {
+	position: absolute;
+	inset: 0;
+	content: '';
+}
+.recent-open:focus-visible {
+	outline: none;
+}
+.recent-open:focus-visible::after {
+	outline: 2px solid var(--lectrix-focus);
+	outline-offset: -2px;
+	border-radius: 4px;
+}
+.recent-remove {
+	position: relative;
+	z-index: 1;
+	opacity: 0;
+}
+:is(.recent-row, .recent-card):hover .recent-remove,
+.recent-remove:focus-visible {
+	opacity: 1;
+}
+
+/* The table: lines between the rows and small capitals over the columns. */
+.recent-table {
+	width: 100%;
+	table-layout: fixed;
+	border-collapse: collapse;
+	font-size: 13px;
+}
+.recent-table th {
+	height: 32px;
+	padding: 0 12px;
+	border-bottom: 1px solid var(--lectrix-line);
+	color: var(--lectrix-fg-muted);
+	font-size: 11px;
+	font-weight: 500;
+	letter-spacing: 0.04em;
+	text-align: left;
+	text-transform: uppercase;
+}
+.recent-table th.text-right {
+	text-align: right;
+}
+.recent-table td {
+	height: 44px;
+	padding: 0 12px;
+	border-bottom: 1px solid var(--lectrix-line);
+	color: var(--lectrix-fg-muted);
+	white-space: nowrap;
+}
+.recent-table td:first-child {
+	color: var(--lectrix-fg);
+}
+.recent-table td:last-child {
+	padding: 0 6px;
+}
+.recent-row {
+	position: relative;
+}
+.recent-row:hover {
+	background: var(--lectrix-hover);
+}
+.recent-missing td:first-child {
+	color: var(--lectrix-fg-muted);
+}
+.recent-open-row {
+	display: flex;
+	width: 100%;
+	min-width: 0;
+	align-items: center;
+	gap: 12px;
+}
+
+/* The grid: as many columns as fit, each card the page (in a page-shaped area, at its top
+   and centred across, with the page shadow; so it is inset as the text is), then the name,
+   then when it was opened and its size. */
+.recent-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(152px, 1fr));
+	gap: 8px;
+}
+.recent-card {
+	position: relative;
+	min-width: 0;
+	border-radius: var(--radius-panel);
+}
+.recent-card:hover {
+	background: var(--lectrix-hover);
+}
+.recent-card .recent-open {
+	display: flex;
+	width: 100%;
+	flex-direction: column;
+	gap: 2px;
+	padding: 12px 12px 10px;
+}
+.recent-card .recent-open:focus-visible::after {
+	border-radius: var(--radius-panel);
+}
+.recent-preview {
+	position: relative;
+	display: flex;
+	width: 100%;
+	margin-bottom: 8px;
+	aspect-ratio: 3 / 4;
+	align-items: center;
+	justify-content: center;
+}
+.recent-page {
+	position: absolute;
+	top: 0;
+	right: 0;
+	left: 0;
+	max-width: 100%;
+	max-height: 100%;
+	margin: 0 auto;
+	box-shadow: 0 1px 4px var(--lectrix-page-shadow);
+	opacity: 0;
+	transition: opacity 120ms ease-out;
+}
+.recent-page-loaded {
+	opacity: 1;
+}
+.recent-name {
+	overflow: hidden;
+	color: var(--lectrix-fg);
+	font-size: 13px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+.recent-missing .recent-name {
+	color: var(--lectrix-fg-muted);
+}
+.recent-details {
+	display: flex;
+	overflow: hidden;
+	gap: 4px;
+	color: var(--lectrix-fg-muted);
+	font-size: 12px;
+	white-space: nowrap;
+}
+/* Over the page's corner, so it has a background of its own. */
+.recent-card-remove {
+	position: absolute;
+	top: 8px;
+	right: 8px;
+	border: 1px solid var(--lectrix-line);
+	background: var(--lectrix-surface-raised);
+}
+.recent-card-remove:hover:not(:disabled) {
+	background: linear-gradient(var(--lectrix-hover), var(--lectrix-hover)), var(--lectrix-surface-raised);
 }
 
 /* ----- dialogs ----- */

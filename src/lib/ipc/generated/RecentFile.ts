@@ -8,4 +8,12 @@ index: number, name: string, folder: string,
 /**
  * False when the file is no longer where it was.
  */
-exists: boolean, };
+exists: boolean, 
+/**
+ * When it was last opened, in milliseconds since the Unix epoch.
+ */
+openedAt: number, 
+/**
+ * Its size in bytes; `None` when it is not found.
+ */
+size: number | null, };

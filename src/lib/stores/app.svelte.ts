@@ -117,6 +117,8 @@ class AppStore {
 	thumbnailsFit = $state(false);
 	/** Page thumbnails in a grid of as many columns as fit, rather than one column. */
 	thumbnailsGrid = $state(false);
+	/** The start screen shows recent files as a grid of previews, rather than a table. */
+	recentFilesGrid = $state(false);
 	#leftActive = $state<PanelId | null>(null);
 	#rightActive = $state<PanelId | null>(null);
 	/** The remembered pane layout is in; until then panes neither animate nor are saved. */
@@ -211,6 +213,7 @@ class AppStore {
 		this.thumbnailWidth = clampThumbWidth(panes.thumbnailWidth);
 		this.thumbnailsFit = panes.thumbnailsFit;
 		this.thumbnailsGrid = panes.thumbnailsGrid;
+		this.recentFilesGrid = panes.recentFilesGrid;
 		this.panesRestored = true;
 	}
 
@@ -226,7 +229,8 @@ class AppStore {
 			rightActive: this.activePanel('right'),
 			thumbnailWidth: this.thumbnailWidth,
 			thumbnailsFit: this.thumbnailsFit,
-			thumbnailsGrid: this.thumbnailsGrid
+			thumbnailsGrid: this.thumbnailsGrid,
+			recentFilesGrid: this.recentFilesGrid
 		};
 	}
 

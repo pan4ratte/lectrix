@@ -139,6 +139,16 @@ describe.each([
 			const tint = on('--lectrix-row-selected', vars, solid(bar, vars));
 			expect(contrast(solid('--lectrix-accent', vars), tint), `active tool on ${bar}`).toBeGreaterThanOrEqual(3);
 		}
+		// The start screen's tools: borders, icons and text in the brand gradient, on the canvas
+		// and on the wash of it under the pointer; text needs 4.5:1.
+		const canvas = solid('--lectrix-canvas', vars);
+		const wash = Number(vars['--lectrix-brand-wash']);
+		expect(wash).toBeGreaterThan(0);
+		for (const end of ['--lectrix-brand-from', '--lectrix-brand-to']) {
+			const brand = solid(end, vars);
+			expect(contrast(brand, canvas), `${end} text on the canvas`).toBeGreaterThanOrEqual(4.5);
+			expect(contrast(brand, mix(canvas, brand, wash)), `${end} text on its wash`).toBeGreaterThanOrEqual(4.5);
+		}
 		for (let i = 1; i <= 6; i++) {
 			for (const bg of ['--lectrix-surface', '--lectrix-chrome']) {
 				expect(contrast(solid(`--lectrix-source-${i}`, vars), solid(bg, vars)), `source ${i} on ${bg}`).toBeGreaterThanOrEqual(3);

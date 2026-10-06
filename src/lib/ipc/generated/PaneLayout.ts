@@ -3,8 +3,8 @@ import type { PanelId } from "./PanelId";
 
 /**
  * The side panes (section 8): which are open, how wide they are, which panels each holds
- * in which order, the panel each shows, and the size of page thumbnails. Remembered in app
- * data. Widths are CSS pixels;
+ * in which order, the panel each shows, and the size of page thumbnails; also how the start
+ * screen shows recent files. Remembered in app data. Widths are CSS pixels;
  * the frontend keeps them within its limits, and puts each panel in exactly one pane.
  */
 export type PaneLayout = { leftOpen: boolean, leftWidth: number, rightOpen: boolean, rightWidth: number, leftPanels: Array<PanelId>, rightPanels: Array<PanelId>, 
@@ -23,4 +23,8 @@ thumbnailsFit: boolean,
 /**
  * Page thumbnails in a grid of as many columns as fit, rather than one column.
  */
-thumbnailsGrid: boolean, };
+thumbnailsGrid: boolean, 
+/**
+ * The start screen shows recent files as a grid of previews, rather than a table.
+ */
+recentFilesGrid: boolean, };

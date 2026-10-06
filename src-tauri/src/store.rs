@@ -411,6 +411,7 @@ mod tests {
             thumbnail_width: 184,
             thumbnails_fit: true,
             thumbnails_grid: true,
+            recent_files_grid: true,
         };
         store.set_panes(panes.clone());
         assert_eq!(Store::load(Some(file.clone())).panes(), panes);

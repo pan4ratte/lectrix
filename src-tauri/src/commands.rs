@@ -180,19 +180,27 @@ pub fn list_recent_files(state: State<'_, AppState>) -> Result<Vec<RecentFile>, 
         .recent()
         .iter()
         .enumerate()
-        .map(|(i, e)| RecentFile {
-            index: u32::try_from(i).unwrap_or(u32::MAX),
-            name: e
-                .path
-                .file_name()
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_default(),
-            folder: e
-                .path
-                .parent()
-                .map(|p| p.display().to_string())
-                .unwrap_or_default(),
-            exists: e.path.is_file(),
+        .map(|(i, e)| {
+            let size = std::fs::metadata(&e.path)
+                .ok()
+                .filter(std::fs::Metadata::is_file)
+                .map(|m| m.len());
+            RecentFile {
+                index: u32::try_from(i).unwrap_or(u32::MAX),
+                name: e
+                    .path
+                    .file_name()
+                    .map(|n| n.to_string_lossy().into_owned())
+                    .unwrap_or_default(),
+                folder: e
+                    .path
+                    .parent()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_default(),
+                exists: size.is_some(),
+                opened_at: e.opened_at.saturating_mul(1000),
+                size,
+            }
         })
         .collect())
 }

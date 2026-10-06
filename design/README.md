@@ -9,6 +9,7 @@ into the app or shipped as it is. The app keeps its own copies where it uses the
 | `src-tauri/icons/`, `src-tauri/app-icon.png` | the kit's platform exports of `app-icon/` |
 | `src-tauri/icons/lectrix-pdf.ico` (PDF files on Windows) | `file-icon/windows/lectrix-pdf.ico` |
 | `src/lib/assets/lectrix-icon.svg` (About dialog) | `app-icon/lectrix-icon.svg` |
+| `src/lib/assets/lectrix-file-icon-small.svg` (start screen's recent files) | `file-icon/lectrix-file-icon-small.svg` |
 | `src/lib/assets/fonts/` (ADR 0009) | the kit's Latin, Cyrillic and Greek font build |
 | accent colours in `src/app.css` (ADR 0010) | `tokens.json` |
 
