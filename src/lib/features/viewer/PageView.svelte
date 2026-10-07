@@ -153,7 +153,8 @@
 				const y = ty * TILE_SIZE;
 				const w = Math.min(TILE_SIZE, pixels.width - x);
 				const h = Math.min(TILE_SIZE, pixels.height - y);
-				out.push({ id: `${scale}:${tx},${ty}`, scale, x, y, w, h });
+				// New canvases when the page turns: a tile's old pixels belong elsewhere on it.
+				out.push({ id: `${scale}:${size.rotation}:${tx},${ty}`, scale, x, y, w, h });
 			}
 		}
 		return out;
@@ -293,6 +294,7 @@
 			y={0}
 			width={innerW}
 			height={innerH}
+			rotation={size.rotation}
 			ondrawn={(key) => {
 				drawnBase = key;
 				drawnRevision = revision;

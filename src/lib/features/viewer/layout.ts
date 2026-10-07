@@ -1,7 +1,7 @@
 // The layout of a document's pages, in CSS pixels: rows of one or two pages (section 6.1,
 // scroll modes), all of them scrolling continuously, or one row at a time.
 
-import type { PageLayout, PageSize, ScrollMode } from '#lib/ipc/index.ts';
+import type { PageLayout, ScrollMode } from '#lib/ipc/index.ts';
 
 /** CSS pixels per PDF point at 100% zoom (96 dpi screen, 72 pt per inch). */
 export const CSS_PX_PER_PT = 96 / 72;
@@ -10,6 +10,12 @@ export const PAGE_GAP = 12;
 export const PAGE_MARGIN = 16;
 
 export type Rotation = 0 | 90 | 180 | 270;
+
+/** A page's size in points, as laid out (after its `/Rotate`). */
+export interface Size {
+	width: number;
+	height: number;
+}
 
 /** How pages are laid out in a tab: the scroll modes the view offers. */
 export type ViewMode = Exclude<ScrollMode, 'document'>;
@@ -79,7 +85,7 @@ export function normalizeRotation(degrees: number): Rotation {
 }
 
 /** Size of a page on screen at `zoom`, after view rotation. */
-export function pageCssSize(size: PageSize, zoom: number, rotation: Rotation) {
+export function pageCssSize(size: Size, zoom: number, rotation: Rotation) {
 	const w = size.width * CSS_PX_PER_PT * zoom;
 	const h = size.height * CSS_PX_PER_PT * zoom;
 	return rotation === 90 || rotation === 270 ? { width: h, height: w } : { width: w, height: h };
@@ -103,7 +109,7 @@ export function rowCount(count: number, columns: 1 | 2, cover: boolean): number 
 }
 
 export function computeLayout(
-	sizes: readonly PageSize[],
+	sizes: readonly Size[],
 	zoom: number,
 	rotation: Rotation,
 	arrangement: Arrangement = CONTINUOUS

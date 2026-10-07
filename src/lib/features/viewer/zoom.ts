@@ -1,8 +1,6 @@
 // Zoom levels, fitting, and the render-scale ladder.
 
-import type { PageSize } from '#lib/ipc/index.ts';
-
-import { CSS_PX_PER_PT, PAGE_GAP, PAGE_MARGIN, type Rotation } from './layout.ts';
+import { CSS_PX_PER_PT, PAGE_GAP, PAGE_MARGIN, type Rotation, type Size } from './layout.ts';
 
 export const MIN_ZOOM = 0.1;
 export const MAX_ZOOM = 16;
@@ -73,7 +71,7 @@ export function wheelZoomFactor(deltaY: number, deltaMode: number): number {
 }
 
 /** Width and height of a page in points after view rotation. */
-function rotatedSize(size: PageSize, rotation: Rotation) {
+function rotatedSize(size: Size, rotation: Rotation) {
 	return rotation === 90 || rotation === 270
 		? { width: size.height, height: size.width }
 		: { width: size.width, height: size.height };
@@ -87,14 +85,14 @@ function availableWidth(viewportWidth: number, columns: 1 | 2): number {
 
 /** Zoom at which `size` fills the viewport's width (minus margins and a scrollbar); with two
  * columns, two pages of that size side by side. */
-export function fitWidthZoom(size: PageSize, viewportWidth: number, rotation: Rotation, columns: 1 | 2 = 1): number {
+export function fitWidthZoom(size: Size, viewportWidth: number, rotation: Rotation, columns: 1 | 2 = 1): number {
 	const { width } = rotatedSize(size, rotation);
 	return clampZoom(availableWidth(viewportWidth, columns) / (columns * width * CSS_PX_PER_PT));
 }
 
 /** Zoom at which the whole page (or two side by side) fits in the viewport. */
 export function fitPageZoom(
-	size: PageSize,
+	size: Size,
 	viewportWidth: number,
 	viewportHeight: number,
 	rotation: Rotation,
@@ -121,7 +119,7 @@ export function renderScale(zoom: number, devicePixelRatio: number): number {
 }
 
 /** Pixel size of a page rendered at `scale`, rounded like MuPDF (`render::pixel_size`). */
-export function pixelSize(size: PageSize, scale: number) {
+export function pixelSize(size: Size, scale: number) {
 	const round = (v: number) => Math.max(1, Math.ceil(v - 0.001));
 	return { width: round(size.width * scale), height: round(size.height * scale) };
 }
@@ -136,6 +134,6 @@ export const TILE_THRESHOLD_PIXELS = 6_000_000;
 export const UNDERLAY_PIXELS = 1_500_000;
 
 /** The scale at which a page fits in `pixels` (for thumbnails and tile underlays). */
-export function scaleForPixels(size: PageSize, pixels: number): number {
+export function scaleForPixels(size: Size, pixels: number): number {
 	return Math.sqrt(pixels / (size.width * size.height));
 }

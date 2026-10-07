@@ -300,6 +300,7 @@
 										y={0}
 										width={thumbW}
 										height={item.imageH}
+										rotation={tab.pages[index]?.rotation ?? 0}
 									/>
 								</span>
 								<span class="text-xs text-fg-muted tabular-nums">{pageBoxText(index, tab.displayLabels)}</span>

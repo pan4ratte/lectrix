@@ -43,7 +43,8 @@ fn open_reports_pages_flags_and_clean_state() {
         info.pages[0],
         PageSize {
             width: 612.0,
-            height: 792.0
+            height: 792.0,
+            rotation: 0
         }
     );
     assert!(info.labels.is_none());
@@ -67,7 +68,8 @@ fn rotate_undo_redo_tracks_revision_and_dirty_state() {
             1,
             PageSize {
                 width: 792.0,
-                height: 612.0
+                height: 612.0,
+                rotation: 90
             }
         )]
     );
@@ -94,9 +96,27 @@ fn rotate_undo_redo_tracks_revision_and_dirty_state() {
     assert_eq!(branched.state.revision, 2);
     assert_eq!(branched.state.undo_name.as_deref(), Some("Rotate pages"));
     assert_eq!(branched.state.redo_name, None);
-    assert!(
-        branched.changed_pages.is_empty(),
-        "180 degrees keeps the size"
+    // 180 degrees keeps the size, but the view needs the new rotation.
+    assert_eq!(
+        branched.changed_pages,
+        vec![
+            (
+                0,
+                PageSize {
+                    width: 612.0,
+                    height: 792.0,
+                    rotation: 180
+                }
+            ),
+            (
+                2,
+                PageSize {
+                    width: 612.0,
+                    height: 792.0,
+                    rotation: 180
+                }
+            )
+        ]
     );
 }
 

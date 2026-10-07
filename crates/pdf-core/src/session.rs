@@ -54,6 +54,8 @@ use crate::text::{self, PageText, SearchHit};
 pub struct PageSize {
     pub width: f32,
     pub height: f32,
+    /// The page's `/Rotate`, normalized (0, 90, 180 or 270): `width` and `height` are after it.
+    pub rotation: u16,
 }
 
 /// Undo position and save state, returned by every command that can change them.
@@ -865,6 +867,7 @@ fn page_sizes(doc: &PdfDocument) -> Result<Vec<PageSize>> {
         pages.push(PageSize {
             width: g.width as f32,
             height: g.height as f32,
+            rotation: u16::try_from(g.rotation).unwrap_or(0),
         });
     }
     Ok(pages)

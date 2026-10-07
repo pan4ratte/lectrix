@@ -15,6 +15,8 @@ use crate::documents::Documents;
 pub struct PageSize {
     pub width: f32,
     pub height: f32,
+    /// The page's `/Rotate` (0, 90, 180 or 270); `width` and `height` are after it.
+    pub rotation: u16,
 }
 
 impl From<core::PageSize> for PageSize {
@@ -22,6 +24,7 @@ impl From<core::PageSize> for PageSize {
         PageSize {
             width: p.width,
             height: p.height,
+            rotation: p.rotation,
         }
     }
 }
