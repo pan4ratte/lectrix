@@ -1,6 +1,7 @@
 // Picking a tool glides the active tool's mark to it (AGENTS.md section 8): one mark in the
 // annotation toolbar, on the pressed tool, that passes between the two tools on its way
-// instead of jumping, and lands on the tool picked.
+// instead of jumping, and lands on the tool picked. With reduced motion (as on CI's Windows
+// runners, whose visual effects are off) it goes there at once instead.
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -42,7 +43,12 @@ test('picking a tool glides the mark to it', async () => {
 		const end = await where();
 		assert.ok(Math.abs(end.mark - end.pen) < 1, `the mark lands on Pen: ${JSON.stringify(end)}`);
 		const between = lefts.filter((x) => x > start.select + 2 && x < end.pen - 2);
-		assert.ok(between.length > 0, `the mark passed between the tools: ${JSON.stringify(lefts)}`);
+		const reduced = await browser.execute(() => matchMedia('(prefers-reduced-motion: reduce)').matches);
+		if (reduced) {
+			assert.equal(between.length, 0, `reduced motion: the mark went to Pen at once: ${JSON.stringify(lefts)}`);
+		} else {
+			assert.ok(between.length > 0, `the mark passed between the tools: ${JSON.stringify(lefts)}`);
+		}
 		const pressed = await browser.execute(
 			(sel) => document.querySelector(`${sel} [aria-pressed=true]`).getAttribute('aria-label'),
 			toolbar

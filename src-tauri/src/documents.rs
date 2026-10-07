@@ -578,7 +578,16 @@ mod tests {
             panic!("expected Opened");
         };
         let again = dir.join(".").join("A.PDF");
-        match docs.open(&again, None, platform, &store) {
+        // The same file under another spelling where names ignore case (Windows, and macOS
+        // by default); elsewhere (Linux) A.PDF is another file, which doesn't exist.
+        if again.exists() {
+            match docs.open(&again, None, platform, &store) {
+                OpenResult::AlreadyOpen { id } => assert_eq!(id, document.id),
+                other => panic!("expected AlreadyOpen, got {other:?}"),
+            }
+        }
+        let same = dir.join(".").join("a.pdf");
+        match docs.open(&same, None, platform, &store) {
             OpenResult::AlreadyOpen { id } => assert_eq!(id, document.id),
             other => panic!("expected AlreadyOpen, got {other:?}"),
         }

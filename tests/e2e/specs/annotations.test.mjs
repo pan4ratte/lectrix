@@ -127,7 +127,14 @@ test('create, edit, delete, undo, save and reopen annotations', async () => {
 		await browser.keys([...'Hello from the note']);
 		await browser.keys(['Control', 'Enter']);
 
-		// Pen: P, a stroke.
+		// Pen: P, a stroke. Escape first closes the note's comment panel, which in a small
+		// window (CI's) sits left of the note, over the place the stroke starts.
+		await browser.keys(['Escape']);
+		await browser.keys(['Escape']);
+		await (await browser.$('aside[aria-label="Annotation comment"]')).waitForExist({
+			reverse: true,
+			timeoutMsg: 'Escape left the comment panel of the note open'
+		});
 		await browser.keys('p');
 		await drag(browser, await pagePoint(browser, 0, 100, 300), await pagePoint(browser, 0, 300, 360));
 		await waitForRowCount(browser, 3, 'drawing');
@@ -403,8 +410,14 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 
 		// Closed and opened again, it comes back where it was put: with a comment now, a click
 		// shows the underline's comment panel rather than its bar.
-		const away = await pagePoint(browser, 0, 450, 200);
-		assert.ok(away.x > grown.right && away.y < viewer.bottom, `the blank spot ${JSON.stringify(away)} is under the panel or off screen`);
+		// A spot on the page right of the panel (in a small window, as CI's, the page's
+		// right half is under it).
+		const page = await browser.execute(() => document.querySelector('.page[data-page="0"]').getBoundingClientRect().toJSON());
+		const away = {
+			x: Math.round((Math.max(grown.right, page.left) + Math.min(page.right, viewer.right)) / 2),
+			y: (await pagePoint(browser, 0, 450, 200)).y
+		};
+		assert.ok(away.x > grown.right + 8 && away.x < page.right - 8 && away.y < viewer.bottom, `the blank spot ${JSON.stringify(away)} is under the panel or off screen`);
 		await click(browser, away);
 		await browser.waitUntil(() => browser.execute(() => document.querySelector('aside[aria-label="Annotation comment"]') === null), {
 			timeoutMsg: 'a click on the page left the comment panel open'

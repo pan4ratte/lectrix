@@ -98,8 +98,9 @@ Nothing has been run interactively there.
 - **License notices:** `THIRD_PARTY_LICENSES.md` lists the crates of the Windows build
   only; the macOS and Linux builds include more (GTK and WebKitGTK bindings, objc2 and
   others), which it does not name.
-- **Tests:** some are Windows-only by design (DirectWrite fonts, locked files, the
-  `qpdf.exe` lookup).
+- **Tests:** some are Windows-only by design (DirectWrite fonts, locked files). Every
+  test program runs (`--no-fail-fast`), and qpdf is installed on both, so the structural
+  check runs there too.
 
 ## Releases and updates
 
