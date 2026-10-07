@@ -9,7 +9,7 @@ import { addBookmark } from '#lib/features/bookmarks/actions.ts';
 import { showLabels, startRangeAt } from '#lib/features/labels/actions.ts';
 import { update } from '#lib/features/update/update.svelte.ts';
 import { copySelection } from '#lib/features/viewer/actions.ts';
-import { normalizeRotation } from '#lib/features/viewer/layout.ts';
+import { normalizeRotation, type ViewMode } from '#lib/features/viewer/layout.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -18,6 +18,21 @@ function withTab(run: (tab: DocTab) => void | Promise<unknown>) {
 		const tab = app.active;
 		if (tab) void run(tab);
 	};
+}
+
+/** Lays the active document's pages out in `mode` (section 6.1); not stored in the file. */
+export function setViewMode(mode: ViewMode) {
+	const tab = app.active;
+	if (tab) layOut(tab, mode, tab.cover);
+}
+
+function layOut(tab: DocTab, mode: ViewMode, cover: boolean) {
+	if (tab.viewer) {
+		tab.viewer.setMode(mode, cover);
+	} else {
+		tab.mode = mode;
+		tab.cover = cover;
+	}
 }
 
 /** Picks an annotation tool (section 8 shortcuts). Drawing tools need permission to annotate. */
@@ -79,6 +94,8 @@ export const commands = {
 	rotateViewCounterClockwise: withTab((t) => {
 		t.rotation = normalizeRotation(t.rotation - 90);
 	}),
+	/** In the two-page modes, gives the first page a row of its own, or not. */
+	toggleCoverPage: withTab((t) => layOut(t, t.mode, !t.cover)),
 	toggleLeftPane: () => app.togglePane('left'),
 	toggleRightPane: () => app.togglePane('right'),
 	goToPage: () => {

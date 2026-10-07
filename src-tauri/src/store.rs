@@ -10,7 +10,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 use crate::ipc::{
-    Appearance, PaneLayout, QuickTool, ToolbarPosition, ToolbarStyle, ToolbarVisibility, ViewState,
+    Appearance, PaneLayout, QuickTool, ScrollMode, ToolbarPosition, ToolbarStyle,
+    ToolbarVisibility, ViewState,
 };
 use crate::placement::WindowPlacement;
 
@@ -79,6 +80,9 @@ pub struct StoredSettings {
     pub author: Option<String>,
     #[serde(default)]
     pub appearance: Appearance,
+    /// How pages are laid out when a document opens.
+    #[serde(default)]
+    pub scroll_mode: ScrollMode,
     #[serde(default)]
     pub toolbar_style: ToolbarStyle,
     #[serde(default)]
@@ -126,6 +130,7 @@ impl Default for StoredSettings {
         StoredSettings {
             author: None,
             appearance: Appearance::default(),
+            scroll_mode: ScrollMode::default(),
             toolbar_style: ToolbarStyle::default(),
             toolbar_position: ToolbarPosition::default(),
             toolbar_visibility: ToolbarVisibility::default(),
@@ -365,6 +370,7 @@ mod tests {
         let settings = StoredSettings {
             author: Some("Ada Lovelace".into()),
             appearance: Appearance::Dark,
+            scroll_mode: ScrollMode::TwoPage,
             toolbar_style: ToolbarStyle::Panel,
             toolbar_position: ToolbarPosition::Top,
             toolbar_visibility: ToolbarVisibility::OnHover,
@@ -395,6 +401,7 @@ mod tests {
         assert_eq!(v1.settings().author.as_deref(), Some("Ada"));
         assert_eq!(v1.settings().quick_tools, QuickTool::DEFAULT.to_vec());
         assert_eq!(v1.settings().toolbar_style, ToolbarStyle::Floating);
+        assert_eq!(v1.settings().scroll_mode, ScrollMode::SinglePageContinuous);
         assert!(v1.settings().check_for_updates);
         assert!(v1.settings().smooth_zoom);
         assert!(v1.settings().smooth_annotation_scroll);

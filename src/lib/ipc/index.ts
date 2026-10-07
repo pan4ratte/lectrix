@@ -80,6 +80,8 @@ export type { NewAnnotationInput } from './generated/NewAnnotationInput';
 export type { PageAnnotations } from './generated/PageAnnotations';
 export type { RepairSummary } from './generated/RepairSummary';
 export type { Appearance } from './generated/Appearance';
+export type { PageLayout } from './generated/PageLayout';
+export type { ScrollMode } from './generated/ScrollMode';
 export type { Settings } from './generated/Settings';
 export type { SettingsInput } from './generated/SettingsInput';
 export type { QuickTool } from './generated/QuickTool';

@@ -8,10 +8,18 @@ import {
 	PAGE_GAP,
 	PAGE_MARGIN,
 	computeLayout,
+	contentWidth,
 	currentPage,
+	documentMode,
+	isShown,
 	normalizeRotation,
+	pageAt,
 	pageAtY,
-	pagesInRange
+	pageLeft,
+	pagesInRange,
+	rowCount,
+	rowOf,
+	rowStart
 } from './layout.ts';
 import { pageBoxText, pageOf, pagePosition, resolvePageInput } from './pagebox.ts';
 import {
@@ -66,6 +74,91 @@ describe('layout', () => {
 		expect(currentPage(layout, p500.top, 1000)).toBe(500);
 	});
 
+	it('numbers rows of one or two pages, with or without a cover', () => {
+		// 1 | 2 3 | 4 5 | 6 with a cover; 1 2 | 3 4 | 5 6 without.
+		expect([0, 1, 2, 3, 4, 5].map((p) => rowOf(p, 2, true))).toEqual([0, 1, 1, 2, 2, 3]);
+		expect([0, 1, 2, 3].map((r) => rowStart(r, 2, true))).toEqual([0, 1, 3, 5]);
+		expect([0, 1, 2, 3, 4, 5].map((p) => rowOf(p, 2, false))).toEqual([0, 0, 1, 1, 2, 2]);
+		expect([0, 1, 2].map((r) => rowStart(r, 2, false))).toEqual([0, 2, 4]);
+		expect(rowOf(7, 1, true)).toBe(7);
+		expect(rowCount(6, 2, true)).toBe(4);
+		expect(rowCount(6, 2, false)).toBe(3);
+		expect(rowCount(5, 2, false)).toBe(3);
+		expect(rowCount(0, 2, false)).toBe(0);
+	});
+
+	it('puts two pages side by side, meeting at the middle', () => {
+		const w = 612 * CSS_PX_PER_PT;
+		const layout = computeLayout(Array(5).fill(letter), 1, 0, { columns: 2, cover: true, row: null });
+		expect(layout.rows.map((r) => [r.first, r.last])).toEqual([
+			[0, 0],
+			[1, 2],
+			[3, 4]
+		]);
+		// The cover alone on the right, then left and right pages.
+		expect(layout.pages[0]!.x).toBe(PAGE_GAP / 2);
+		expect(layout.pages[1]!.x).toBeCloseTo(-PAGE_GAP / 2 - w);
+		expect(layout.pages[2]!.x).toBe(PAGE_GAP / 2);
+		expect(layout.pages[1]!.top).toBe(layout.pages[2]!.top);
+		expect(layout.maxWidth).toBeCloseTo(2 * w + PAGE_GAP);
+		const cw = contentWidth(layout, 0);
+		expect(pageLeft(layout, 1, cw)).toBeCloseTo(PAGE_MARGIN);
+		// Without a cover, a last page alone stays on the left.
+		const plain = computeLayout(Array(3).fill(letter), 1, 0, { columns: 2, cover: false, row: null });
+		expect(plain.rows.map((r) => [r.first, r.last])).toEqual([
+			[0, 1],
+			[2, 2]
+		]);
+		expect(plain.pages[2]!.x).toBeCloseTo(-PAGE_GAP / 2 - w);
+	});
+
+	it('centres pages of different heights in their row', () => {
+		const small = { width: 612, height: 396 };
+		const layout = computeLayout([letter, small], 1, 0, { columns: 2, cover: false, row: null });
+		const row = layout.rows[0]!;
+		expect(row.height).toBeCloseTo(792 * CSS_PX_PER_PT);
+		expect(layout.pages[1]!.top).toBeCloseTo(row.top + (792 - 396) * CSS_PX_PER_PT * 0.5);
+	});
+
+	it('finds the page at a point, on either side of the middle', () => {
+		const layout = computeLayout(Array(4).fill(letter), 1, 0, { columns: 2, cover: false, row: null });
+		const cw = contentWidth(layout, 2000);
+		const y = layout.rows[1]!.top + 10;
+		expect(pageAt(layout, pageLeft(layout, 2, cw) + 5, y, cw)).toBe(2);
+		expect(pageAt(layout, pageLeft(layout, 3, cw) + 5, y, cw)).toBe(3);
+		// Beside the pages, the nearer one.
+		expect(pageAt(layout, 0, y, cw)).toBe(2);
+		expect(pageAt(layout, cw, y, cw)).toBe(3);
+		expect(pageAtY(layout, y)).toBe(2);
+		expect(currentPage(layout, layout.rows[1]!.top, 100)).toBe(2);
+	});
+
+	it('shows one row at a time in the single page and two-page modes', () => {
+		const h = 792 * CSS_PX_PER_PT;
+		const layout = computeLayout(Array(6).fill(letter), 1, 0, { columns: 2, cover: false, row: 1 });
+		expect(layout.shown).toEqual([1, 1]);
+		expect(layout.rows[1]!.top).toBe(PAGE_MARGIN);
+		expect(layout.totalHeight).toBeCloseTo(h + 2 * PAGE_MARGIN);
+		expect(pagesInRange(layout, -1e6, 1e6)).toEqual([2, 3]);
+		expect(pageAtY(layout, -1e6)).toBe(2);
+		expect(pageAtY(layout, 1e6)).toBe(2);
+		expect([1, 2, 3, 4].map((p) => isShown(layout, p))).toEqual([false, true, true, false]);
+		// A row past the end shows the last one.
+		const single = computeLayout(Array(3).fill(letter), 1, 0, { columns: 1, cover: false, row: 9 });
+		expect(single.shown).toEqual([2, 2]);
+		expect(pagesInRange(single, 0, 1e6)).toEqual([2, 2]);
+	});
+
+	it("reads the document's own page layout", () => {
+		expect(documentMode('SinglePage')).toEqual({ mode: 'singlePage', cover: false });
+		expect(documentMode('OneColumn')).toEqual({ mode: 'singlePageContinuous', cover: false });
+		expect(documentMode('TwoPageLeft')).toEqual({ mode: 'twoPage', cover: false });
+		expect(documentMode('TwoPageRight')).toEqual({ mode: 'twoPage', cover: true });
+		expect(documentMode('TwoColumnLeft')).toEqual({ mode: 'twoPageContinuous', cover: false });
+		expect(documentMode('TwoColumnRight')).toEqual({ mode: 'twoPageContinuous', cover: true });
+		expect(documentMode(null)).toBeNull();
+	});
+
 	it('normalizes rotations', () => {
 		expect(normalizeRotation(-90)).toBe(270);
 		expect(normalizeRotation(450)).toBe(90);
@@ -104,6 +197,15 @@ describe('zoom', () => {
 		expect(fitPageZoom(letter, 10000, 792 * CSS_PX_PER_PT + 2 * PAGE_MARGIN + 1, 0)).toBeCloseTo(1);
 		// The fitted page never needs a horizontal scrollbar.
 		expect(fitWidthZoom(letter, 1000, 0) * 612 * CSS_PX_PER_PT + 2 * PAGE_MARGIN).toBeLessThan(1000);
+	});
+
+	it('fits two pages side by side, and the row they make fits the view', () => {
+		const viewport = 2 * 612 * CSS_PX_PER_PT + PAGE_GAP + 2 * PAGE_MARGIN + 1;
+		expect(fitWidthZoom(letter, viewport, 0, 2)).toBeCloseTo(1);
+		expect(fitPageZoom(letter, viewport, 10000, 0, 2)).toBeCloseTo(1);
+		const zoom = fitWidthZoom(letter, 1000, 0, 2);
+		const layout = computeLayout([letter, letter], zoom, 0, { columns: 2, cover: false, row: null });
+		expect(contentWidth(layout, 1000)).toBe(1000);
 	});
 
 	it('rounds render scales up to a shared ladder', () => {

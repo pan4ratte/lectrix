@@ -51,9 +51,17 @@
 		computeLayout,
 		contentWidth,
 		currentPage,
+		isShown,
+		pageAt,
 		pageAtY,
 		pageLeft,
-		pagesInRange
+		pagesInRange,
+		rowAtY,
+		rowCount,
+		rowOf,
+		rowStart,
+		type Arrangement,
+		type ViewMode
 	} from './layout.ts';
 	import PageView from './PageView.svelte';
 	import SearchBar from './SearchBar.svelte';
@@ -89,7 +97,14 @@
 	let viewportH = $state(0);
 	let dpr = $state(typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1);
 
-	const layout = $derived(computeLayout(tab.pages, tab.zoom, tab.rotation));
+	/** The row shown in the single page and two-page modes (section 6.1, scroll modes). */
+	let shownRow = $state(untrack(() => rowOf(tab.currentPage, tab.columns, tab.cover)));
+	const arrangement: Arrangement = $derived({
+		columns: tab.columns,
+		cover: tab.cover,
+		row: tab.continuous ? null : shownRow
+	});
+	const layout = $derived(computeLayout(tab.pages, tab.zoom, tab.rotation, arrangement));
 	const contentW = $derived(contentWidth(layout, viewportW));
 	/** Pages mounted: the viewport plus a quarter screen above and below. Each mounted page
 	 * holds its pixels in the webview, and rendering is fast enough that a wider margin
@@ -152,7 +167,21 @@
 		return { page, offset: Math.min(1, Math.max(0, (scrollTop - b.top) / b.height)) };
 	}
 
-	function scrollToPosition(p: ViewPosition) {
+	/**
+	 * In the single page and two-page modes, shows the row holding `page`: a promise that
+	 * settles once the content has its new size; null when nothing changes.
+	 */
+	function showRowOf(page: number): Promise<void> | null {
+		if (tab.continuous) return null;
+		const row = Math.min(rowOf(Math.max(0, page), tab.columns, tab.cover), Math.max(0, layout.rows.length - 1));
+		if (row === shownRow) return null;
+		shownRow = row;
+		return tick();
+	}
+
+	async function scrollToPosition(p: ViewPosition) {
+		const showing = showRowOf(p.page);
+		if (showing) await showing;
 		if (!scroller) return;
 		const page = Math.min(Math.max(0, p.page), layout.pages.length - 1);
 		const b = layout.pages[page];
@@ -164,7 +193,50 @@
 
 	function goTo(p: ViewPosition, options: { recordHistory?: boolean } = {}) {
 		if (options.recordHistory !== false) tab.history.push(position());
-		scrollToPosition(p);
+		void scrollToPosition(p);
+	}
+
+	/** In the single page and two-page modes, shows row `row` from its top or its bottom. */
+	async function showRow(row: number, end: 'top' | 'bottom') {
+		if (row < 0 || row >= rowCount(tab.pages.length, tab.columns, tab.cover)) return;
+		stopScrollGlide();
+		const showing = showRowOf(rowStart(row, tab.columns, tab.cover));
+		if (showing) await showing;
+		if (!scroller) return;
+		scroller.scrollTop = end === 'top' ? 0 : scroller.scrollHeight;
+		onScroll();
+	}
+
+	/** Shows the row after the one shown, from its top, or the one before, from its bottom. */
+	function flip(direction: 1 | -1) {
+		return showRow(shownRow + direction, direction > 0 ? 'top' : 'bottom');
+	}
+
+	/** Goes to the top of the page (or two-page row) before or after the current one. */
+	function turn(direction: 1 | -1) {
+		const row = rowOf(tab.currentPage, tab.columns, tab.cover) + direction;
+		if (row < 0 || row >= rowCount(tab.pages.length, tab.columns, tab.cover)) return;
+		goTo({ page: rowStart(row, tab.columns, tab.cover), offset: 0 }, { recordHistory: false });
+	}
+
+	/** Lays the pages out another way, keeping the current page (the one the page box shows)
+	 * and how far down it the view is, and fits the zoom again in a fit mode (two pages make
+	 * a wider row). */
+	async function setMode(mode: ViewMode, cover: boolean) {
+		if (mode === tab.mode && cover === tab.cover) return;
+		// Not `position()`: just after going to a page, the top of the view is in the gap
+		// above it, and that names the page before.
+		const page = tab.currentPage;
+		const box = layout.pages[page];
+		const at = { page, offset: box ? Math.min(1, Math.max(0, (scrollTop - box.top) / box.height)) : 0 };
+		stopScrollGlide();
+		if (stopZoomGlide()) heldRenderZoom = null;
+		tab.mode = mode;
+		tab.cover = cover;
+		shownRow = rowOf(at.page, tab.columns, tab.cover);
+		if (tab.zoomMode !== 'custom' && viewportW > 0) tab.zoom = fitZoom(tab.zoomMode, at.page);
+		await tick();
+		await scrollToPosition(at);
 	}
 
 	/** Maps a point in page points (unrotated) to CSS pixels in the rotated page box. */
@@ -210,10 +282,14 @@
 
 	function topLeft(): { page: number; x: number; y: number } {
 		if (!scroller || layout.pages.length === 0) return { page: 0, x: 0, y: 0 };
-		let page = Math.max(0, pageAtY(layout, scrollTop + 1));
-		// In the gap below a page, the next page is the one coming into view.
-		const below = layout.pages[page]!;
-		if (scrollTop >= below.top + below.height - 1 && page + 1 < layout.pages.length) page++;
+		let row = Math.max(0, rowAtY(layout, scrollTop + 1));
+		// In the gap below a row, the next row is the one coming into view.
+		const below = layout.rows[row]!;
+		if (scrollTop >= below.top + below.height - 1 && row < layout.shown[1]) row++;
+		// Of two pages side by side, the first one in view.
+		const { first, last } = layout.rows[row]!;
+		let page = first;
+		while (page < last && pageBox(page).left + pageBox(page).width <= scrollLeft) page++;
 		const b = pageBox(page);
 		const clampX = (v: number) => Math.min(b.width, Math.max(0, v));
 		const clampY = (v: number) => Math.min(b.height, Math.max(0, v));
@@ -231,11 +307,14 @@
 		};
 	}
 
-	function goToPoint(index: number, x: number | null, y: number | null) {
+	async function goToPoint(index: number, x: number | null, y: number | null) {
 		if (!scroller) return;
 		const page = Math.min(Math.max(0, index), layout.pages.length - 1);
 		if (!layout.pages[page]) return;
 		tab.history.push(position());
+		const showing = showRowOf(page);
+		if (showing) await showing;
+		if (!scroller) return;
 		const b = pageBox(page);
 		const [bx, by] = toBox(page, x ?? 0, y ?? 0);
 		// Place the point at the top-left corner of the page's content as it appears on
@@ -264,8 +343,10 @@
 		onScroll();
 	}
 
-	function reveal(index: number, rect: [number, number, number, number], options: { smooth?: boolean } = {}) {
-		if (!scroller) return;
+	async function reveal(index: number, rect: [number, number, number, number], options: { smooth?: boolean } = {}) {
+		const showing = showRowOf(index);
+		if (showing) await showing;
+		if (!scroller || !layout.pages[index]) return;
 		const [ax, ay] = toBox(index, rect[0], rect[1]);
 		const [bx, by] = toBox(index, rect[2], rect[3]);
 		const b = pageBox(index);
@@ -338,7 +419,7 @@
 		if (!scroller || layout.pages.length === 0) return;
 		const before = layout;
 		const y = scrollTop + ay;
-		const page = Math.max(0, pageAtY(before, y));
+		const page = Math.max(0, pageAt(before, scrollLeft + ax, y, contentW));
 		const b = before.pages[page]!;
 		const fy = (y - b.top) / b.height;
 		const left = pageLeft(before, page, contentW);
@@ -350,7 +431,7 @@
 		// for the moment until the DOM caught up, they dropped the pages on screen and their
 		// pixels, and each frame of a glide or a pinch flickered blank (tests/e2e zoom).
 		const z = clampZoom(zoom);
-		const next = computeLayout(tab.pages, z, tab.rotation);
+		const next = computeLayout(tab.pages, z, tab.rotation, arrangement);
 		const nextW = contentWidth(next, viewportW);
 		const after = next.pages[page]!;
 		let toTop = after.top + fy * after.height - ay;
@@ -435,12 +516,21 @@
 		glideZoom(stepZoom(zoomGlide?.to ?? tab.zoom, direction), 'custom', null);
 	}
 
-	function fitZoom(mode: 'fitWidth' | 'fitPage'): number {
-		const size = tab.pages[tab.currentPage] ?? tab.pages[0];
-		if (!size) return 1;
+	/** The zoom that fits the row of `page` (the current page's by default). */
+	function fitZoom(mode: 'fitWidth' | 'fitPage', page = tab.currentPage): number {
+		const row = rowOf(page, tab.columns, tab.cover);
+		const first = rowStart(row, tab.columns, tab.cover);
+		const sizes = tab.pages.slice(first, rowStart(row + 1, tab.columns, tab.cover));
+		if (sizes.length === 0 && tab.pages[0]) sizes.push(tab.pages[0]);
+		if (sizes.length === 0) return 1;
+		// The largest of the row's pages, on each side of the middle in two-page modes.
+		const size = {
+			width: Math.max(...sizes.map((s) => s.width)),
+			height: Math.max(...sizes.map((s) => s.height))
+		};
 		return mode === 'fitWidth'
-			? fitWidthZoom(size, viewportW, tab.rotation)
-			: fitPageZoom(size, viewportW, viewportH, tab.rotation);
+			? fitWidthZoom(size, viewportW, tab.rotation, tab.columns)
+			: fitPageZoom(size, viewportW, viewportH, tab.rotation, tab.columns);
 	}
 
 	function fit(mode: 'fitWidth' | 'fitPage') {
@@ -464,7 +554,11 @@
 		// The user's own scrolling takes over from a glide to an annotation.
 		stopScrollGlide();
 		hideTip();
-		if (!event.ctrlKey || !scroller) return;
+		if (!scroller) return;
+		if (!event.ctrlKey) {
+			flipOnWheel(event);
+			return;
+		}
 		// Ctrl+wheel and touchpad pinch (which arrives as Ctrl+wheel): zoom at the cursor.
 		event.preventDefault();
 		const rect = scroller.getBoundingClientRect();
@@ -482,6 +576,40 @@
 		wheelAnchor = anchor;
 		holdRendering();
 		if (!wheelFrame) wheelFrame = requestAnimationFrame(applyWheelZoom);
+	}
+
+	// In the single page and two-page modes, scrolling on past the end of the row shown turns
+	// to the next one (section 6.1). A mouse wheel notch turns at once; a touchpad turns once
+	// it has gone a notch's worth past the edge, and only once per gesture, so a fling stops
+	// at the next row rather than racing through the document.
+	const FLIP_DISTANCE_PX = 100;
+	const FLIP_PAUSE_MS = 200;
+	let flipDistance = 0;
+	let flipHeld = false;
+	let flipTimer: ReturnType<typeof setTimeout> | undefined;
+
+	function flipOnWheel(event: WheelEvent) {
+		if (tab.continuous || !scroller || event.deltaY === 0 || event.shiftKey) return;
+		const down = event.deltaY > 0;
+		const max = scroller.scrollHeight - scroller.clientHeight;
+		const atEdge = down ? scroller.scrollTop >= max - 1 : scroller.scrollTop <= 1;
+		if (!atEdge) {
+			flipDistance = 0;
+			return;
+		}
+		event.preventDefault();
+		clearTimeout(flipTimer);
+		flipTimer = setTimeout(() => {
+			flipDistance = 0;
+			flipHeld = false;
+		}, FLIP_PAUSE_MS);
+		if (flipHeld) return;
+		const notch = isWheelNotch(event.deltaY, event.deltaMode);
+		flipDistance += Math.abs(event.deltaMode === 1 ? event.deltaY * 33 : event.deltaY);
+		if (!notch && flipDistance < FLIP_DISTANCE_PX) return;
+		flipDistance = 0;
+		flipHeld = !notch;
+		void flip(down ? 1 : -1);
 	}
 
 	/** Keeps the current render zoom until zooming has paused. */
@@ -519,9 +647,9 @@
 		return n / (tab.zoom * CSS_PX_PER_PT);
 	}
 
-	function pageUnder(clientY: number): number {
+	function pageUnder(clientX: number, clientY: number): number {
 		const rect = scroller!.getBoundingClientRect();
-		return Math.max(0, pageAtY(layout, clientY - rect.top + scrollTop));
+		return Math.max(0, pageAt(layout, clientX - rect.left + scrollLeft, clientY - rect.top + scrollTop, contentW));
 	}
 
 	/** A point on `page`, kept on the page. */
@@ -532,7 +660,7 @@
 	}
 
 	function caretAt(clientX: number, clientY: number, nearest: boolean): Caret | null {
-		const page = pageUnder(clientY);
+		const page = pageUnder(clientX, clientY);
 		const text = tab.text(page);
 		if (!text) {
 			void tab.loadText(page);
@@ -596,7 +724,7 @@
 			tab.selectedAnnotation = null;
 			return;
 		}
-		const page = pageUnder(event.clientY);
+		const page = pageUnder(event.clientX, event.clientY);
 		const [x, y] = pointOn(page, event.clientX, event.clientY);
 		const tool = tools.tool;
 		if (tool !== 'select' && refuseIfLocked(tab)) return;
@@ -718,7 +846,7 @@
 				hideTip();
 				return;
 			}
-			const page = pageUnder(lastPointer.y);
+			const page = pageUnder(lastPointer.x, lastPointer.y);
 			const [x, y] = toPage(page, lastPointer.x, lastPointer.y);
 			overAnnotation = null;
 			const hit = annotationAt(tab.hitTargets(page), x, y, px(4));
@@ -775,7 +903,7 @@
 
 	/** The tooltip's text and where it goes, while nothing is being dragged or typed. */
 	const tipShown = $derived.by(() => {
-		if (!tip || dragging || tab.draft || !layout.pages[tip.page]) return null;
+		if (!tip || dragging || tab.draft || !isShown(layout, tip.page)) return null;
 		const a = tab.annotation(tip.page, tip.id);
 		const text = tipText(a);
 		return a && text ? { text } : null;
@@ -797,7 +925,7 @@
 					tab.selection = null;
 				} else if (sel) {
 					// The selection bar goes above this point.
-					const page = pageUnder(event.clientY);
+					const page = pageUnder(event.clientX, event.clientY);
 					const [x, y] = pointOn(page, event.clientX, event.clientY);
 					release = { anchor: sel.anchor, focus: sel.focus, page, x, y };
 					if (isMarkupTool(tool)) await markSelection(tab, tool);
@@ -892,14 +1020,14 @@
 		if (!sel) return null;
 		const order = compareCarets(sel.anchor, sel.focus);
 		const text = tab.text(sel.focus.page);
-		if (order === 0 || !text || !layout.pages[sel.focus.page]) return null;
+		if (order === 0 || !text || !isShown(layout, sel.focus.page)) return null;
 		const [start, end] = ordered(sel.anchor, sel.focus);
 		const rects = selectionRects(text, start, end);
 		const line = order < 0 ? rects.at(-1) : rects[0];
 		if (!line) return null;
 		const lineArea = contentArea(sel.focus.page, line);
 		const r = release;
-		if (r && layout.pages[r.page] && compareCarets(r.anchor, sel.anchor) === 0 && compareCarets(r.focus, sel.focus) === 0) {
+		if (r && isShown(layout, r.page) && compareCarets(r.anchor, sel.anchor) === 0 && compareCarets(r.focus, sel.focus) === 0) {
 			const at = contentArea(r.page, [r.x, r.y, r.x, r.y]);
 			return { area: releaseAnchor(lineArea, { x: at.x0, y: at.y0 }), prefer: 'above' as const };
 		}
@@ -914,7 +1042,7 @@
 	 * while it doesn't show its comment panel. */
 	const barAnnotation = $derived.by(() => {
 		const a = tab.selectedAnnotationInfo;
-		if (!a || dragging || tab.draft?.kind === 'text' || showPanel || !layout.pages[a.page]) return null;
+		if (!a || dragging || tab.draft?.kind === 'text' || showPanel || !isShown(layout, a.page)) return null;
 		return { annotation: a, area: contentArea(a.page, a.bounds) };
 	});
 
@@ -933,7 +1061,7 @@
 	/** Where the selected annotation is, for its comment panel while that shows. */
 	const panelAnchor = $derived.by(() => {
 		const a = tab.selectedAnnotationInfo;
-		if (!a || !showPanel || !layout.pages[a.page]) return null;
+		if (!a || !showPanel || !isShown(layout, a.page)) return null;
 		return contentArea(a.page, a.bounds);
 	});
 
@@ -953,9 +1081,41 @@
 		autoScroll = requestAnimationFrame(autoScrollStep);
 	}
 
+	/**
+	 * The keys that scroll, in the single page and two-page modes: past the end of the row
+	 * shown they turn to the next one; Home and End go to the first and last; Left and Right
+	 * turn when the row is not wider than the view. True if the key turned.
+	 */
+	function flipOnKey(event: KeyboardEvent): boolean {
+		if (tab.continuous || !scroller || event.altKey) return false;
+		const max = scroller.scrollHeight - scroller.clientHeight;
+		const atTop = scroller.scrollTop <= 1;
+		const atBottom = scroller.scrollTop >= max - 1;
+		const narrow = scroller.scrollWidth <= scroller.clientWidth;
+		const forward =
+			((event.key === 'PageDown' || event.key === 'ArrowDown' || (event.key === ' ' && !event.shiftKey)) && atBottom) ||
+			(event.key === 'ArrowRight' && narrow);
+		const back =
+			((event.key === 'PageUp' || event.key === 'ArrowUp' || (event.key === ' ' && event.shiftKey)) && atTop) ||
+			(event.key === 'ArrowLeft' && narrow);
+		if (event.key === 'Home' || event.key === 'End') {
+			const row = event.key === 'Home' ? 0 : rowCount(tab.pages.length, tab.columns, tab.cover) - 1;
+			if (row === shownRow) return false;
+			void showRow(row, event.key === 'Home' ? 'top' : 'bottom');
+			return true;
+		}
+		if (event.ctrlKey || (!forward && !back)) return false;
+		void flip(forward ? 1 : -1);
+		return true;
+	}
+
 	function onKeyDown(event: KeyboardEvent) {
 		// Keys in the comment panel are its own: Delete there doesn't delete the annotation.
 		if ((event.target as HTMLElement).closest('[data-annotation-panel]')) return;
+		if (event.target === scroller && flipOnKey(event)) {
+			event.preventDefault();
+			return;
+		}
 		if ((event.key === 'Delete' || event.key === 'Backspace') && tab.selectedAnnotation && !event.ctrlKey) {
 			const { page, id } = tab.selectedAnnotation;
 			const a = tab.annotation(page, id);
@@ -969,7 +1129,7 @@
 	// ----- context menu -----
 
 	function onContextMenu(event: MouseEvent) {
-		const contextPage = pageUnder(event.clientY);
+		const contextPage = pageUnder(event.clientX, event.clientY);
 		// A right-click on an annotation selects it (unless text is selected, so Copy still
 		// acts on the text); from the keyboard, the menu is for what is already selected.
 		if (!tab.selection && (event.target as HTMLElement).closest('.page')) {
@@ -1024,6 +1184,8 @@
 			setZoom,
 			zoomStep,
 			fit,
+			setMode: (mode, cover) => void setMode(mode, cover),
+			turn,
 			focus: () => scroller?.focus({ preventScroll: true })
 		};
 
@@ -1038,6 +1200,7 @@
 			stopScrollGlide();
 			clearTimeout(settleTimer);
 			clearTimeout(tipTimer);
+			clearTimeout(flipTimer);
 		};
 	});
 

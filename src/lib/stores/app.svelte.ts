@@ -304,7 +304,7 @@ class AppStore {
 					// A document can come back twice at startup: restored after a crash, then
 					// listed again among the documents Rust has open.
 					if (!this.tabs.some((t) => t.id === result.document.id)) {
-						this.tabs = [...this.tabs, new DocTab(result.document)];
+						this.tabs = [...this.tabs, new DocTab(result.document, this.settings?.scrollMode)];
 					}
 					activate = result.document.id;
 					break;

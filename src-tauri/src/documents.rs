@@ -539,6 +539,7 @@ pub fn document_info(id: u32, info: CoreInfo, view: Option<ViewState>) -> Docume
         labels,
         label_rules,
         flags: info.flags.into(),
+        page_layout: info.page_layout.map(Into::into),
         state: info.state.into(),
         outline: info.outline.into(),
         annotations: crate::annotations::pages(info.annotations),

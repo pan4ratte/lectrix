@@ -9,6 +9,7 @@ const STORED: Settings = {
 	author: 'Ada',
 	defaultAuthor: 'ada',
 	appearance: 'system',
+	scrollMode: 'singlePageContinuous',
 	toolbarStyle: 'floating',
 	toolbarPosition: 'bottom',
 	toolbarVisibility: 'always',

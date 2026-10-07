@@ -2,9 +2,10 @@
 	// The app's menus, in the custom title bar.
 	import { Menubar } from 'bits-ui';
 
-	import { commands } from '#lib/commands.ts';
+	import { commands, setViewMode } from '#lib/commands.ts';
 	import { APP_NAME } from '#lib/config.ts';
 	import { update } from '#lib/features/update/update.svelte.ts';
+	import { VIEW_MODES } from '#lib/features/viewer/layout.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 
 	const tab = $derived(app.active);
@@ -144,6 +145,37 @@
 					Fit page
 				</Menubar.Item>
 				<Menubar.Separator class="menu-separator" />
+				<Menubar.Sub>
+					<Menubar.SubTrigger class="menu-item" disabled={!hasDoc}>Page display</Menubar.SubTrigger>
+					<Menubar.SubContent class="menu-content">
+						<Menubar.RadioGroup
+							value={tab?.mode ?? ''}
+							onValueChange={(v) => {
+								const mode = VIEW_MODES.find((m) => m.id === v);
+								if (mode) setViewMode(mode.id);
+							}}
+						>
+							{#each VIEW_MODES as m (m.id)}
+								<Menubar.RadioItem class="menu-item" value={m.id}>
+									{#snippet children({ checked })}
+										<span class="w-4" aria-hidden="true">{checked ? '✓' : ''}</span>{m.label}
+									{/snippet}
+								</Menubar.RadioItem>
+							{/each}
+						</Menubar.RadioGroup>
+						<Menubar.Separator class="menu-separator" />
+						<Menubar.CheckboxItem
+							class="menu-item"
+							disabled={tab?.columns !== 2}
+							checked={tab?.cover ?? false}
+							onCheckedChange={commands.toggleCoverPage}
+						>
+							{#snippet children({ checked })}
+								<span class="w-4" aria-hidden="true">{checked ? '✓' : ''}</span>Cover page alone
+							{/snippet}
+						</Menubar.CheckboxItem>
+					</Menubar.SubContent>
+				</Menubar.Sub>
 				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.rotateViewClockwise}>
 					Rotate view clockwise
 				</Menubar.Item>

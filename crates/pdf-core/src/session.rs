@@ -37,7 +37,7 @@ use mupdf::pdf::PdfDocument;
 
 use crate::annot::read::{AnnotationInfo, read_all as read_annotations};
 use crate::annot::repair::{self, RepairChange, RepairScan};
-use crate::docinfo::{DocumentFlags, read_flags};
+use crate::docinfo::{DocumentFlags, PageLayout, read_flags, read_page_layout};
 use crate::error::{Error, Result};
 use crate::ffi::{Journal, open_pdf_shared, save_snapshot};
 use crate::geometry::{PageGeometry, read_page_boxes};
@@ -84,6 +84,8 @@ pub struct DocumentInfo {
     /// `None` when the document has no `/PageLabels`.
     pub labels: Option<PageLabels>,
     pub flags: DocumentFlags,
+    /// How the document asks to be laid out (its `/PageLayout`), if it does.
+    pub page_layout: Option<PageLayout>,
     pub state: DocumentState,
     /// The bookmarks, with the panel's expanded states.
     pub outline: Outline,
@@ -560,6 +562,8 @@ impl Actor {
             pages: self.pages.clone(),
             labels: self.labels.clone(),
             flags: self.flags,
+            // A value that can't be read counts as none: it only picks the first view.
+            page_layout: read_page_layout(&self.doc).ok().flatten(),
             state: self.state(),
             outline: self.outline_view(),
             annotations: self.annotations.clone(),

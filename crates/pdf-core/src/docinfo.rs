@@ -40,6 +40,42 @@ pub fn read_flags(doc: &PdfDocument) -> Result<DocumentFlags> {
     })
 }
 
+/// How the document asks to be laid out when opened: the catalog's `/PageLayout`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PageLayout {
+    /// One page at a time.
+    SinglePage,
+    /// One column, scrolling continuously.
+    OneColumn,
+    /// Two columns, odd-numbered pages on the left.
+    TwoColumnLeft,
+    /// Two columns, odd-numbered pages on the right (the first page alone).
+    TwoColumnRight,
+    /// Two pages at a time, odd-numbered pages on the left.
+    TwoPageLeft,
+    /// Two pages at a time, odd-numbered pages on the right.
+    TwoPageRight,
+}
+
+/// The catalog's `/PageLayout`, or `None` when it is missing or not one of the six names.
+pub fn read_page_layout(doc: &PdfDocument) -> Result<Option<PageLayout>> {
+    let Some(value) = doc.catalog()?.get_dict("PageLayout")? else {
+        return Ok(None);
+    };
+    if !value.is_name()? {
+        return Ok(None);
+    }
+    Ok(match value.as_name()?.as_slice() {
+        b"SinglePage" => Some(PageLayout::SinglePage),
+        b"OneColumn" => Some(PageLayout::OneColumn),
+        b"TwoColumnLeft" => Some(PageLayout::TwoColumnLeft),
+        b"TwoColumnRight" => Some(PageLayout::TwoColumnRight),
+        b"TwoPageLeft" => Some(PageLayout::TwoPageLeft),
+        b"TwoPageRight" => Some(PageLayout::TwoPageRight),
+        _ => None,
+    })
+}
+
 /// True if any form field of type `/Sig` (possibly inherited) has a value.
 pub fn is_signed(doc: &PdfDocument) -> Result<bool> {
     let Some(form) = doc.catalog()?.get_dict("AcroForm")? else {
@@ -149,5 +185,32 @@ mod tests {
         let mut doc = sample_document(&SampleSpec::default()).unwrap();
         add_field(&mut doc, false, false);
         assert!(!is_signed(&doc).unwrap());
+    }
+
+    #[test]
+    fn reads_the_page_layout_from_the_catalog() {
+        let doc = sample_document(&SampleSpec::default()).unwrap();
+        assert_eq!(read_page_layout(&doc).unwrap(), None);
+        for (name, layout) in [
+            ("SinglePage", Some(PageLayout::SinglePage)),
+            ("OneColumn", Some(PageLayout::OneColumn)),
+            ("TwoColumnLeft", Some(PageLayout::TwoColumnLeft)),
+            ("TwoColumnRight", Some(PageLayout::TwoColumnRight)),
+            ("TwoPageLeft", Some(PageLayout::TwoPageLeft)),
+            ("TwoPageRight", Some(PageLayout::TwoPageRight)),
+            ("Unknown", None),
+        ] {
+            doc.catalog()
+                .unwrap()
+                .dict_put("PageLayout", PdfObject::new_name(name).unwrap())
+                .unwrap();
+            assert_eq!(read_page_layout(&doc).unwrap(), layout, "{name}");
+        }
+        // A string instead of a name is ignored.
+        doc.catalog()
+            .unwrap()
+            .dict_put("PageLayout", PdfObject::new_string("TwoPageLeft").unwrap())
+            .unwrap();
+        assert_eq!(read_page_layout(&doc).unwrap(), None);
     }
 }

@@ -406,6 +406,7 @@ fn settings_of(stored: &StoredSettings, platform: &dyn Platform) -> Settings {
             .unwrap_or_else(|| default_author.clone()),
         default_author,
         appearance: stored.appearance,
+        scroll_mode: stored.scroll_mode,
         toolbar_style: stored.toolbar_style,
         toolbar_position: stored.toolbar_position,
         toolbar_visibility: stored.toolbar_visibility,
@@ -438,6 +439,7 @@ pub fn set_settings(
         author: (!author.is_empty() && author != default_author(state.platform))
             .then(|| author.chars().take(200).collect()),
         appearance: settings.appearance,
+        scroll_mode: settings.scroll_mode,
         toolbar_style: settings.toolbar_style,
         toolbar_position: settings.toolbar_position,
         toolbar_visibility: settings.toolbar_visibility,

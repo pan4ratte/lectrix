@@ -15,12 +15,20 @@ import {
 	type PageAnnotations,
 	type PageSize,
 	type SaveResult,
+	type ScrollMode,
 	type ViewState
 } from '#lib/ipc/index.ts';
 import type { Box } from '#lib/features/annotations/geometry.ts';
 import { lineBreaks } from '#lib/features/annotations/tools.ts';
 import { NavHistory, type ViewPosition } from '#lib/features/viewer/history.ts';
-import { normalizeRotation, type Rotation } from '#lib/features/viewer/layout.ts';
+import {
+	columnsOf,
+	documentMode,
+	isContinuous,
+	normalizeRotation,
+	type Rotation,
+	type ViewMode
+} from '#lib/features/viewer/layout.ts';
 import { prepareText, type Caret, type TextGeometry } from '#lib/features/viewer/selection.ts';
 import { clampZoom, type ZoomMode } from '#lib/features/viewer/zoom.ts';
 
@@ -48,6 +56,10 @@ export interface ViewerApi {
 	/** Zooms in (1) or out (-1) to the next preset, around the center of the viewport. */
 	zoomStep(direction: 1 | -1): void;
 	fit(mode: 'fitWidth' | 'fitPage'): void;
+	/** Lays the pages out another way (section 6.1), keeping the current place. */
+	setMode(mode: ViewMode, cover: boolean): void;
+	/** Goes to the top of the previous or next page, or two pages in a two-page mode. */
+	turn(direction: 1 | -1): void;
 	focus(): void;
 }
 
@@ -222,6 +234,12 @@ export class DocTab {
 	zoom = $state(1);
 	zoomMode = $state<ZoomMode>('fitWidth');
 	rotation = $state<Rotation>(0);
+	/** How the pages are laid out (section 6.1, scroll modes); not stored in the file. */
+	mode = $state<ViewMode>('singlePageContinuous');
+	/** In the two-page modes, the first page has a row of its own (a book's cover). */
+	cover = $state(false);
+	columns = $derived(columnsOf(this.mode));
+	continuous = $derived(isContinuous(this.mode));
 	currentPage = $state(0);
 	/** Position to show when the viewer mounts (restored view, or the tab's last place). */
 	pendingPosition: ViewPosition | null = null;
@@ -241,9 +259,16 @@ export class DocTab {
 	private texts = new Map<number, TextGeometry>();
 	private textRequests = new Map<number, Promise<TextGeometry | null>>();
 
-	constructor(info: DocumentInfo) {
+	/** `scrollMode` is the Settings choice for documents being opened. */
+	constructor(info: DocumentInfo, scrollMode: ScrollMode = 'singlePageContinuous') {
 		this.id = info.id;
 		this.update(info);
+		const asked = documentMode(info.pageLayout);
+		if (scrollMode !== 'document') this.mode = scrollMode;
+		else if (asked) {
+			this.mode = asked.mode;
+			this.cover = asked.cover;
+		}
 		const view = info.view;
 		if (view) {
 			this.zoom = clampZoom(view.zoom);

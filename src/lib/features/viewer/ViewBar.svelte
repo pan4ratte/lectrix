@@ -1,15 +1,19 @@
 <script lang="ts">
 	// The bar at the top of the document, as in Acrobat (section 8), centered: previous and
 	// next page, the page box (label or number, then "(4 of 312)" or "of 312"), zoom out,
-	// the zoom level and zoom in, then the annotation tools when Settings dock them here.
+	// the zoom level and zoom in, the page display, then the annotation tools when Settings
+	// dock them here.
 	import { ChevronDown, ChevronUp, Minus, Plus } from '@lucide/svelte';
 	import { DropdownMenu } from 'bits-ui';
 
 	import AnnotationToolbar from '#lib/features/annotations/AnnotationToolbar.svelte';
+	import { commands, setViewMode } from '#lib/commands.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
+	import { VIEW_MODES, rowCount, rowOf } from './layout.ts';
 	import { pageBoxText, pageOf, pagePosition, resolvePageInput } from './pagebox.ts';
+	import PageDisplayIcon from './PageDisplayIcon.svelte';
 	import { ZOOM_PRESETS } from './zoom.ts';
 
 	let { tab }: { tab: DocTab } = $props();
@@ -54,15 +58,13 @@
 		}
 	}
 
-	/** Goes to the top of the page before or after the current one. Like scrolling, not
-	 * recorded in back/forward history. */
-	function turn(direction: 1 | -1) {
-		const page = tab.currentPage + direction;
-		if (page < 0 || page >= tab.pageCount) return;
-		tab.viewer?.goTo({ page, offset: 0 }, { recordHistory: false });
-	}
+	/** The current row (a page, or two side by side) and how many there are: previous and
+	 * next turn a row at a time. Like scrolling, not recorded in back/forward history. */
+	const row = $derived(rowOf(tab.currentPage, tab.columns, tab.cover));
+	const rows = $derived(rowCount(tab.pageCount, tab.columns, tab.cover));
 
 	const zoomText = $derived(`${Math.round(tab.zoom * 100)}%`);
+	const modeLabel = $derived(VIEW_MODES.find((m) => m.id === tab.mode)?.label ?? '');
 </script>
 
 <div
@@ -75,8 +77,8 @@
 			class="icon-button size-7"
 			aria-label="Previous page"
 			title="Previous page"
-			disabled={tab.currentPage <= 0}
-			onclick={() => turn(-1)}
+			disabled={row <= 0}
+			onclick={() => tab.viewer?.turn(-1)}
 		>
 			<ChevronUp size={16} aria-hidden="true" />
 		</button>
@@ -85,8 +87,8 @@
 			class="icon-button size-7"
 			aria-label="Next page"
 			title="Next page"
-			disabled={tab.currentPage >= tab.pageCount - 1}
-			onclick={() => turn(1)}
+			disabled={row >= rows - 1}
+			onclick={() => tab.viewer?.turn(1)}
 		>
 			<ChevronDown size={16} aria-hidden="true" />
 		</button>
@@ -169,6 +171,51 @@
 		>
 			<Plus size={16} aria-hidden="true" />
 		</button>
+
+		<span class="mx-1 h-5 w-px bg-line" aria-hidden="true"></span>
+
+		<DropdownMenu.Root>
+			<DropdownMenu.Trigger
+				class="icon-button size-7"
+				aria-label="Page display: {modeLabel}"
+				title="Page display: {modeLabel}"
+				data-page-display
+			>
+				<PageDisplayIcon mode={tab.mode} />
+			</DropdownMenu.Trigger>
+			<DropdownMenu.Portal>
+				<DropdownMenu.Content class="menu-content" side="bottom" align="center">
+					<DropdownMenu.RadioGroup
+						value={tab.mode}
+						onValueChange={(v) => {
+							const mode = VIEW_MODES.find((m) => m.id === v);
+							if (mode) setViewMode(mode.id);
+						}}
+					>
+						{#each VIEW_MODES as m (m.id)}
+							<DropdownMenu.RadioItem class="menu-item" value={m.id}>
+								{#snippet children({ checked })}
+									<span class="w-4" aria-hidden="true">{checked ? '✓' : ''}</span>
+									<PageDisplayIcon mode={m.id} />
+									{m.label}
+								{/snippet}
+							</DropdownMenu.RadioItem>
+						{/each}
+					</DropdownMenu.RadioGroup>
+					<DropdownMenu.Separator class="menu-separator" />
+					<DropdownMenu.CheckboxItem
+						class="menu-item"
+						disabled={tab.columns !== 2}
+						checked={tab.cover}
+						onCheckedChange={commands.toggleCoverPage}
+					>
+						{#snippet children({ checked })}
+							<span class="w-4" aria-hidden="true">{checked ? '✓' : ''}</span>Cover page alone
+						{/snippet}
+					</DropdownMenu.CheckboxItem>
+				</DropdownMenu.Content>
+			</DropdownMenu.Portal>
+		</DropdownMenu.Root>
 	</div>
 
 	{#if docked}

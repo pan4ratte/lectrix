@@ -4,6 +4,7 @@ import type { DocumentState } from "./DocumentState";
 import type { LabelRule } from "./LabelRule";
 import type { Outline } from "./Outline";
 import type { PageAnnotations } from "./PageAnnotations";
+import type { PageLayout } from "./PageLayout";
 import type { PageSize } from "./PageSize";
 import type { ViewState } from "./ViewState";
 
@@ -23,7 +24,11 @@ labels: Array<string> | null,
 /**
  * The label rules exactly as stored (empty when there are no labels).
  */
-labelRules: Array<LabelRule>, flags: DocumentFlags, state: DocumentState, outline: Outline, 
+labelRules: Array<LabelRule>, flags: DocumentFlags, 
+/**
+ * How the document asks to be laid out (its `/PageLayout`), if it does.
+ */
+pageLayout: PageLayout | null, state: DocumentState, outline: Outline, 
 /**
  * The annotations of every page that has any.
  */

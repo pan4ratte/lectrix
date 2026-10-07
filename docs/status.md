@@ -21,7 +21,8 @@ the user or for everyone (ADR 0015).
 
 Since v1: releases on GitHub for Windows, Linux and macOS, built by the Release
 workflow with attested installers, and an in-app updater with a Settings switch
-(ADR 0011). Replies to annotations, written in the annotation list (ADR 0012).
+(ADR 0011). Replies to annotations, written in the annotation list (ADR 0012). Scroll
+modes (single page, two pages, each continuous or not), with a Settings default.
 
 ## Performance
 
@@ -45,6 +46,10 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
   thumbnails cheaper; scrolling was not re-measured. Each page takes 0.2 to 0.4 s to
   decode, and MuPDF decodes one JPEG 2000 image at a time, on one thread, under a global
   lock (`fz_opj_lock`). Lifting that is left to upstream MuPDF.
+- **Scroll modes** are not remembered per file: a document reopens in the Settings
+  choice. Right-to-left documents (`/ViewerPreferences /Direction /R2L`) still put their
+  first page on the left in the two-page modes. In single page and two pages, a text
+  selection cannot run on into the next row.
 - **Undo history restarts** after each save (ADR 0003) and after restoring a crash
   recovery copy: MuPDF 1.27.2 cannot load a saved journal (ADR 0001).
 - **Recovery copies of large damaged files** are full copies and take 1.2 to 1.5 s for

@@ -12,7 +12,15 @@ import type { Component } from 'svelte';
 import { APP_NAME } from '#lib/config.ts';
 import { MAX_TIP_DELAY_MS } from '#lib/features/annotations/bars.ts';
 import { QUICK_TOOLS } from '#lib/features/annotations/tools.ts';
-import type { Appearance, QuickTool, Settings, SettingsInput, ToolbarPosition, ToolbarStyle } from '#lib/ipc/index.ts';
+import type {
+	Appearance,
+	QuickTool,
+	ScrollMode,
+	Settings,
+	SettingsInput,
+	ToolbarPosition,
+	ToolbarStyle
+} from '#lib/ipc/index.ts';
 
 /** The dialog's working copy: the stored settings, with `author` empty when it is the default. */
 export type Draft = Settings;
@@ -161,6 +169,26 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 						description: `${APP_NAME} asks its GitHub page for the latest version. Nothing about you or your files is sent.`
 					})
 				]
+			},
+			{
+				title: 'Documents',
+				rows: [
+					choice(
+						'scrollMode',
+						'Page display',
+						[
+							{ value: 'document', label: 'As the document asks' },
+							{ value: 'singlePage', label: 'Single page' },
+							{ value: 'singlePageContinuous', label: 'Single page, continuous' },
+							{ value: 'twoPage', label: 'Two pages' },
+							{ value: 'twoPageContinuous', label: 'Two pages, continuous' }
+						] satisfies { value: ScrollMode; label: string }[],
+						{
+							description:
+								'How pages are laid out when a document opens. One that asks for nothing opens as single page, continuous. View > Page display changes it for the open document.'
+						}
+					)
+				]
 			}
 		]
 	},
@@ -264,6 +292,7 @@ export function toInput(d: Draft): SettingsInput {
 	return {
 		author: d.author.trim(),
 		appearance: d.appearance,
+		scrollMode: d.scrollMode,
 		toolbarStyle: d.toolbarStyle,
 		toolbarPosition: d.toolbarPosition,
 		toolbarVisibility: d.toolbarVisibility,

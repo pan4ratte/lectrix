@@ -2,7 +2,7 @@
 
 import type { PageSize } from '#lib/ipc/index.ts';
 
-import { CSS_PX_PER_PT, PAGE_MARGIN, type Rotation } from './layout.ts';
+import { CSS_PX_PER_PT, PAGE_GAP, PAGE_MARGIN, type Rotation } from './layout.ts';
 
 export const MIN_ZOOM = 0.1;
 export const MAX_ZOOM = 16;
@@ -79,23 +79,29 @@ function rotatedSize(size: PageSize, rotation: Rotation) {
 		: { width: size.width, height: size.height };
 }
 
-/** Zoom at which `size` fills the viewport's width (minus margins and a scrollbar). */
-export function fitWidthZoom(size: PageSize, viewportWidth: number, rotation: Rotation): number {
-	const { width } = rotatedSize(size, rotation);
+/** Width left for pages in a viewport `viewportWidth` wide, with `columns` side by side. */
+function availableWidth(viewportWidth: number, columns: 1 | 2): number {
 	// One pixel of slack, so rounding never adds a horizontal scrollbar.
-	const available = viewportWidth - 2 * PAGE_MARGIN - 1;
-	return clampZoom(available / (width * CSS_PX_PER_PT));
+	return viewportWidth - 2 * PAGE_MARGIN - (columns - 1) * PAGE_GAP - 1;
 }
 
-/** Zoom at which the whole page fits in the viewport. */
+/** Zoom at which `size` fills the viewport's width (minus margins and a scrollbar); with two
+ * columns, two pages of that size side by side. */
+export function fitWidthZoom(size: PageSize, viewportWidth: number, rotation: Rotation, columns: 1 | 2 = 1): number {
+	const { width } = rotatedSize(size, rotation);
+	return clampZoom(availableWidth(viewportWidth, columns) / (columns * width * CSS_PX_PER_PT));
+}
+
+/** Zoom at which the whole page (or two side by side) fits in the viewport. */
 export function fitPageZoom(
 	size: PageSize,
 	viewportWidth: number,
 	viewportHeight: number,
-	rotation: Rotation
+	rotation: Rotation,
+	columns: 1 | 2 = 1
 ): number {
 	const { width, height } = rotatedSize(size, rotation);
-	const zw = (viewportWidth - 2 * PAGE_MARGIN - 1) / (width * CSS_PX_PER_PT);
+	const zw = availableWidth(viewportWidth, columns) / (columns * width * CSS_PX_PER_PT);
 	const zh = (viewportHeight - 2 * PAGE_MARGIN - 1) / (height * CSS_PX_PER_PT);
 	return clampZoom(Math.min(zw, zh));
 }

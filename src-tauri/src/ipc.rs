@@ -89,6 +89,33 @@ pub enum ZoomMode {
     Custom,
 }
 
+/// How a document asks to be laid out when opened: its catalog's `/PageLayout`, by the
+/// names the PDF format gives them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[ts(export)]
+pub enum PageLayout {
+    SinglePage,
+    OneColumn,
+    TwoColumnLeft,
+    TwoColumnRight,
+    TwoPageLeft,
+    TwoPageRight,
+}
+
+impl From<pdf_core::docinfo::PageLayout> for PageLayout {
+    fn from(l: pdf_core::docinfo::PageLayout) -> Self {
+        use pdf_core::docinfo::PageLayout as Core;
+        match l {
+            Core::SinglePage => PageLayout::SinglePage,
+            Core::OneColumn => PageLayout::OneColumn,
+            Core::TwoColumnLeft => PageLayout::TwoColumnLeft,
+            Core::TwoColumnRight => PageLayout::TwoColumnRight,
+            Core::TwoPageLeft => PageLayout::TwoPageLeft,
+            Core::TwoPageRight => PageLayout::TwoPageRight,
+        }
+    }
+}
+
 /// Where the user was in a document; remembered per file in app data.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -120,6 +147,8 @@ pub struct DocumentInfo {
     /// The label rules exactly as stored (empty when there are no labels).
     pub label_rules: Vec<LabelRule>,
     pub flags: DocumentFlags,
+    /// How the document asks to be laid out (its `/PageLayout`), if it does.
+    pub page_layout: Option<PageLayout>,
     pub state: DocumentState,
     pub outline: Outline,
     /// The annotations of every page that has any.
@@ -1006,6 +1035,21 @@ pub enum Appearance {
     Dark,
 }
 
+/// How pages are laid out when a document opens (Settings, section 6.1): as the document
+/// asks, or one of the four scroll modes.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum ScrollMode {
+    /// The document's own `/PageLayout`; single page, continuous when it has none.
+    Document,
+    SinglePage,
+    #[default]
+    SinglePageContinuous,
+    TwoPage,
+    TwoPageContinuous,
+}
+
 /// How the annotation toolbar looks (Settings, section 6.6): floating over the page
 /// canvas, or a panel docked above it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
@@ -1074,6 +1118,8 @@ pub struct Settings {
     /// What `author` is when the user has not set one (the Windows user name).
     pub default_author: String,
     pub appearance: Appearance,
+    /// How pages are laid out when a document opens.
+    pub scroll_mode: ScrollMode,
     pub toolbar_style: ToolbarStyle,
     pub toolbar_position: ToolbarPosition,
     pub toolbar_visibility: ToolbarVisibility,
@@ -1102,6 +1148,7 @@ pub struct SettingsInput {
     /// Empty: use the default (the Windows user name).
     pub author: String,
     pub appearance: Appearance,
+    pub scroll_mode: ScrollMode,
     pub toolbar_style: ToolbarStyle,
     pub toolbar_position: ToolbarPosition,
     pub toolbar_visibility: ToolbarVisibility,
