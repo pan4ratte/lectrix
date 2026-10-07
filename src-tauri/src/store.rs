@@ -1,5 +1,6 @@
 //! Remembered app state: recent files and the view position of each file (AGENTS.md
-//! section 6.1). Stored as JSON in the app's local data folder, never in the PDF.
+//! section 6.1), settings, the panes and the window's place (placement.rs). Stored as JSON
+//! in the app's local data folder, never in the PDF.
 
 use std::collections::HashMap;
 use std::fs;
@@ -11,6 +12,7 @@ use serde::{Deserialize, Serialize};
 use crate::ipc::{
     Appearance, PaneLayout, QuickTool, ToolbarPosition, ToolbarStyle, ToolbarVisibility, ViewState,
 };
+use crate::placement::WindowPlacement;
 
 const MAX_RECENT: usize = 20;
 const MAX_VIEWS: usize = 500;
@@ -42,6 +44,9 @@ struct Data {
     /// The release the user said not to be asked about again (ADR 0011).
     #[serde(default)]
     skipped_update: Option<String>,
+    /// Where the main window was and whether it was maximized (placement.rs).
+    #[serde(default)]
+    window: Option<WindowPlacement>,
 }
 
 /// The pane layout, reading files from before panels could move, which named the left
@@ -228,6 +233,21 @@ impl Store {
             self.data.panes = panes;
             self.persist();
         }
+    }
+
+    pub fn window_placement(&self) -> Option<WindowPlacement> {
+        self.data.window
+    }
+
+    /// Notes the window's place in memory only: the window moves many times a second while
+    /// dragged. It is written with the next change of anything else, or by `save`.
+    pub fn set_window_placement(&mut self, placement: WindowPlacement) {
+        self.data.window = Some(placement);
+    }
+
+    /// Writes everything now (when Lectrix quits, for the window's place).
+    pub fn save(&self) {
+        self.persist();
     }
 
     pub fn view(&self, key: &str) -> Option<ViewState> {
@@ -447,6 +467,31 @@ mod tests {
             (false, 200, true, 350)
         );
         assert_eq!(old.left_panels, PaneLayout::default().left_panels);
+    }
+
+    #[test]
+    fn window_placement_is_written_by_save_or_the_next_change() {
+        use crate::placement::Bounds;
+        let file = temp_store("window.json");
+        let mut store = Store::load(Some(file.clone()));
+        assert_eq!(store.window_placement(), None);
+        let placement = WindowPlacement {
+            bounds: Some(Bounds {
+                x: -8,
+                y: 40,
+                width: 1300,
+                height: 900,
+            }),
+            maximized: true,
+        };
+        store.set_window_placement(placement);
+        // In memory only, until saved.
+        assert_eq!(Store::load(Some(file.clone())).window_placement(), None);
+        store.save();
+        assert_eq!(
+            Store::load(Some(file.clone())).window_placement(),
+            Some(placement)
+        );
     }
 
     #[test]

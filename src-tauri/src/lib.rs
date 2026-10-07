@@ -7,6 +7,7 @@ mod combine;
 mod commands;
 mod documents;
 mod ipc;
+mod placement;
 mod platform;
 mod protocol;
 mod recovery;
@@ -220,6 +221,16 @@ fn paint_window_background(window: &tauri::WebviewWindow) {
     }
 }
 
+/// Notes where the main window is, for the next start (placement.rs).
+fn remember_placement(window: &tauri::Window) {
+    if window.label() != "main" {
+        return;
+    }
+    if let Ok(mut store) = window.app_handle().state::<AppState>().store.lock() {
+        placement::remember(window, &mut store);
+    }
+}
+
 fn env_mb(name: &str, default: usize) -> usize {
     std::env::var(name)
         .ok()
@@ -271,8 +282,11 @@ pub fn run() {
                 app.package_info().version
             ));
             // LECTRIX_EPHEMERAL (used by tests/perf/measure.ps1) keeps measurement runs out
-            // of the user's recent files and remembered views.
-            let store_file = if std::env::var_os("LECTRIX_EPHEMERAL").is_some() {
+            // of the user's recent files and remembered views. LECTRIX_STATE_FILE gives a
+            // test run a state file of its own (the e2e test of the window's place).
+            let store_file = if let Some(file) = std::env::var_os("LECTRIX_STATE_FILE") {
+                Some(PathBuf::from(file))
+            } else if std::env::var_os("LECTRIX_EPHEMERAL").is_some() {
                 None
             } else {
                 app.path()
@@ -308,6 +322,20 @@ pub fn run() {
                 if let Some(args) = platform::current().webview_browser_args() {
                     window = window.additional_browser_args(&args);
                 }
+                // Where it was last time, maximized if it was (placement.rs).
+                let saved = app
+                    .state::<AppState>()
+                    .store
+                    .lock()
+                    .ok()
+                    .and_then(|s| s.window_placement());
+                let initial = placement::initial(saved, &placement::monitors(app.handle()));
+                if let Some((x, y, width, height)) = initial.bounds {
+                    window = window.position(x, y).inner_size(width, height);
+                }
+                if initial.maximized {
+                    window = window.maximized(true);
+                }
                 let window = window.build()?;
                 let appearance = app
                     .state::<AppState>()
@@ -332,8 +360,10 @@ pub fn run() {
                     .load(Ordering::Relaxed);
                 open_in_background(app, paths.clone(), to_combine);
             }
+            WindowEvent::Moved(_) => remember_placement(window),
             // A minimized window asks WebView2 to use less memory (ADR 0002).
             WindowEvent::Resized(_) => {
+                remember_placement(window);
                 if let (Ok(minimized), Some(webview)) = (
                     window.is_minimized(),
                     window.app_handle().get_webview_window(window.label()),
@@ -412,6 +442,10 @@ pub fn run() {
                 // prompt already deleted them (exit_confirmed); this covers other exits.
                 if let RunEvent::Exit = event {
                     let state = app.state::<AppState>();
+                    // The window's place, kept in memory while it moved (placement.rs).
+                    if let Ok(store) = state.store.lock() {
+                        store.save();
+                    }
                     state.documents.recovery().close();
                     // Windows: an update downloaded in this run is installed now.
                     update::install_on_exit(&state);

@@ -133,6 +133,14 @@ Needs an installed earlier release and a newer one published (ADR 0011,
 - [ ] With the network unplugged, Check for updates…: a plain error naming the internet
       connection.
 
+## Window
+
+- [ ] Resize and move the window, close Lectrix and start it again: same size and place.
+- [ ] Maximize it, close and start again: maximized; Restore gives the size from before.
+- [ ] Minimize it and close it from the taskbar: the next start is as before minimizing.
+- [ ] With a second monitor: leave the window on it, close, unplug the monitor, start:
+      the window is on the remaining monitor, its title bar reachable.
+
 ## Crash recovery
 
 - [ ] Open a PDF, add a highlight, wait two and a half minutes, then end Lectrix in Task
