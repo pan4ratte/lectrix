@@ -594,6 +594,21 @@ Function .onInit
 
   !if "${INSTALLMODE}" == "both"
     !insertmacro MULTIUSER_INIT
+
+    ; Lectrix: installs from before ADR 0015 are per user but did not record their mode, so
+    ; MultiUser.nsh would put an administrator's update in Program Files beside them. Keep
+    ; such an install where it is, unless /AllUsers asks for a per-machine one.
+    ${If} $MultiUser.InstallMode == "AllUsers"
+      ${GetOptions} $CMDLINE "/AllUsers" $R0
+      ${If} ${Errors}
+        ReadRegStr $R0 HKCU "${UNINSTKEY}" "UninstallString"
+        ReadRegStr $R1 HKLM "${UNINSTKEY}" "UninstallString"
+        ${If} $R0 != ""
+        ${AndIf} $R1 == ""
+          Call MultiUser.InstallMode.CurrentUser
+        ${EndIf}
+      ${EndIf}
+    ${EndIf}
   !endif
 FunctionEnd
 
@@ -963,7 +978,7 @@ Section Uninstall
 
     ; Lectrix: forget the install location even when app data is kept. The MSI reads this
     ; value to pick its folder, so a later MSI install would otherwise land in the old
-    ; per-user folder instead of Program Files.
+    ; NSIS folder instead of Program Files.
     DeleteRegValue SHCTX "${MANUPRODUCTKEY}" ""
     DeleteRegKey /ifempty SHCTX "${MANUPRODUCTKEY}"
     DeleteRegKey /ifempty SHCTX "${MANUKEY}"

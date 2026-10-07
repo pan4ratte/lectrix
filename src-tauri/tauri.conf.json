@@ -51,7 +51,8 @@
     },
     "windows": {
       "nsis": {
-        "template": "windows/installer.nsi"
+        "template": "windows/installer.nsi",
+        "installMode": "both"
       },
       "wix": {
         "fragmentPaths": [

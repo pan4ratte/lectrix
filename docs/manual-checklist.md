@@ -88,9 +88,14 @@ does afterwards.
 
 ## Installers
 
-- [ ] `Lectrix_<version>_x64-setup.exe`: after the folder page comes a "PDF files" page with
-      "Open PDF files with Lectrix" checked and a sentence about Windows asking. Leave it
-      checked and finish.
+- [ ] `Lectrix_<version>_x64-setup.exe` from an administrator account: a UAC prompt comes
+      first, then a "Choose Users" page with "Install for anyone using this computer"
+      preselected. Pick "Install just for me": the folder page shows
+      `%LOCALAPPDATA%\Programs\Lectrix` (ADR 0015).
+- [ ] After the folder page comes a "PDF files" page with "Open PDF files with Lectrix"
+      checked and a sentence about Windows asking. Leave it checked and finish. Lectrix
+      starts; drag a PDF from Explorer onto it, and it opens (it was not started as
+      administrator).
 - [ ] Double-click a PDF in Explorer: Windows asks which app to use and offers Lectrix (or,
       if you had chosen a default before, it keeps it; Lectrix is then listed under Open with
       and in Settings > Apps > Default apps). Choosing Lectrix opens the file in it.
@@ -103,7 +108,8 @@ does afterwards.
       under the pointer and opens github.com/pan4ratte, and "Source code on GitHub" opens
       github.com/pan4ratte/lectrix, both in the default browser.
 - [ ] Uninstall (Settings > Apps): Lectrix disappears from Open with and Default apps.
-- [ ] Install again with the box unchecked: Lectrix is not offered for PDFs. Uninstall.
+- [ ] Install again for anyone using this computer, with the box unchecked: Lectrix is in
+      `C:\Program Files\Lectrix` and not offered for PDFs. Uninstall.
 - [ ] `Lectrix_<version>_x64_en-US.msi`: the same two runs (the page comes after the folder
       page; it needs administrator rights).
 
@@ -116,8 +122,9 @@ Needs an installed earlier release and a newer one published (ADR 0011,
       Not now hides it; it is back at the next start.
 - [ ] Update: a progress bar fills, then "ready to install" (Windows) or "installed".
 - [ ] With a document that has unsaved changes, Restart now asks about saving first. Then
-      Lectrix closes, the installer shows its progress window (Windows) and Lectrix opens
-      again; Help > About shows the new version.
+      Lectrix closes, the installer shows its progress window (Windows; an administrator
+      answers a UAC prompt first, ADR 0015) and Lectrix opens again; Help > About shows
+      the new version, and it is still in the same folder.
 - [ ] Windows: Update, then Later, then close Lectrix: the installer runs and does not
       reopen Lectrix. The next start is the new version.
 - [ ] If Lectrix was installed without "Open PDF files with Lectrix", it is still not

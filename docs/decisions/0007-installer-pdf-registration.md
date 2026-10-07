@@ -29,8 +29,9 @@ chosen at install" (AGENTS.md section 10). Two facts shape this:
      `RegisteredApplications\Lectrix`, so Lectrix appears in Default apps.
 
    They never write the default value of `.pdf` or any `UserChoice` key, and uninstalling
-   removes exactly these entries. The NSIS installer installs per user (Tauri's default),
-   so it writes under `HKCU`; the MSI installs per machine, under `HKLM`.
+   removes exactly these entries. They go under `HKCU` for a per-user install and `HKLM`
+   for a per-machine one: the NSIS installer does either (ADR 0015; per user only before
+   it), the MSI installs per machine.
 2. **A page asks.** Both installers show a "PDF files" page after the folder page, with
    "Open PDF files with Lectrix" (checked by default) and a sentence saying that Windows
    will ask which app to use. Silent and passive installs register Lectrix unless told not

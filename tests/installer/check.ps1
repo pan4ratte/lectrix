@@ -1,7 +1,8 @@
 # Installs and uninstalls Lectrix's NSIS and MSI installers silently, with and without the
-# PDF file registration, and checks the registry and files each time (ADR 0007).
+# PDF file registration, per user and per machine, and checks the registry and files each
+# time (ADR 0007, ADR 0015).
 #
-# It really installs Lectrix, so it is meant for CI runners (MSI needs an elevated shell).
+# It really installs Lectrix, so it is meant for CI runners (it needs an elevated shell).
 # Run it on your own machine only if you are happy for Lectrix to be installed and removed
 # again. Needs the installers from `npm run bundle`.
 #
@@ -34,7 +35,7 @@ function Has-Value([string]$key, [string]$name) {
     try { $null = Get-ItemProperty -LiteralPath $key -Name $name -ErrorAction Stop; $true } catch { $false }
 }
 
-# The registration both installers write, under HKCU (NSIS, per user) or HKLM (MSI).
+# The registration both installers write, under HKCU (per user) or HKLM (per machine).
 function Check-Registration([string]$hive, [bool]$expected, [string]$exe) {
     $classes = "${hive}:\Software\Classes"
     $command = Get-Value "$classes\$progId\shell\open\command" '(default)'
@@ -66,36 +67,67 @@ $pdfDefaultBefore = @(
     (Get-Value 'HKLM:\Software\Classes\.pdf' '(default)')
 )
 
-# --- NSIS (per user) -------------------------------------------------------------------
-$nsisDir = Join-Path $env:LOCALAPPDATA $product
-$nsisExe = Join-Path $nsisDir 'lectrix.exe'
-foreach ($case in @(@{ Args = @('/S'); Registered = $true }, @{ Args = @('/S', '/NOPDF'); Registered = $false })) {
-    Write-Host "NSIS $($nsis.Name) $($case.Args -join ' ')"
-    Run $nsis.FullName $case.Args
-    Check (Test-Path $nsisExe) "lectrix.exe installed in $nsisDir"
-    Check (Test-Path (Join-Path $nsisDir 'THIRD_PARTY_LICENSES.md')) 'license notices installed'
-    Check-Registration 'HKCU' $case.Registered $nsisExe
-    # _?= runs the uninstaller in place, so Start-Process can wait for it.
-    Run (Join-Path $nsisDir 'uninstall.exe') @('/S', "_?=$nsisDir")
-    Check (-not (Test-Path $nsisExe)) 'lectrix.exe removed'
-    Check (-not (Test-Path (Join-Path $nsisDir 'lectrix-pdf.ico'))) 'PDF icon removed'
-    Check-Registration 'HKCU' $false $nsisExe
-    # The MSI would otherwise read this and install into the per-user folder.
-    Check ($null -eq (Get-Value "HKCU:\Software\$manufacturer\$product" '(default)')) 'install location forgotten'
-    Remove-Item -Recurse -Force $nsisDir -ErrorAction SilentlyContinue
+# --- NSIS (per user or per machine, ADR 0015) ------------------------------------------
+# An administrator's silent install is per machine unless /CurrentUser is given.
+$userDir = Join-Path $env:LOCALAPPDATA "Programs\$product"
+$machineDir = Join-Path $env:ProgramFiles $product
+$uninstKey = "Software\Microsoft\Windows\CurrentVersion\Uninstall\$product"
+$nsisCases = @(
+    @{ Args = @('/S', '/CurrentUser'); Dir = $userDir; Hive = 'HKCU'; Registered = $true },
+    @{ Args = @('/S', '/CurrentUser', '/NOPDF'); Dir = $userDir; Hive = 'HKCU'; Registered = $false },
+    @{ Args = @('/S'); Dir = $machineDir; Hive = 'HKLM'; Registered = $true },
+    @{ Args = @('/S', '/AllUsers', '/NOPDF'); Dir = $machineDir; Hive = 'HKLM'; Registered = $false }
+)
+
+function Check-Nsis([hashtable]$case, [string]$when) {
+    $exe = Join-Path $case.Dir 'lectrix.exe'
+    $other = if ($case.Dir -eq $userDir) { $machineDir } else { $userDir }
+    Check (Test-Path $exe) "lectrix.exe installed in $($case.Dir)$when"
+    Check (-not (Test-Path (Join-Path $other 'lectrix.exe'))) "no copy in $other"
+    Check (Test-Path (Join-Path $case.Dir 'THIRD_PARTY_LICENSES.md')) 'license notices installed'
+    Check-Registration $case.Hive $case.Registered $exe
 }
 
-# An in-app update runs the installer with /UPDATE (ADR 0011): it keeps the earlier choice.
-foreach ($case in @(@{ Args = @('/S'); Registered = $true }, @{ Args = @('/S', '/NOPDF'); Registered = $false })) {
+function Uninstall-Nsis([hashtable]$case) {
+    $exe = Join-Path $case.Dir 'lectrix.exe'
+    # _?= runs the uninstaller in place, so Start-Process can wait for it.
+    Run (Join-Path $case.Dir 'uninstall.exe') @('/S', "_?=$($case.Dir)")
+    Check (-not (Test-Path $exe)) 'lectrix.exe removed'
+    Check (-not (Test-Path (Join-Path $case.Dir 'lectrix-pdf.ico'))) 'PDF icon removed'
+    Check-Registration $case.Hive $false $exe
+    Check (-not (Test-Path "$($case.Hive):\$uninstKey")) "$($case.Hive) has no uninstall entry"
+    # The MSI would otherwise read this and install into the NSIS folder.
+    Check ($null -eq (Get-Value "$($case.Hive):\Software\$manufacturer\$product" '(default)')) 'install location forgotten'
+    Remove-Item -Recurse -Force $case.Dir -ErrorAction SilentlyContinue
+}
+
+foreach ($case in $nsisCases) {
+    Write-Host "NSIS $($nsis.Name) $($case.Args -join ' ')"
+    Run $nsis.FullName $case.Args
+    Check-Nsis $case ''
+    Uninstall-Nsis $case
+}
+
+# An in-app update runs the installer with /UPDATE (ADR 0011): it keeps the earlier choices,
+# the PDF registration and where Lectrix is installed.
+foreach ($case in $nsisCases) {
     Write-Host "NSIS $($nsis.Name) $($case.Args -join ' '), then /P /UPDATE"
     Run $nsis.FullName $case.Args
     Run $nsis.FullName @('/P', '/UPDATE')
-    Check (Test-Path $nsisExe) 'lectrix.exe still installed after the update'
-    Check-Registration 'HKCU' $case.Registered $nsisExe
-    Run (Join-Path $nsisDir 'uninstall.exe') @('/S', "_?=$nsisDir")
-    Check-Registration 'HKCU' $false $nsisExe
-    Remove-Item -Recurse -Force $nsisDir -ErrorAction SilentlyContinue
+    Check-Nsis $case ' after the update'
+    Uninstall-Nsis $case
 }
+
+# Per-user installs from before ADR 0015 did not record their mode; an administrator's
+# update must keep them per user, not add a copy in Program Files.
+$case = $nsisCases[0]
+Write-Host "NSIS $($nsis.Name) $($case.Args -join ' ') without the recorded mode, then /P /UPDATE"
+Run $nsis.FullName $case.Args
+Remove-ItemProperty -LiteralPath "HKCU:\$uninstKey" -Name 'CurrentUser'
+Run $nsis.FullName @('/P', '/UPDATE')
+Check-Nsis $case ' after the update'
+Check (Has-Value "HKCU:\$uninstKey" 'CurrentUser') 'the update recorded the per-user mode'
+Uninstall-Nsis $case
 
 # --- MSI (per machine) -----------------------------------------------------------------
 $msiExe = Join-Path $env:ProgramFiles "$product\lectrix.exe"

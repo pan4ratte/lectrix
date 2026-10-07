@@ -16,7 +16,8 @@ combining files and inserting pages, the seven annotation types with an annotati
 and repair. Also: undo and redo for every edit, atomic and incremental saving, crash
 recovery, recent files with each file's last view, Settings (author name; System, Light
 or Dark appearance), an About dialog with a button to the AGPL source on GitHub, and NSIS and MSI
-installers that can register Lectrix for PDF files (ADR 0007).
+installers that can register Lectrix for PDF files (ADR 0007); the NSIS one installs for
+the user or for everyone (ADR 0015).
 
 Since v1: releases on GitHub for Windows, Linux and macOS, built by the Release
 workflow with attested installers, and an in-app updater with a Settings switch
@@ -113,6 +114,11 @@ Nothing has been run interactively there.
   1.0.0. If that build fails, the 1.0.0 release stops until it is fixed.
 - **No code signing** (Authenticode, Apple notarization): SmartScreen and Gatekeeper warn
   on the first manual install (ADR 0011).
+- **Administrators answer a UAC prompt on every Windows update**, per-user installs
+  included: the NSIS installer offers "just me" or "everyone" and asks for the highest
+  rights when it starts (ADR 0015). Only users without administrator rights update with
+  no prompt. Updating `1.0.0-beta.1`, which installed per user without recording it,
+  keeps it in `%LOCALAPPDATA%\Lectrix`.
 
 ## Upstream work
 
