@@ -4,11 +4,13 @@
 	// panel shown. The tabs are icons with tooltips and accessible
 	// names, so they fit the narrowest pane. A tab is dragged along its row or into the other
 	// pane; from the keyboard, Ctrl+Shift+Left/Right moves it, and its context menu offers
-	// the same moves.
+	// the same moves. The tabs look like the annotation tools, and the mark under the panel
+	// shown glides to the tab picked, as it does to a tool (toolMark.ts).
 	import { ContextMenu, Tabs } from 'bits-ui';
 	import { tick } from 'svelte';
 
 	import AnnotationsPanel from '#lib/features/annotations/AnnotationsPanel.svelte';
+	import { toolMark } from '#lib/features/annotations/toolMark.ts';
 	import BookmarksPanel from '#lib/features/bookmarks/BookmarksPanel.svelte';
 	import LabelsPanel from '#lib/features/labels/LabelsPanel.svelte';
 	import Thumbnails from '#lib/features/viewer/Thumbnails.svelte';
@@ -63,36 +65,39 @@
 				{#snippet child({ props })}
 					<Tabs.List
 						{...props}
-						class="flex min-w-0 items-center gap-1"
+						class="flex min-w-0 items-center"
 						aria-label={side === 'left' ? 'Left pane panels' : 'Right pane panels'}
 					>
-						{#each list as panel, i (panel)}
-							{@const info = PANEL_INFO[panel]}
-							{@const Icon = info.icon}
-							{@const badge = panel === 'annotations' && needing}
-							<Tabs.Trigger
-								value={panel}
-								class="sidebar-tab relative {draggedPanel() === panel ? 'opacity-50' : ''}"
-								aria-label={info.label}
-								aria-describedby={badge ? 'annotations-tab-needs-repair' : undefined}
-								title={info.label}
-								data-panel-tab={panel}
-								onpointerdown={(event: PointerEvent) => startPanelDrag(panel, event)}
-								onkeydown={(event: KeyboardEvent) => onTabKeyDown(event, panel)}
-								oncontextmenu={() => (contextPanel = panel)}
-							>
-								<Icon size={18} aria-hidden="true" />
-								{#if badge}
-									<span class="absolute top-1 right-1 h-2 w-2 rounded-full bg-danger" aria-hidden="true"></span>
-									<span id="annotations-tab-needs-repair" class="sr-only">Some annotations need repair</span>
-								{/if}
-								{#if slot === i}
-									<span class="panel-drop-mark -left-[3px]" aria-hidden="true"></span>
-								{:else if slot === list.length && i === list.length - 1}
-									<span class="panel-drop-mark -right-[3px]" aria-hidden="true"></span>
-								{/if}
-							</Tabs.Trigger>
-						{/each}
+						<span class="tool-group flex min-w-0 items-center gap-0.5" {@attach toolMark}>
+							<span class="tool-mark" aria-hidden="true" hidden></span>
+							{#each list as panel, i (panel)}
+								{@const info = PANEL_INFO[panel]}
+								{@const Icon = info.icon}
+								{@const badge = panel === 'annotations' && needing}
+								<Tabs.Trigger
+									value={panel}
+									class="icon-button tool-button {draggedPanel() === panel ? 'opacity-50' : ''}"
+									aria-label={info.label}
+									aria-describedby={badge ? 'annotations-tab-needs-repair' : undefined}
+									title={info.label}
+									data-panel-tab={panel}
+									onpointerdown={(event: PointerEvent) => startPanelDrag(panel, event)}
+									onkeydown={(event: KeyboardEvent) => onTabKeyDown(event, panel)}
+									oncontextmenu={() => (contextPanel = panel)}
+								>
+									<Icon size={18} aria-hidden="true" />
+									{#if badge}
+										<span class="absolute top-1 right-1 h-2 w-2 rounded-full bg-danger" aria-hidden="true"></span>
+										<span id="annotations-tab-needs-repair" class="sr-only">Some annotations need repair</span>
+									{/if}
+									{#if slot === i}
+										<span class="panel-drop-mark -left-[3px]" aria-hidden="true"></span>
+									{:else if slot === list.length && i === list.length - 1}
+										<span class="panel-drop-mark -right-[3px]" aria-hidden="true"></span>
+									{/if}
+								</Tabs.Trigger>
+							{/each}
+						</span>
 					</Tabs.List>
 				{/snippet}
 			</ContextMenu.Trigger>
