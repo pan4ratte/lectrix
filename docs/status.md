@@ -110,7 +110,7 @@ Nothing has been run interactively there.
 
 ## Releases and updates
 
-- **Version:** the first release is `1.0.0-beta.1` (ADR 0011).
+- **Version:** `1.0.0`, after `1.0.0-beta.1` (ADR 0011).
 - **Installing a downloaded update has not been run.** Checking, the notice, progress,
   Stop, Don't ask again and rejecting a badly signed download were tried against a local
   test server; installing and restarting need a release signed with the real key. The
