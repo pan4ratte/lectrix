@@ -52,13 +52,12 @@
 				<!-- Decorative: the title names the app. -->
 				<img src={iconUrl} alt="" width="96" height="96" draggable="false" />
 				<Dialog.Title class="mt-3 text-[20px] font-semibold">{APP_NAME}</Dialog.Title>
+				<!-- The author's name is a button, not a link: a link would navigate the webview,
+				     which never goes online. -->
 				<Dialog.Description class="mt-1 text-sm text-fg-muted">
-					{version ? `Version ${version}` : ''}
-				</Dialog.Description>
-				<!-- A button, not a link: a link would navigate the webview, which never goes online. -->
-				<p class="text-sm text-fg-muted">
+					{#if version}Version {version} ·{/if}
 					by <button type="button" class="text-link" title={AUTHOR_URL} onclick={() => void open('author')}>{AUTHOR}</button>
-				</p>
+				</Dialog.Description>
 				<p class="mt-5 text-sm text-balance">
 					{APP_NAME} is free software: you can redistribute it and change it under the terms of the GNU Affero General
 					Public License, version 3 or later. It comes with no warranty. It is built on MuPDF by Artifex Software, also
