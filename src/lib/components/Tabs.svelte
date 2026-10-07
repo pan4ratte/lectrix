@@ -76,7 +76,7 @@
 		{@const active = tab.id === app.activeId && !app.combineActive}
 		<div
 			data-tab={tab.id}
-			class="doc-tab group relative flex h-8 max-w-56 min-w-28 shrink items-center gap-1 pr-1 pl-3"
+			class="doc-tab group relative flex h-8 max-w-56 min-w-28 shrink items-center gap-1 pr-[4px] pl-3"
 			role="tab"
 			tabindex={active ? 0 : -1}
 			aria-selected={active}
@@ -105,7 +105,7 @@
 			<button
 				type="button"
 				data-close
-				class="icon-button ml-auto size-6 shrink-0"
+				class="icon-button tab-close ml-auto shrink-0"
 				aria-label="Close {tab.name}"
 				title="Close (Ctrl+W)"
 				tabindex={active ? 0 : -1}
@@ -119,7 +119,7 @@
 		{@const active = app.combineActive}
 		<div
 			data-combine-tab
-			class="doc-tab group relative flex h-8 max-w-56 min-w-28 shrink items-center gap-2 pr-1 pl-3"
+			class="doc-tab group relative flex h-8 max-w-56 min-w-28 shrink items-center gap-2 pr-[4px] pl-3"
 			role="tab"
 			tabindex={active ? 0 : -1}
 			aria-selected={active}
@@ -139,7 +139,7 @@
 			<button
 				type="button"
 				data-close
-				class="icon-button ml-auto size-6 shrink-0"
+				class="icon-button tab-close ml-auto shrink-0"
 				aria-label="Close Combine files"
 				title="Close (Ctrl+W)"
 				tabindex={active ? 0 : -1}
