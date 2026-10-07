@@ -1,5 +1,6 @@
 <script lang="ts">
 	// The app's menus, in the custom title bar.
+	import { ChevronRight } from '@lucide/svelte';
 	import { Menubar } from 'bits-ui';
 
 	import { commands, setViewMode } from '#lib/commands.ts';
@@ -10,7 +11,15 @@
 
 	const tab = $derived(app.active);
 	const hasDoc = $derived(tab !== null);
+
+	/** A submenu's first item level with the item that opens it: up by the menu's padding
+	 * (4 px) and edge (1 px). */
+	const SUBMENU_OFFSET = -5;
 </script>
+
+{#snippet chevron()}
+	<ChevronRight size={14} class="ml-auto text-fg-muted" aria-hidden="true" />
+{/snippet}
 
 <!-- The menus open from the title bar's bottom edge, as in VS Code: the 22 px triggers sit about 7 px
      above it in the 35 px bar. -->
@@ -24,9 +33,9 @@
 				</Menubar.Item>
 				<Menubar.Sub>
 					<Menubar.SubTrigger class="menu-item" disabled={app.recent.length === 0}>
-						Open recent
+						Open recent{@render chevron()}
 					</Menubar.SubTrigger>
-					<Menubar.SubContent class="menu-content max-w-[480px]">
+					<Menubar.SubContent class="menu-content max-w-[480px]" align="start" alignOffset={SUBMENU_OFFSET}>
 						{#each app.recent as file (file.index)}
 							<Menubar.Item class="menu-item" onSelect={() => void app.openRecent(file.index)}>
 								<span class="truncate" class:text-fg-muted={!file.exists} title="{file.folder}\{file.name}">
@@ -146,8 +155,8 @@
 				</Menubar.Item>
 				<Menubar.Separator class="menu-separator" />
 				<Menubar.Sub>
-					<Menubar.SubTrigger class="menu-item" disabled={!hasDoc}>Page display</Menubar.SubTrigger>
-					<Menubar.SubContent class="menu-content">
+					<Menubar.SubTrigger class="menu-item" disabled={!hasDoc}>Page display{@render chevron()}</Menubar.SubTrigger>
+					<Menubar.SubContent class="menu-content" align="start" alignOffset={SUBMENU_OFFSET}>
 						<Menubar.RadioGroup
 							value={tab?.mode ?? ''}
 							onValueChange={(v) => {
