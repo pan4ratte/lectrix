@@ -10,7 +10,7 @@ Recorded at project start (2026-10-02). Versions are pinned exactly in `Cargo.to
 | Rust (stable, MSVC) | 1.99.0 | `rustup`, `x86_64-pc-windows-msvc` |
 | MSVC Build Tools | 2022 17.14 (MSVC 14.44, Windows SDK 10.0.26100) | |
 | LLVM / libclang | 23.1.2 | bindgen for `mupdf-sys`; `winget install LLVM.LLVM` |
-| Node.js | 24.13.0 | npm 11.6.2 |
+| Node.js | 24.13.0 | npm 11.6.2. `package.json` requires Node 24 and npm 11 or later (`engines`, enforced by `engine-strict` in `.npmrc`): npm 10 rejects the lockfile, since `runed`’s optional peer range for `@sveltejs/kit` (^2) does not cover 3.0.0 |
 | qpdf | 12.4.2 | structural check (section 9); `winget install QPDF.QPDF` |
 | Python | 3.14 | interop harness: pypdfium2 5.13.0 (PDFium 153.0.7999.0) |
 
