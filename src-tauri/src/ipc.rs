@@ -1131,7 +1131,7 @@ pub struct Settings {
     pub toolbar_visibility: ToolbarVisibility,
     /// The buttons of the bar over selected text; empty: no bar.
     pub quick_tools: Vec<QuickTool>,
-    /// Whether Lectrix looks for a new release when it starts (ADR 0011).
+    /// Whether Lectrix looks for a new release once a day (ADR 0011).
     pub check_for_updates: bool,
     /// Whether zooming in or out a step glides instead of jumping (section 6.1).
     pub smooth_zoom: bool,

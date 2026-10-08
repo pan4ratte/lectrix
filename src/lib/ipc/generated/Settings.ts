@@ -27,7 +27,7 @@ scrollMode: ScrollMode, toolbarStyle: ToolbarStyle, toolbarPosition: ToolbarPosi
  */
 quickTools: Array<QuickTool>, 
 /**
- * Whether Lectrix looks for a new release when it starts (ADR 0011).
+ * Whether Lectrix looks for a new release once a day (ADR 0011).
  */
 checkForUpdates: boolean, 
 /**

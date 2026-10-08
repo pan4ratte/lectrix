@@ -44,8 +44,22 @@ The user chose (2026-10-05):
    (`LECTRIX_UPDATES` overrides this as above). The Settings switch governs the startup
    check only, as its name says; the alternative, refusing a manual check while the
    switch is off, would answer an explicit request with a detour through Settings.
+
+   *Amended 2026-10-08 (the user's request):* the automatic check asks GitHub once a day
+   instead of at every start. App data keeps when GitHub last answered a check
+   (`last_update_check`, automatic or from the Help menu, whatever it found); the check
+   after startup asks only when a day has passed since then, or when the clock is earlier
+   than that time (it was set back). While Lectrix stays open, the frontend asks Rust again
+   every hour and Rust applies the same rule, so a window left open for days still checks
+   daily, and soon after the computer wakes from sleep. A check that fails records nothing,
+   so it is tried again at the next start or within the hour. The Settings switch is now
+   "Check for updates automatically". Alternatives: a 24-hour timer in the webview alone
+   (misses days when the computer sleeps, and checks again at every start); recording
+   failed checks too (an offline start would put the check off for a whole day); checking
+   only at startup when due (a window left open never checks).
 3. **The notice** floats above the notifications, bottom right. It never takes focus and
-   is announced politely. "Not now" hides it until the next start. "Don't ask again"
+   is announced politely. "Not now" hides it until the next start (*since 2026-10-08:* until the next day's
+   check). "Don't ask again"
    stores that version in app data (`skipped_update`), and only that version is skipped.
 4. **Updating** downloads with progress (Stop cancels it). The plugin verifies the
    download against the public key in `tauri.conf.json` before anything is installed.

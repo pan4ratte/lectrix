@@ -165,8 +165,8 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 						read: (d) => d.author,
 						write: (d, value) => (d.author = value)
 					},
-					toggle('checkForUpdates', `Check for updates when ${APP_NAME} starts`, {
-						description: `${APP_NAME} asks its GitHub page for the latest version. Nothing about you or your files is sent.`
+					toggle('checkForUpdates', 'Check for updates automatically', {
+						description: `Once a day, ${APP_NAME} asks its GitHub page for the latest version. Nothing about you or your files is sent.`
 					})
 				]
 			},

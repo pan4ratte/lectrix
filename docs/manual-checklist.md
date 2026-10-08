@@ -119,7 +119,11 @@ Needs an installed earlier release and a newer one published (ADR 0011,
 `docs/releasing.md`).
 
 - [ ] Start the earlier version: within a few seconds a notice offers the new version.
-      Not now hides it; it is back at the next start.
+      Not now hides it. Restart Lectrix: no notice, since GitHub answered less than a day
+      ago. Help > Check for updates still offers it.
+- [ ] Close Lectrix, then in `%LOCALAPPDATA%\org.lectrix.pdf\state.json` set
+      `last_update_check` (seconds since 1970) to more than a day ago, or remove it: the
+      next start offers the new version again.
 - [ ] Update: a progress bar fills, then "ready to install" (Windows) or "installed".
 - [ ] With a document that has unsaved changes, Restart now asks about saving first. Then
       Lectrix closes, the installer shows its progress window (Windows; an administrator

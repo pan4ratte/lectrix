@@ -80,7 +80,7 @@
 				else if (info.perfMode && app.active) await runPerf(app.active, info.perfScrollOnly);
 			}
 			// Once the documents are up, so the check never delays them (ADR 0011).
-			void update.check();
+			update.startChecks();
 		} catch (e) {
 			app.showError(toAppError(e));
 		}

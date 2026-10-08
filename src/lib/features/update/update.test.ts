@@ -25,7 +25,7 @@ vi.mock('#lib/ipc/index.ts', () => ({
 vi.mock('#lib/stores/app.svelte.ts', () => ({ app: store }));
 vi.mock('@tauri-apps/api/app', () => ({ getVersion: async () => '1.1.0' }));
 
-const { downloadShare, downloadStatus, update } = await import('./update.svelte.ts');
+const { CHECK_EVERY_MS, downloadShare, downloadStatus, update } = await import('./update.svelte.ts');
 
 const info: UpdateInfo = { version: '1.2.0', currentVersion: '1.1.0' };
 
@@ -53,6 +53,34 @@ describe('update notice', () => {
 		ipc.checkForUpdate.mockResolvedValueOnce(info);
 		await update.check();
 		expect(update.stage).toEqual({ kind: 'available', info });
+	});
+
+	it('the automatic check leaves a notice on screen, or a downloaded update, as it is', async () => {
+		update.stage = { kind: 'available', info };
+		await update.check();
+		update.stage = { kind: 'idle' };
+		update.downloaded = { info, installed: false };
+		await update.check();
+		expect(ipc.checkForUpdate).not.toHaveBeenCalled();
+		expect(update.stage.kind).toBe('idle');
+	});
+
+	it('checks at once, then every hour (Rust asks GitHub once a day)', async () => {
+		vi.useFakeTimers();
+		try {
+			ipc.checkForUpdate.mockResolvedValue(null);
+			update.startChecks();
+			expect(ipc.checkForUpdate).toHaveBeenCalledTimes(1);
+			expect(ipc.checkForUpdate).toHaveBeenLastCalledWith();
+			await vi.advanceTimersByTimeAsync(CHECK_EVERY_MS - 1);
+			expect(ipc.checkForUpdate).toHaveBeenCalledTimes(1);
+			await vi.advanceTimersByTimeAsync(1);
+			expect(ipc.checkForUpdate).toHaveBeenCalledTimes(2);
+		} finally {
+			vi.clearAllTimers();
+			vi.useRealTimers();
+			ipc.checkForUpdate.mockReset();
+		}
 	});
 
 	it('Not now hides it without remembering anything', async () => {
