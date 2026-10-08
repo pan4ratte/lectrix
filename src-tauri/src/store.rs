@@ -45,6 +45,10 @@ struct Data {
     /// The release the user said not to be asked about again (ADR 0011).
     #[serde(default)]
     skipped_update: Option<String>,
+    /// When a check for updates last got an answer from GitHub, in seconds since the Unix
+    /// epoch: the automatic check waits a day after it (ADR 0011).
+    #[serde(default)]
+    last_update_check: Option<u64>,
     /// Where the main window was and whether it was maximized (placement.rs).
     #[serde(default)]
     window: Option<WindowPlacement>,
@@ -164,7 +168,8 @@ pub struct Store {
     data: Data,
 }
 
-fn now() -> u64 {
+/// Seconds since the Unix epoch.
+pub fn now() -> u64 {
     SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs())
@@ -227,6 +232,15 @@ impl Store {
             self.data.skipped_update = version;
             self.persist();
         }
+    }
+
+    pub fn last_update_check(&self) -> Option<u64> {
+        self.data.last_update_check
+    }
+
+    pub fn set_last_update_check(&mut self, at: u64) {
+        self.data.last_update_check = Some(at);
+        self.persist();
     }
 
     pub fn panes(&self) -> PaneLayout {
@@ -508,6 +522,18 @@ mod tests {
         assert_eq!(store.skipped_update(), None);
         store.set_skipped_update(Some("1.2.0".into()));
         assert_eq!(Store::load(Some(file)).skipped_update(), Some("1.2.0"));
+    }
+
+    #[test]
+    fn last_update_check_round_trips() {
+        let file = temp_store("last-check.json");
+        let mut store = Store::load(Some(file.clone()));
+        assert_eq!(store.last_update_check(), None);
+        store.set_last_update_check(1_791_000_000);
+        assert_eq!(
+            Store::load(Some(file)).last_update_check(),
+            Some(1_791_000_000)
+        );
     }
 
     #[test]

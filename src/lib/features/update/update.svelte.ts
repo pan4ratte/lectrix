@@ -1,6 +1,7 @@
-// Updates from GitHub releases (ADR 0011). After startup Lectrix asks Rust whether a newer
-// release exists; a notice offers Update, Not now (asked again next launch) and Don't ask
-// again (this version is never offered again). Updating downloads with progress, then offers
+// Updates from GitHub releases (ADR 0011). After startup, then every hour while it runs,
+// Lectrix asks Rust whether a newer release exists; Rust asks GitHub once a day. A notice
+// offers Update, Not now (asked again at the next day's check) and Don't ask again (this
+// version is never offered again). Updating downloads with progress, then offers
 // a restart: on Windows the installer runs as Lectrix restarts, or when it closes.
 // Help > Check for updates asks at any time, and says what it found either way.
 import { getVersion } from '@tauri-apps/api/app';
@@ -27,6 +28,10 @@ export type UpdateStage =
 	/** `installed`: macOS and Linux install at once; Windows installs on restart or exit. */
 	| { kind: 'ready'; info: UpdateInfo; installed: boolean; restarting: boolean };
 
+/** How often the automatic check asks Rust, which asks GitHub only once a day: hourly, so a
+ * Lectrix left open for days still checks daily, and soon after the computer wakes. */
+export const CHECK_EVERY_MS = 60 * 60 * 1000;
+
 const MB = 1024 * 1024;
 
 function megabytes(bytes: number): string {
@@ -51,8 +56,16 @@ class UpdateState {
 	 * instead of downloading it again. */
 	downloaded: { info: UpdateInfo; installed: boolean } | null = null;
 
-	/** Looks for an update in the background; shows the notice if there is one. */
+	/** Checks now and then every hour from now on (ADR 0011). */
+	startChecks() {
+		void this.check();
+		setInterval(() => void this.check(), CHECK_EVERY_MS);
+	}
+
+	/** Looks for an update in the background; shows the notice if there is one. Not while a
+	 * notice is up, or once an update is downloaded: Restart now or Later has been offered. */
 	async check() {
+		if (this.stage.kind !== 'idle' || this.downloaded) return;
 		try {
 			const info = await checkForUpdate();
 			if (info && this.stage.kind === 'idle') this.stage = { kind: 'available', info };
@@ -91,7 +104,7 @@ class UpdateState {
 		}
 	}
 
-	/** Hides the notice; the next launch asks again. */
+	/** Hides the notice; the next day's check asks again. */
 	notNow() {
 		this.stage = { kind: 'idle' };
 	}
@@ -115,7 +128,7 @@ class UpdateState {
 			this.stage = { kind: 'ready', info, installed: ready.installed, restarting: false };
 		} catch (e) {
 			const error = toAppError(e);
-			// Stopped: offer the choices again. Failed: say why; the next launch asks again.
+			// Stopped: offer the choices again. Failed: say why; the next day's check asks again.
 			if (error.code === 'cancelled') {
 				this.stage = { kind: 'available', info };
 			} else {

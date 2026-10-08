@@ -1,7 +1,8 @@
 //! Updates from Lectrix's GitHub releases (ADR 0011), the only network access the app
-//! makes. When the window is ready, the frontend asks whether a newer release exists, and
-//! Help > Check for updates asks again whenever the user wants; the user can update, wait,
-//! or skip that version. The updater plugin checks every download against Lectrix's
+//! makes. Once a day, the frontend's automatic check asks whether a newer release exists
+//! (when the window is ready, then hourly while Lectrix runs; GitHub is asked only when a
+//! day has passed since it last answered), and Help > Check for updates asks whenever the
+//! user wants; the user can update, wait, or skip that version. The updater plugin checks every download against Lectrix's
 //! signing key before anything is installed.
 //!
 //! Windows cannot replace a running program, so there the verified installer waits until
@@ -18,9 +19,13 @@ use tauri_plugin_updater::{Update, UpdaterExt};
 use crate::AppState;
 use crate::applog;
 use crate::ipc::{AppError, ErrorCode, UpdateInfo, UpdateProgress, UpdateReady};
+use crate::store;
 
 /// How often the download reports progress.
 const PROGRESS_INTERVAL: Duration = Duration::from_millis(100);
+
+/// How long the automatic check waits after GitHub last answered a check.
+const CHECK_INTERVAL: Duration = Duration::from_secs(24 * 60 * 60);
 
 type Stop = Box<dyn FnOnce() + Send>;
 
@@ -46,6 +51,13 @@ fn checks_allowed(env: Option<&str>, debug_build: bool, ephemeral: bool) -> bool
     }
 }
 
+/// Whether the automatic check may ask GitHub, given when it last answered (`last`) and
+/// the time `now`, both in seconds since the Unix epoch: never answered, a day ago or
+/// more, or "later" than now because the clock was set back.
+fn check_due(last: Option<u64>, now: u64) -> bool {
+    last.is_none_or(|last| now < last || now - last >= CHECK_INTERVAL.as_secs())
+}
+
 fn update_error(message: &str) -> AppError {
     AppError::new(
         message,
@@ -55,9 +67,10 @@ fn update_error(message: &str) -> AppError {
 
 /// Looks for a newer release.
 ///
-/// At startup (`manual` false), only if Settings leave the check on, and never offering a
-/// version the user skipped; failures (no network, GitHub unreachable) are logged and
-/// reported as no update, since a background check is not worth interrupting anyone for.
+/// The automatic check (`manual` false) asks only if Settings leave it on and a day has
+/// passed since GitHub last answered, and never offers a version the user skipped;
+/// failures (no network, GitHub unreachable) are logged and reported as no update, since a
+/// background check is not worth interrupting anyone for, and the next one tries again.
 /// From Help > Check for updates (`manual` true), whatever Settings say and offering a
 /// skipped version too, since the user asked; failures are reported.
 #[tauri::command]
@@ -66,11 +79,12 @@ pub async fn check_for_update(
     state: State<'_, AppState>,
     manual: bool,
 ) -> Result<Option<UpdateInfo>, AppError> {
-    let (enabled, skipped) = {
+    let (enabled, skipped, last_check) = {
         let store = state.store.lock().map_err(|_| AppError::bad_state())?;
         (
             store.settings().check_for_updates,
             store.skipped_update().map(str::to_owned),
+            store.last_update_check(),
         )
     };
     let allowed = checks_allowed(
@@ -86,13 +100,21 @@ pub async fn check_for_update(
             ),
         ));
     }
-    if !allowed || !(enabled || manual) {
+    if !allowed || !(manual || (enabled && check_due(last_check, store::now()))) {
         return Ok(None);
     }
     let checked = match app.updater() {
         Ok(updater) => updater.check().await,
         Err(e) => Err(e),
     };
+    if checked.is_ok() {
+        // A manual check counts too: the automatic one has nothing to add for a day.
+        state
+            .store
+            .lock()
+            .map_err(|_| AppError::bad_state())?
+            .set_last_update_check(store::now());
+    }
     let update = match checked {
         Ok(Some(update)) => update,
         Ok(None) => return Ok(None),
@@ -292,5 +314,17 @@ mod tests {
         assert!(!checks_allowed(Some("0"), false, false));
         assert!(checks_allowed(Some("1"), true, true));
         assert!(checks_allowed(Some("yes"), false, false));
+    }
+
+    #[test]
+    fn the_automatic_check_asks_once_a_day() {
+        let day = CHECK_INTERVAL.as_secs();
+        let last = 1_791_000_000;
+        assert!(check_due(None, last));
+        assert!(!check_due(Some(last), last));
+        assert!(!check_due(Some(last), last + day - 1));
+        assert!(check_due(Some(last), last + day));
+        // The clock was set back past the last check.
+        assert!(check_due(Some(last), last - 60));
     }
 }
