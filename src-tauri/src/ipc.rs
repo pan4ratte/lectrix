@@ -1214,6 +1214,8 @@ pub struct FileChangedEvent {
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
+// Only Linux emits it; the type is exported for the frontend everywhere.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
 pub struct TouchpadPinch {
     /// A new pinch: `scale` counts from 1 again.
     pub begin: bool,
