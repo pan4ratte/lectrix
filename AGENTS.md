@@ -317,7 +317,7 @@ The Rust session is the single source of truth: the frontend holds only a view o
 3. Replace the original in one rename on the same volume.
 4. On failure, delete the temp file and leave the original untouched.
 
-Documents are opened through a file stream that allows that rename (ADR 0003). If the target is locked by another program (Acrobat locks files it has open), show a clear message naming the likely cause and offer Save As.
+Documents are opened through a file stream that allows that rename (ADR 0003). On Windows the rename is retried for up to a second while a file is locked, since antivirus scanners and the search indexer open a file just written for a moment. If the target is still locked by another program (Acrobat locks files it has open), show a clear message naming the likely cause and offer Save As.
 
 **Crash recovery.** Every 2 minutes, each dirty document whose content changed since its last copy gets a recovery copy in the app's local data folder (a snapshot with the unsaved changes as an incremental update; damaged files are copied in full). Saving, reloading or closing a document deletes its copy, and so does quitting normally. On the next launch, before opening startup files, Lectrix offers to restore copies a crash left behind: Restore, Discard (asks once more) or Not now (asked again next time; Escape means Not now). A restored document opens in a tab for its own file, marked unsaved, and saves incrementally onto it. Encrypted files ask for their password again.
 

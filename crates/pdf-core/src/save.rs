@@ -3,13 +3,15 @@
 //!
 //! 1. Write the new file to a temporary file in the target's folder.
 //! 2. Flush it to disk.
-//! 3. Replace the target with one rename on the same volume.
+//! 3. Replace the target with one rename on the same volume (on Windows, retried for a
+//!    moment while the file is locked).
 //! 4. On failure, delete the temporary file and leave the target untouched.
 
 use std::fs::{self, OpenOptions};
 use std::io;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant};
 
 use mupdf::pdf::{PdfDocument, PdfWriteOptions};
 
@@ -71,7 +73,7 @@ pub fn save_atomic_checked(
         // FlushFileBuffers on Windows needs a handle with write access.
         OpenOptions::new().write(true).open(&temp)?.sync_all()?;
         before_replace()?;
-        fs::rename(&temp, target).map_err(|e| replace_error(e, target))
+        replace(&temp, target)
     });
     if result.is_err() {
         // Best effort: the temp file may not exist if writing failed early.
@@ -122,6 +124,32 @@ fn temp_path_for(target: &Path) -> Result<PathBuf> {
         std::process::id()
     );
     Ok(target.with_file_name(temp_name))
+}
+
+/// How long a replace on Windows keeps trying while the temporary file or the target is
+/// locked. Antivirus scanners and the search indexer open a file that was just written for
+/// a moment, without letting it be renamed; a program that keeps the target open (Acrobat)
+/// still holds it when this runs out.
+const LOCKED_RETRY_FOR: Duration = Duration::from_secs(1);
+
+/// Renames `temp` over `target`, retrying on Windows while either is locked.
+fn replace(temp: &Path, target: &Path) -> Result<()> {
+    let started = Instant::now();
+    let mut pause = Duration::from_millis(10);
+    loop {
+        let error = match fs::rename(temp, target) {
+            Ok(()) => return Ok(()),
+            Err(e) => replace_error(e, target),
+        };
+        let retry = cfg!(windows)
+            && matches!(error, Error::TargetLocked(_))
+            && started.elapsed() + pause < LOCKED_RETRY_FOR;
+        if !retry {
+            return Err(error);
+        }
+        std::thread::sleep(pause);
+        pause = (pause * 2).min(Duration::from_millis(200));
+    }
 }
 
 /// Maps a failed replace to a clear error. Sharing violations usually mean another program

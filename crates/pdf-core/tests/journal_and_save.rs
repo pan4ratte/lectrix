@@ -147,6 +147,34 @@ fn incremental_save_keeps_original_bytes_as_prefix() {
 
 #[cfg(windows)]
 #[test]
+fn a_target_locked_for_a_moment_is_replaced_once_it_is_free() {
+    use std::os::windows::fs::OpenOptionsExt;
+    use std::time::Duration;
+
+    let dir = out_dir("save-locked-briefly");
+    let src = sample_file(&dir, "src.pdf", SampleSpec::default());
+    let target = dir.join("briefly-locked.pdf");
+    fs::write(&target, b"original contents").unwrap();
+    // Open with no sharing for a moment, as an antivirus scanner does with a new file.
+    let lock = fs::OpenOptions::new()
+        .read(true)
+        .share_mode(0)
+        .open(&target)
+        .unwrap();
+    let release = std::thread::spawn(move || {
+        std::thread::sleep(Duration::from_millis(150));
+        drop(lock);
+    });
+
+    let doc = open(&src);
+    save_atomic(&doc, SaveKind::Full, None, &target).unwrap();
+    release.join().unwrap();
+    qpdf_check(&target);
+    assert!(fs::read(&target).unwrap().starts_with(b"%PDF"));
+}
+
+#[cfg(windows)]
+#[test]
 fn locked_target_is_reported_and_left_untouched() {
     use std::os::windows::fs::OpenOptionsExt;
 
