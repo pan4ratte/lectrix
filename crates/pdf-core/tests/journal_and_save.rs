@@ -5,7 +5,6 @@ mod common;
 use std::fs;
 
 use common::{open, out_dir, qpdf_check, sample_file};
-use pdf_core::Error;
 use pdf_core::annot::quads::Quad;
 use pdf_core::annot::{MarkupKind, MarkupSpec, Rgb, add_text_markup};
 use pdf_core::ffi::Journal;
@@ -150,6 +149,8 @@ fn incremental_save_keeps_original_bytes_as_prefix() {
 #[test]
 fn locked_target_is_reported_and_left_untouched() {
     use std::os::windows::fs::OpenOptionsExt;
+
+    use pdf_core::Error;
 
     let dir = out_dir("save-locked");
     let src = sample_file(&dir, "src.pdf", SampleSpec::default());
