@@ -18,6 +18,11 @@ perfMode: boolean,
  */
 perfScrollOnly: boolean, 
 /**
+ * LECTRIX_PERF=watch: no scripted scrolling; records frames and blank pages while
+ * real input scrolls the document (tests/perf/wheel-linux.py).
+ */
+perfWatch: boolean, 
+/**
  * Page image format: PNG (ADR 0004); LECTRIX_IMAGE_FORMAT=rgba switches to raw RGBA.
  */
 imageFormat: ImageFormat, 

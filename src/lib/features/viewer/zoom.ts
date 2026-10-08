@@ -45,7 +45,7 @@ export function zoomBetween(from: number, to: number, t: number): number {
 }
 
 /** Wheel deltas in pixels; below this, a Ctrl+wheel event is a touchpad pinch. */
-const NOTCH_PX = 50;
+export const NOTCH_PX = 50;
 
 function wheelPixels(deltaY: number, deltaMode: number): number {
 	return deltaMode === 1 ? deltaY * 33 : deltaY;

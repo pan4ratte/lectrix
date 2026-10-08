@@ -29,7 +29,8 @@
 	import InsertPagesDialog from '#lib/features/merge/InsertPagesDialog.svelte';
 	import SettingsDialog from '#lib/features/settings/SettingsDialog.svelte';
 	import { update } from '#lib/features/update/update.svelte.ts';
-	import { firstPagePainted, runPerf } from '#lib/features/viewer/perfrun.ts';
+	import { firstPagePainted, runPerf, watchPerf } from '#lib/features/viewer/perfrun.ts';
+	import { dispatchPinch } from '#lib/features/viewer/pinch.ts';
 	import RotatePagesDialog from '#lib/features/viewer/RotatePagesDialog.svelte';
 	import ViewBar from '#lib/features/viewer/ViewBar.svelte';
 	import Viewer from '#lib/features/viewer/Viewer.svelte';
@@ -41,6 +42,7 @@
 		onDocumentsOpened,
 		onFileChanged,
 		onMergeSourcesAdded,
+		onTouchpadPinch,
 		setImageFormat,
 		setPaneLayout,
 		toAppError
@@ -74,7 +76,8 @@
 			if (app.tabs.length > 0) {
 				await firstPagePainted();
 				void logMetric('first_page_visible_ms', performance.now() - openStartedAt);
-				if (info.perfMode && app.active) await runPerf(app.active, info.perfScrollOnly);
+				if (info.perfWatch) await watchPerf();
+				else if (info.perfMode && app.active) await runPerf(app.active, info.perfScrollOnly);
 			}
 			// Once the documents are up, so the check never delays them (ADR 0011).
 			void update.check();
@@ -170,6 +173,7 @@
 				}
 			}),
 			onFileChanged((event) => app.fileChanged(event.id, event.exists)),
+			onTouchpadPinch(dispatchPinch),
 			getCurrentWindow().onCloseRequested(async (event) => {
 				if (!(await app.confirmExit())) event.preventDefault();
 			}),

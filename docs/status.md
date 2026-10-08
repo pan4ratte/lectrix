@@ -92,8 +92,30 @@ Nothing has been run interactively there.
   needs fontconfig (Linux) and Core Text (macOS) behind the existing `SystemFonts` trait.
 - **Window:** the title bar's window buttons follow Windows (macOS puts them on the
   left).
-- **Touchpad pinch** is wired for WebView2 only (`webview_needs_zoom_controls`); WebKit
-  delivers pinches as gesture events, which the viewer does not handle.
+- **Touchpad pinch on Linux** (2026-10-08, built, not yet tried with a real touchpad):
+  WebKitGTK magnified the whole app. `platform/linux.rs` now stops the pinch on the
+  webview widget's `event` signal (before WebKit's bubble-phase zoom gesture) and emits
+  `touchpad-pinch`; `viewer/pinch.ts` hands it to the page as Ctrl+wheel. macOS still
+  unhandled.
+- **Scrolling on Linux is slow (in progress, 2026-10-08).** Reproduced with
+  `tests/perf/wheel-linux.py` (real two-finger scroll through Mutter's remote desktop
+  API, `LECTRIX_PERF=watch`) inside a headless `mutter --virtual-monitor 3840x2400` at
+  scale 1.333, as on the user's laptop (dpr 2, maximized, 2340x1725 CSS px of pages):
+  frames average 50-55 ms (about 18 fps), 120+ frames over 50 ms per run. At scale 1 the
+  same scroll runs at 17 ms. Findings so far:
+  - Done: WebKit gets an accelerated canvas (`willReadFrequently` only on Windows,
+    `RenderedImage.svelte`): blank pages worst 397 ms -> about 90 ms, first page
+    345 -> 150 ms. Frame times unchanged.
+  - No effect: passive wheel listeners, `will-change: transform` on the content, skipping
+    text geometry, decoding PNGs through `img.decode()`, `GDK_GL=always`.
+    Worse: `WEBKIT_DISABLE_DMABUF_RENDERER=1`, `WEBKIT_SKIA_ENABLE_CPU_RENDERING=1`.
+  - While scrolling, the app's UI (GTK) main thread and WebKit's web-process main thread
+    each use about 75-85% of a core; the compositor under 10%. Next step: profile both
+    with `perf` (needs `perf_event_paranoid` <= 1, or run perf as root) to see what the
+    UI thread does per frame (suspect: GTK 3 presenting WebKit's 5760x3600 frame through
+    cairo, or page images re-sent through the custom protocol on each remount).
+  - Build environment used: toolbox `lectrix-dev` (Rust 1.99.0, WebKitGTK/GTK 3 devel,
+    clang, perf), with `RUSTUP_HOME`/`CARGO_HOME` in `~/.cache/lectrix-toolbox`.
 - **Platform services:** the default author comes from `USER`. WebView2's memory target
   has no equivalent.
 - **Packages** for macOS (dmg, ad-hoc signed, not notarized) and Linux (AppImage and deb,

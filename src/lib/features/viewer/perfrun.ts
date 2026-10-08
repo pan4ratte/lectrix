@@ -95,9 +95,18 @@ function pageHeightPx(): number {
 	return page ? page.offsetHeight + 12 : 1000;
 }
 
-async function report(name: string, extra: Record<string, number>) {
+async function report(name: string, extra: Record<string, number>, frames: number[] = []) {
 	const result = blankTracker.stop();
 	for (const [key, value] of Object.entries(extra)) await logMetric(`${name}_${key}`, value);
+	if (frames.length) {
+		// Time between frames while scrolling: a smooth scroll keeps every one near the
+		// display's refresh interval; a long one is a visible stutter.
+		const sorted = [...frames].sort((a, b) => a - b);
+		await logMetric(`${name}_frame_mean_ms`, mean(frames));
+		await logMetric(`${name}_frame_p95_ms`, sorted[Math.floor(0.95 * (sorted.length - 1))]!);
+		await logMetric(`${name}_frame_max_ms`, sorted[sorted.length - 1]!);
+		await logMetric(`${name}_frames_over_50ms`, frames.filter((f) => f > 50).length);
+	}
 	// Times a page was on screen without pixels, and for how long.
 	await logMetric(`${name}_blank_events`, result.count);
 	await logMetric(`${name}_blank_max_ms`, result.max);
@@ -114,9 +123,14 @@ async function scrollTest(name: string, pxPerSecond: number, maxMs: number) {
 	await sleep(1500);
 	blankTracker.start();
 	const start = performance.now();
+	const frames: number[] = [];
+	let last = start;
 	await new Promise<void>((resolve) => {
 		const step = () => {
-			const elapsed = performance.now() - start;
+			const now = performance.now();
+			frames.push(now - last);
+			last = now;
+			const elapsed = now - start;
 			scroller.scrollTop = (elapsed / 1000) * pxPerSecond;
 			const atEnd = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 1;
 			if (elapsed >= maxMs || atEnd) resolve();
@@ -127,7 +141,7 @@ async function scrollTest(name: string, pxPerSecond: number, maxMs: number) {
 	const seconds = (performance.now() - start) / 1000;
 	const passed = scroller.scrollTop / pageHeightPx();
 	await sleep(300);
-	await report(name, { px_per_s: pxPerSecond, seconds, pages_passed: Math.round(passed) });
+	await report(name, { px_per_s: pxPerSecond, seconds, pages_passed: Math.round(passed) }, frames.slice(1));
 }
 
 /** Jumps to random places, as when dragging the scrollbar thumb, holding each for 400 ms. */
@@ -162,5 +176,43 @@ export async function runPerf(tab: DocTab, scrollOnly = false) {
 	await jumpTest(20);
 	await sleep(1000);
 	await memoryMetrics('after_scroll');
+	await logMetric('perf_done', 1);
+}
+
+/**
+ * Records frames and blank pages while something outside the app scrolls the document with
+ * real input (LECTRIX_PERF=watch, tests/perf/wheel-linux.py): only frames within 100 ms of a
+ * scroll count, so idle time before and after does not dilute them.
+ */
+export async function watchPerf(seconds = 14) {
+	const scroller = document.querySelector<HTMLElement>('.viewer-scroll');
+	if (!scroller) return;
+	let lastScroll = -Infinity;
+	let scrolled = 0;
+	const onScroll = () => {
+		lastScroll = performance.now();
+		scrolled++;
+	};
+	scroller.addEventListener('scroll', onScroll, { passive: true });
+	await logMetric('watch_dpr_x100', window.devicePixelRatio * 100);
+	await logMetric('watch_viewport_w', scroller.clientWidth);
+	await logMetric('watch_viewport_h', scroller.clientHeight);
+	await logMetric('watch_ready', 1);
+	blankTracker.start();
+	const frames: number[] = [];
+	const end = performance.now() + seconds * 1000;
+	await new Promise<void>((resolve) => {
+		let last = performance.now();
+		const step = () => {
+			const now = performance.now();
+			if (now - lastScroll < 100) frames.push(now - last);
+			last = now;
+			if (now >= end) resolve();
+			else requestAnimationFrame(step);
+		};
+		requestAnimationFrame(step);
+	});
+	scroller.removeEventListener('scroll', onScroll);
+	await report('watch', { scroll_events: scrolled, scroll_top: scroller.scrollTop }, frames);
 	await logMetric('perf_done', 1);
 }

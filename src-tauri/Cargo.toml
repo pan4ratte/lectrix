@@ -29,3 +29,8 @@ ts-rs = "=12.0.1"
 # WebView2's memory target level (ADR 0002). Both already in the tree through Tauri.
 webview2-com = "=0.39.1"
 windows-core = "=0.62.2"
+
+[target.'cfg(target_os = "linux")'.dependencies]
+# The window's GTK events, to take touchpad pinches from WebKitGTK. Already in the tree
+# through Tauri (MIT).
+gtk = "=0.18.2"

@@ -44,6 +44,7 @@ import {
 	wheelZoomFactor,
 	zoomBetween
 } from './zoom.ts';
+import { pinchDeltas } from './pinch.ts';
 
 const letter = { width: 612, height: 792 };
 
@@ -228,6 +229,19 @@ describe('zoom', () => {
 		expect(isWheelNotch(3, 1)).toBe(true);
 		expect(isWheelNotch(-100 * Math.log(1.1), 0)).toBe(false);
 		expect(wheelZoomFactor(-3, 1)).toBeCloseTo(wheelZoomFactor(-99, 0));
+	});
+
+	it('turns a pinch passed on from Rust into the Ctrl+wheel steps of a pinch', () => {
+		const zoom = (deltas: number[]) => deltas.reduce((z, d) => z * wheelZoomFactor(d, 0), 1);
+		expect(zoom(pinchDeltas(1, 1.1))).toBeCloseTo(1.1);
+		expect(zoom(pinchDeltas(1.2, 0.9))).toBeCloseTo(0.75);
+		// A large jump between two events is split, so it still follows the fingers.
+		const deltas = pinchDeltas(1, 3);
+		expect(deltas.length).toBeGreaterThan(1);
+		expect(deltas.every((d) => !isWheelNotch(d, 0))).toBe(true);
+		expect(zoom(deltas)).toBeCloseTo(3);
+		expect(pinchDeltas(1, 1)).toEqual([]);
+		expect(pinchDeltas(0, 1)).toEqual([]);
 	});
 
 	it('rounds pixel sizes like MuPDF', () => {

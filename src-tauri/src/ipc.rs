@@ -964,6 +964,9 @@ pub struct StartupInfo {
     /// LECTRIX_PERF=scroll: only the scrolling measurements, without the image format
     /// comparison (which pushes large images through a canvas first).
     pub perf_scroll_only: bool,
+    /// LECTRIX_PERF=watch: no scripted scrolling; records frames and blank pages while
+    /// real input scrolls the document (tests/perf/wheel-linux.py).
+    pub perf_watch: bool,
     /// Page image format: PNG (ADR 0004); LECTRIX_IMAGE_FORMAT=rgba switches to raw RGBA.
     pub image_format: ImageFormat,
     /// The side panes as the user left them.
@@ -1203,6 +1206,22 @@ pub struct FileChangedEvent {
     pub id: u32,
     /// False when the file was moved or deleted.
     pub exists: bool,
+}
+
+/// Emitted as `touchpad-pinch` where the webview would apply a touchpad pinch to the whole
+/// app instead of handing it to the page (WebKitGTK; `Platform::route_touchpad_pinch`).
+/// The frontend zooms the document with it, as with Ctrl+wheel.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TouchpadPinch {
+    /// A new pinch: `scale` counts from 1 again.
+    pub begin: bool,
+    /// How far the fingers have spread since the pinch began (2 = twice as far apart).
+    pub scale: f64,
+    /// Where the fingers are, in the webview's CSS pixels.
+    pub x: f64,
+    pub y: f64,
 }
 
 /// Errors shown to the user: plain language plus a suggested next step (section 8).

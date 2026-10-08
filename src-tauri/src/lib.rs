@@ -337,6 +337,7 @@ pub fn run() {
                     window = window.maximized(true);
                 }
                 let window = window.build()?;
+                platform::current().route_touchpad_pinch(&window);
                 let appearance = app
                     .state::<AppState>()
                     .store

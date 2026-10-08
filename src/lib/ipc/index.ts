@@ -20,6 +20,7 @@ import type { RecoveredDocument } from './generated/RecoveredDocument';
 import type { SaveResult } from './generated/SaveResult';
 import type { SearchChunk } from './generated/SearchChunk';
 import type { StartupInfo } from './generated/StartupInfo';
+import type { TouchpadPinch } from './generated/TouchpadPinch';
 import type { UpdateInfo } from './generated/UpdateInfo';
 import type { UpdateProgress } from './generated/UpdateProgress';
 import type { UpdateReady } from './generated/UpdateReady';
@@ -43,6 +44,7 @@ export type {
 	SaveResult,
 	SearchChunk,
 	StartupInfo,
+	TouchpadPinch,
 	UpdateInfo,
 	UpdateProgress,
 	UpdateReady,
@@ -201,6 +203,10 @@ export const onMergeSourcesAdded = (handler: (results: OpenResult[]) => void): P
 /** An open document's file was changed or removed by another program. */
 export const onFileChanged = (handler: (event: FileChangedEvent) => void): Promise<UnlistenFn> =>
 	listen<FileChangedEvent>('file-changed', (e) => handler(e.payload));
+
+/** A touchpad pinch the webview would have applied to the whole app (Linux). */
+export const onTouchpadPinch = (handler: (event: TouchpadPinch) => void): Promise<UnlistenFn> =>
+	listen<TouchpadPinch>('touchpad-pinch', (e) => handler(e.payload));
 
 export interface TileRect {
 	x: number;

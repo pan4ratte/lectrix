@@ -3,6 +3,8 @@
 
 use std::path::Path;
 
+#[cfg(target_os = "linux")]
+mod linux;
 #[cfg(windows)]
 mod windows;
 
@@ -42,6 +44,10 @@ pub trait Platform: Send + Sync {
     fn webview_needs_zoom_controls(&self) -> bool {
         false
     }
+
+    /// Makes touchpad pinches reach the page as document zoom where the webview would
+    /// otherwise magnify the whole app with them. Called once the main window is made.
+    fn route_touchpad_pinch(&self, _window: &tauri::WebviewWindow) {}
 
     /// Browser arguments for the webview, when they must differ from Tauri's defaults.
     fn webview_browser_args(&self) -> Option<String> {
@@ -87,15 +93,19 @@ pub fn current() -> &'static dyn Platform {
     {
         &windows::Windows
     }
-    #[cfg(not(windows))]
+    #[cfg(target_os = "linux")]
+    {
+        &linux::Linux
+    }
+    #[cfg(not(any(windows, target_os = "linux")))]
     {
         &Generic
     }
 }
 
 /// Fallback for platforms without a specific implementation yet.
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 struct Generic;
 
-#[cfg(not(windows))]
+#[cfg(not(any(windows, target_os = "linux")))]
 impl Platform for Generic {}
