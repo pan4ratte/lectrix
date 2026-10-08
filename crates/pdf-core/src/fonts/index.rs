@@ -209,6 +209,9 @@ fn best_match<'a>(
 /// The CJK ordering to substitute for a script and language (`UCDN_SCRIPT_*`,
 /// `FZ_LANG_*`), or `None` for other scripts. Mirrors MuPDF's
 /// `fz_lookup_noto_stem_from_script`, as the crate did.
+// bindgen gives the `FZ_LANG_*` enum constants the C compiler's enum type: `i32` with MSVC,
+// `u32` with GCC and Clang, so the casts are needed on Windows only.
+#[allow(clippy::unnecessary_cast)]
 pub fn cjk_ordering(script: u32, language: u32) -> Option<CjkFontOrdering> {
     use mupdf_sys::{
         FZ_LANG_ja, FZ_LANG_ko, FZ_LANG_zh_Hans, UCDN_SCRIPT_BOPOMOFO, UCDN_SCRIPT_HAN,
@@ -384,6 +387,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::unnecessary_cast)] // As in `cjk_ordering`.
     fn cjk_orderings_follow_script_and_language() {
         use mupdf_sys::{FZ_LANG_ja, UCDN_SCRIPT_HAN, UCDN_SCRIPT_HANGUL, UCDN_SCRIPT_LATIN};
         assert_eq!(
