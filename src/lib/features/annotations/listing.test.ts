@@ -13,6 +13,7 @@ import {
 	matchesFilter,
 	matchesSearch,
 	orderLabels,
+	pageOrder,
 	sortAnnotations
 } from './listing.ts';
 
@@ -91,7 +92,7 @@ describe('the annotation list', () => {
 		expect(markedText(lines, [])).toBe('');
 	});
 
-	it('sorts by page, author or date, A to Z or Z to A, ties in page order', () => {
+	it('sorts by page, author or date, A to Z or Z to A, ties as they appear in the document', () => {
 		const a = annotation({ id: 1, page: 0, author: 'Cy', created: 100, modified: 500 });
 		const b = annotation({ id: 2, page: 1, author: 'Ada', created: 300, modified: null });
 		const c = annotation({ id: 3, page: 2, author: '', created: 300, modified: 400 });
@@ -111,6 +112,39 @@ describe('the annotation list', () => {
 		expect(ids(sortAnnotations(rows, 'modified', 'desc'))).toEqual([1, 3, 4, 2]);
 		expect(orderLabels('author')).toEqual({ asc: 'A–Z', desc: 'Z–A' });
 		expect(orderLabels('modified').desc).toBe('Z–A (newest first)');
+	});
+
+	it('orders the rows of a page as they appear on it, not as they were made', () => {
+		/** Text markup over `quads`, with the bounds Rust gives it (the quads' union). */
+		const marks = (id: number, ...quads: number[][]): Annotation => {
+			const q = quads.flat();
+			const xs = q.filter((_, i) => i % 2 === 0);
+			const ys = q.filter((_, i) => i % 2 === 1);
+			return annotation({ id, quads: q, bounds: [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)] });
+		};
+		// Made from the bottom of the page up.
+		const note = annotation({ id: 1, subtype: 'Text', kind: 'note', bounds: [400, 500, 418, 518] });
+		const right = marks(2, quad(200, 300, 100));
+		// On the same line as `right`, a hair lower but to its left.
+		const left = marks(3, quad(40, 90, 100.4));
+		// From the end of one line onto the next: it starts at x = 300, though its bounds start at 0.
+		const twoLines = marks(4, quad(300, 400, 60), quad(0, 120, 80));
+		const before = marks(5, quad(100, 150, 60));
+		// A tall text box that starts above `left` and `right` is not on their line.
+		const box = annotation({ id: 6, subtype: 'FreeText', kind: 'freeText', bounds: [20, 90, 500, 300] });
+		const nextPage = annotation({ id: 7, page: 1, bounds: [0, 0, 10, 10] });
+		const rows = [nextPage, note, right, left, twoLines, before, box];
+		const ids = (list: Annotation[]) => list.map((x) => x.id);
+
+		expect(ids(pageOrder(rows.slice(1)))).toEqual([5, 4, 6, 3, 2, 1]);
+		expect(ids(sortAnnotations(rows, 'page'))).toEqual([5, 4, 6, 3, 2, 1, 7]);
+		// Z to A: the last page first, each page still from its top.
+		expect(ids(sortAnnotations(rows, 'page', 'desc'))).toEqual([7, 5, 4, 6, 3, 2, 1]);
+		// Rows the sort can't tell apart (one author here) go as they appear too.
+		expect(ids(sortAnnotations(rows, 'author', 'desc'))).toEqual([5, 4, 6, 3, 2, 1, 7]);
+		// At the same place, the order they were made in.
+		const [x, y] = [annotation({ id: 8 }), annotation({ id: 9 })];
+		expect(ids(pageOrder([y, x]))).toEqual([9, 8]);
 	});
 
 	it('groups rows under their page, author or day', () => {

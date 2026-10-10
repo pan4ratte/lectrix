@@ -838,3 +838,23 @@ test('the list counts, searches, filters and sorts annotations', async () => {
 		await stop();
 	}
 });
+
+test('the list shows the annotations of a page from its top, not in the order they were made', async () => {
+	const plain = sample('list-order-plain.pdf', 1);
+	const lower = plain.replace('-plain.pdf', '-lower.pdf');
+	const path = plain.replace('-plain.pdf', '.pdf');
+	cli('annot', 'note', plain, lower, '--at', '400,500', '--text', 'Made first, lower');
+	cli('annot', 'note', lower, path, '--at', '400,150', '--text', 'Made second, higher');
+
+	const { browser, stop } = await launch([path]);
+	try {
+		await waitForDocument(browser);
+		await showAnnotations(browser);
+		await waitForRowCount(browser, 2, 'two notes');
+		const rows = await listRows(browser);
+		assert.match(rows[0], /Made second, higher/);
+		assert.match(rows[1], /Made first, lower/);
+	} finally {
+		await stop();
+	}
+});

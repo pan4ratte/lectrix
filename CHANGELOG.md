@@ -12,6 +12,10 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 - On Linux, pinching on a touchpad zooms the document instead of the whole window, and pages appear sooner while scrolling.
 
+### Annotations
+
+- The annotation list shows the annotations of a page from its top to its bottom, not in the order they were made.
+
 ### Installation and updates
 
 - Lectrix checks for updates once a day instead of at every start. The setting is now **Check for updates automatically**.

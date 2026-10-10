@@ -111,6 +111,52 @@ export function markedText(lines: readonly Line[], quads: readonly number[]): st
 	return out.join(' ');
 }
 
+/**
+ * Where an annotation starts on its page, in view space (top-left origin, y down): the
+ * first quad of text markup, where the marked text begins; otherwise its bounds.
+ */
+function startOf(a: Annotation): { top: number; left: number; height: number } {
+	const q = a.quads;
+	if (q.length >= 8) {
+		const top = Math.min(q[1]!, q[3]!, q[5]!, q[7]!);
+		return { top, left: Math.min(q[0]!, q[2]!, q[4]!, q[6]!), height: Math.max(q[1]!, q[3]!, q[5]!, q[7]!) - top };
+	}
+	const [x0, y0, x1, y1] = a.bounds;
+	return { top: Math.min(y0, y1), left: Math.min(x0, x1), height: Math.abs(y1 - y0) };
+}
+
+/**
+ * One page's annotations as they appear on it: top to bottom, and left to right among
+ * those that start on the same line (their tops no further apart than half the height of
+ * the shorter one, so a tall text box takes no line below its top with it). Annotations at
+ * the same place keep the order given, the order they were made in.
+ */
+export function pageOrder(list: readonly Annotation[]): Annotation[] {
+	const items = list.map((a, i) => ({ a, i, ...startOf(a) }));
+	items.sort((x, y) => x.top - y.top || x.i - y.i);
+	const out: Annotation[] = [];
+	for (let from = 0; from < items.length; ) {
+		const first = items[from]!;
+		let to = from + 1;
+		while (to < items.length && items[to]!.top - first.top <= Math.min(first.height, items[to]!.height) / 2) to++;
+		const row = items.slice(from, to).sort((x, y) => x.left - y.left || x.top - y.top || x.i - y.i);
+		out.push(...row.map((x) => x.a));
+		from = to;
+	}
+	return out;
+}
+
+/** Every annotation as it appears in the document: first page first, each page in `pageOrder`. */
+function documentOrder(list: readonly Annotation[]): Annotation[] {
+	const pages = new Map<number, Annotation[]>();
+	for (const a of list) {
+		const rows = pages.get(a.page);
+		if (rows) rows.push(a);
+		else pages.set(a.page, [a]);
+	}
+	return [...pages.keys()].sort((a, b) => a - b).flatMap((p) => pageOrder(pages.get(p)!));
+}
+
 /** The value rows sort on; null (no author, no date) sorts last either way. */
 function sortValue(a: Annotation, sort: ListSort): string | number | null {
 	if (sort === 'page') return a.page;
@@ -120,11 +166,12 @@ function sortValue(a: Annotation, sort: ListSort): string | number | null {
 
 /**
  * The rows in `sort` order, A to Z (first page, A, oldest date first) or Z to A. Rows
- * without the value go last either way; ties keep their order on the page.
+ * without the value go last either way; ties (by page: every row of a page) go as they
+ * appear in the document, each page's from its top, whichever the order.
  */
 export function sortAnnotations(list: readonly Annotation[], sort: ListSort, order: SortOrder = 'asc'): Annotation[] {
 	const sign = order === 'asc' ? 1 : -1;
-	const indexed = list.map((a, i) => ({ a, i, v: sortValue(a, sort) }));
+	const indexed = documentOrder(list).map((a, i) => ({ a, i, v: sortValue(a, sort) }));
 	indexed.sort((x, y) => {
 		if (x.v === y.v) return x.i - y.i;
 		if (x.v === null) return 1;
