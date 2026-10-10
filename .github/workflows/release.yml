@@ -4,7 +4,8 @@ name: Release
 # CI has passed for that commit on main (ADR 0011). Builds for Windows, Linux and macOS,
 # signs the update bundles with the updater key (the in-app updater accepts nothing else),
 # attests every installer's build provenance, and writes latest.json, which the app reads
-# to find updates. Run it by hand (Actions > Release > Run workflow) to retry a failed one.
+# to find updates. The release's description is the version's part of CHANGELOG.md. Run it
+# by hand (Actions > Release > Run workflow) to retry a failed one.
 #
 # Needs two repository secrets: TAURI_SIGNING_PRIVATE_KEY and
 # TAURI_SIGNING_PRIVATE_KEY_PASSWORD (docs/releasing.md).
@@ -85,6 +86,11 @@ jobs:
             exit 1
           fi
 
+      # Fails when CHANGELOG.md has no "## <version>", or still lists changes under
+      # "## Unreleased" (docs/releasing.md).
+      - name: Write the release notes
+        run: node .github/scripts/release-notes.mjs "$VERSION" release-notes.md
+
       - name: Create a draft release
         run: |
           # A draft left by a failed run is replaced.
@@ -92,7 +98,7 @@ jobs:
             gh release delete "v$VERSION" -R "$GITHUB_REPOSITORY" --yes
           fi
           gh release create "v$VERSION" -R "$GITHUB_REPOSITORY" --draft \
-            --target "${{ needs.version.outputs.sha }}" --title "Lectrix $VERSION" --generate-notes
+            --target "${{ needs.version.outputs.sha }}" --title "Lectrix $VERSION" --notes-file release-notes.md
 
   build:
     needs: [version, draft]

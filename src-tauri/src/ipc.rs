@@ -971,6 +971,11 @@ pub struct StartupInfo {
     pub image_format: ImageFormat,
     /// The side panes as the user left them.
     pub panes: PaneLayout,
+    /// The first start since Lectrix was updated: the frontend offers What's new.
+    pub updated: bool,
+    /// Show the Debug menu, which rehearses notifications and notices: in development
+    /// builds, or with LECTRIX_DEBUG=1 (LECTRIX_DEBUG=0 hides it).
+    pub debug_menu: bool,
 }
 
 /// The side panes (section 8): which are open, how wide they are, which panels each holds
@@ -1174,6 +1179,9 @@ pub struct SettingsInput {
 pub struct UpdateInfo {
     pub version: String,
     pub current_version: String,
+    /// The latest versions' changes, as CHANGELOG.md has them (latest.json's notes), for
+    /// What's new before updating. Releases before 1.1.0 carry only "Lectrix <version>".
+    pub notes: Option<String>,
 }
 
 /// How far downloading an update has got.

@@ -1,4 +1,6 @@
-@import 'tailwindcss';
+/* Classes are looked for in src/ only: the rest of the repository (docs, Rust, vendored
+   MuPDF) only adds unused classes from ordinary words, and took most of the build's time. */
+@import 'tailwindcss' source('.');
 
 /*
  * Google Sans, bundled (ADR 0009): the Latin, Cyrillic and Greek build, variable weight
@@ -1383,6 +1385,29 @@ input[type='color'],
 .text-link:hover {
 	color: var(--lectrix-accent);
 }
+/* The start screen's note after an update, beside the app's name (at the right; under it
+   in a narrow window), with its close button at the right end, centred. */
+.start-update {
+	display: flex;
+	width: 280px;
+	max-width: 100%;
+	align-items: center;
+	gap: 12px;
+	margin-left: auto;
+	/* No taller than the icon, so the heading stays put when it goes. */
+	padding: 7px 8px 7px 14px;
+	border: 1px solid var(--lectrix-line);
+	border-radius: var(--radius-panel);
+	background: var(--lectrix-surface-raised);
+}
+/* A link in a notice's text (the update notice's "See what's new"): the accent, underlined
+   under the pointer. A button, since a real link would navigate the webview. */
+.notice-link {
+	color: var(--lectrix-accent);
+}
+.notice-link:hover {
+	text-decoration: underline;
+}
 /* A dialog's close button, in its top-right corner (Settings, About). */
 .dialog-close {
 	position: absolute;
@@ -1395,6 +1420,74 @@ input[type='color'],
 }
 .dialog-close:active:not(:disabled) {
 	background: linear-gradient(var(--lectrix-pressed), var(--lectrix-pressed)), var(--lectrix-surface-raised);
+}
+
+/* What's new: the title, then the versions, which scroll; each version's sections under
+   small headings, its changes as a bulleted list. Before updating, Update at the bottom. */
+.whats-new {
+	display: flex;
+	width: 560px;
+	max-height: min(620px, calc(100vh - 32px));
+	flex-direction: column;
+	padding: 0;
+	overflow: hidden;
+}
+.whats-new-title {
+	padding: 20px 56px 12px 24px;
+}
+.whats-new-heading {
+	color: var(--lectrix-fg-strong);
+	font-size: 16px;
+	font-weight: 600;
+}
+.whats-new-footer {
+	display: flex;
+	justify-content: flex-end;
+	padding: 12px 24px;
+	border-top: 1px solid var(--lectrix-line);
+}
+.whats-new-body {
+	min-height: 0;
+	flex: 1;
+	padding: 4px 24px 24px;
+	overflow-y: auto;
+	line-height: 1.45;
+}
+.whats-new-body:focus-visible {
+	outline-offset: -2px;
+}
+.whats-new-release + .whats-new-release {
+	margin-top: 20px;
+	padding-top: 20px;
+	border-top: 1px solid var(--lectrix-line);
+}
+.whats-new-release h3 {
+	font-size: 14px;
+	font-weight: 600;
+}
+.whats-new-intro {
+	margin-top: 6px;
+}
+.whats-new-release h4 {
+	margin-top: 14px;
+	color: var(--lectrix-fg-muted);
+	font-size: 12px;
+	font-weight: 600;
+}
+.whats-new-release ul {
+	margin-top: 4px;
+	padding-left: 18px;
+	list-style: disc;
+}
+.whats-new-release li + li {
+	margin-top: 4px;
+}
+.whats-new-release li::marker {
+	color: var(--lectrix-fg-muted);
+}
+.whats-new-release strong {
+	color: var(--lectrix-fg-strong);
+	font-weight: 600;
 }
 
 /* ----- sidebar ----- */

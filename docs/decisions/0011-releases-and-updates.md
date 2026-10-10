@@ -58,9 +58,21 @@ The user chose (2026-10-05):
    failed checks too (an offline start would put the check off for a whole day); checking
    only at startup when due (a window left open never checks).
 3. **The notice** floats above the notifications, bottom right. It never takes focus and
-   is announced politely. "Not now" hides it until the next start (*since 2026-10-08:* until the next day's
-   check). "Don't ask again"
-   stores that version in app data (`skipped_update`), and only that version is skipped.
+   is announced politely. "Not now" hides it until the next start (*since 2026-10-08:*
+   until the next day's check). "Don't ask again" stores that version in app data
+   (`skipped_update`), and only that version is skipped.
+
+   *Amended 2026-10-10:* the notice links to What's new for the changes the update
+   brings. `latest.json`'s `notes`, which GitHub's generated release notes never filled
+   (it held "Lectrix <version>"), carries the latest ten versions' part of
+   `CHANGELOG.md`; Rust passes it on with the update found (`UpdateInfo.notes`), and the
+   dialog shows the versions newer than the one running, with Update at the bottom. Ten
+   versions cover a copy several updates behind while the file every check downloads stays
+   a few kilobytes. It is in English: the changelog's translations ship with the app, so
+   a version not installed yet has none. Alternatives: the release's description from
+   GitHub's API (a second request, to another address, and one version only); the
+   newest version's notes alone (a copy that skipped updates would miss what came
+   between).
 4. **Updating** downloads with progress (Stop cancels it). The plugin verifies the
    download against the public key in `tauri.conf.json` before anything is installed.
    - **macOS, Linux:** the new version is installed at once. The notice says so and offers
@@ -87,6 +99,11 @@ The user chose (2026-10-05):
    - writes `latest.json` itself (`.github/scripts/release-assets.mjs`), so parallel
      builds cannot overwrite each other's entries;
    - publishes the release, which creates the tag.
+
+   *Amended 2026-10-10:* the release's description is the version's part of
+   `CHANGELOG.md` (`.github/scripts/release-notes.mjs`), written for users, instead of
+   GitHub's generated list of commits and pull requests. The workflow fails when the
+   version has no heading there, or when changes are still listed under `## Unreleased`.
 
    The updater key lives in the `TAURI_SIGNING_PRIVATE_KEY` and
    `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secrets (`docs/releasing.md`). Ordinary CI builds

@@ -29,4 +29,13 @@ imageFormat: ImageFormat,
 /**
  * The side panes as the user left them.
  */
-panes: PaneLayout, };
+panes: PaneLayout, 
+/**
+ * The first start since Lectrix was updated: the frontend offers What's new.
+ */
+updated: boolean, 
+/**
+ * Show the Debug menu, which rehearses notifications and notices: in development
+ * builds, or with LECTRIX_DEBUG=1 (LECTRIX_DEBUG=0 hides it).
+ */
+debugMenu: boolean, };

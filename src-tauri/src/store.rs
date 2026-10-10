@@ -52,6 +52,10 @@ struct Data {
     /// Where the main window was and whether it was maximized (placement.rs).
     #[serde(default)]
     window: Option<WindowPlacement>,
+    /// The version of Lectrix that last started, to tell the first start after an update
+    /// (What's new, section 6.6). Not kept before 1.1.0.
+    #[serde(default)]
+    last_version: Option<String>,
 }
 
 /// The pane layout, reading files from before panels could move, which named the left
@@ -166,6 +170,8 @@ fn known_quick_tools<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<Quick
 pub struct Store {
     file: Option<PathBuf>,
     data: Data,
+    /// The file was there and read: Lectrix has started before.
+    existed: bool,
 }
 
 /// Seconds since the Unix epoch.
@@ -179,12 +185,15 @@ pub fn now() -> u64 {
 impl Store {
     /// Loads `file`, or starts empty if it does not exist or cannot be read.
     pub fn load(file: Option<PathBuf>) -> Store {
-        let data = file
+        let data: Option<Data> = file
             .as_deref()
             .and_then(|f| fs::read(f).ok())
-            .and_then(|bytes| serde_json::from_slice(&bytes).ok())
-            .unwrap_or_default();
-        Store { file, data }
+            .and_then(|bytes| serde_json::from_slice(&bytes).ok());
+        Store {
+            file,
+            existed: data.is_some(),
+            data: data.unwrap_or_default(),
+        }
     }
 
     pub fn recent(&self) -> &[RecentEntry] {
@@ -241,6 +250,24 @@ impl Store {
     pub fn set_last_update_check(&mut self, at: u64) {
         self.data.last_update_check = Some(at);
         self.persist();
+    }
+
+    /// Notes that `current` is the version running. True if it is newer than the one that
+    /// started last: Lectrix was updated. A state file without a version is from before
+    /// versions were kept (1.0.0), so that is an update too; a first start is not, and
+    /// neither is going back to an older version.
+    pub fn note_version(&mut self, current: &semver::Version) -> bool {
+        let now = current.to_string();
+        let previous = self.data.last_version.replace(now.clone());
+        if previous.as_deref() != Some(now.as_str()) {
+            self.persist();
+        }
+        match previous {
+            None => self.existed,
+            Some(previous) => {
+                semver::Version::parse(&previous).map_or(previous != now, |p| p < *current)
+            }
+        }
     }
 
     pub fn panes(&self) -> PaneLayout {
@@ -534,6 +561,30 @@ mod tests {
             Store::load(Some(file)).last_update_check(),
             Some(1_791_000_000)
         );
+    }
+
+    #[test]
+    fn an_update_is_told_once_and_a_first_start_or_downgrade_never() {
+        let version = |v: &str| semver::Version::parse(v).unwrap();
+        let file = temp_store("version.json");
+        // A first start: no state file yet.
+        let mut store = Store::load(Some(file.clone()));
+        assert!(!store.note_version(&version("1.1.0")));
+        assert!(!Store::load(Some(file.clone())).note_version(&version("1.1.0")));
+        // Updated, then the next start.
+        assert!(Store::load(Some(file.clone())).note_version(&version("1.2.0-beta.1")));
+        assert!(!Store::load(Some(file.clone())).note_version(&version("1.2.0-beta.1")));
+        assert!(Store::load(Some(file.clone())).note_version(&version("1.2.0")));
+        // Back to an older version.
+        assert!(!Store::load(Some(file.clone())).note_version(&version("1.1.0")));
+
+        // A state file from 1.0.0, which kept no version.
+        let old = temp_store("version-1.0.0.json");
+        fs::write(&old, r#"{"recent": []}"#).unwrap();
+        assert!(Store::load(Some(old.clone())).note_version(&version("1.1.0")));
+        assert!(!Store::load(Some(old)).note_version(&version("1.1.0")));
+        // Test and measurement runs keep no state file.
+        assert!(!Store::load(None).note_version(&version("1.1.0")));
     }
 
     #[test]

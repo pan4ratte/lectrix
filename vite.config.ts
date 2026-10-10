@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, sep } from 'node:path';
 
 import adapter from '@sveltejs/adapter-static';
@@ -50,11 +50,22 @@ export default defineConfig({
 		})
 	],
 	clearScreen: false,
+	build: {
+		// Vite's 500 kB warning is about downloads; Lectrix loads its one bundle from disk,
+		// where splitting it would only add requests at startup. Warn if it grows a lot.
+		chunkSizeWarningLimit: 800,
+		// Rolldown notes when JavaScript plugins take most of a build. Here they always do:
+		// compiling Svelte is the build's work.
+		rolldownOptions: { checks: { bundlerTimings: false } }
+	},
 	server: {
 		port: 1420,
 		strictPort: true,
 		host: host || false,
 		hmr: host ? { protocol: 'ws', host, port: 1421 } : undefined,
+		// What's new imports the changelogs from the repository root, which SvelteKit's dev
+		// server would otherwise refuse (builds bundle them either way). Only these files.
+		fs: { allow: readdirSync(import.meta.dirname).filter((name) => /^CHANGELOG.*\.md$/.test(name)) },
 		watch: { ignored: ['**/src-tauri/**', '**/crates/**', '**/target/**', '**/third_party/**'] }
 	},
 	test: {

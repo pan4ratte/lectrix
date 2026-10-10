@@ -24,6 +24,7 @@
 	import { cancelTextDraft } from '#lib/features/annotations/actions.ts';
 	import AnnotationPropertiesDialog from '#lib/features/annotations/AnnotationPropertiesDialog.svelte';
 	import AnnotationToolbar from '#lib/features/annotations/AnnotationToolbar.svelte';
+	import { announceUpdate } from '#lib/features/changelog/announce.ts';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
 	import CombineView from '#lib/features/merge/CombineView.svelte';
 	import InsertPagesDialog from '#lib/features/merge/InsertPagesDialog.svelte';
@@ -34,6 +35,7 @@
 	import RotatePagesDialog from '#lib/features/viewer/RotatePagesDialog.svelte';
 	import ViewBar from '#lib/features/viewer/ViewBar.svelte';
 	import Viewer from '#lib/features/viewer/Viewer.svelte';
+	import WhatsNewDialog from '#lib/features/changelog/WhatsNewDialog.svelte';
 	import {
 		appReady,
 		closeDocument,
@@ -79,6 +81,8 @@
 				if (info.perfWatch) await watchPerf();
 				else if (info.perfMode && app.active) await runPerf(app.active, info.perfScrollOnly);
 			}
+			// The first start after an update offers what changed (section 6.6).
+			if (info.updated) void announceUpdate();
 			// Once the documents are up, so the check never delays them (ADR 0011).
 			update.startChecks();
 		} catch (e) {
@@ -296,6 +300,7 @@
 <InsertPagesDialog />
 <SettingsDialog />
 <AboutDialog />
+<WhatsNewDialog />
 <DialogHost />
 <PasswordDialog />
 <Toasts />

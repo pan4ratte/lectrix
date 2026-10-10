@@ -6,6 +6,7 @@ import { repair } from '#lib/features/annotations/actions.ts';
 import { tools } from '#lib/features/annotations/state.svelte.ts';
 import type { Tool } from '#lib/features/annotations/tools.ts';
 import { addBookmark } from '#lib/features/bookmarks/actions.ts';
+import { openWhatsNew } from '#lib/features/changelog/announce.ts';
 import { showLabels, startRangeAt } from '#lib/features/labels/actions.ts';
 import { update } from '#lib/features/update/update.svelte.ts';
 import { copySelection } from '#lib/features/viewer/actions.ts';
@@ -61,6 +62,7 @@ export const commands = {
 	about: () => {
 		app.aboutOpen = true;
 	},
+	whatsNew: openWhatsNew,
 	checkForUpdates: () => void update.checkNow(),
 
 	undo: () => {

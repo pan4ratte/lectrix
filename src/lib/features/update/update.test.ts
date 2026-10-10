@@ -27,7 +27,7 @@ vi.mock('@tauri-apps/api/app', () => ({ getVersion: async () => '1.1.0' }));
 
 const { CHECK_EVERY_MS, downloadShare, downloadStatus, update } = await import('./update.svelte.ts');
 
-const info: UpdateInfo = { version: '1.2.0', currentVersion: '1.1.0' };
+const info: UpdateInfo = { version: '1.2.0', currentVersion: '1.1.0', notes: null };
 
 beforeEach(() => {
 	vi.clearAllMocks();
@@ -181,5 +181,77 @@ describe('Help > Check for updates', () => {
 		await update.checkNow();
 		expect(ipc.checkForUpdate).not.toHaveBeenCalled();
 		expect(update.stage).toEqual({ kind: 'ready', info, installed: false, restarting: false });
+	});
+});
+
+describe('rehearsals (Debug menu)', () => {
+	const rustCalls = () => Object.values(ipc).reduce((n, f) => n + f.mock.calls.length, 0);
+
+	it('click through every stage without asking Rust', async () => {
+		vi.useFakeTimers();
+		try {
+			update.simulate({ kind: 'available', info });
+			const downloading = update.update();
+			expect(update.stage.kind).toBe('downloading');
+			await vi.advanceTimersByTimeAsync(3100);
+			await downloading;
+			expect(update.stage).toEqual({ kind: 'ready', info, installed: false, restarting: false });
+			expect(update.downloaded).toBeNull();
+			await update.restart();
+			expect(update.stage.kind).toBe('idle');
+			expect(store.notify).toHaveBeenCalledOnce();
+
+			// A download stopped half way offers the choices again; Don't ask again skips nothing.
+			update.simulate({ kind: 'downloading', info, progress: null, stopping: false });
+			await vi.advanceTimersByTimeAsync(500);
+			expect(update.stage.kind).toBe('downloading');
+			await update.stop();
+			await vi.advanceTimersByTimeAsync(0);
+			expect(update.stage).toEqual({ kind: 'available', info });
+			await update.dontAskAgain();
+			expect(update.stage.kind).toBe('idle');
+			expect(rustCalls()).toBe(0);
+			expect(store.quitWith).not.toHaveBeenCalled();
+		} finally {
+			vi.clearAllTimers();
+			vi.useRealTimers();
+		}
+	});
+
+	it('another rehearsal, or Clear all, during a download keeps the notice it shows', async () => {
+		vi.useFakeTimers();
+		try {
+			update.simulate({ kind: 'downloading', info, progress: null, stopping: false });
+			await vi.advanceTimersByTimeAsync(500);
+			update.simulate({ kind: 'ready', info, installed: false, restarting: false });
+			await vi.advanceTimersByTimeAsync(5000);
+			expect(update.stage).toEqual({ kind: 'ready', info, installed: false, restarting: false });
+
+			update.simulate({ kind: 'downloading', info, progress: null, stopping: false });
+			await vi.advanceTimersByTimeAsync(500);
+			update.endRehearsal();
+			await vi.advanceTimersByTimeAsync(5000);
+			expect(update.stage).toEqual({ kind: 'idle' });
+		} finally {
+			vi.clearAllTimers();
+			vi.useRealTimers();
+		}
+	});
+
+	it('Clear all leaves a real notice alone', () => {
+		update.stage = { kind: 'available', info };
+		update.endRehearsal();
+		expect(update.stage).toEqual({ kind: 'available', info });
+	});
+
+	it('a real check afterwards goes to Rust again', async () => {
+		update.simulate({ kind: 'available', info });
+		update.notNow();
+		ipc.checkForUpdate.mockResolvedValueOnce(info);
+		await update.checkNow();
+		ipc.downloadUpdate.mockResolvedValueOnce({ installed: true });
+		await update.update();
+		expect(ipc.downloadUpdate).toHaveBeenCalledOnce();
+		expect(update.downloaded).toEqual({ info, installed: true });
 	});
 });

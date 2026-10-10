@@ -3,13 +3,14 @@
 	// a table of their names, when each was last opened and its size, or as a grid of their
 	// first pages with the name, date and size under each (a switch beside the heading,
 	// remembered in app data). A click on a row or card opens the file; the folder is in
-	// the name's tooltip.
-	import { FolderOpen, LayoutGrid, Layers, List, X } from '@lucide/svelte';
+	// the name's tooltip. After an update, a block beside the app's name links to What's new.
+	import { FolderOpen, LayoutGrid, Layers, List, Sparkles, X } from '@lucide/svelte';
 	import type { Component } from 'svelte';
 
 	import fileIconUrl from '#lib/assets/lectrix-file-icon-small.svg';
 	import iconUrl from '#lib/assets/lectrix-icon.svg';
 	import { APP_NAME } from '#lib/config.ts';
+	import { openWhatsNew } from '#lib/features/changelog/announce.ts';
 	import { fileSize, fullDate, openedDate } from '#lib/format.ts';
 	import { recentPreviewUrl, removeRecent, type RecentFile } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
@@ -120,13 +121,39 @@
 
 <div class="flex h-full flex-col items-center overflow-auto bg-canvas px-4 pt-[12vh] pb-8">
 	<div class="w-full max-w-[720px]">
-		<div class="flex items-center gap-4">
+		<div class="flex flex-wrap items-center gap-4">
 			<!-- Decorative: the heading names the app. -->
 			<img src={iconUrl} alt="" width="56" height="56" draggable="false" />
 			<div>
 				<h1 class="text-2xl font-semibold">{APP_NAME}</h1>
 				<p class="mt-1 text-fg-muted">Open a PDF, or drop files anywhere in this window.</p>
 			</div>
+			{#if app.updatedTo !== null}
+				<div class="start-update" role="status">
+					<span class="shrink-0 text-accent"><Sparkles size={18} aria-hidden="true" /></span>
+					<div class="min-w-0 flex-1">
+						<p class="font-medium">{app.updatedTo ? `Updated to ${app.updatedTo}` : 'Updated'}</p>
+						<button
+							type="button"
+							class="notice-link text-sm"
+							onclick={() => {
+								app.updatedTo = null;
+								openWhatsNew();
+							}}
+						>
+							See what’s new
+						</button>
+					</div>
+					<button
+						type="button"
+						class="icon-button size-6 shrink-0"
+						aria-label="Dismiss"
+						onclick={() => (app.updatedTo = null)}
+					>
+						<X size={14} aria-hidden="true" />
+					</button>
+				</div>
+			{/if}
 		</div>
 		<div
 			class="start-tools mt-6"

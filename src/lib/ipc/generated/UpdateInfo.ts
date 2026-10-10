@@ -3,4 +3,9 @@
 /**
  * A newer release of Lectrix, found when it started (ADR 0011).
  */
-export type UpdateInfo = { version: string, currentVersion: string, };
+export type UpdateInfo = { version: string, currentVersion: string, 
+/**
+ * The latest versions' changes, as CHANGELOG.md has them (latest.json's notes), for
+ * What's new before updating. Releases before 1.1.0 carry only "Lectrix <version>".
+ */
+notes: string | null, };

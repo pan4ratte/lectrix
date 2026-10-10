@@ -1,14 +1,20 @@
 <script lang="ts">
 	// The floating update notice (ADR 0011), above the notifications in the bottom-right
-	// corner. It never takes focus by itself: it is announced, and reached with Tab.
+	// corner. It never takes focus by itself: it is announced, and reached with Tab. A newer
+	// release links to What's new for the changes it brings (section 6.6).
 	import { CircleArrowDown } from '@lucide/svelte';
 
 	import { APP_NAME } from '#lib/config.ts';
+	import { changesSince } from '#lib/features/changelog/changelog.ts';
+	import { app } from '#lib/stores/app.svelte.ts';
 
 	import { downloadShare, downloadStatus, update } from './update.svelte.ts';
 
 	const stage = $derived(update.stage);
 	const share = $derived(stage.kind === 'downloading' ? downloadShare(stage.progress) : null);
+	const hasNotes = $derived(
+		stage.kind === 'available' && changesSince(stage.info.notes, stage.info.currentVersion).length > 0
+	);
 </script>
 
 {#if stage.kind !== 'idle'}
@@ -29,7 +35,22 @@
 				</div>
 			{:else if stage.kind === 'available'}
 				<h2 id="update-title" class="font-medium">{APP_NAME} {stage.info.version} is available</h2>
-				<p class="mt-1 text-sm text-fg-muted">You have version {stage.info.currentVersion}.</p>
+				<p class="mt-1 text-sm text-fg-muted">
+					You have version {stage.info.currentVersion}.
+					{#if hasNotes}
+						{@const info = stage.info}
+						<button
+							type="button"
+							class="notice-link"
+							onclick={() => {
+								app.whatsNewUpdate = info;
+								app.whatsNewOpen = true;
+							}}
+						>
+							See what’s new
+						</button>
+					{/if}
+				</p>
 				<div class="mt-3 flex flex-wrap gap-2">
 					<button type="button" class="button button-primary" onclick={() => void update.update()}>Update</button>
 					<button type="button" class="button" onclick={() => update.notNow()}>Not now</button>

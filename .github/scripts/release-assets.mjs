@@ -6,11 +6,14 @@
 //     <out dir>/updater-<rust target>.json: the platforms this build adds to latest.json.
 //
 //   node .github/scripts/release-assets.mjs manifest <version> <fragments dir> <out file>
-//     Merges the fragments into the updater manifest (latest.json).
+//     Merges the fragments into the updater manifest (latest.json). Its notes are the
+//     latest versions' changes from CHANGELOG.md, which the update notice shows.
 //
 // The release is v<version> of $GITHUB_REPOSITORY; asset URLs point there.
 import { copyFileSync, existsSync, mkdirSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
+
+import { recentChanges } from './release-notes.mjs';
 
 const repository = process.env.GITHUB_REPOSITORY ?? 'pan4ratte/lectrix';
 
@@ -90,7 +93,7 @@ function manifest(version, fragments, outFile) {
 	if (Object.keys(platforms).length === 0) throw new Error(`no updater fragments in ${fragments}`);
 	const latest = {
 		version,
-		notes: `Lectrix ${version}`,
+		notes: recentChanges(readFileSync('CHANGELOG.md', 'utf8')),
 		pub_date: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'),
 		platforms
 	};

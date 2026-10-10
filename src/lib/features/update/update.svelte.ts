@@ -4,6 +4,8 @@
 // version is never offered again). Updating downloads with progress, then offers
 // a restart: on Windows the installer runs as Lectrix restarts, or when it closes.
 // Help > Check for updates asks at any time, and says what it found either way.
+// The Debug menu rehearses the notice (`simulate`): its buttons then work on a stand-in for
+// Rust, which downloads nothing and restarts nothing.
 import { getVersion } from '@tauri-apps/api/app';
 
 import { APP_NAME } from '#lib/config.ts';
@@ -14,8 +16,10 @@ import {
 	restartToUpdate,
 	skipUpdate,
 	toAppError,
+	type AppError,
 	type UpdateInfo,
-	type UpdateProgress
+	type UpdateProgress,
+	type UpdateReady
 } from '#lib/ipc/index.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 
@@ -50,8 +54,74 @@ export function downloadStatus(progress: UpdateProgress | null): string {
 	return `${megabytes(progress.downloaded)} of ${megabytes(progress.total)} MB`;
 }
 
+/** What the notice's buttons ask of Rust. */
+interface Backend {
+	download(onProgress: (progress: UpdateProgress) => void): Promise<UpdateReady>;
+	cancel(): Promise<void>;
+	restart(): Promise<void>;
+	skip(version: string): Promise<void>;
+}
+
+const RUST: Backend = {
+	download: downloadUpdate,
+	cancel: cancelUpdateDownload,
+	restart: async () => {
+		await app.quitWith(restartToUpdate);
+	},
+	skip: skipUpdate
+};
+
+/** How long a rehearsed download takes, and its pretend size. */
+const REHEARSAL_MS = 3000;
+const REHEARSAL_BYTES = 14.2 * MB;
+
+/** A stand-in for Rust while the Debug menu rehearses the notice: the download counts up
+ * to its size and can be stopped; restarting says what would happen. `installed` as on
+ * macOS and Linux, else as on Windows. */
+function rehearsal(installed: boolean): Backend {
+	let stop: (() => void) | null = null;
+	return {
+		download: (onProgress) =>
+			new Promise((done, fail) => {
+				const started = Date.now();
+				const timer = setInterval(() => {
+					const share = Math.min(1, (Date.now() - started) / REHEARSAL_MS);
+					onProgress({ downloaded: Math.round(share * REHEARSAL_BYTES), total: REHEARSAL_BYTES });
+					if (share === 1) {
+						clearInterval(timer);
+						done({ installed });
+					}
+				}, 100);
+				stop = () => {
+					clearInterval(timer);
+					const stopped: AppError = { message: 'The download was stopped.', suggestion: null, code: 'cancelled' };
+					fail(stopped);
+				};
+			}),
+		cancel: async () => stop?.(),
+		restart: async () => {
+			app.notify({ kind: 'info', message: 'Rehearsal: Lectrix would restart now.', suggestion: 'Nothing was installed.' });
+			update.stage = { kind: 'idle' };
+		},
+		skip: async () => {}
+	};
+}
+
+/** Help > Check for updates found nothing newer. */
+export function notifyUpToDate(version: string | null) {
+	app.notify({
+		kind: 'info',
+		message: `${APP_NAME} is up to date`,
+		suggestion: version ? `You have the latest version, ${version}.` : 'You have the latest version.'
+	});
+}
+
 class UpdateState {
 	stage = $state<UpdateStage>({ kind: 'idle' });
+	#backend = RUST;
+	/** Counts rehearsals: a download from before the latest one leaves the notice alone
+	 * when it ends, since the notice now shows something else. */
+	#rehearsals = 0;
 	/** The update downloaded this run, kept after Later so asking again offers the restart
 	 * instead of downloading it again. */
 	downloaded: { info: UpdateInfo; installed: boolean } | null = null;
@@ -66,6 +136,7 @@ class UpdateState {
 	 * notice is up, or once an update is downloaded: Restart now or Later has been offered. */
 	async check() {
 		if (this.stage.kind !== 'idle' || this.downloaded) return;
+		this.#backend = RUST;
 		try {
 			const info = await checkForUpdate();
 			if (info && this.stage.kind === 'idle') this.stage = { kind: 'available', info };
@@ -83,6 +154,7 @@ class UpdateState {
 			this.stage = { kind: 'ready', ...this.downloaded, restarting: false };
 			return;
 		}
+		this.#backend = RUST;
 		this.stage = { kind: 'checking' };
 		try {
 			const info = await checkForUpdate(true);
@@ -92,12 +164,7 @@ class UpdateState {
 				return;
 			}
 			this.stage = { kind: 'idle' };
-			const version = await getVersion().catch(() => null);
-			app.notify({
-				kind: 'info',
-				message: `${APP_NAME} is up to date`,
-				suggestion: version ? `You have the latest version, ${version}.` : 'You have the latest version.'
-			});
+			notifyUpToDate(await getVersion().catch(() => null));
 		} catch (e) {
 			if (this.stage.kind === 'checking') this.stage = { kind: 'idle' };
 			app.showError(toAppError(e));
@@ -113,20 +180,25 @@ class UpdateState {
 		if (this.stage.kind !== 'available') return;
 		const { version } = this.stage.info;
 		this.stage = { kind: 'idle' };
-		await skipUpdate(version).catch((e: unknown) => app.showError(toAppError(e)));
+		await this.#backend.skip(version).catch((e: unknown) => app.showError(toAppError(e)));
 	}
 
 	async update() {
 		if (this.stage.kind !== 'available') return;
 		const info = this.stage.info;
+		const backend = this.#backend;
+		const rehearsal = this.#rehearsals;
+		const current = () => rehearsal === this.#rehearsals;
 		this.stage = { kind: 'downloading', info, progress: null, stopping: false };
 		try {
-			const ready = await downloadUpdate((progress) => {
-				if (this.stage.kind === 'downloading') this.stage.progress = progress;
+			const ready = await backend.download((progress) => {
+				if (current() && this.stage.kind === 'downloading') this.stage.progress = progress;
 			});
-			this.downloaded = { info, installed: ready.installed };
+			if (!current()) return;
+			if (backend === RUST) this.downloaded = { info, installed: ready.installed };
 			this.stage = { kind: 'ready', info, installed: ready.installed, restarting: false };
 		} catch (e) {
+			if (!current()) return;
 			const error = toAppError(e);
 			// Stopped: offer the choices again. Failed: say why; the next day's check asks again.
 			if (error.code === 'cancelled') {
@@ -141,7 +213,7 @@ class UpdateState {
 	async stop() {
 		if (this.stage.kind !== 'downloading') return;
 		this.stage.stopping = true;
-		await cancelUpdateDownload().catch(() => {});
+		await this.#backend.cancel().catch(() => {});
 	}
 
 	/** Hides the notice. Windows installs the update when Lectrix closes. */
@@ -154,12 +226,33 @@ class UpdateState {
 		if (this.stage.kind !== 'ready') return;
 		this.stage.restarting = true;
 		try {
-			await app.quitWith(restartToUpdate);
+			await this.#backend.restart();
 		} catch (e) {
 			app.showError(toAppError(e));
 		}
 		// Still running: the user cancelled at a prompt, or the restart failed.
 		if (this.stage.kind === 'ready') this.stage.restarting = false;
+	}
+
+	/** Shows the notice at `stage` for the Debug menu; its buttons then rehearse instead of
+	 * asking Rust (`installed`: as on macOS and Linux). A download in progress counts up. */
+	simulate(stage: UpdateStage, installed = false) {
+		this.endRehearsal();
+		this.#backend = rehearsal(installed);
+		this.stage = stage;
+		if (stage.kind === 'downloading') {
+			this.stage = { kind: 'available', info: stage.info };
+			void this.update();
+		}
+	}
+
+	/** Takes a rehearsed notice away, stopping its download; a real notice stays. */
+	endRehearsal() {
+		if (this.#backend === RUST) return;
+		this.#rehearsals++;
+		void this.#backend.cancel().catch(() => {});
+		this.#backend = RUST;
+		this.stage = { kind: 'idle' };
 	}
 }
 

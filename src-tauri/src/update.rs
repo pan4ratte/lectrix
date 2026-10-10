@@ -2,8 +2,8 @@
 //! makes. Once a day, the frontend's automatic check asks whether a newer release exists
 //! (when the window is ready, then hourly while Lectrix runs; GitHub is asked only when a
 //! day has passed since it last answered), and Help > Check for updates asks whenever the
-//! user wants; the user can update, wait, or skip that version. The updater plugin checks every download against Lectrix's
-//! signing key before anything is installed.
+//! user wants; the user can update, wait, or skip that version. The updater plugin checks
+//! every download against Lectrix's signing key before anything is installed.
 //!
 //! Windows cannot replace a running program, so there the verified installer waits until
 //! Lectrix restarts or closes. On macOS and Linux the new version is installed at once and
@@ -134,6 +134,7 @@ pub async fn check_for_update(
     let info = UpdateInfo {
         version: update.version.clone(),
         current_version: update.current_version.clone(),
+        notes: update.body.clone(),
     };
     *state
         .updates

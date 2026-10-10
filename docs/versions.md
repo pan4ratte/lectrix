@@ -40,6 +40,7 @@ Recorded at project start (2026-10-02). Versions are pinned exactly in `Cargo.to
 | uuid | 1.26.1 |
 | png | 0.18.1 |
 | serde | 1.0.229 |
+| semver | 1.0.28 (tells the first start after an update, for What's new; already in the tree through Tauri) |
 | ts-rs | 12.0.1 |
 | clap (pdf-cli only) | 4.6.7 |
 

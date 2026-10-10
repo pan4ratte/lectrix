@@ -124,19 +124,26 @@ Needs an installed earlier release and a newer one published (ADR 0011,
 - [ ] Close Lectrix, then in `%LOCALAPPDATA%\org.lectrix.pdf\state.json` set
       `last_update_check` (seconds since 1970) to more than a day ago, or remove it: the
       next start offers the new version again.
+- [ ] From 1.1.0 on: the notice's "See what's new" lists each version newer than the one
+      installed, in `CHANGELOG.md`'s words, with Update at the bottom, which starts the
+      download.
 - [ ] Update: a progress bar fills, then "ready to install" (Windows) or "installed".
 - [ ] With a document that has unsaved changes, Restart now asks about saving first. Then
       Lectrix closes, the installer shows its progress window (Windows; an administrator
       answers a UAC prompt first, ADR 0015) and Lectrix opens again; Help > About shows
-      the new version, and it is still in the same folder.
+      the new version, and it is still in the same folder. It started on the start screen:
+      "Updated to <version>" sits to the right of the name; See what's new opens the
+      changelog. The next start doesn't show it.
+- [ ] After an update, open a PDF from File Explorer as the first start: a notification
+      "Lectrix was updated to <version>" with What's new, instead of the start screen's.
 - [ ] Windows: Update, then Later, then close Lectrix: the installer runs and does not
       reopen Lectrix. The next start is the new version.
 - [ ] If Lectrix was installed without "Open PDF files with Lectrix", it is still not
       offered for PDFs after updating.
 - [ ] Updating from `1.0.0-beta.1` (where PDFs showed the app icon), with Lectrix as the
       default app: PDFs show the Lectrix PDF icon afterwards.
-- [ ] Settings: turn off "Check for updates when Lectrix starts": no notice at the next
-      start.
+- [ ] Settings: turn off "Check for updates automatically", and remove
+      `last_update_check` as above: no notice at the next start.
 - [ ] With that setting still off, Help > Check for updates…: "Checking for updates…",
       then the notice for the new version (on the earlier version) or "Lectrix is up to
       date" (on the latest). Don't ask again, then Check for updates… once more: the same

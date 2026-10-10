@@ -747,9 +747,13 @@ pub fn remember_view(state: State<'_, AppState>, id: u32, view: ViewState) -> Re
 
 /// Called by the frontend on first mount: startup time and how to start up.
 #[tauri::command]
-pub fn app_ready(state: State<'_, AppState>) -> StartupInfo {
+pub fn app_ready(app: AppHandle, state: State<'_, AppState>) -> StartupInfo {
     let elapsed = MAIN_START.get().map(Instant::elapsed).unwrap_or_default();
-    let panes = state.store.lock().map(|s| s.panes()).unwrap_or_default();
+    let (panes, updated) = state
+        .store
+        .lock()
+        .map(|mut s| (s.panes(), s.note_version(&app.package_info().version)))
+        .unwrap_or_default();
     StartupInfo {
         main_to_ready_ms: elapsed.as_secs_f64() * 1000.0,
         perf_mode: std::env::var_os("LECTRIX_PERF").is_some(),
@@ -760,6 +764,20 @@ pub fn app_ready(state: State<'_, AppState>) -> StartupInfo {
             _ => ImageFormat::Png,
         },
         panes,
+        updated,
+        debug_menu: debug_menu(
+            std::env::var("LECTRIX_DEBUG").ok().as_deref(),
+            cfg!(debug_assertions),
+        ),
+    }
+}
+
+/// Whether to show the Debug menu: LECTRIX_DEBUG (`env`) says so, else development builds.
+fn debug_menu(env: Option<&str>, debug_build: bool) -> bool {
+    match env {
+        Some("1") => true,
+        Some("0") => false,
+        _ => debug_build,
     }
 }
 
@@ -807,7 +825,17 @@ pub fn log_error(message: String) {
 
 #[cfg(test)]
 mod tests {
+    use super::debug_menu;
     use crate::ipc::WebPage;
+
+    #[test]
+    fn the_debug_menu_shows_in_development_builds_or_when_asked() {
+        assert!(debug_menu(None, true));
+        assert!(!debug_menu(None, false));
+        assert!(debug_menu(Some("1"), false));
+        assert!(!debug_menu(Some("0"), true));
+        assert!(!debug_menu(Some("yes"), false));
+    }
 
     #[test]
     fn web_pages_match_the_frontend() {

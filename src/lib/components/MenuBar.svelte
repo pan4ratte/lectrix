@@ -5,6 +5,7 @@
 
 	import { commands, setViewMode } from '#lib/commands.ts';
 	import { APP_NAME } from '#lib/config.ts';
+	import DebugMenu from '#lib/features/debug/DebugMenu.svelte';
 	import { update } from '#lib/features/update/update.svelte.ts';
 	import { VIEW_MODES } from '#lib/features/viewer/layout.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
@@ -247,6 +248,7 @@
 		<Menubar.Trigger class="menubar-trigger">Help</Menubar.Trigger>
 		<Menubar.Portal>
 			<Menubar.Content class="menu-content" align="start" sideOffset={7}>
+				<Menubar.Item class="menu-item" onSelect={commands.whatsNew}>What’s new</Menubar.Item>
 				<Menubar.Item class="menu-item" disabled={update.stage.kind === 'checking'} onSelect={commands.checkForUpdates}>
 					Check for updates…
 				</Menubar.Item>
@@ -255,4 +257,8 @@
 			</Menubar.Content>
 		</Menubar.Portal>
 	</Menubar.Menu>
+	<!-- Development builds, or LECTRIX_DEBUG=1. -->
+	{#if app.startup?.debugMenu}
+		<DebugMenu />
+	{/if}
 </Menubar.Root>

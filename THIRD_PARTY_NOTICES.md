@@ -14,6 +14,7 @@ following third-party components. Every one has an AGPL-compatible license.
 | webview2-com, windows-core | MIT OR Apache-2.0 | WebView2 memory target level while minimized (app `platform` module, ADR 0002) |
 | thiserror | MIT OR Apache-2.0 | error types |
 | serde, serde_json | MIT OR Apache-2.0 | IPC serialization |
+| semver | MIT OR Apache-2.0 | comparing versions, to tell the first start after an update |
 | ts-rs | MIT | generated TypeScript IPC types (build/test time) |
 | uuid | MIT OR Apache-2.0 | annotation `/NM` identifiers |
 | png | MIT OR Apache-2.0 | page image encoding |

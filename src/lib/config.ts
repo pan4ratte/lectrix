@@ -12,3 +12,7 @@ export const AUTHOR_URL = 'https://github.com/pan4ratte';
  * holds the same address (`WebPage` in src-tauri/src/ipc.rs).
  */
 export const SOURCE_URL = 'https://github.com/pan4ratte/lectrix';
+
+/** The language Lectrix is shown in. The app is not translated yet; What's new already
+ * shows the changelog's translation for it where there is one (CHANGELOG_<LANGUAGE>.md). */
+export const LOCALE = 'en';

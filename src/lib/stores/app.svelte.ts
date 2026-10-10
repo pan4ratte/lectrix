@@ -35,6 +35,7 @@ import {
 	type PaneLayout,
 	type PanelId,
 	type RecentFile,
+	type UpdateInfo,
 	type SaveResult,
 	type Settings,
 	type StartupInfo
@@ -152,6 +153,14 @@ class AppStore {
 	);
 	/** The About dialog is open. */
 	aboutOpen = $state(false);
+	/** What's new (the changelog, section 6.6) is open. */
+	whatsNewOpen = $state(false);
+	/** What's new shows the changes an update brings, before updating, rather than the
+	 * changelog of the version running. */
+	whatsNewUpdate = $state<UpdateInfo | null>(null);
+	/** The version Lectrix was updated to, when it started on the start screen: shown there,
+	 * beside the app's name, until dismissed or followed (section 6.6). */
+	updatedTo = $state<string | null>(null);
 	dialog = $state<DialogRequest | null>(null);
 	passwordPrompts = $state<PasswordRequest[]>([]);
 	toasts = $state<Toast[]>([]);

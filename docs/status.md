@@ -22,7 +22,9 @@ the user or for everyone (ADR 0015).
 Since v1: releases on GitHub for Windows, Linux and macOS, built by the Release
 workflow with attested installers, and an in-app updater with a Settings switch
 (ADR 0011). Replies to annotations, written in the annotation list (ADR 0012). Scroll
-modes (single page, two pages, each continuous or not), with a Settings default.
+modes (single page, two pages, each continuous or not), with a Settings default. A
+changelog (`CHANGELOG.md`), shown by Help > What's new, before and after an update, and
+used as each release's description. Update checks once a day.
 
 ## Performance
 
