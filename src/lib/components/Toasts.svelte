@@ -23,7 +23,8 @@
 					<Info size={16} aria-hidden="true" />
 				{/if}
 			</span>
-			<div class="min-w-0 flex-1">
+			<!-- A file name or an address without spaces breaks where the line ends. -->
+			<div class="min-w-0 flex-1 wrap-anywhere">
 				<p class="font-medium">{toast.message}</p>
 				{#if toast.suggestion}
 					<p class="mt-1 text-sm text-fg-muted">{toast.suggestion}</p>

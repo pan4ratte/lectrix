@@ -51,7 +51,7 @@
 						</button>
 					{/if}
 				</p>
-				<div class="mt-3 flex flex-wrap gap-2">
+				<div class="notice-actions mt-3">
 					<button type="button" class="button button-primary" onclick={() => void update.update()}>Update</button>
 					<button type="button" class="button" onclick={() => update.notNow()}>Not now</button>
 					<button type="button" class="button" onclick={() => void update.dontAskAgain()}>Don’t ask again</button>
@@ -68,7 +68,7 @@
 					aria-valuenow={share === null ? undefined : Math.round(share * 100)}
 				>
 					{#if share !== null}
-						<div class="h-full rounded-full bg-accent" style:width="{Math.round(share * 100)}%"></div>
+						<div class="progress-fill h-full rounded-full bg-accent" style:width="{share * 100}%"></div>
 					{:else}
 						<div class="progress-indeterminate h-full w-1/3 rounded-full bg-accent"></div>
 					{/if}

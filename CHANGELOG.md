@@ -62,6 +62,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 - Lectrix checks for updates once a day instead of at every start. The setting is now **Check for updates automatically**.
 - Before you update, **See what’s new** in the update notice shows what the new version brings.
+- The update notice’s buttons are on one row, and the download’s progress bar moves smoothly instead of in steps.
 
 ### General
 

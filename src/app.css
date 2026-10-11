@@ -1750,6 +1750,22 @@ button.shortcut-key:hover,
 .notice-link:hover {
 	text-decoration: underline;
 }
+/* The update notice's three choices, which share one row: narrower than buttons elsewhere,
+   as wide as their words need. */
+.notice-actions {
+	display: flex;
+	gap: 8px;
+}
+.notice-actions .button {
+	min-width: 0;
+	padding: 0 10px;
+	white-space: nowrap;
+}
+/* A progress bar's filled part glides to each new value (the download reports ten times
+   a second), so it moves steadily and not in steps. */
+.progress-fill {
+	transition: width 140ms linear;
+}
 /* A dialog's close button, in its top-right corner (Settings, About). */
 .dialog-close {
 	position: absolute;
