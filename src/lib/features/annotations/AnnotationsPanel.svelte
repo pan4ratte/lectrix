@@ -4,10 +4,19 @@
 	// created or modified, each under its own headings) and Filter, which opens the types (as
 	// their icons), colours and authors (as pills) to pick from. Each
 	// row shows the type as an icon in the annotation's colour, the author and a short date,
-	// and the whole comment, then its replies. Clicking one shows it; double-clicking an
-	// annotation on the page while the list shows focuses its comment here; a right-click offers
-	// replying, copying the comment and deleting, and on a reply editing, copying and
+	// and the whole comment, then its replies. Clicking one shows it. The selected row stands
+	// in for the annotation's comment panel and bar, which the page doesn't show meanwhile: it
+	// has their controls (AnnotationControls) above the comment's field, comes into view when
+	// the annotation is selected on the page, and takes the cursor in its comment when the
+	// annotation is double-clicked there or was just made with its comment open. A right-click
+	// offers replying, copying the comment and deleting, and on a reply editing, copying and
 	// deleting it (ADR 0012). A badge marks annotations that need repair.
+	//
+	// What the search and the filters leave out is not drawn on the page either while the list
+	// is on screen (`hiddenByList`). Nothing vanishes under the user's hands: the selected
+	// annotation keeps its row though a change made it stop matching, until the selection, the
+	// search or the filters change; and an annotation that has just appeared (made, or brought
+	// back by undo) clears a search and filters that would leave it out.
 	import { ArrowDownUp, ListFilter, MessageSquareText, Search, TextQuote, TriangleAlert, Wrench, X } from '@lucide/svelte';
 	import { ContextMenu, DropdownMenu } from 'bits-ui';
 	import { untrack } from 'svelte';
@@ -18,11 +27,12 @@
 	import { motionMs } from '#lib/components/panes.ts';
 	import type { Annotation } from '#lib/ipc/index.ts';
 	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
-	import { app } from '#lib/stores/app.svelte.ts';
+	import { app, type AnnotationRows } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 	import { legibleOnPane } from '#lib/theme.ts';
 
-	import { addReply, copyComment, keepsComment, openInspector, remove, repair, update } from './actions.ts';
+	import { addReply, copyComment, keepsComment, listShowsSelected, openInspector, remove, repair, update } from './actions.ts';
+	import AnnotationControls from './AnnotationControls.svelte';
 	import { typeIcon } from './icons.ts';
 	import {
 		colorKey,
@@ -72,7 +82,25 @@
 	// ----- search -----
 
 	let searchOpen = $state(false);
+	/** What the search field holds. */
 	let query = $state('');
+	/** How long typing has to pause before the search is run, in ms. */
+	const SEARCH_DELAY_MS = 200;
+	/**
+	 * The text searched for: what the field holds once typing has paused. Each search works
+	 * out the rows again and has the pages on screen drawn again without what it leaves out,
+	 * which is not worth doing for every key. An emptied field applies at once.
+	 */
+	let searched = $state('');
+	$effect(() => {
+		const text = query;
+		if (!text.trim()) {
+			searched = '';
+			return;
+		}
+		const timer = setTimeout(() => (searched = text), SEARCH_DELAY_MS);
+		return () => clearTimeout(timer);
+	});
 	/** Search the text the annotations mark rather than their comments. */
 	let searchMarked = $state(false);
 	let searchField: HTMLInputElement | undefined = $state();
@@ -109,9 +137,9 @@
 	});
 
 	function found(a: Annotation): boolean {
-		if (!searchOpen || !query.trim()) return true;
-		if (searchMarked) return marksText(a) && matchesSearch(marked.get(markedKey(a)) ?? '', query);
-		return matchesSearch(a.contents, query) || tab.repliesTo(a.page, a.id).some((r) => matchesSearch(r.contents, query));
+		if (!searchOpen || !searched.trim()) return true;
+		if (searchMarked) return marksText(a) && matchesSearch(marked.get(markedKey(a)) ?? '', searched);
+		return matchesSearch(a.contents, searched) || tab.repliesTo(a.page, a.id).some((r) => matchesSearch(r.contents, searched));
 	}
 
 	function openSearch() {
@@ -144,7 +172,38 @@
 	 * with reduced motion). */
 	const reveal = () => ({ duration: motionMs(140) });
 
-	const shown = $derived(listed.filter((a) => matchesFilter(a, filter) && found(a)));
+	/** Whether the search and the filters let `a` through. */
+	const matches = (a: Annotation) => matchesFilter(a, filter) && found(a);
+	/** The rows: what matches, and the selected annotation, which stays while it is selected
+	 * (its colour or its comment may just have been changed so that it no longer matches). */
+	const shown = $derived(
+		listed.filter((a) => matches(a) || (tab.selectedAnnotation?.page === a.page && tab.selectedAnnotation.id === a.id))
+	);
+
+	// Another search or other filters deselect an annotation they leave out: it goes from the
+	// list and from the page.
+	$effect(() => {
+		void [filter, searched, searchMarked, searchOpen];
+		untrack(() => {
+			const a = tab.selectedAnnotationInfo;
+			if (a && !tab.isThreadReply(a) && !matches(a)) tab.selectedAnnotation = null;
+		});
+	});
+
+	// An annotation that has just appeared is never hidden: a search and filters that would
+	// leave it out are cleared.
+	let known: Set<string> | null = null;
+	$effect(() => {
+		const before = known;
+		known = new Set(listed.map((a) => `${a.page}:${a.id}`));
+		if (!before) return;
+		untrack(() => {
+			if (!listed.some((a) => !before.has(`${a.page}:${a.id}`) && !matches(a))) return;
+			filter = emptyFilter();
+			query = '';
+			searched = '';
+		});
+	});
 	const groups = $derived(
 		groupAnnotations(
 			sortAnnotations(shown, sort, order),
@@ -175,17 +234,45 @@
 	const selectedKey = $derived(tab.selectedAnnotation ? `${tab.selectedAnnotation.page}:${tab.selectedAnnotation.id}` : null);
 	const selected = $derived(tab.selectedAnnotationInfo);
 
-	// A double-click on the annotation in the page while the list shows: its row comes into
-	// view with the cursor at the end of its comment (the row itself when the comment can't
-	// change). Hidden by a filter, it opens in the comment panel instead.
+	/** The id of the row of annotation `key` ("page:id"). */
+	const rowId = (key: string) => `annotation-row-${tab.id}-${key.replace(':', '-')}`;
+
+	// While the list is on screen, the page shows neither comment panel nor bar for an
+	// annotation that has a row here (`listShowsSelected`), and doesn't draw the annotations
+	// that have none (`hiddenByList`).
+	const shownKeys = $derived(new Set(shown.map((a) => `${a.page}:${a.id}`)));
+	$effect(() => {
+		const rows: AnnotationRows = {
+			tab,
+			get filtering() {
+				return shown.length !== listed.length;
+			},
+			has: (page, id) => shownKeys.has(`${page}:${id}`)
+		};
+		app.annotationRows = rows;
+		return () => {
+			if (app.annotationRows === rows) app.annotationRows = null;
+		};
+	});
+
+	// The selected annotation's row comes into view, wherever it was selected: the row has
+	// its comment and its controls.
+	$effect(() => {
+		if (selectedKey) document.getElementById(rowId(selectedKey))?.scrollIntoView({ block: 'nearest' });
+	});
+
+	// A double-click on the annotation in the page, or an annotation just made with its
+	// comment open, while the list shows it: its row comes into view with the cursor at the
+	// end of its comment (the row itself when the comment can't change). Hidden by a filter,
+	// it opens in the comment panel instead.
 	$effect(() => {
 		const key = selectedKey;
 		if (!app.focusListComment || !key) return;
 		const frame = requestAnimationFrame(() => {
 			app.focusListComment = false;
-			const row = document.getElementById(`annotation-row-${tab.id}-${key.replace(':', '-')}`);
+			const row = document.getElementById(rowId(key));
 			if (!row) {
-				openInspector(tab, true);
+				if (!listShowsSelected(tab)) openInspector(tab, true);
 				return;
 			}
 			row.scrollIntoView({ block: 'nearest' });
@@ -211,10 +298,7 @@
 		if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
 			event.preventDefault();
 			const next = ordered[Math.max(0, Math.min(ordered.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))];
-			if (next) {
-				show(next);
-				document.querySelector(`[data-annotation-row="${next.page}:${next.id}"]`)?.scrollIntoView({ block: 'nearest' });
-			}
+			if (next) show(next);
 		} else if (event.key === 'Delete' && index >= 0) {
 			const a = ordered[index]!;
 			if (capabilities(a, tab.flags.canAnnotate).delete) {
@@ -303,6 +387,12 @@
 	function replyEditKey(r: Annotation, event: KeyboardEvent) {
 		if (event.key === 'Escape') (event.currentTarget as HTMLTextAreaElement).value = r.contents;
 		replyKey(event);
+	}
+
+	/** Keys on the selected row's controls are their own, as in the comment panel: the arrows
+	 * that open a dropdown don't move the selection, and Delete doesn't delete the annotation. */
+	function controlsKey(event: KeyboardEvent) {
+		if (event.key === 'ArrowUp' || event.key === 'ArrowDown' || event.key === 'Delete') event.stopPropagation();
 	}
 
 	/** Ctrl+Enter and Esc leave the comment, which keeps what was typed. */
@@ -422,7 +512,7 @@
 						<TextQuote size={14} aria-hidden="true" />
 					</button>
 				</div>
-				{#if searchMarked && readingMarked && query.trim()}
+				{#if searchMarked && readingMarked && searched.trim()}
 					<p class="px-1 text-xs text-fg-muted">Reading the marked text…</p>
 				{/if}
 			</div>
@@ -503,9 +593,9 @@
 		</p>
 	{:else if shown.length === 0}
 		<p class="p-4 text-sm text-fg-muted">
-			{searchOpen && query.trim() ? 'No annotations match the search' : 'No annotations match the filters'}{filtering &&
+			{searchOpen && searched.trim() ? 'No annotations match the search' : 'No annotations match the filters'}{filtering &&
 			searchOpen &&
-			query.trim()
+			searched.trim()
 				? ' and the filters'
 				: ''}.
 		</p>
@@ -519,7 +609,7 @@
 						class="annotation-list min-h-0 flex-1 overflow-y-auto p-1"
 						role="listbox"
 						aria-label="Annotations"
-						aria-activedescendant={selectedKey ? `annotation-row-${tab.id}-${selectedKey.replace(':', '-')}` : undefined}
+						aria-activedescendant={selectedKey ? rowId(selectedKey) : undefined}
 						tabindex="0"
 						onkeydown={onListKey}
 						oncontextmenu={chain(props, 'oncontextmenu', onContextMenu)}
@@ -537,12 +627,12 @@
 									class="annotation-row"
 									role="option"
 									tabindex="-1"
-									id="annotation-row-{tab.id}-{key.replace(':', '-')}"
+									id={rowId(key)}
 									aria-selected={isSelected}
 									data-annotation-row={key}
 									onclick={() => show(a)}
 								>
-									<div class="flex min-w-0 items-center gap-2 text-xs text-fg-muted">
+									<div class="annotation-meta flex min-w-0 items-center gap-2 text-xs text-fg-muted">
 										<span
 											class="annotation-type-icon"
 											style:color={iconColor(a)}
@@ -562,6 +652,15 @@
 											</span>
 										{/if}
 									</div>
+									{#if isSelected}
+										<!-- A click on the controls is theirs: it doesn't show the annotation again.
+										     (Inset so the colour in its button lines up with the icon above and the
+										     comment below.) -->
+										<!-- svelte-ignore a11y_no_static_element_interactions -->
+										<div class="mt-1 pl-[4px]" onclick={(e) => e.stopPropagation()} onkeydown={controlsKey}>
+											<AnnotationControls {tab} annotation={a} onremoved={focusList} />
+										</div>
+									{/if}
 									{#if isSelected && caps.text}
 										<textarea
 											class="field comment-field mt-1 w-full text-sm"
@@ -573,7 +672,7 @@
 											{@attach keepsComment(tab, a.page, a.id)}
 										></textarea>
 									{:else if a.contents}
-										<p class="text-sm break-words whitespace-pre-wrap">{a.contents}</p>
+										<p class="comment-text mt-1 text-sm break-words whitespace-pre-wrap">{a.contents}</p>
 									{/if}
 									{#if replies.length}
 										<ul class="reply-thread" aria-label="Replies">

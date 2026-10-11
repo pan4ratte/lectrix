@@ -1,9 +1,11 @@
 //! The page-image protocol:
-//! `lectrix://page/{docId}/{pageIndex}?scale={s}&rev={r}[&tile={x},{y},{w},{h}][&fmt=png]`,
+//! `lectrix://page/{docId}/{pageIndex}?scale={s}&rev={r}[&tile={x},{y},{w},{h}][&hide={n},{n}...][&fmt=png]`,
 //! and previews of recent files: `lectrix://recent/{index}?w={px}&opened={ms}`.
 //!
 //! On Windows (WebView2) the same URL is served as `http://lectrix.localhost/page/...`. The
-//! revision is part of the URL, so a URL always means the same pixels.
+//! revision is part of the URL, so a URL always means the same pixels. `hide` names the
+//! annotations to leave out, by object number (0: those that are not indirect objects): the
+//! ones the annotation list filters out while it shows.
 //!
 //! Without `fmt`, the response is raw RGBA (`application/octet-stream`, 4 bytes per pixel,
 //! size in the `X-Lectrix-Width` and `X-Lectrix-Height` headers). `fmt=png` returns the same
@@ -30,15 +32,21 @@ enum Format {
     Png,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 struct PageRequest {
     doc: u32,
     page: usize,
     scale: f32,
     revision: u64,
     tile: Option<PixelRect>,
+    /// Object numbers of the annotations to leave out, sorted, without repeats.
+    hidden: Vec<u32>,
     format: Format,
 }
+
+/// The most annotations one request may hide. The frontend asks for a page with more of
+/// them filtered out as it is, with all of them (`MAX_HIDDEN` in `src/lib/ipc/index.ts`).
+const MAX_HIDDEN: usize = 1024;
 
 fn parse(path: &str, query: Option<&str>) -> Result<PageRequest, Failure> {
     let mut segments = path.trim_matches('/').split('/');
@@ -60,6 +68,7 @@ fn parse(path: &str, query: Option<&str>) -> Result<PageRequest, Failure> {
         scale: 1.0,
         revision: 0,
         tile: None,
+        hidden: Vec::new(),
         format: Format::Rgba,
     };
     for pair in query.unwrap_or("").split('&') {
@@ -97,6 +106,19 @@ fn parse(path: &str, query: Option<&str>) -> Result<PageRequest, Failure> {
                     width,
                     height,
                 });
+            }
+            "hide" => {
+                let mut hidden: Vec<u32> = value
+                    .split(',')
+                    .map(str::parse)
+                    .collect::<Result<_, _>>()
+                    .map_err(|_| (StatusCode::BAD_REQUEST, "bad hidden annotations"))?;
+                if hidden.len() > MAX_HIDDEN {
+                    return Err((StatusCode::BAD_REQUEST, "too many hidden annotations"));
+                }
+                hidden.sort_unstable();
+                hidden.dedup();
+                request.hidden = hidden;
             }
             "fmt" => {
                 request.format = match value {
@@ -167,13 +189,14 @@ fn serve(state: &AppState, request: &Request<Vec<u8>>) -> Result<Response<Body>,
         revision: req.revision,
         scale_milli: ImageKey::scale_milli(req.scale),
         tile: req.tile,
+        hidden: ImageKey::hidden(&req.hidden),
     };
     let (image, cached) = match state.image_cache.get(&key) {
         Some(image) => (image, true),
         None => {
             let (image, revision) = state
                 .render_gate
-                .run(|| session.render_rgba(req.page, req.scale, req.tile))
+                .run(|| session.render_rgba(req.page, req.scale, req.tile, &req.hidden))
                 .map_err(|e| render_failed(&req, e))?;
             let image = Arc::new(image);
             // Key by the revision actually rendered: if the document changed after the
@@ -410,6 +433,18 @@ mod tests {
             })
         );
         assert_eq!(r.format, Format::Png);
+        assert!(r.hidden.is_empty());
+    }
+
+    #[test]
+    fn parses_the_annotations_to_leave_out() {
+        let r = parse("/page/1/0", Some("scale=1&rev=2&hide=41,7,41,0&fmt=png")).unwrap();
+        assert_eq!(r.hidden, vec![0, 7, 41]);
+        assert!(parse("/page/1/0", Some("hide=")).is_err());
+        assert!(parse("/page/1/0", Some("hide=7,x")).is_err());
+        assert!(parse("/page/1/0", Some("hide=-1")).is_err());
+        let many = (0..=MAX_HIDDEN).map(|n| n.to_string()).collect::<Vec<_>>();
+        assert!(parse("/page/1/0", Some(&format!("hide={}", many.join(",")))).is_err());
     }
 
     #[test]

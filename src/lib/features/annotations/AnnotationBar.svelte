@@ -3,7 +3,8 @@
 	// (one button that opens them), its type among the text markup types, its note (or a text
 	// box's text), and delete. What the annotation or the document doesn't allow is left out; a
 	// read-only annotation shows its properties. An annotation that shows its comment panel has
-	// these controls in the panel's header instead.
+	// these controls in the panel's header instead, and one the annotation list shows has them
+	// in its row there.
 	import { Info, MessageSquareText, Trash, Type } from '@lucide/svelte';
 
 	import type { Annotation } from '#lib/ipc/index.ts';

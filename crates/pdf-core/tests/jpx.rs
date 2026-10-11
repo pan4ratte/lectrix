@@ -81,10 +81,10 @@ fn small_renders_of_a_jpeg_2000_image_match_the_full_decode() {
     let (session, _) = Session::open(&jpx_pdf(&dir), None).unwrap();
 
     // 64 and 128 px wide: MuPDF asks for a decode 8 and 4 times smaller. 1024 px: in full.
-    let full = session.render_rgba(0, 4.0, None).unwrap().0;
+    let full = session.render_rgba(0, 4.0, None, &[]).unwrap().0;
     assert_eq!((full.width, full.height), (1024, 1024));
     for scale in [0.25f32, 0.5] {
-        let small = session.render_rgba(0, scale, None).unwrap().0;
+        let small = session.render_rgba(0, scale, None, &[]).unwrap().0;
         let side = (256.0 * scale) as u32;
         assert_eq!((small.width, small.height), (side, side), "scale {scale}");
         // Every quadrant shows its own colour, where the full decode shows it.

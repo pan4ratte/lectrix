@@ -8,15 +8,24 @@
 //! from is alive, must be used with a context of the same family (the calling thread's
 //! [`Context::get`]), and must never be dropped by the caller.
 
-use mupdf_sys::{fz_context, fz_document, fz_page, pdf_annot, pdf_document, pdf_obj, pdf_page};
+use mupdf_sys::{
+    fz_context, fz_device, fz_document, fz_page, pdf_annot, pdf_document, pdf_obj, pdf_page,
+};
 
 use crate::pdf::{PdfAnnotation, PdfDocument, PdfObject, PdfPage};
-use crate::{Context, Document, Page};
+use crate::{Context, Device, Document, Page};
 
 impl Context {
     /// The calling thread's `fz_context`.
     pub fn as_raw_ptr(&self) -> *mut fz_context {
         self.inner
+    }
+}
+
+impl Device {
+    /// Borrowed `fz_device` handle.
+    pub fn as_raw_ptr(&self) -> *mut fz_device {
+        self.dev
     }
 }
 

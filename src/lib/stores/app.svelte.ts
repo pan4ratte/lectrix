@@ -107,6 +107,15 @@ export interface Toast {
 
 let toastSeq = 0;
 
+/** What the annotation list shows of a document's annotations. */
+export interface AnnotationRows {
+	tab: DocTab;
+	/** The search or the filters leave some annotations out. */
+	readonly filtering: boolean;
+	/** Whether the annotation has a row. */
+	has(page: number, id: number): boolean;
+}
+
 class AppStore {
 	tabs = $state<DocTab[]>([]);
 	activeId = $state<number | null>(null);
@@ -135,15 +144,20 @@ class AppStore {
 	inspectorOpen = $state(false);
 	/** Whether the selected annotation ("tab:page:id") shows its comment panel (the
 	 * inspector beside it) rather than its bar. Set when it is selected (open if it has a
-	 * comment), opened from its bar, a double-click or the list, closed with Esc. */
+	 * comment), opened from its bar, a double-click or the list, closed with Esc. While the
+	 * annotation list shows the annotation, its row there stands in for the panel. */
 	annotationPanel = $state<{ key: string; open: boolean } | null>(null);
 	/** The Properties dialog of the selected annotation (author, dates) is open. */
 	annotationPropertiesOpen = $state(false);
 	/** A note was just placed: the annotation inspector focuses its text. */
 	focusNoteText = $state(false);
-	/** A double-click while the annotation list shows: the list focuses the selected
-	 * annotation's comment. */
+	/** The annotation list focuses the selected annotation's comment: a double-click on it,
+	 * or it was just made, while the list shows it. */
 	focusListComment = $state(false);
+	/** The rows of the annotation list, which its search and filters narrow down: set by the
+	 * list while it is there, null without one. While the list is on screen, the annotations
+	 * it leaves out are not drawn on the page either (`hiddenByList`). */
+	annotationRows = $state.raw<AnnotationRows | null>(null);
 	/** The Settings dialog is open. */
 	settingsOpen = $state(false);
 	/** The stored settings, once loaded. */

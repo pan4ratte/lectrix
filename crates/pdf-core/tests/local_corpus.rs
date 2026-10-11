@@ -118,7 +118,7 @@ fn check_file(file: &Path, survey: &Value, out: &Path) -> Result<Vec<String>, St
     }
     for page in [0, pages / 2, pages - 1] {
         session
-            .render_rgba(page, 0.5, None)
+            .render_rgba(page, 0.5, None, &[])
             .map_err(|e| fail(&format!("render page {}", page + 1), e))?;
     }
     let (text, _) = session.page_text(0).map_err(|e| fail("text", e))?;

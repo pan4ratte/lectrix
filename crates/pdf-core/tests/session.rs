@@ -437,7 +437,7 @@ fn text_render_and_search_through_the_session() {
     assert_eq!(revision, 0);
     assert_eq!(text.lines[0].text, "Page 3");
 
-    let (image, _) = session.render_rgba(0, 1.0, None).unwrap();
+    let (image, _) = session.render_rgba(0, 1.0, None, &[]).unwrap();
     assert_eq!((image.width, image.height), (612, 792));
 
     let (hits, _) = session.search(MARKER, 0..5).unwrap();
@@ -454,7 +454,7 @@ fn text_render_and_search_through_the_session() {
 
     // Rendering reflects operations at once (the display list cache is cleared).
     session.apply(rotate(vec![0], 90)).unwrap();
-    let (image, revision) = session.render_rgba(0, 1.0, None).unwrap();
+    let (image, revision) = session.render_rgba(0, 1.0, None, &[]).unwrap();
     assert_eq!((image.width, image.height, revision), (792, 612, 1));
 }
 

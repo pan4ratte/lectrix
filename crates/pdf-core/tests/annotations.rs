@@ -1141,6 +1141,77 @@ fn annotations_are_undoable_steps_through_the_session() {
 }
 
 #[test]
+fn the_session_renders_a_page_without_the_annotations_to_hide() {
+    let dir = out_dir("annot-session-hidden");
+    let src = sample_file(
+        &dir,
+        "doc.pdf",
+        SampleSpec {
+            pages: 2,
+            ..SampleSpec::default()
+        },
+    );
+    let probe = sample_file(&dir, "probe.pdf", SampleSpec::default());
+    let specs = every_kind(&open(&probe), 1);
+    let (session, _) = Session::open(&src, None).unwrap();
+    let plain = session.render_rgba(1, 1.0, None, &[]).unwrap().0;
+
+    let add = |spec: &NewAnnotation| {
+        let change = session
+            .apply(Operation::AddAnnotation {
+                annotation: spec.clone(),
+            })
+            .unwrap();
+        let id = change.created.unwrap();
+        let bounds = change.annotations[0]
+            .1
+            .iter()
+            .find(|a| a.id == id)
+            .unwrap()
+            .rect;
+        (id, bounds)
+    };
+    let (highlight, highlight_at) = add(&specs[0]);
+    let (note, note_at) = add(&specs[4]);
+    let pixels = |hidden: &[u32]| session.render_rgba(1, 1.0, None, hidden).unwrap().0.data;
+    // Whether two images of the page are the same inside (or, `inside` false, outside) a
+    // rectangle in view space, grown by 2 px for anti-aliased edges.
+    let same = |a: &[u8], b: &[u8], at: Rect, inside: bool| {
+        let width = plain.width as usize;
+        a.chunks(4)
+            .zip(b.chunks(4))
+            .enumerate()
+            .all(|(i, (pa, pb))| {
+                let (x, y) = ((i % width) as f64, (i / width) as f64);
+                let within =
+                    x >= at.x0 - 2.0 && x <= at.x1 + 2.0 && y >= at.y0 - 2.0 && y <= at.y1 + 2.0;
+                within != inside || pa == pb
+            })
+    };
+
+    let all = pixels(&[]);
+    assert!(!same(&all, &plain.data, highlight_at, true));
+    assert!(!same(&all, &plain.data, note_at, true));
+    // Without the note: only where the note is does the page differ, and the highlight
+    // is still there. The same the other way round.
+    let without_note = pixels(&[note]);
+    assert!(same(&without_note, &all, note_at, false));
+    assert!(!same(&without_note, &all, note_at, true));
+    let without_highlight = pixels(&[highlight]);
+    assert!(same(&without_highlight, &all, highlight_at, false));
+    assert!(!same(&without_highlight, &all, highlight_at, true));
+    // Without both, in whatever order and however often they are named. (Not compared
+    // with the page before it had annotations: MuPDF composites a page that has a blended
+    // highlight as a group, which shifts some of its pixels by a level or two.)
+    let without_both = pixels(&[note, highlight]);
+    assert!(same(&without_both, &without_note, highlight_at, false));
+    assert!(same(&without_both, &without_highlight, note_at, false));
+    assert_eq!(pixels(&[highlight, note, note]), without_both);
+    // The page itself is unchanged: asked for whole again, it has both.
+    assert_eq!(pixels(&[]), all);
+}
+
+#[test]
 fn repair_is_one_undo_step() {
     let dir = out_dir("annotations-repair-session");
     let src = other_app_file(&dir);

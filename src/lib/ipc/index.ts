@@ -227,9 +227,14 @@ export function setImageFormat(format: ImageFormat) {
 	imageFormat = format;
 }
 
+/** The most annotations a page image can be asked to leave out (mirrors `MAX_HIDDEN` in
+ * `protocol.rs`); with more, the page is asked for with all of them. */
+export const MAX_HIDDEN = 1024;
+
 /**
  * URL of a rendered page image. WebView2 (Windows) serves custom protocols as
- * http://<scheme>.localhost; other platforms use <scheme>://localhost.
+ * http://<scheme>.localhost; other platforms use <scheme>://localhost. `hidden` names the
+ * annotations to leave out, by object number: the ones the annotation list filters out.
  */
 export function pageUrl(
 	docId: number,
@@ -237,11 +242,13 @@ export function pageUrl(
 	scale: number,
 	rev: number,
 	tile?: TileRect,
-	format: ImageFormat = imageFormat
+	format: ImageFormat = imageFormat,
+	hidden: readonly number[] = []
 ): string {
 	const base = isWindows() ? 'http://lectrix.localhost' : 'lectrix://localhost';
 	let url = `${base}/page/${docId}/${pageIndex}?scale=${scale.toFixed(3)}&rev=${rev}`;
 	if (tile) url += `&tile=${tile.x},${tile.y},${tile.width},${tile.height}`;
+	if (hidden.length > 0 && hidden.length <= MAX_HIDDEN) url += `&hide=${hidden.join(',')}`;
 	if (format === 'png') url += '&fmt=png';
 	return url;
 }

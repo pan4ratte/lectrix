@@ -171,6 +171,8 @@ enum Command {
     },
     DisplayList {
         page: usize,
+        /// Object numbers of annotations to leave out (sorted, without repeats).
+        hidden: Vec<u32>,
         cache: bool,
         reply: Reply<(Arc<DisplayList>, u64)>,
     },
@@ -288,21 +290,38 @@ impl Session {
 
     /// The display list of `page` and the revision it shows. Cached on the actor.
     pub fn display_list(&self, page: usize) -> Result<(Arc<DisplayList>, u64)> {
+        self.display_list_hiding(page, &[])
+    }
+
+    /// The display list of `page` without the annotations whose object numbers are in
+    /// `hidden` (the ones the annotation list filters out), and the revision it shows.
+    /// Cached on the actor.
+    pub fn display_list_hiding(
+        &self,
+        page: usize,
+        hidden: &[u32],
+    ) -> Result<(Arc<DisplayList>, u64)> {
+        let mut hidden = hidden.to_vec();
+        hidden.sort_unstable();
+        hidden.dedup();
         self.call(|reply| Command::DisplayList {
             page,
+            hidden,
             cache: true,
             reply,
         })
     }
 
-    /// Renders `page` (or one tile of it) to RGBA on the calling thread.
+    /// Renders `page` (or one tile of it) to RGBA on the calling thread, without the
+    /// annotations in `hidden`.
     pub fn render_rgba(
         &self,
         page: usize,
         scale: f32,
         tile: Option<PixelRect>,
+        hidden: &[u32],
     ) -> Result<(RgbaImage, u64)> {
-        let (list, revision) = self.display_list(page)?;
+        let (list, revision) = self.display_list_hiding(page, hidden)?;
         Ok((render::render_rgba(&list, scale, tile)?, revision))
     }
 
@@ -344,6 +363,7 @@ impl Session {
         for page in pages {
             let (list, rev) = match self.call(|reply| Command::DisplayList {
                 page,
+                hidden: Vec::new(),
                 cache: false,
                 reply,
             }) {
@@ -424,6 +444,10 @@ impl Session {
     }
 }
 
+/// What a cached display list shows: a page, without the annotations with these object
+/// numbers.
+type ListKey = (usize, Vec<u32>);
+
 /// Display lists kept per document. Small: a display list for a scanned page holds a
 /// reference to its decoded image.
 const DISPLAY_LIST_CACHE: usize = 24;
@@ -467,7 +491,7 @@ struct Actor {
     position: usize,
     saved_revision: u64,
     next_revision: u64,
-    lists: VecDeque<(usize, Arc<DisplayList>)>,
+    lists: VecDeque<(ListKey, Arc<DisplayList>)>,
     /// Set when a save succeeded but the saved file could not be reopened: the in-memory
     /// document no longer matches the file, so only a full save is safe.
     needs_full_save: bool,
@@ -491,8 +515,13 @@ fn actor(origin: Origin, rx: Receiver<Command>, ready: SyncSender<Result<Documen
             Command::Info { reply } => {
                 let _ = reply.send(Ok(actor.info(Duration::ZERO)));
             }
-            Command::DisplayList { page, cache, reply } => {
-                let _ = reply.send(actor.display_list(page, cache));
+            Command::DisplayList {
+                page,
+                hidden,
+                cache,
+                reply,
+            } => {
+                let _ = reply.send(actor.display_list(page, hidden, cache));
             }
             Command::Apply { op, reply } => {
                 let _ = reply.send(actor.apply(&op));
@@ -707,9 +736,15 @@ impl Actor {
         Ok(())
     }
 
-    fn display_list(&mut self, page: usize, cache: bool) -> Result<(Arc<DisplayList>, u64)> {
+    fn display_list(
+        &mut self,
+        page: usize,
+        hidden: Vec<u32>,
+        cache: bool,
+    ) -> Result<(Arc<DisplayList>, u64)> {
         let revision = self.revision();
-        if let Some(i) = self.lists.iter().position(|(p, _)| *p == page) {
+        let key = (page, hidden);
+        if let Some(i) = self.lists.iter().position(|(k, _)| *k == key) {
             // Move to the back (most recently used).
             if let Some(entry) = self.lists.remove(i) {
                 let list = entry.1.clone();
@@ -717,12 +752,12 @@ impl Actor {
                 return Ok((list, revision));
             }
         }
-        let list = Arc::new(render::display_list(&self.doc, page)?);
+        let list = Arc::new(render::display_list_hiding(&self.doc, page, &key.1)?);
         if cache {
             if self.lists.len() >= DISPLAY_LIST_CACHE {
                 self.lists.pop_front();
             }
-            self.lists.push_back((page, list.clone()));
+            self.lists.push_back((key, list.clone()));
         }
         Ok((list, revision))
     }

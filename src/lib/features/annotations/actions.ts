@@ -62,7 +62,8 @@ export function markupOpensComment(): boolean {
 /**
  * Creates text markup (one undo step). It is not selected, so marking text up leaves
  * nothing in the way of reading on; with `openComment` (by default the setting), it is
- * selected and the inspector opens with the cursor in its comment.
+ * selected and the cursor goes in its comment: in the annotation list when that shows it,
+ * otherwise in its comment panel.
  */
 export async function createMarkup(
 	tab: DocTab,
@@ -111,10 +112,59 @@ export function setPanel(tab: DocTab, open: boolean) {
 	if (key) app.annotationPanel = { key, open };
 }
 
-/** Opens the comment panel of the selected annotation; `focusNote` puts the cursor in its note. */
+/** The rows of the annotation list while it is on screen with `tab`'s annotations. */
+function listRows(tab: DocTab) {
+	const rows = app.annotationRows;
+	return rows && rows.tab === tab && app.isShown('annotations') ? rows : null;
+}
+
+/**
+ * Whether the annotation list is on screen with a row for the selected annotation. The row
+ * then stands in for the comment panel and the bar, which the page doesn't show: it has
+ * their controls and the comment (section 6.5). A reply shown in a thread has no row.
+ */
+export function listShowsSelected(tab: DocTab): boolean {
+	const sel = tab.selectedAnnotation;
+	return sel !== null && listRows(tab)?.has(sel.page, sel.id) === true;
+}
+
+/**
+ * Whether the annotation list, while it is on screen, leaves `a` out: its search or its
+ * filters don't match it. Such an annotation is not drawn on the page either, and the
+ * pointer doesn't find it there (section 6.5). A reply goes with the annotation whose
+ * thread it is in.
+ */
+export function hiddenByList(tab: DocTab, a: Annotation): boolean {
+	const rows = listRows(tab);
+	if (!rows?.filtering) return false;
+	let row = a;
+	// (A thread is a few replies deep at most; the limit is for a file whose replies loop.)
+	for (let depth = 0; depth < 32 && row.replyTo !== null; depth++) {
+		const parent = tab.annotation(row.page, row.replyTo);
+		if (!parent) break;
+		row = parent;
+	}
+	return !rows.has(row.page, row.id);
+}
+
+/** The annotations of `page` the list leaves out, as the page image is asked to leave
+ * them out: their object numbers, in order (`pageUrl`). */
+export function hiddenOnPage(tab: DocTab, page: number): number[] {
+	if (!listRows(tab)?.filtering) return [];
+	const ids = new Set<number>();
+	for (const a of tab.annotationsOn(page)) if (hiddenByList(tab, a)) ids.add(a.id);
+	return [...ids].sort((x, y) => x - y);
+}
+
+/**
+ * Opens the comment of the selected annotation: its row in the annotation list when the
+ * list shows it, otherwise its comment panel. `focusNote` puts the cursor in the comment.
+ */
 export function openInspector(tab: DocTab, focusNote: boolean) {
 	setPanel(tab, true);
-	if (focusNote) app.focusNoteText = true;
+	if (!focusNote) return;
+	if (listShowsSelected(tab)) app.focusListComment = true;
+	else app.focusNoteText = true;
 }
 
 /**
@@ -128,13 +178,13 @@ export async function restyle(tab: DocTab, a: Annotation, patch: { color?: strin
 }
 
 /**
- * What a double-click on the selected annotation opens: its comment panel with the cursor in
- * the note when the panel shows; otherwise its comment in the annotation list when the list
- * is on screen, or else the comment panel (`focusNote`: with the cursor in its note).
+ * What a double-click on the selected annotation opens: its comment in the annotation list
+ * when the list shows it (its row, when the comment can't change), or else its comment panel
+ * (`focusNote`: with the cursor in its note).
  */
 export function openComment(tab: DocTab, focusNote: boolean) {
-	if (!panelOpen(tab) && app.isShown('annotations')) app.focusListComment = true;
-	else openInspector(tab, focusNote);
+	openInspector(tab, focusNote);
+	if (listShowsSelected(tab)) app.focusListComment = true;
 }
 
 /** Opens the Properties dialog of the selected annotation (its author and dates). */

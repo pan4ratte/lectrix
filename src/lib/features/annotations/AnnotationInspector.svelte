@@ -13,9 +13,10 @@
 
 <script lang="ts">
 	// The comment panel of the selected annotation (sections 6.5 and 8): a header with the
-	// bar's controls (colour and opacity, stroke width or font size, type, properties, delete),
-	// then note text, replies and repair. An annotation with a comment shows it when selected;
-	// one without shows it when opened from its bar, a double-click or the annotation list. It
+	// bar's controls (AnnotationControls), then note text, replies and repair. An annotation
+	// with a comment shows it when selected; one without shows it when opened from its bar or a
+	// double-click. While the annotation list shows the annotation, its row there has the
+	// controls and the comment, and the page shows no panel or bar (`listShowsSelected`). It
 	// closes with Esc (the bar shows instead) or when nothing is selected. It sits beside the
 	// annotation in the viewer's scrolled content, so it scrolls with the page, and a tail on
 	// its border points at the annotation. Dragged from anywhere but its controls it moves
@@ -23,18 +24,17 @@
 	// stays on that annotation's panel; another annotation's takes its width, and its height
 	// only as a limit, so a short comment gets a shorter panel. Where it was put
 	// is kept for each annotation. The author and dates are in the Properties dialog.
-	import { Info, Trash, TriangleAlert, Wrench } from '@lucide/svelte';
+	import { TriangleAlert, Wrench } from '@lucide/svelte';
 	import { untrack } from 'svelte';
 
-	import Dropdown from '#lib/components/Dropdown.svelte';
 	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
-	import { keepsComment, openProperties, remove, repair, restyle, setPanel, update } from './actions.ts';
+	import { keepsComment, repair, setPanel } from './actions.ts';
+	import AnnotationControls from './AnnotationControls.svelte';
 	import {
 		BAR_GAP,
-		barControls,
 		clampPanel,
 		placePanel,
 		resizePanel,
@@ -43,10 +43,7 @@
 		type Area,
 		type ResizeEdge
 	} from './bars.ts';
-	import ColorPicker from './ColorPicker.svelte';
-	import { typeIcon } from './icons.ts';
-	import { FONT_SIZES, MARKUP_SUBTYPES, PEN_WIDTHS, PROBLEM_TEXT, ptOptions, typeName, type MarkupKind } from './tools.ts';
-	import { toolMark } from './toolMark.ts';
+	import { PROBLEM_TEXT, capabilities, typeName } from './tools.ts';
 
 	interface Props {
 		tab: DocTab;
@@ -66,7 +63,7 @@
 
 	const a = $derived(tab.selectedAnnotationInfo);
 	const key = $derived(a ? `${tab.id}:${a.page}:${a.id}` : null);
-	const caps = $derived(a ? barControls(a, tab.flags.canAnnotate) : null);
+	const caps = $derived(a ? capabilities(a, tab.flags.canAnnotate) : null);
 	const replies = $derived(a ? tab.repliesTo(a.page, a.id) : []);
 	const parent = $derived(a?.replyTo != null ? tab.annotation(a.page, a.replyTo) : null);
 
@@ -194,14 +191,6 @@
 		tab.viewer?.focus();
 	}
 
-	function setKind(kind: MarkupKind, subtype: string) {
-		if (a && subtype !== a.subtype) void update(tab, a.page, a.id, { kind });
-	}
-
-	function del() {
-		if (a) void remove(tab, a.page, a.id).then(() => tab.viewer?.focus());
-	}
-
 	/** No page menu over the panel (a text field keeps the browser's, for spelling). */
 	function onContextMenu(event: MouseEvent) {
 		event.stopPropagation();
@@ -257,70 +246,7 @@
 				</p>
 			{/if}
 
-			{#if caps.restyle || caps.retype || caps.delete || !caps.text}
-				<div class="flex flex-wrap items-center gap-1">
-					{#if caps.restyle}
-						<ColorPicker
-							color={a.color}
-							opacity={a.opacity}
-							label={a.kind === 'freeText' ? 'Text colour' : 'Colour'}
-							oncolor={(color) => void restyle(tab, a, { color })}
-							onopacity={(opacity) => void restyle(tab, a, { opacity })}
-						/>
-					{/if}
-					{#if caps.restyle && a.kind === 'ink'}
-						<Dropdown
-							class="toolbar-dropdown"
-							label="Stroke width"
-							tip="Stroke width"
-							value={a.width ?? 1}
-							options={ptOptions([...PEN_WIDTHS, a.width ?? 1])}
-							onchange={(width) => void update(tab, a.page, a.id, { width })}
-						/>
-					{/if}
-					{#if caps.restyle && a.kind === 'freeText'}
-						<Dropdown
-							class="toolbar-dropdown"
-							label="Font size"
-							tip="Font size"
-							value={a.fontSize ?? 12}
-							options={ptOptions([...FONT_SIZES, a.fontSize ?? 12])}
-							onchange={(fontSize) => void update(tab, a.page, a.id, { fontSize })}
-						/>
-					{/if}
-					{#if caps.retype}
-						{#if caps.restyle}<span class="mx-1 h-6 w-px bg-line" aria-hidden="true"></span>{/if}
-						<span class="tool-group flex items-center gap-1" {@attach toolMark}>
-							<span class="tool-mark" aria-hidden="true" hidden></span>
-							{#each MARKUP_SUBTYPES as m (m.subtype)}
-								{@const Icon = typeIcon(m.subtype)}
-								<button
-									type="button"
-									class="icon-button tool-button"
-									aria-pressed={a.subtype === m.subtype}
-									aria-label={typeName(m.subtype)}
-									data-tip={typeName(m.subtype)}
-									onclick={() => setKind(m.kind, m.subtype)}
-								>
-									<Icon size={18} aria-hidden="true" />
-								</button>
-							{/each}
-						</span>
-					{/if}
-					<span class="ml-auto flex items-center gap-1">
-						{#if !caps.text}
-							<button type="button" class="icon-button" aria-label="Properties" data-tip="Properties" onclick={openProperties}>
-								<Info size={18} aria-hidden="true" />
-							</button>
-						{/if}
-						{#if caps.delete}
-							<button type="button" class="icon-button" aria-label="Delete" data-tip="Delete (Del)" onclick={del}>
-								<Trash size={18} aria-hidden="true" />
-							</button>
-						{/if}
-					</span>
-				</div>
-			{/if}
+			<AnnotationControls {tab} annotation={a} onremoved={() => tab.viewer?.focus()} />
 
 			{#key key}
 				<textarea

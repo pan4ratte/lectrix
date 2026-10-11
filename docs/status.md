@@ -65,6 +65,10 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
   session and leave the claim alone. Detection and removal are tested with generated files
   that carry only the claim (`pdf-cli gen --pdfa 1b`), not with a real PDF/A file yet (the
   manual checklist has one to make).
+- **Annotations the list filters out** are hidden on the page, but not in thumbnails, and
+  a filtered-out text box's text can still be selected and found: page text is read from
+  the page with all its annotations. Annotations that are not indirect objects (rare; they
+  can't be told apart) are hidden on a page only when the filters leave out all of them.
 - **Undo history restarts** after each save (ADR 0003) and after restoring a crash
   recovery copy: MuPDF 1.27.2 cannot load a saved journal (ADR 0001).
 - **Recovery copies of large damaged files** are full copies and take 1.2 to 1.5 s for
@@ -84,7 +88,7 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
   Delete reply) opens only with a right-click; Reply itself is in the row's menu, which
   the keyboard reaches. Editing, deleting and repairing
   work from the keyboard; the bar of a selected annotation is reached with Tab from the
-  page. Page text is not exposed to screen readers, and Windows high-contrast themes are
+  page, and the controls in its row of the annotation list with Tab from the list. Page text is not exposed to screen readers, and Windows high-contrast themes are
   not handled specifically.
 - **Not covered by automated tests:** drag-and-drop from Explorer (an OLE drag can't be
   scripted), touch or stylus input, and touchpad pinch zoom.

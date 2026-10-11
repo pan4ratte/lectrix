@@ -29,6 +29,10 @@ the wording, translations): docs/releasing.md, "The changelog".
 - The annotation list shows the annotations of a page from its top to its bottom, not in the order they were made.
 - A comment is no longer lost when you click on the page after typing it, and no longer goes to another annotation when you click that one.
 - **Esc** in a comment keeps what you typed instead of discarding it.
+- While the annotation list is open, a selected annotation no longer gets a bar or a comment panel over the page. Its row in the list has their tools instead: colour and opacity, stroke width or font size, type, and delete.
+- With the list open, a new note, or a new highlight that opens its comment, puts the cursor in its comment in the list.
+- Searching or filtering the annotation list hides the other annotations on the page too, while the list is open. A new annotation the filters would hide clears them.
+- A comment in the annotation list stays where it is when you select its row, instead of shifting, and the type, author and date above it line up with it.
 
 ### Settings
 

@@ -916,6 +916,12 @@ button.shortcut-key:hover,
 .annotation-row[aria-selected='true'] {
 	background: var(--lectrix-row-selected);
 }
+/* A row's first line (type, author, date) starts where its comment's text does: inset by
+   the comment field's padding and edge (see .comment-text). */
+.annotation-meta {
+	padding-left: 8px;
+	border-left: 1px solid transparent;
+}
 /* The type icon, in the annotation's colour (set inline); muted when it has none. */
 .annotation-type-icon {
 	display: inline-flex;
@@ -1061,6 +1067,13 @@ button.shortcut-key:hover,
 	min-height: 3.5em;
 	overflow: hidden;
 	resize: none;
+}
+/* A row's comment as text: inset as in the field that edits it, so the text stays where it
+   is when the row is selected. The field's padding, and its edge as an edge that doesn't
+   show (a 1 px edge is not 1 px wide at every display scale). */
+.comment-text {
+	padding: 6px 8px;
+	border: 1px solid transparent;
 }
 .repair-badge {
 	display: inline-flex;

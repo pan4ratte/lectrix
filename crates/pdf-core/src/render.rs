@@ -12,6 +12,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
+use mupdf::pdf::PdfDocument;
 use mupdf::{Colorspace, Device, DisplayList, Document, IRect, Matrix, Pixmap};
 
 use crate::error::{Error, Result};
@@ -210,6 +211,39 @@ pub fn display_list_with(doc: &Document, index: usize, annotations: bool) -> Res
     Ok(page.to_display_list(annotations)?)
 }
 
+/// Display list of page `index` without the annotations whose object numbers are in
+/// `hidden` (0 stands for those that are not indirect objects): what the page shows while
+/// the annotation list filters them out. Everything else is drawn as [`display_list`] draws
+/// it, in the same order: content, annotations, widgets.
+pub fn display_list_hiding(doc: &PdfDocument, index: usize, hidden: &[u32]) -> Result<DisplayList> {
+    if hidden.is_empty() {
+        return display_list(doc, index);
+    }
+    let page_no = i32::try_from(index).map_err(|_| Error::PageOutOfRange(index))?;
+    if page_no >= doc.page_count()? {
+        return Err(Error::PageOutOfRange(index));
+    }
+    let page = doc.load_pdf_page(page_no)?;
+    let mut list = DisplayList::new(page.bounds()?)?;
+    {
+        let device = Device::from_display_list(&mut list)?;
+        page.run_contents(&device, &Matrix::IDENTITY)?;
+        for annot in page.annotations() {
+            let object = annot.object();
+            let number = if object.is_indirect()? {
+                u32::try_from(object.as_indirect()?).unwrap_or(0)
+            } else {
+                0
+            };
+            if !hidden.contains(&number) {
+                crate::ffi::run_annotation(&annot, &device)?;
+            }
+        }
+        page.run_widgets(&device, &Matrix::IDENTITY)?;
+    }
+    Ok(list)
+}
+
 /// Rasterizes a display list at `scale` (1.0 = 72 dpi) to opaque RGB.
 pub fn rasterize(list: &DisplayList, scale: f32) -> Result<Pixmap> {
     check_scale(scale)?;
@@ -323,12 +357,28 @@ pub struct ImageKey {
     pub scale_milli: u32,
     /// `None` for a whole page.
     pub tile: Option<PixelRect>,
+    /// Which annotations are left out ([`ImageKey::hidden`]); 0 when all are drawn.
+    pub hidden: u64,
 }
 
 impl ImageKey {
     pub fn scale_milli(scale: f32) -> u32 {
         // Callers validate the scale first (at most MAX_SCALE), so this fits.
         (scale * 1000.0).round() as u32
+    }
+
+    /// Stands for a set of hidden annotations (sorted, without repeats) in a key: 0 for
+    /// none, otherwise a 64-bit FNV-1a hash of their object numbers.
+    pub fn hidden(numbers: &[u32]) -> u64 {
+        if numbers.is_empty() {
+            return 0;
+        }
+        let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+        for byte in numbers.iter().flat_map(|n| n.to_le_bytes()) {
+            hash = (hash ^ u64::from(byte)).wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        // 0 is taken by "none hidden".
+        hash.max(1)
     }
 }
 
@@ -449,6 +499,66 @@ mod tests {
             assert_eq!(&px4[..3], px3);
             assert_eq!(px4[3], 255);
         }
+    }
+
+    /// A sample page with two squares on it, and their object numbers.
+    fn two_squares() -> (PdfDocument, u32, u32) {
+        use mupdf::Rect;
+        use mupdf::pdf::PdfAnnotationType;
+        let doc = sample_document(&SampleSpec::default()).unwrap();
+        let mut page = doc.load_pdf_page(0).unwrap();
+        let mut numbers = Vec::new();
+        for x in [100.0, 300.0] {
+            let mut annot = page.create_annotation(PdfAnnotationType::Square).unwrap();
+            annot
+                .set_rect(Rect::new(x, 400.0, x + 100.0, 500.0))
+                .unwrap();
+            annot.update().unwrap();
+            numbers.push(u32::try_from(annot.object().as_indirect().unwrap()).unwrap());
+        }
+        drop(page);
+        (doc, numbers[0], numbers[1])
+    }
+
+    #[test]
+    fn hidden_annotations_are_not_drawn_and_the_rest_is_unchanged() {
+        let (doc, first, second) = two_squares();
+        let pixels = |list: &DisplayList| render_rgba(list, 1.0, None).unwrap().data;
+        let all = pixels(&display_list(&doc, 0).unwrap());
+        let none = pixels(&display_list_with(&doc, 0, false).unwrap());
+        assert_ne!(all, none);
+
+        // Both hidden: the page as it is without annotations.
+        assert_eq!(
+            pixels(&display_list_hiding(&doc, 0, &[first, second]).unwrap()),
+            none
+        );
+        // A number no annotation has hides nothing: drawn one by one, the annotations
+        // come out as MuPDF draws them all at once.
+        assert_eq!(
+            pixels(&display_list_hiding(&doc, 0, &[u32::MAX]).unwrap()),
+            all
+        );
+        // One hidden: its square is gone (as without annotations), the other is there.
+        let one = render_rgba(&display_list_hiding(&doc, 0, &[first]).unwrap(), 1.0, None).unwrap();
+        let row = |data: &[u8], y: usize, x0: usize, x1: usize| {
+            let width = one.width as usize;
+            data[(y * width + x0) * 4..(y * width + x1) * 4].to_vec()
+        };
+        // A row through both squares (400 to 500 down the page, in MuPDF's space).
+        assert_eq!(row(&one.data, 450, 90, 210), row(&none, 450, 90, 210));
+        assert_eq!(row(&one.data, 450, 290, 410), row(&all, 450, 290, 410));
+        assert_ne!(row(&one.data, 450, 290, 410), row(&none, 450, 290, 410));
+        assert!(display_list_hiding(&doc, 99, &[first]).is_err());
+    }
+
+    #[test]
+    fn hidden_sets_get_keys_of_their_own() {
+        assert_eq!(ImageKey::hidden(&[]), 0);
+        assert_ne!(ImageKey::hidden(&[0]), 0);
+        assert_ne!(ImageKey::hidden(&[12]), ImageKey::hidden(&[21]));
+        assert_ne!(ImageKey::hidden(&[1, 2]), ImageKey::hidden(&[1, 3]));
+        assert_eq!(ImageKey::hidden(&[7, 9]), ImageKey::hidden(&[7, 9]));
     }
 
     #[test]
@@ -591,6 +701,7 @@ mod tests {
             revision: 0,
             scale_milli: 1000,
             tile: None,
+            hidden: 0,
         }
     }
 

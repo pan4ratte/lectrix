@@ -5,7 +5,7 @@
 	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 
-	import { cancelTextDraft, commitTextDraft } from '#lib/features/annotations/actions.ts';
+	import { cancelTextDraft, commitTextDraft, hiddenOnPage } from '#lib/features/annotations/actions.ts';
 	import { HANDLES, handlePoint } from '#lib/features/annotations/geometry.ts';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
 	import { capabilities, isMarkupTool } from '#lib/features/annotations/tools.ts';
@@ -91,7 +91,10 @@
 		Math.min(scale, Math.round(scaleForPixels(size, UNDERLAY_PIXELS) * 1000) / 1000)
 	);
 	const baseScale = $derived(tiled ? underlayScale : scale);
-	const baseKey = $derived(`${tab.id}:${index}:${revision}:${baseScale}`);
+	/** The annotations the annotation list filters out, which the page is drawn without. */
+	const hidden = $derived(hiddenOnPage(tab, index));
+	const hiddenKey = $derived(hidden.join(','));
+	const baseKey = $derived(`${tab.id}:${index}:${revision}:${baseScale}:${hiddenKey}`);
 	let drawnBase = $state('');
 
 	/** Maps a rectangle in the rotated page box (CSS px) to unrotated CSS px. */
@@ -300,7 +303,7 @@
 		     way, so crossing the tile threshold keeps the pixels already there. -->
 		<RenderedImage
 			imageKey={baseKey}
-			url={pageUrl(tab.id, index, baseScale, revision)}
+			url={pageUrl(tab.id, index, baseScale, revision, undefined, undefined, hidden)}
 			{priority}
 			x={0}
 			y={0}
@@ -315,8 +318,8 @@
 		/>
 		{#each shownTiles as t (t.id)}
 			<RenderedImage
-				imageKey="{tab.id}:{index}:{revision}:{t.id}"
-				url={pageUrl(tab.id, index, t.scale, revision, { x: t.x, y: t.y, width: t.w, height: t.h })}
+				imageKey="{tab.id}:{index}:{revision}:{t.id}:{hiddenKey}"
+				url={pageUrl(tab.id, index, t.scale, revision, { x: t.x, y: t.y, width: t.w, height: t.h }, undefined, hidden)}
 				priority={priority + 0.5}
 				x={(t.x * k) / t.scale}
 				y={(t.y * k) / t.scale}

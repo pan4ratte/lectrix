@@ -11,6 +11,8 @@
 		commitTextDraft,
 		create,
 		createMarkup,
+		hiddenByList,
+		listShowsSelected,
 		markSelection,
 		openComment,
 		openInspector,
@@ -659,6 +661,12 @@
 		return n / (tab.zoom * CSS_PX_PER_PT);
 	}
 
+	/** The annotations of `page` the pointer can reach: those drawn on it, so not the ones
+	 * the annotation list filters out. */
+	function targets(page: number): Annotation[] {
+		return tab.hitTargets(page).filter((a) => !hiddenByList(tab, a));
+	}
+
 	function pageUnder(clientX: number, clientY: number): number {
 		const rect = scroller!.getBoundingClientRect();
 		return Math.max(0, pageAt(layout, clientX - rect.left + scrollLeft, clientY - rect.top + scrollTop, contentW));
@@ -787,17 +795,18 @@
 			}
 			// A side of the selected text comes before an annotation under it.
 			if (beginEdge(event, page, x, y, clicks)) return;
-			const hit = annotationAt(tab.hitTargets(page), x, y, px(4));
+			const hit = annotationAt(targets(page), x, y, px(4));
 			if (hit) {
 				tab.selectAnnotation(page, hit.id);
 				// A click shows the comment panel of an annotation with a comment (again, after
-				// Esc closed it); without one, its bar.
+				// Esc closed it); without one, its bar. While the annotation list shows the
+				// annotation, its row there has both, and the page neither.
 				if (clicks !== 2 && showsComment(hit)) setPanel(tab, true);
 				const caps = capabilities(hit, tab.flags.canAnnotate);
 				if (clicks === 2) {
 					// A double-click opens what the annotation says for editing: a text box's
-					// text in place, anything else's note in its comment panel when that shows,
-					// else in the annotation list when that shows, otherwise in the panel.
+					// text in place, anything else's note in the annotation list when that shows
+					// it, otherwise in its comment panel.
 					event.preventDefault();
 					if (hit.kind === 'freeText' && caps.text) openTextEditor(hit);
 					else openComment(tab, caps.text);
@@ -922,7 +931,7 @@
 			const [x, y] = toPage(page, lastPointer.x, lastPointer.y);
 			overEdge = selectionEdgeAt(page, x, y);
 			overAnnotation = null;
-			const hit = annotationAt(tab.hitTargets(page), x, y, px(4));
+			const hit = annotationAt(targets(page), x, y, px(4));
 			if (hit && tools.tool === 'select') overAnnotation = capabilities(hit, tab.flags.canAnnotate).move ? 'move' : 'select';
 			hoverTip(hit);
 			const rect = scroller.getBoundingClientRect();
@@ -1108,15 +1117,19 @@
 		return { area: lineArea, prefer: order < 0 ? ('below' as const) : ('above' as const) };
 	});
 
-	/** The selected annotation shows its comment panel (which has the bar's controls)
-	 * rather than its bar. */
-	const showPanel = $derived(panelOpen(tab));
+	/** The selected annotation shows its comment (with the bar's controls) rather than its
+	 * bar. */
+	const commentOpen = $derived(panelOpen(tab));
+	/** The annotation list shows the selected annotation: its row there has the comment and
+	 * the controls, so the page shows neither the comment panel nor the bar. */
+	const inList = $derived(listShowsSelected(tab));
+	const showPanel = $derived(commentOpen && !inList);
 
 	/** The selected annotation, for its bar, while it isn't being dragged or typed in, and
-	 * while it doesn't show its comment panel. */
+	 * while neither its comment panel nor the annotation list shows its controls. */
 	const barAnnotation = $derived.by(() => {
 		const a = tab.selectedAnnotationInfo;
-		if (!a || dragging || tab.draft?.kind === 'text' || showPanel || !isShown(layout, a.page)) return null;
+		if (!a || dragging || tab.draft?.kind === 'text' || commentOpen || inList || !isShown(layout, a.page)) return null;
 		return { annotation: a, area: contentArea(a.page, a.bounds) };
 	});
 
@@ -1282,7 +1295,7 @@
 		// acts on the text); from the keyboard, the menu is for what is already selected.
 		if (!tab.selection && (event.target as HTMLElement).closest('.page')) {
 			const [x, y] = toPage(contextPage, event.clientX, event.clientY);
-			const hit = annotationAt(tab.hitTargets(contextPage), x, y, px(4));
+			const hit = annotationAt(targets(contextPage), x, y, px(4));
 			if (hit) tab.selectAnnotation(contextPage, hit.id);
 		}
 	}

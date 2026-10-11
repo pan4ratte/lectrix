@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { isAppError, pageUrl } from './index';
+import { isAppError, MAX_HIDDEN, pageUrl } from './index';
 
 describe('pageUrl', () => {
 	it('includes document, page, scale and revision, as PNG by default (ADR 0004)', () => {
@@ -12,6 +12,14 @@ describe('pageUrl', () => {
 	it('adds tiles and the PNG format when asked', () => {
 		const url = pageUrl(1, 0, 4, 2, { x: 512, y: 0, width: 512, height: 100 }, 'png');
 		expect(url).toMatch(/\?scale=4\.000&rev=2&tile=512,0,512,100&fmt=png$/);
+	});
+
+	it('names the annotations to leave out, unless they are too many', () => {
+		expect(pageUrl(1, 0, 1, 2, undefined, 'png', [7, 41])).toMatch(/\?scale=1\.000&rev=2&hide=7,41&fmt=png$/);
+		expect(pageUrl(1, 0, 1, 2, undefined, 'png', [])).toMatch(/&rev=2&fmt=png$/);
+		const many = Array.from({ length: MAX_HIDDEN + 1 }, (_, i) => i);
+		expect(pageUrl(1, 0, 1, 2, undefined, 'png', many)).toMatch(/&rev=2&fmt=png$/);
+		expect(pageUrl(1, 0, 1, 2, undefined, 'png', many.slice(1))).toContain('&hide=1,2,');
 	});
 });
 

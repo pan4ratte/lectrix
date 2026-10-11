@@ -163,6 +163,19 @@ int lectrix_pdf_dirty_annot(fz_context *ctx, pdf_annot *annot, lectrix_error *er
 }
 
 /*
+ * Draws one annotation on `dev`, as pdf_run_page_annots draws each of a page's: so a page
+ * can be drawn without some of its annotations (the ones the annotation list filters out).
+ */
+int lectrix_pdf_run_annot(fz_context *ctx, pdf_annot *annot, fz_device *dev, lectrix_error *err)
+{
+	fz_try(ctx)
+		pdf_run_annot(ctx, annot, dev, fz_identity, NULL);
+	fz_catch(ctx)
+		return lectrix_caught(ctx, err);
+	return 0;
+}
+
+/*
  * A read-only fz_stream over an operating-system file handle that the caller opened.
  *
  * MuPDF's own file stream (fz_open_file) opens files without FILE_SHARE_DELETE on
