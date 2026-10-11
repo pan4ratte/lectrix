@@ -13,6 +13,7 @@ use mupdf::text_page::TextPageFlags;
 
 use pdf_core::annot::quads::Quad;
 use pdf_core::annot::{self, AnnotationEdit, Body, MarkupKind, MarkupSpec, NewAnnotation, Rgb};
+use pdf_core::docinfo::{self, PdfA};
 use pdf_core::geometry::{Point, Rect};
 use pdf_core::labels::{self, LabelRule, LabelStyle};
 use pdf_core::merge::{
@@ -36,7 +37,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Command {
-    /// Generate a sample PDF (text pages; optional rotation, CropBox, UserUnit).
+    /// Generate a sample PDF (text pages; optional rotation, CropBox, UserUnit, PDF/A claim).
     Gen {
         out: PathBuf,
         #[arg(long, default_value_t = 3)]
@@ -50,8 +51,12 @@ enum Command {
         user_unit: Option<f64>,
         #[arg(long, default_value = "Lectrix sample")]
         title: String,
+        /// Claim a PDF/A level in XMP metadata, such as 1b, 2u or 4 (the claim only: the
+        /// file does not comply).
+        #[arg(long, value_parser = parse_pdfa)]
+        pdfa: Option<PdfA>,
     },
-    /// Print page count, page labels, outline and annotations.
+    /// Print page count, PDF/A claim, page labels, outline and annotations.
     Info { input: PathBuf },
     /// Page labels.
     Labels {
@@ -402,6 +407,7 @@ fn run(command: Command) -> Result<()> {
             crop,
             user_unit,
             title,
+            pdfa,
         } => {
             let doc = testgen::sample_document(&SampleSpec {
                 pages,
@@ -409,6 +415,7 @@ fn run(command: Command) -> Result<()> {
                 crop_box: crop,
                 user_unit,
                 title,
+                pdfa,
                 ..SampleSpec::default()
             })?;
             save::save_atomic(&doc, SaveKind::Full, None, &out)?;
@@ -790,6 +797,9 @@ fn info(path: &Path) -> Result<()> {
     let doc = open(path)?;
     let count = usize::try_from(doc.page_count()?).unwrap_or(0);
     println!("pages: {count}");
+    if let Some(level) = docinfo::read_pdfa(&doc) {
+        println!("claims: {level}");
+    }
     let mut rotated = Vec::new();
     for p in 0..count {
         let obj = doc.find_page(i32::try_from(p).unwrap_or(i32::MAX))?;
@@ -1375,6 +1385,23 @@ fn parse_rect(s: &str) -> std::result::Result<Rect, String> {
         [x0, y0, x1, y1] => Ok(Rect::new(*x0, *y0, *x1, *y1)),
         _ => Err("expected x0,y0,x1,y1".into()),
     }
+}
+
+/// A PDF/A level as it is usually written after "PDF/A-": 1b, 2u, 3a, 4, 4f.
+fn parse_pdfa(s: &str) -> std::result::Result<PdfA, String> {
+    let bad = || "expected a part and a conformance level, such as 1b, 2u or 4".to_string();
+    let mut chars = s.trim().chars();
+    let part = chars
+        .next()
+        .and_then(|c| c.to_digit(10))
+        .and_then(|d| u8::try_from(d).ok())
+        .filter(|&d| d >= 1)
+        .ok_or_else(bad)?;
+    let conformance = chars.next().map(|c| c.to_ascii_uppercase());
+    if chars.next().is_some() || conformance.is_some_and(|c| !c.is_ascii_alphabetic()) {
+        return Err(bad());
+    }
+    Ok(PdfA { part, conformance })
 }
 
 fn parse_color(s: &str) -> std::result::Result<Rgb, String> {

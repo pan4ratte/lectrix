@@ -79,6 +79,16 @@ If you have PDFs whose annotations display wrongly in Acrobat, open one in Lectr
 annotation list (the Annotations panel, in the right pane at first) marks the ones that need repair. Run Document > Repair annotations,
 save a copy, and check the copy in Acrobat.
 
+- [ ] Open a PDF/A file (Word: Save As > PDF > Options > "PDF/A compliant"; LibreOffice:
+      Export as PDF > Archive). Lectrix shows the bar "This file claims compliance with the
+      PDF/A standard…" with the same level Acrobat names in its Standards panel, and the
+      annotation tools are disabled.
+- [ ] After **Enable editing**, add a bookmark and save: no notification about PDF/A, and
+      Acrobat still opens the file with its own PDF/A bar.
+- [ ] Add a highlight and save: Lectrix says the file "no longer claims to be PDF/A-…".
+      Acrobat opens it without its PDF/A bar, and File > Properties still shows the title,
+      author and other details the file had.
+
 # Manual release checklist: installers, crash recovery, accessibility
 
 About 20 minutes. The installers come from CI (the `installers` artifact) or from

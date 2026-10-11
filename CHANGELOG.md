@@ -21,6 +21,8 @@ the wording, translations): docs/releasing.md, "The changelog".
 - Drag the start or the end of selected text to select more or less of it.
 - With text selected, **Shift** and the arrow keys select more or less: a character or a line at a time, and a word or a paragraph with **Ctrl** too.
 - A double-click selects the whole word and a triple-click the whole line, instead of only the part before the pointer.
+- A PDF/A file (the standard for documents kept for the long term) opens for reading only, as in Acrobat, so that it is not changed by accident. A bar above the pages says so, and **Enable editing** lets you change the file.
+- Saving annotations or inserted pages into a PDF/A file removes the file’s claim to be PDF/A, and Lectrix tells you: it can’t guarantee that they follow the standard. Bookmarks, page labels and rotated pages keep the claim.
 
 ### Annotations
 
@@ -31,6 +33,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 ### Settings
 
 - **Show handles on selected text**, under General, puts a handle at the start and at the end of selected text, to drag it by.
+- **Open PDF/A files for reading only**, under General, can be turned off to open such files ready to edit.
 - **Shortcuts** lists every keyboard shortcut, with a search field, and lets you change them: press a shortcut, then the keys it should have. Commands without one can get one, and menus and tooltips show the keys you chose.
 - **Restore defaults…**, under General, puts every setting back to how Lectrix came, after asking.
 - The theme is chosen with a three-way switch (System, Light, Dark) instead of a list.

@@ -1,4 +1,5 @@
-// Dates and sizes as the start screen's recent files show them, in the user's locale.
+// Dates and sizes as the start screen's recent files show them, in the user's locale, and
+// a PDF/A level as the app names it.
 
 /**
  * When a file was opened, as short as a list needs: "Today, 19:07", "Yesterday, 22:16",
@@ -21,6 +22,12 @@ export function openedDate(ms: number, now: number = Date.now(), locale?: string
 /** The full date and time, for a tooltip. */
 export function fullDate(ms: number, locale?: string): string {
 	return new Date(ms).toLocaleString(locale, { dateStyle: 'full', timeStyle: 'short' });
+}
+
+/** A PDF/A level as it is usually written: "PDF/A-1b", and "PDF/A-4" without a conformance
+ * level. */
+export function pdfaName(level: { part: number; conformance: string | null }): string {
+	return `PDF/A-${level.part}${level.conformance?.toLowerCase() ?? ''}`;
 }
 
 const UNITS = ['KB', 'MB', 'GB', 'TB'];

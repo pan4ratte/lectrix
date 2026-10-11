@@ -201,14 +201,26 @@ export class DocTab {
 	displayLabels = $derived(this.previewLabels ?? this.labels);
 	/** Start page of the label rule selected in the Page labels panel. */
 	selectedLabelRule = $state<number | null>(null);
-	flags = $state<DocumentFlags>({
+	/** What Rust reports about the file: what it allows and how it is saved. */
+	fileFlags = $state<DocumentFlags>({
 		encrypted: false,
 		signed: false,
 		repaired: false,
 		canAssemble: true,
 		canAnnotate: true,
-		canCopy: true
+		canCopy: true,
+		pdfa: null
 	});
+	/**
+	 * Open for reading only, as a file that claims PDF/A opens (section 5.4), until the user
+	 * enables editing: Rust says so, and refuses every change meanwhile.
+	 */
+	readOnly = $state(false);
+	/** What the document allows now: the file's flags, and no change of any kind while it
+	 * is open for reading only. */
+	flags = $derived<DocumentFlags>(
+		this.readOnly ? { ...this.fileFlags, canAssemble: false, canAnnotate: false } : this.fileFlags
+	);
 	state = $state<DocumentState>({ revision: 0, dirty: false, undoName: null, redoName: null });
 	outline = $state<Outline>({ items: [], damaged: false });
 	/** The bookmark selected in the panel. */
@@ -288,7 +300,8 @@ export class DocTab {
 		this.labels = info.labels;
 		this.labelRules = info.labelRules;
 		this.previewLabels = null;
-		this.flags = info.flags;
+		this.fileFlags = info.flags;
+		this.readOnly = info.readOnly;
 		this.state = info.state;
 		this.setOutline(info.outline);
 		this.setAnnotations(info.annotations, true);
@@ -333,6 +346,11 @@ export class DocTab {
 	/** What a save changed beyond the state: ids, after Save As (optimized) renumbered objects. */
 	applySaved(result: SaveResult) {
 		if (result.outline) this.setOutline(result.outline);
+		// A save that may have broken PDF/A took the claim out of the file (section 5.4).
+		if (result.pdfaRemoved) {
+			this.fileFlags = { ...this.fileFlags, pdfa: null };
+			this.readOnly = false;
+		}
 		if (result.annotations.length) this.setAnnotations(result.annotations, false);
 	}
 

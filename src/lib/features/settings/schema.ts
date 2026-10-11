@@ -234,7 +234,11 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 							description:
 								'How pages are laid out when a document opens. View > Page display changes it for the open document.'
 						}
-					)
+					),
+					toggle('pdfaReadOnly', 'Open PDF/A files for reading only', {
+						description:
+							'Files made for long-term archiving open protected from changes, until you choose Enable editing.'
+					})
 				]
 			},
 			{
@@ -389,6 +393,7 @@ export function toInput(d: Draft): SettingsInput {
 		openCommentAfterMarkup: d.openCommentAfterMarkup,
 		rememberAnnotationStyle: d.rememberAnnotationStyle,
 		selectionHandles: d.selectionHandles,
+		pdfaReadOnly: d.pdfaReadOnly,
 		shortcuts: copyShortcuts(d.shortcuts)
 	};
 }

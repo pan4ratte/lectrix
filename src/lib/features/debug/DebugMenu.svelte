@@ -13,6 +13,8 @@
 		rehearseBanner,
 		rehearseError,
 		rehearseInfo,
+		rehearsePdfa,
+		rehearsePdfaRemoved,
 		rehearseRecovery,
 		rehearseUpdate,
 		rehearseUpdated,
@@ -79,6 +81,7 @@
 					<Menubar.Item class="menu-item" onSelect={rehearseInfo}>Information</Menubar.Item>
 					<Menubar.Item class="menu-item" onSelect={() => rehearseError(false)}>Error</Menubar.Item>
 					<Menubar.Item class="menu-item" onSelect={() => rehearseError(true)}>Error with a button</Menubar.Item>
+					<Menubar.Item class="menu-item" onSelect={rehearsePdfaRemoved}>PDF/A claim removed</Menubar.Item>
 				</Menubar.SubContent>
 			</Menubar.Sub>
 			<Menubar.Sub>
@@ -93,6 +96,7 @@
 					<Menubar.Item class="menu-item" onSelect={() => rehearseBanner('deletedOnDisk')}>Removed</Menubar.Item>
 				</Menubar.SubContent>
 			</Menubar.Sub>
+			<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={rehearsePdfa}>PDF/A file, for reading only</Menubar.Item>
 			<Menubar.Sub>
 				<Menubar.SubTrigger class="menu-item">Crash recovery{@render chevron()}</Menubar.SubTrigger>
 				<Menubar.SubContent class="menu-content" align="start" alignOffset={SUBMENU_OFFSET}>

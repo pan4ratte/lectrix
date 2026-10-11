@@ -7,6 +7,7 @@
 use mupdf::pdf::{PdfDocument, PdfObject};
 use mupdf::{Buffer, Font, SimpleFontEncoding};
 
+use crate::docinfo::PdfA;
 use crate::error::Result;
 use crate::geometry::Rect;
 use crate::objects;
@@ -22,6 +23,9 @@ pub struct SampleSpec {
     pub crop_box: Option<Rect>,
     pub user_unit: Option<f64>,
     pub title: String,
+    /// The PDF/A level the document claims in XMP metadata. Only the claim is written:
+    /// the pages do not comply (their font is not embedded).
+    pub pdfa: Option<PdfA>,
 }
 
 impl Default for SampleSpec {
@@ -33,6 +37,7 @@ impl Default for SampleSpec {
             crop_box: None,
             user_unit: None,
             title: "Lectrix sample".into(),
+            pdfa: None,
         }
     }
 }
@@ -92,8 +97,40 @@ pub fn sample_document(spec: &SampleSpec) -> Result<PdfDocument> {
     info.dict_put("Producer", PdfObject::new_string("Lectrix testgen")?)?;
     let info = doc.add_object(&info)?;
     doc.trailer()?.dict_put("Info", info)?;
+    if let Some(level) = spec.pdfa {
+        let xmp = pdfa_metadata(level);
+        let mut metadata =
+            doc.add_stream(&Buffer::from_copied_bytes(xmp.as_bytes())?, None, false)?;
+        metadata.dict_put("Type", PdfObject::new_name("Metadata")?)?;
+        metadata.dict_put("Subtype", PdfObject::new_name("XML")?)?;
+        doc.catalog()?.dict_put("Metadata", metadata)?;
+    }
     Ok(doc)
 }
+
+/// An XMP packet that claims a PDF/A level, as PDF/A writers identify their files.
+fn pdfa_metadata(level: PdfA) -> String {
+    let conformance = level
+        .conformance
+        .map(|c| format!("   <pdfaid:conformance>{c}</pdfaid:conformance>{NL}"))
+        .unwrap_or_default();
+    [
+        r#"<?xpacket begin="" id="W5M0MpCehiHzreSzNTczkc9d"?>"#,
+        r#"<x:xmpmeta xmlns:x="adobe:ns:meta/">"#,
+        r#" <rdf:RDF xmlns:rdf="http://www.w3.org/1999/02/22-rdf-syntax-ns#">"#,
+        r#"  <rdf:Description rdf:about="" xmlns:pdfaid="http://www.aiim.org/pdfa/ns/id/">"#,
+        &format!(
+            "   <pdfaid:part>{}</pdfaid:part>{NL}{conformance}  </rdf:Description>",
+            level.part
+        ),
+        " </rdf:RDF>",
+        "</x:xmpmeta>",
+        r#"<?xpacket end="w"?>"#,
+    ]
+    .join(NL)
+}
+
+const NL: &str = "\n";
 
 fn page_content(index: usize, visible: Rect) -> String {
     let left = visible.x0 + 36.0;

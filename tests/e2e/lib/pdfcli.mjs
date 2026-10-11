@@ -19,12 +19,13 @@ export function cli(...args) {
 	return execFileSync(cliPath(), args, { encoding: 'utf8' });
 }
 
-/** A fresh generated sample in target/test-output/e2e/<name>. */
-export function sample(name, pages = 5) {
+/** A fresh generated sample in target/test-output/e2e/<name>; `options` are further
+ * `pdf-cli gen` options, such as `['--pdfa', '1b']`. */
+export function sample(name, pages = 5, options = []) {
 	mkdirSync(OUT, { recursive: true });
 	const path = join(OUT, name);
 	rmSync(path, { force: true });
-	cli('gen', path, '--pages', String(pages));
+	cli('gen', path, '--pages', String(pages), ...options);
 	return path;
 }
 

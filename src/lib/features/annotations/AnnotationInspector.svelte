@@ -243,7 +243,9 @@
 			aria-label="Annotation comment"
 			data-panel-scroll
 		>
-			{#if !tab.flags.canAnnotate}
+			{#if tab.readOnly}
+				<p class="text-xs text-fg-muted">This document is open for reading only. Enable editing to change annotations.</p>
+			{:else if !tab.flags.canAnnotate}
 				<p class="text-xs text-fg-muted">This document’s security settings don’t allow changing annotations.</p>
 			{:else if a.id === 0}
 				<p class="text-xs text-fg-muted">This annotation is stored in a way Lectrix can show but not change.</p>

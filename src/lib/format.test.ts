@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { fileSize, openedDate } from './format.ts';
+import { fileSize, openedDate, pdfaName } from './format.ts';
 
 describe('openedDate', () => {
 	const now = new Date(2026, 9, 6, 20, 0).getTime();
@@ -36,5 +36,13 @@ describe('fileSize', () => {
 		expect(fileSize(250 * 1024 * 1024, 'en-US')).toBe('250 MB');
 		expect(fileSize(2 * 1024 ** 3, 'en-US')).toBe('2 GB');
 		expect(fileSize(1536, 'ru-RU')).toBe('1,5 KB');
+	});
+});
+
+describe('pdfaName', () => {
+	it('writes the level as the standard is usually named', () => {
+		expect(pdfaName({ part: 1, conformance: 'B' })).toBe('PDF/A-1b');
+		expect(pdfaName({ part: 3, conformance: 'a' })).toBe('PDF/A-3a');
+		expect(pdfaName({ part: 4, conformance: null })).toBe('PDF/A-4');
 	});
 });

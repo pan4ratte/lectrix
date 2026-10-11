@@ -37,7 +37,7 @@ use mupdf::pdf::PdfDocument;
 
 use crate::annot::read::{AnnotationInfo, read_all as read_annotations};
 use crate::annot::repair::{self, RepairChange, RepairScan};
-use crate::docinfo::{DocumentFlags, PageLayout, read_flags, read_page_layout};
+use crate::docinfo::{self, DocumentFlags, PageLayout, PdfA, read_flags, read_page_layout};
 use crate::error::{Error, Result};
 use crate::ffi::{Journal, open_pdf_shared, save_snapshot};
 use crate::geometry::{PageGeometry, read_page_boxes};
@@ -86,6 +86,9 @@ pub struct DocumentInfo {
     /// `None` when the document has no `/PageLabels`.
     pub labels: Option<PageLabels>,
     pub flags: DocumentFlags,
+    /// The document is open for reading only: every operation is refused until
+    /// [`Session::enable_editing`] (a file that claims PDF/A, section 5.4).
+    pub read_only: bool,
     /// How the document asks to be laid out (its `/PageLayout`), if it does.
     pub page_layout: Option<PageLayout>,
     pub state: DocumentState,
@@ -140,6 +143,17 @@ pub struct SaveResult {
     pub outline: Option<Outline>,
     /// Pages whose annotations read differently after the save (renumbered objects).
     pub annotations: Vec<(usize, Vec<AnnotationInfo>)>,
+    /// The PDF/A level the file claimed until this save took the claim out of it, because
+    /// the changes saved may not comply (section 5.4).
+    pub pdfa_removed: Option<PdfA>,
+}
+
+/// How [`Session::open_with`] opens a file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub struct OpenOptions {
+    /// Open a file that claims PDF/A for reading only (section 5.4): operations are
+    /// refused until [`Session::enable_editing`].
+    pub pdfa_read_only: bool,
 }
 
 /// Search results for one page.
@@ -175,6 +189,9 @@ enum Command {
         open: bool,
         reply: Reply<()>,
     },
+    EnableEditing {
+        reply: Reply<()>,
+    },
     ScanAnnotations {
         reply: Reply<RepairScan>,
     },
@@ -206,18 +223,30 @@ impl Session {
     /// Encrypted documents need `password` ([`Error::PasswordRequired`] without one,
     /// [`Error::WrongPassword`] if it does not fit).
     pub fn open(path: &Path, password: Option<&str>) -> Result<(Session, DocumentInfo)> {
+        Self::open_with(path, password, OpenOptions::default())
+    }
+
+    /// Opens `path` as [`Session::open`] does, with `options`.
+    pub fn open_with(
+        path: &Path,
+        password: Option<&str>,
+        options: OpenOptions,
+    ) -> Result<(Session, DocumentInfo)> {
         Self::spawn(Origin {
             file: path.to_path_buf(),
             path: path.to_path_buf(),
             password: password.map(str::to_owned),
             restored: false,
+            options,
         })
     }
 
     /// Opens a recovery copy written by [`Session::write_recovery`] as the document of
     /// `path`, the file it is a copy of. The session reads from `copy`, which must stay
     /// until the session is saved, reloaded or closed. It saves to `path`, and it is dirty
-    /// until then. Its undo history starts here.
+    /// until then. Its undo history starts here. It is being edited, so it is never opened
+    /// for reading only; what its unsaved changes are is not known, so if it claims PDF/A,
+    /// saving it takes the claim out.
     pub fn restore(
         copy: &Path,
         path: &Path,
@@ -228,6 +257,7 @@ impl Session {
             path: path.to_path_buf(),
             password: password.map(str::to_owned),
             restored: true,
+            options: OpenOptions::default(),
         })
     }
 
@@ -349,6 +379,12 @@ impl Session {
         self.call(|reply| Command::SetBookmarkOpen { id, open, reply })
     }
 
+    /// Lets a document that was opened for reading only be changed. Bookmarks expanded
+    /// or collapsed meanwhile are written at the next save, as in any document.
+    pub fn enable_editing(&self) -> Result<()> {
+        self.call(|reply| Command::EnableEditing { reply })
+    }
+
     /// Counts annotation problems that "Repair annotations" would fix (section 5.3).
     pub fn scan_annotations(&self) -> Result<RepairScan> {
         self.call(|reply| Command::ScanAnnotations { reply })
@@ -401,6 +437,7 @@ struct Origin {
     password: Option<String>,
     /// `file` is a recovery copy of `path`.
     restored: bool,
+    options: OpenOptions,
 }
 
 struct Actor {
@@ -411,6 +448,9 @@ struct Actor {
     file: PathBuf,
     password: Option<String>,
     flags: DocumentFlags,
+    /// Open for reading only: operations are refused and nothing but what the file
+    /// already holds is written.
+    read_only: bool,
     pages: Vec<PageSize>,
     labels: Option<PageLabels>,
     /// The outline as the document has it.
@@ -421,6 +461,9 @@ struct Actor {
     open_states: HashMap<u32, bool>,
     /// Revision of the content at each journal position (index 0: as opened or saved).
     history: Vec<u64>,
+    /// Whether the step that led to each journal position may have broken a PDF/A claim
+    /// (index 0: the changes a restored document came with, which are not known).
+    breaks_pdfa: Vec<bool>,
     position: usize,
     saved_revision: u64,
     next_revision: u64,
@@ -462,6 +505,10 @@ fn actor(origin: Origin, rx: Receiver<Command>, ready: SyncSender<Result<Documen
             }
             Command::SetBookmarkOpen { id, open, reply } => {
                 actor.set_bookmark_open(id, open);
+                let _ = reply.send(Ok(()));
+            }
+            Command::EnableEditing { reply } => {
+                actor.read_only = false;
                 let _ = reply.send(Ok(()));
             }
             Command::ScanAnnotations { reply } => {
@@ -536,9 +583,11 @@ impl Actor {
             path,
             password,
             restored,
+            options,
         } = origin;
         let doc = load(&file, password.as_deref())?;
         let flags = read_flags(&doc)?;
+        let read_only = options.pdfa_read_only && flags.pdfa.is_some() && !restored;
         let pages = page_sizes(&doc)?;
         let labels = page_labels(&doc, pages.len())?;
         let outline = outline::read_bookmarks(&doc)?;
@@ -552,12 +601,14 @@ impl Actor {
             file,
             password,
             flags,
+            read_only,
             pages,
             labels,
             outline,
             annotations,
             open_states: HashMap::new(),
             history,
+            breaks_pdfa: vec![restored],
             position: 0,
             saved_revision: 0,
             next_revision,
@@ -588,6 +639,7 @@ impl Actor {
             pages: self.pages.clone(),
             labels: self.labels.clone(),
             flags: self.flags,
+            read_only: self.read_only,
             // A value that can't be read counts as none: it only picks the first view.
             page_layout: read_page_layout(&self.doc).ok().flatten(),
             state: self.state(),
@@ -633,10 +685,11 @@ impl Actor {
     /// Writes the panel's expanded states into the outline, as an unnamed journal change so
     /// they are not an undo step of their own. Skipped where writing them would be an edit
     /// the user did not ask for: a signed document with no other changes (the save would
-    /// add a revision after the signature), or one whose permissions do not allow outline
-    /// changes.
+    /// add a revision after the signature), one whose permissions do not allow outline
+    /// changes, or one open for reading only (they wait until editing is enabled).
     fn write_open_states(&mut self) -> Result<()> {
         if self.open_states.is_empty()
+            || self.read_only
             || !self.flags.can_assemble
             || (self.flags.signed && self.revision() == self.saved_revision)
         {
@@ -676,6 +729,9 @@ impl Actor {
 
     fn apply(&mut self, op: &Operation) -> Result<DocumentChange> {
         op.validate(self.pages.len())?;
+        if self.read_only {
+            return Err(Error::ReadOnly);
+        }
         if (!self.flags.can_assemble && op.needs_assemble())
             || (!self.flags.can_annotate && op.needs_annotate())
         {
@@ -700,6 +756,8 @@ impl Actor {
             self.next_revision += 1;
             self.history.truncate(before + 1);
             self.history.resize(after + 1, revision);
+            self.breaks_pdfa.truncate(before + 1);
+            self.breaks_pdfa.resize(after + 1, op.may_break_pdfa());
             self.position = after;
         }
         let mut change = self.changed()?;
@@ -731,6 +789,10 @@ impl Actor {
             let revision = self.next_revision;
             self.next_revision += 1;
             self.history.resize(current + 1, revision);
+        }
+        // What an unseen step did is not known.
+        if current >= self.breaks_pdfa.len() {
+            self.breaks_pdfa.resize(current + 1, true);
         }
         self.position = current;
         self.changed()
@@ -802,11 +864,25 @@ impl Actor {
             kind
         };
         self.write_open_states()?;
-        let outcome = if kind == SaveKind::Optimized {
-            self.save_optimized(&target)?
+        let claim = self.remove_broken_pdfa_claim()?;
+        let saved = if kind == SaveKind::Optimized {
+            self.save_optimized(&target)
         } else {
-            save_atomic(&self.doc, kind, Some(&self.file), &target)?
+            save_atomic(&self.doc, kind, Some(&self.file), &target)
         };
+        let outcome = match saved {
+            Ok(outcome) => outcome,
+            Err(e) => {
+                // Nothing was written: the document in memory claims again what its file
+                // does (best effort; the next save would take the claim out again).
+                if let Some(claim) = &claim {
+                    let _ = self
+                        .rewrite_metadata(|doc| docinfo::restore_metadata(doc, &claim.metadata));
+                }
+                return Err(e);
+            }
+        };
+        let pdfa_removed = claim.map(|claim| claim.level);
         let revision = self.revision();
         self.saved_revision = revision;
         let mut outline_changed = None;
@@ -821,6 +897,7 @@ impl Actor {
                 self.flags = read_flags(&self.doc)?;
                 self.lists.clear();
                 self.history = vec![revision];
+                self.breaks_pdfa = vec![false];
                 self.position = 0;
                 let outline = outline::read_bookmarks(&self.doc)?;
                 if outline != self.outline {
@@ -831,8 +908,15 @@ impl Actor {
                 annotations = self.reread_annotations()?;
             }
             // The file is saved; keep working on the old in-memory document.
-            Err(_) => self.needs_full_save = true,
+            Err(_) => {
+                self.needs_full_save = true;
+                if pdfa_removed.is_some() {
+                    self.flags.pdfa = None;
+                }
+            }
         }
+        // A file that no longer claims PDF/A has nothing to open for reading only.
+        self.read_only &= self.flags.pdfa.is_some();
         self.path = target;
         Ok(SaveResult {
             state: self.state(),
@@ -840,7 +924,47 @@ impl Actor {
             path: self.path.clone(),
             outline: outline_changed,
             annotations,
+            pdfa_removed,
         })
+    }
+
+    /// Takes the PDF/A claim out of the metadata if the changes about to be saved may have
+    /// broken it (section 5.4): a file must not say it complies when Lectrix cannot vouch
+    /// for what it wrote. Changes that were undone do not count. Like the bookmarks'
+    /// expanded states, this is written as an unnamed journal change. Returns what was
+    /// removed, with the metadata as it was.
+    fn remove_broken_pdfa_claim(&mut self) -> Result<Option<RemovedClaim>> {
+        let broken = self
+            .breaks_pdfa
+            .iter()
+            .take(self.position + 1)
+            .any(|&breaks| breaks);
+        if self.flags.pdfa.is_none() || !broken {
+            return Ok(None);
+        }
+        let Some(metadata) = docinfo::metadata_bytes(&self.doc) else {
+            return Ok(None);
+        };
+        let level = self.rewrite_metadata(docinfo::remove_pdfa_claim)?;
+        Ok(level.map(|level| RemovedClaim { level, metadata }))
+    }
+
+    /// Runs `write`, which changes the metadata, as an unnamed journal change.
+    fn rewrite_metadata<T>(
+        &mut self,
+        write: impl FnOnce(&mut PdfDocument) -> Result<T>,
+    ) -> Result<T> {
+        Journal::new(&mut self.doc).begin_implicit()?;
+        match write(&mut self.doc) {
+            Ok(value) => {
+                self.doc.end_operation()?;
+                Ok(value)
+            }
+            Err(e) => {
+                self.doc.abandon_operation()?;
+                Err(e)
+            }
+        }
     }
 
     /// "Save As (optimized)": garbage collection renumbers and merges the objects of the
@@ -885,6 +1009,7 @@ impl Actor {
         self.doc = doc;
         self.file = self.path.clone();
         self.flags = read_flags(&self.doc)?;
+        self.read_only &= self.flags.pdfa.is_some();
         self.pages = page_sizes(&self.doc)?;
         self.labels = page_labels(&self.doc, self.pages.len())?;
         self.outline = outline::read_bookmarks(&self.doc)?;
@@ -896,10 +1021,18 @@ impl Actor {
         let revision = self.next_revision;
         self.next_revision += 1;
         self.history = vec![revision];
+        self.breaks_pdfa = vec![false];
         self.position = 0;
         self.saved_revision = revision;
         Ok(())
     }
+}
+
+/// A PDF/A claim taken out of a document for a save.
+struct RemovedClaim {
+    level: PdfA,
+    /// The metadata as it was, to put back if the save fails.
+    metadata: Vec<u8>,
 }
 
 /// Page sizes from the page dictionaries (no content parsing).

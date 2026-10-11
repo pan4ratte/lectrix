@@ -20,9 +20,11 @@ import { selectionRanges } from './geometry.ts';
 import { tools } from './state.svelte.ts';
 import { PROBLEM_SUMMARY, showsComment, type DrawTool, type MarkupKind } from './tools.ts';
 
-/** Tells the user why nothing happens in a document that forbids annotating. */
+/** Tells the user why nothing happens in a document that forbids annotating, or that is
+ * open for reading only. */
 export function refuseIfLocked(tab: DocTab): boolean {
 	if (tab.flags.canAnnotate) return false;
+	if (app.refuseReadOnly(tab)) return true;
 	app.notify({
 		kind: 'error',
 		message: 'This document’s security settings don’t allow adding or changing annotations.',

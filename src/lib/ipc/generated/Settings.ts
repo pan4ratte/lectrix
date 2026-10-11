@@ -58,6 +58,11 @@ rememberAnnotationStyle: boolean,
  */
 selectionHandles: boolean, 
 /**
+ * Whether a file that claims PDF/A opens for reading only, until the user enables
+ * editing (section 5.4); otherwise it opens ready to edit, as any file.
+ */
+pdfaReadOnly: boolean, 
+/**
  * Keyboard shortcuts that differ from the defaults (section 6.6): a command's name
  * and its keys ("Ctrl+Shift+S"); no keys, no shortcut. The frontend knows the
  * commands and their defaults (`src/lib/shortcuts.ts`).

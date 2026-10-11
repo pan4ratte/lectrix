@@ -418,6 +418,7 @@ fn settings_of(stored: &StoredSettings, platform: &dyn Platform) -> Settings {
         open_comment_after_markup: stored.open_comment_after_markup,
         remember_annotation_style: stored.remember_annotation_style,
         selection_handles: stored.selection_handles,
+        pdfa_read_only: stored.pdfa_read_only,
         shortcuts: stored.shortcuts.clone(),
     }
 }
@@ -468,6 +469,7 @@ pub fn set_settings(
         open_comment_after_markup: settings.open_comment_after_markup,
         remember_annotation_style: settings.remember_annotation_style,
         selection_handles: settings.selection_handles,
+        pdfa_read_only: settings.pdfa_read_only,
         shortcuts: settings
             .shortcuts
             .iter()
@@ -701,6 +703,15 @@ pub fn set_bookmark_open(
         .documents
         .session(id)?
         .set_bookmark_open(bookmark, open)?)
+}
+
+/// Lets a document that was opened for reading only (a file that claims PDF/A, section
+/// 5.4) be changed, for as long as it stays open.
+#[tauri::command(async)]
+pub fn enable_editing(state: State<'_, AppState>, id: u32) -> Result<(), AppError> {
+    state.documents.session(id)?.enable_editing()?;
+    crate::applog::info(format!("document {id}: editing enabled"));
+    Ok(())
 }
 
 #[tauri::command(async)]

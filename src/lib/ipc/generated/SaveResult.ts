@@ -2,6 +2,7 @@
 import type { DocumentState } from "./DocumentState";
 import type { Outline } from "./Outline";
 import type { PageAnnotations } from "./PageAnnotations";
+import type { PdfaLevel } from "./PdfaLevel";
 
 export type SaveResult = { state: DocumentState, 
 /**
@@ -20,4 +21,9 @@ outline: Outline | null,
 /**
  * Pages whose annotations read differently after saving (renumbered objects).
  */
-annotations: Array<PageAnnotations>, };
+annotations: Array<PageAnnotations>, 
+/**
+ * The PDF/A level the file claimed until this save took the claim out of it: what
+ * was saved (annotations, inserted pages) may not comply (section 5.4).
+ */
+pdfaRemoved: PdfaLevel | null, };

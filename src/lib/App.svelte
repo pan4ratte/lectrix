@@ -11,6 +11,7 @@
 	import BookmarkInspector from '#lib/features/bookmarks/BookmarkInspector.svelte';
 	import DialogHost from '#lib/components/DialogHost.svelte';
 	import FileBanner from '#lib/components/FileBanner.svelte';
+	import PdfaBanner from '#lib/components/PdfaBanner.svelte';
 	import PasswordDialog from '#lib/components/PasswordDialog.svelte';
 	import PaneToggle from '#lib/components/PaneToggle.svelte';
 	import PanelDragGhost from '#lib/components/PanelDragGhost.svelte';
@@ -260,6 +261,7 @@
 						{@render paneEnd('right')}
 					</div>
 					<FileBanner {tab} />
+					<PdfaBanner {tab} />
 					{#key tab.id}
 						<div class="relative flex min-h-0 flex-1 flex-col">
 							<Viewer {tab} />

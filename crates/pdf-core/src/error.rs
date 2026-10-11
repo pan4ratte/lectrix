@@ -30,6 +30,10 @@ pub enum Error {
     WrongPassword,
     #[error("the document's permissions do not allow this change")]
     NotPermitted,
+    /// The document is open for reading only (a file that claims PDF/A, section 5.4)
+    /// until editing is enabled.
+    #[error("the document is open for reading only")]
+    ReadOnly,
     /// The outline is malformed (a cycle, a shared item, an item that is not an indirect
     /// object): it is shown, but edits are refused.
     #[error("the document's bookmarks are damaged and cannot be edited")]

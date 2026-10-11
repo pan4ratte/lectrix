@@ -24,7 +24,9 @@ workflow with attested installers, and an in-app updater with a Settings switch
 (ADR 0011). Replies to annotations, written in the annotation list (ADR 0012). Scroll
 modes (single page, two pages, each continuous or not), with a Settings default. A
 changelog (`CHANGELOG.md`), shown by Help > What's new, before and after an update, and
-used as each release's description. Update checks once a day.
+used as each release's description. Update checks once a day. Files that claim PDF/A
+open for reading only until Enable editing, with a Settings switch, and lose the claim
+when a save may have broken it.
 
 ## Performance
 
@@ -52,6 +54,17 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
   choice. Right-to-left documents (`/ViewerPreferences /Direction /R2L`) still put their
   first page on the left in the two-page modes. In single page and two pages, a text
   selection cannot run on into the next row.
+- **PDF/A.** Lectrix reads the claim and does not check that a file complies. Nor does it
+  write annotations that comply (highlights use transparency, which PDF/A-1 forbids; text
+  boxes use Helvetica, which is not embedded), so a save with annotation changes or
+  inserted pages removes the claim instead. This errs on the safe side: deleting an
+  annotation removes it too, and so does saving a document restored after a crash,
+  whatever its changes were. That bookmarks, page labels, page rotation and a full or
+  optimized rewrite leave a file compliant follows from reading the standard; no validator
+  (veraPDF) runs in the tests. `pdf-cli`'s editing commands work on a document without a
+  session and leave the claim alone. Detection and removal are tested with generated files
+  that carry only the claim (`pdf-cli gen --pdfa 1b`), not with a real PDF/A file yet (the
+  manual checklist has one to make).
 - **Undo history restarts** after each save (ADR 0003) and after restoring a crash
   recovery copy: MuPDF 1.27.2 cannot load a saved journal (ADR 0001).
 - **Recovery copies of large damaged files** are full copies and take 1.2 to 1.5 s for

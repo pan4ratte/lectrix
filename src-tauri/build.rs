@@ -25,6 +25,7 @@ const COMMANDS: &[&str] = &[
     "execute_merge",
     "cancel_merge",
     "set_bookmark_open",
+    "enable_editing",
     "undo",
     "redo",
     "save",

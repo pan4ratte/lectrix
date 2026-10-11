@@ -26,6 +26,7 @@ function refuseEdit(tab: DocTab): boolean {
 		});
 		return true;
 	}
+	if (app.refuseReadOnly(tab)) return true;
 	if (!tab.flags.canAssemble) {
 		app.notify({
 			kind: 'error',

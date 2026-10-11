@@ -77,6 +77,16 @@ before the first edit and always save incrementally. Encrypted files keep their
 encryption, and permission flags are respected (no annotation tools without the annotate
 permission).
 
+PDF/A: a file that claims a level (`pdfaid:part` in its XMP metadata) opens for reading
+only until Enable editing, unless Settings says otherwise; the session refuses operations
+meanwhile (`Error::ReadOnly`). The write profile above is not PDF/A's (blended highlights,
+a font that is not embedded), so a save whose changes include an annotation added,
+changed, deleted or repaired, or inserted pages, removes the claim from the XMP
+(`docinfo::remove_pdfa_claim`: the `pdfaid` properties go, the rest stays byte for byte)
+and the user is told. Bookmarks, page labels and page rotation keep it. Enforced in
+`session.rs` (`Operation::may_break_pdfa`), tested in `crates/pdf-core/tests/pdfa.rs` and
+`tests/e2e/specs/pdfa.test.mjs`.
+
 ## Engine notes (from the interop harness)
 
 - PDFium ignores `/UserUnit` when sizing pages; MuPDF and pdf.js honour it. Annotations stay

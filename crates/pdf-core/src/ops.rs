@@ -205,6 +205,16 @@ impl Operation {
         )
     }
 
+    /// True if the operation may leave a file that claims PDF/A no longer complying, so
+    /// that saving it takes the claim out (section 5.4): whatever writes or changes an
+    /// annotation (appearances use transparency and a font that is not embedded, and
+    /// Lectrix checks none of the standard's other rules for them), and pages that come
+    /// from another file. Bookmarks, page labels and page rotation are no part of what
+    /// PDF/A constrains.
+    pub(crate) fn may_break_pdfa(&self) -> bool {
+        self.needs_annotate() || matches!(self, Operation::InsertPages { .. })
+    }
+
     /// True if the operation needs the "assemble" permission (bit 4 or 11), which covers
     /// rotating pages, creating outline items and other document-level changes such as
     /// page labels.

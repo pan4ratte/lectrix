@@ -414,6 +414,7 @@ pub fn run() {
             commands::execute_merge,
             commands::cancel_merge,
             commands::set_bookmark_open,
+            commands::enable_editing,
             commands::undo,
             commands::redo,
             commands::save,

@@ -275,7 +275,8 @@ describe('floating bars', () => {
 			repaired: false,
 			canAssemble: true,
 			canAnnotate: true,
-			canCopy: false
+			canCopy: false,
+			pdfa: null
 		};
 		expect(quickToolAllowed('highlight', flags, true)).toBe(true);
 		expect(quickToolAllowed('highlightNote', { ...flags, canAnnotate: false }, true)).toBe(false);

@@ -18,7 +18,7 @@ use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, SystemTime};
 
 use pdf_core::save::SaveKind;
-use pdf_core::session::{DocumentInfo as CoreInfo, Session};
+use pdf_core::session::{DocumentInfo as CoreInfo, OpenOptions, Session};
 
 use crate::ipc::{AppError, DocumentInfo, FileChangedEvent, OpenResult, SaveResult, ViewState};
 use crate::platform::Platform;
@@ -153,7 +153,16 @@ impl Documents {
         if !source && let Some(id) = self.find_open(path, platform) {
             return OpenResult::AlreadyOpen { id };
         }
-        match Session::open(path, password) {
+        // A file that claims PDF/A opens for reading only if Settings says so (section
+        // 5.4). A source is only read from.
+        let options = OpenOptions {
+            pdfa_read_only: !source
+                && store
+                    .lock()
+                    .map(|s| s.settings().pdfa_read_only)
+                    .unwrap_or(true),
+        };
+        match Session::open_with(path, password, options) {
             Ok((session, info)) => {
                 let id = self.next_id.fetch_add(1, Ordering::Relaxed) + 1;
                 let doc = OpenDoc {
@@ -193,7 +202,7 @@ impl Documents {
                     info.open_time.as_secs_f64() * 1000.0
                 ));
                 OpenResult::Opened {
-                    document: document_info(id, info, view),
+                    document: Box::new(document_info(id, info, view)),
                 }
             }
             Err(e @ (pdf_core::Error::PasswordRequired | pdf_core::Error::WrongPassword)) => {
@@ -303,7 +312,7 @@ impl Documents {
                     source.slot
                 ));
                 OpenResult::Opened {
-                    document: document_info(id, info, view),
+                    document: Box::new(document_info(id, info, view)),
                 }
             }
             Err(e @ (pdf_core::Error::PasswordRequired | pdf_core::Error::WrongPassword)) => {
@@ -456,6 +465,11 @@ impl Documents {
                 "document {id}: the file had been repaired, so it was saved in full"
             ));
         }
+        if let Some(level) = saved.pdfa_removed {
+            crate::applog::info(format!(
+                "document {id}: saved with changes that may not comply with {level}, so its claim was removed"
+            ));
+        }
         Ok(SaveResult {
             state: saved.state.into(),
             name: file_name(&saved.path),
@@ -463,6 +477,7 @@ impl Documents {
             fell_back_to_full: saved.outcome.fell_back_to_full,
             outline: saved.outline.map(Into::into),
             annotations: crate::annotations::changed(saved.annotations),
+            pdfa_removed: saved.pdfa_removed.map(Into::into),
         })
     }
 
@@ -539,6 +554,7 @@ pub fn document_info(id: u32, info: CoreInfo, view: Option<ViewState>) -> Docume
         labels,
         label_rules,
         flags: info.flags.into(),
+        read_only: info.read_only,
         page_layout: info.page_layout.map(Into::into),
         state: info.state.into(),
         outline: info.outline.into(),
@@ -593,6 +609,70 @@ mod tests {
             other => panic!("expected AlreadyOpen, got {other:?}"),
         }
         assert_eq!(store.lock().unwrap().recent().len(), 1);
+    }
+
+    /// A file that claims PDF/A opens for reading only while Settings says so: Rust then
+    /// refuses to change it until editing is enabled.
+    #[test]
+    fn pdfa_files_open_for_reading_only_unless_settings_say_otherwise() {
+        let (dir, docs, store) = setup("pdfa");
+        let platform = crate::platform::current();
+        let pdfa = |name: &str| {
+            let path = dir.join(name);
+            let doc = sample_document(&SampleSpec {
+                pdfa: Some(pdf_core::docinfo::PdfA {
+                    part: 2,
+                    conformance: Some('B'),
+                }),
+                ..SampleSpec::default()
+            })
+            .unwrap();
+            pdf_core::save::save_atomic(&doc, SaveKind::Full, None, &path).unwrap();
+            path
+        };
+        let rotate = || Operation::RotatePages {
+            pages: vec![0],
+            degrees: 90,
+        };
+
+        let OpenResult::Opened { document } =
+            docs.open(&pdfa("reading.pdf"), None, platform, &store)
+        else {
+            panic!("expected Opened");
+        };
+        assert!(document.read_only);
+        assert_eq!(
+            document.flags.pdfa,
+            Some(crate::ipc::PdfaLevel {
+                part: 2,
+                conformance: Some('B')
+            })
+        );
+        let session = docs.session(document.id).unwrap();
+        let refused: AppError = session.apply(rotate()).unwrap_err().into();
+        assert!(refused.message.contains("reading only"), "{refused:?}");
+        session.enable_editing().unwrap();
+        session.apply(rotate()).unwrap();
+
+        // A file without the claim is not affected.
+        let OpenResult::Opened { document } =
+            docs.open(&sample(&dir, "plain.pdf"), None, platform, &store)
+        else {
+            panic!("expected Opened");
+        };
+        assert!(!document.read_only);
+
+        // With the setting off, such files open ready to edit; as a source, always.
+        let mut settings = store.lock().unwrap().settings().clone();
+        settings.pdfa_read_only = false;
+        store.lock().unwrap().set_settings(settings);
+        let OpenResult::Opened { document } =
+            docs.open(&pdfa("editing.pdf"), None, platform, &store)
+        else {
+            panic!("expected Opened");
+        };
+        assert!(!document.read_only);
+        docs.session(document.id).unwrap().apply(rotate()).unwrap();
     }
 
     #[test]

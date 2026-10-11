@@ -6,6 +6,7 @@ import {
 	cancelUnlock,
 	closeDocument,
 	discardRecovered,
+	enableEditing as enableEditingCommand,
 	exitConfirmed,
 	listOpenDocuments,
 	listRecentFiles,
@@ -34,6 +35,7 @@ import {
 	type OperationInput,
 	type PaneLayout,
 	type PanelId,
+	type PdfaLevel,
 	type RecentFile,
 	type UpdateInfo,
 	type SaveResult,
@@ -54,6 +56,7 @@ import {
 import { CombineState } from '#lib/features/merge/combine.svelte.ts';
 import { reportDetail, signedWarning } from '#lib/features/merge/pages.ts';
 import { clampThumbWidth, DEFAULT_THUMB_WIDTH } from '#lib/features/viewer/thumbs.ts';
+import { pdfaName } from '#lib/format.ts';
 import { discardQuestion, recoveryQuestion } from '#lib/features/recovery/recovery.ts';
 import type { CommandName } from '#lib/commands.ts';
 import { shortcutOf } from '#lib/shortcuts.ts';
@@ -566,6 +569,7 @@ class AppStore {
 
 	/** Asks for a file and then for the options; pages go before page `at` by default. */
 	async insertFromFile(tab: DocTab, at = tab.currentPage + 1) {
+		if (this.refuseReadOnly(tab)) return;
 		if (!tab.flags.canAssemble) {
 			this.notify({
 				kind: 'error',
@@ -822,6 +826,51 @@ class AppStore {
 		return tab.signedWarningAccepted;
 	}
 
+	/**
+	 * Tells the user why nothing happens in a document open for reading only (a file that
+	 * claims PDF/A, section 5.4), and offers to enable editing. Returns true if it is.
+	 */
+	refuseReadOnly(tab: DocTab): boolean {
+		if (!tab.readOnly) return false;
+		const message = `${tab.name} is open for reading only, because it is a PDF/A file.`;
+		// Said once, however often the document is clicked with a tool meanwhile.
+		if (this.toasts.some((t) => t.message === message)) return true;
+		this.notify({
+			kind: 'info',
+			message,
+			suggestion: 'Enable editing to change it.',
+			action: { label: 'Enable editing', run: () => void this.enableEditing(tab) }
+		});
+		return true;
+	}
+
+	/** Lets a document that is open for reading only be changed, in Rust first. */
+	async enableEditing(tab: DocTab) {
+		if (!tab.readOnly) return;
+		try {
+			await enableEditingCommand(tab.id);
+			tab.readOnly = false;
+		} catch (e) {
+			this.showError(toAppError(e));
+		}
+	}
+
+	/**
+	 * Says that saving took the PDF/A claim out of a file (section 5.4): it can't be put
+	 * back, so the reason and what would have kept it are part of the message.
+	 */
+	notifyPdfaRemoved(name: string, level: PdfaLevel) {
+		this.notify(
+			{
+				kind: 'info',
+				message: `${name} no longer claims to be ${pdfaName(level)}.`,
+				suggestion:
+					'Annotations and inserted pages may not comply with that standard, so Lectrix removed the claim when saving. Changes to bookmarks, page labels and page rotation alone keep it.'
+			},
+			20000
+		);
+	}
+
 	/** Edits on their way to Rust; saving and closing wait for them. */
 	private inFlight = new Set<Promise<unknown>>();
 
@@ -852,6 +901,7 @@ class AppStore {
 	}
 
 	async rotatePages(tab: DocTab, pages: number[], degrees: number) {
+		if (this.refuseReadOnly(tab)) return;
 		if (!tab.flags.canAssemble) {
 			this.notify({
 				kind: 'error',
@@ -889,8 +939,9 @@ class AppStore {
 		tab.name = result.name;
 		tab.path = result.path;
 		tab.banner = null;
-		if (result.fellBackToFull && tab.flags.repaired) {
-			tab.flags = { ...tab.flags, repaired: false };
+		if (result.pdfaRemoved) this.notifyPdfaRemoved(tab.name, result.pdfaRemoved);
+		if (result.fellBackToFull && tab.fileFlags.repaired) {
+			tab.fileFlags = { ...tab.fileFlags, repaired: false };
 			this.notify(
 				{
 					kind: 'info',

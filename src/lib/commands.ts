@@ -36,10 +36,11 @@ function layOut(tab: DocTab, mode: ViewMode, cover: boolean) {
 	}
 }
 
-/** Picks an annotation tool (section 8 shortcuts). Drawing tools need permission to annotate. */
+/** Picks an annotation tool (section 8 shortcuts). Drawing tools need permission to annotate,
+ * and a document that can be changed: one open for reading only says how to change that. */
 function useTool(tool: Tool) {
 	return withTab((t) => {
-		if (tool !== 'select' && !t.flags.canAnnotate) return;
+		if (tool !== 'select' && (app.refuseReadOnly(t) || !t.flags.canAnnotate)) return;
 		tools.tool = tool;
 	});
 }

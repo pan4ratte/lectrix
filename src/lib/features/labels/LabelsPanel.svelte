@@ -245,7 +245,8 @@
 		</DropdownMenu.Root>
 	</div>
 
-	{#if !editable}
+	<!-- Open for reading only (PDF/A), the banner over the pages says why and how to change it. -->
+	{#if !editable && !tab.readOnly}
 		<p class="mx-2 mb-2 flex gap-2 rounded-control bg-danger-bg p-2 text-xs" role="note">
 			<TriangleAlert size={14} class="mt-0.5 shrink-0" aria-hidden="true" />
 			This document’s security settings don’t allow changing page labels.

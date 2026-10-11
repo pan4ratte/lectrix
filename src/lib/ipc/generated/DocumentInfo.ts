@@ -26,6 +26,11 @@ labels: Array<string> | null,
  */
 labelRules: Array<LabelRule>, flags: DocumentFlags, 
 /**
+ * Open for reading only (a file that claims PDF/A, section 5.4): Rust refuses every
+ * operation until `enable_editing`.
+ */
+readOnly: boolean, 
+/**
  * How the document asks to be laid out (its `/PageLayout`), if it does.
  */
 pageLayout: PageLayout | null, state: DocumentState, outline: Outline, 

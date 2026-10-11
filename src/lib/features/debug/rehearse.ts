@@ -8,7 +8,7 @@ import { showUpdated } from '#lib/features/changelog/announce.ts';
 import { changelogMarkdown, hasChanges, parseChangelog } from '#lib/features/changelog/changelog.ts';
 import { recoveryQuestion } from '#lib/features/recovery/recovery.ts';
 import { notifyUpToDate, update } from '#lib/features/update/update.svelte.ts';
-import type { RecoveredDocument, UpdateInfo } from '#lib/ipc/index.ts';
+import type { PdfaLevel, RecoveredDocument, UpdateInfo } from '#lib/ipc/index.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 import type { BannerKind } from '#lib/stores/doc.svelte.ts';
 
@@ -112,6 +112,26 @@ export function rehearseBanner(kind: BannerKind) {
 	if (app.active) app.active.banner = kind;
 }
 
+/** The notification after a save that took the PDF/A claim out of a file. */
+export function rehearsePdfaRemoved() {
+	app.notifyPdfaRemoved(app.active?.name ?? 'report.pdf', { part: 1, conformance: 'B' });
+}
+
+/** The documents shown as PDF/A files by a rehearsal, with what they really claim. */
+const rehearsedPdfa = new Map<number, PdfaLevel | null>();
+
+/**
+ * The banner of a file that claims PDF/A, opened for reading only (needs a document open):
+ * the document can't be changed until Enable editing, as with a real one.
+ */
+export function rehearsePdfa() {
+	const tab = app.active;
+	if (!tab || tab.readOnly) return;
+	if (!rehearsedPdfa.has(tab.id)) rehearsedPdfa.set(tab.id, tab.fileFlags.pdfa);
+	tab.fileFlags = { ...tab.fileFlags, pdfa: tab.fileFlags.pdfa ?? { part: 1, conformance: 'B' } };
+	tab.readOnly = true;
+}
+
 /** The offer to restore unsaved changes a crash left behind, for one or several documents. */
 export async function rehearseRecovery(count: 1 | 3) {
 	const now = Date.now();
@@ -131,5 +151,11 @@ export function clearRehearsals() {
 	app.toasts = [];
 	app.updatedTo = null;
 	update.endRehearsal();
-	for (const tab of app.tabs) tab.banner = null;
+	for (const tab of app.tabs) {
+		tab.banner = null;
+		if (!rehearsedPdfa.has(tab.id)) continue;
+		tab.readOnly = false;
+		tab.fileFlags = { ...tab.fileFlags, pdfa: rehearsedPdfa.get(tab.id) ?? null };
+	}
+	rehearsedPdfa.clear();
 }

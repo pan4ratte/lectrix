@@ -21,6 +21,7 @@ const STORED: Settings = {
 	openCommentAfterMarkup: false,
 	rememberAnnotationStyle: true,
 	selectionHandles: false,
+	pdfaReadOnly: true,
 	shortcuts: { save: ['Ctrl+Alt+S'], copy: [] }
 };
 

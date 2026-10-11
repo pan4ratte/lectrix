@@ -36,6 +36,7 @@
     "allow-execute-merge",
     "allow-cancel-merge",
     "allow-set-bookmark-open",
+    "allow-enable-editing",
     "allow-undo",
     "allow-redo",
     "allow-save",

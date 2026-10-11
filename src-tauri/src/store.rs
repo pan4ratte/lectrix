@@ -121,6 +121,9 @@ pub struct StoredSettings {
     /// Whether selected text shows a handle at its start and at its end.
     #[serde(default)]
     pub selection_handles: bool,
+    /// Whether a file that claims PDF/A opens for reading only until editing is enabled.
+    #[serde(default = "yes")]
+    pub pdfa_read_only: bool,
     /// Keyboard shortcuts that differ from the defaults (section 6.6): a command's name
     /// and its keys, as Settings shows them ("Ctrl+Shift+S"); no keys, no shortcut.
     #[serde(default)]
@@ -157,6 +160,7 @@ impl Default for StoredSettings {
             open_comment_after_markup: false,
             remember_annotation_style: true,
             selection_handles: false,
+            pdfa_read_only: true,
             shortcuts: BTreeMap::new(),
         }
     }
@@ -432,6 +436,7 @@ mod tests {
             open_comment_after_markup: true,
             remember_annotation_style: false,
             selection_handles: true,
+            pdfa_read_only: false,
             shortcuts: BTreeMap::from([
                 ("save".to_string(), vec!["Ctrl+Alt+S".to_string()]),
                 ("copy".to_string(), Vec::new()),
@@ -464,6 +469,7 @@ mod tests {
         assert!(!v1.settings().open_comment_after_markup);
         assert!(v1.settings().remember_annotation_style);
         assert!(!v1.settings().selection_handles);
+        assert!(v1.settings().pdfa_read_only);
         assert!(v1.settings().shortcuts.is_empty());
         // Tools from a newer version are skipped, not fatal; an empty list stays empty.
         fs::write(

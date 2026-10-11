@@ -83,6 +83,7 @@ export type { PageAnnotations } from './generated/PageAnnotations';
 export type { RepairSummary } from './generated/RepairSummary';
 export type { Appearance } from './generated/Appearance';
 export type { PageLayout } from './generated/PageLayout';
+export type { PdfaLevel } from './generated/PdfaLevel';
 export type { ScrollMode } from './generated/ScrollMode';
 export type { Settings } from './generated/Settings';
 export type { SettingsInput } from './generated/SettingsInput';
@@ -139,6 +140,8 @@ export const applyOperation = (id: number, operation: OperationInput) =>
 /** A bookmark was expanded or collapsed in the panel (saved with the document, not an edit). */
 export const setBookmarkOpen = (id: number, bookmark: number, open: boolean) =>
 	invoke<void>('set_bookmark_open', { id, bookmark, open });
+/** Lets a document that Rust opened for reading only (a PDF/A file, section 5.4) be changed. */
+export const enableEditing = (id: number) => invoke<void>('enable_editing', { id });
 // Combining files and inserting pages (section 6.4). Sources are documents opened for
 // that purpose only: not tabs. Close them with closeDocument when they are no longer needed.
 export const openMergeSources = () => invoke<OpenResult[]>('open_merge_sources');

@@ -16,6 +16,7 @@ export function shownRules(tab: DocTab): LabelRule[] {
 /** Tells the user why labels can't be changed, if they can't. */
 function refuseEdit(tab: DocTab): boolean {
 	if (tab.canEditLabels) return false;
+	if (app.refuseReadOnly(tab)) return true;
 	app.notify({
 		kind: 'error',
 		message: 'This document’s security settings don’t allow changing page labels.',

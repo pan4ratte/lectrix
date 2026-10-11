@@ -46,6 +46,20 @@ pub struct DocumentFlags {
     pub can_annotate: bool,
     /// Text may be copied.
     pub can_copy: bool,
+    /// The PDF/A level the file claims, if any: it then opens for reading only, unless
+    /// Settings says otherwise, until the user enables editing. A save that may have
+    /// broken the standard takes the claim out of the file.
+    pub pdfa: Option<PdfaLevel>,
+}
+
+/// A PDF/A level as a file's XMP metadata claims it: PDF/A-1b is part 1, conformance B.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PdfaLevel {
+    pub part: u8,
+    /// In upper case; PDF/A-4 may have none.
+    pub conformance: Option<char>,
 }
 
 impl From<pdf_core::docinfo::DocumentFlags> for DocumentFlags {
@@ -57,6 +71,16 @@ impl From<pdf_core::docinfo::DocumentFlags> for DocumentFlags {
             can_assemble: f.can_assemble,
             can_annotate: f.can_annotate,
             can_copy: f.can_copy,
+            pdfa: f.pdfa.map(Into::into),
+        }
+    }
+}
+
+impl From<pdf_core::docinfo::PdfA> for PdfaLevel {
+    fn from(level: pdf_core::docinfo::PdfA) -> Self {
+        PdfaLevel {
+            part: level.part,
+            conformance: level.conformance,
         }
     }
 }
@@ -152,6 +176,9 @@ pub struct DocumentInfo {
     /// The label rules exactly as stored (empty when there are no labels).
     pub label_rules: Vec<LabelRule>,
     pub flags: DocumentFlags,
+    /// Open for reading only (a file that claims PDF/A, section 5.4): Rust refuses every
+    /// operation until `enable_editing`.
+    pub read_only: bool,
     /// How the document asks to be laid out (its `/PageLayout`), if it does.
     pub page_layout: Option<PageLayout>,
     pub state: DocumentState,
@@ -174,7 +201,8 @@ pub struct DocumentInfo {
 #[ts(export)]
 pub enum OpenResult {
     Opened {
-        document: DocumentInfo,
+        // Boxed: far larger than the other outcomes.
+        document: Box<DocumentInfo>,
     },
     /// The file is already open in a tab; switch to it.
     AlreadyOpen {
@@ -658,6 +686,9 @@ pub struct SaveResult {
     pub outline: Option<Outline>,
     /// Pages whose annotations read differently after saving (renumbered objects).
     pub annotations: Vec<PageAnnotations>,
+    /// The PDF/A level the file claimed until this save took the claim out of it: what
+    /// was saved (annotations, inserted pages) may not comply (section 5.4).
+    pub pdfa_removed: Option<PdfaLevel>,
 }
 
 /// A change to a document, sent from the frontend.
@@ -1155,6 +1186,9 @@ pub struct Settings {
     /// Whether selected text shows a handle at its start and at its end, to drag it from
     /// (section 6.1); its sides can be dragged either way.
     pub selection_handles: bool,
+    /// Whether a file that claims PDF/A opens for reading only, until the user enables
+    /// editing (section 5.4); otherwise it opens ready to edit, as any file.
+    pub pdfa_read_only: bool,
     /// Keyboard shortcuts that differ from the defaults (section 6.6): a command's name
     /// and its keys ("Ctrl+Shift+S"); no keys, no shortcut. The frontend knows the
     /// commands and their defaults (`src/lib/shortcuts.ts`).
@@ -1180,6 +1214,7 @@ pub struct SettingsInput {
     pub open_comment_after_markup: bool,
     pub remember_annotation_style: bool,
     pub selection_handles: bool,
+    pub pdfa_read_only: bool,
     pub shortcuts: BTreeMap<String, Vec<String>>,
 }
 
@@ -1328,6 +1363,11 @@ impl From<pdf_core::Error> for AppError {
             E::NotPermitted => AppError::new(
                 "This document's security settings don't allow that change.",
                 Some("Ask the document's author for an unrestricted copy."),
+            )
+            .with_code(ErrorCode::NotPermitted),
+            E::ReadOnly => AppError::new(
+                "This document is open for reading only, because it is a PDF/A file.",
+                Some("Choose Enable editing in the bar above the pages to change it."),
             )
             .with_code(ErrorCode::NotPermitted),
             E::NothingToUndo => {
