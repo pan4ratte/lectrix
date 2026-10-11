@@ -169,6 +169,23 @@ Needs an installed earlier release and a newer one published (ADR 0011,
 - [ ] With a second monitor: leave the window on it, close, unplug the monitor, start:
       the window is on the remaining monitor, its title bar reachable.
 
+## Tabs and windows
+
+- [ ] With three documents open, drag a tab along the others: it follows the pointer, the
+      others make way, and it stays where it is dropped.
+- [ ] Add a highlight, then drag that tab down onto the page and let go: a new window opens
+      under the pointer with the document on the same page, still marked unsaved, and Undo
+      takes the highlight back. The first window no longer has the tab.
+- [ ] Drag the tab from the new window onto the first window (anywhere on it) and let go:
+      it joins the first window's tabs and the emptied window closes.
+- [ ] Drag a tab out to a second monitor, if there is one: the window opens there, its
+      title bar reachable.
+- [ ] With two windows, each with an unsaved document: the taskbar names each after its
+      document. File > Exit asks in each window; Cancel in one keeps that window and the
+      one Exit was picked in. Close one window with its own button: only that one closes.
+- [ ] With two windows, double-click in Explorer a PDF that is open in the window behind:
+      that window comes to the front with the tab shown.
+
 ## Crash recovery
 
 - [ ] Open a PDF, add a highlight, wait two and a half minutes, then end Lectrix in Task

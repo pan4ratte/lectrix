@@ -16,6 +16,7 @@ import {
 	type PageSize,
 	type SaveResult,
 	type ScrollMode,
+	type TabHandoff,
 	type ViewState
 } from '#lib/ipc/index.ts';
 import type { Box } from '#lib/features/annotations/geometry.ts';
@@ -271,12 +272,17 @@ export class DocTab {
 	private texts = new Map<number, TextGeometry>();
 	private textRequests = new Map<number, Promise<TextGeometry | null>>();
 
-	/** `scrollMode` is the Settings choice for documents being opened. */
-	constructor(info: DocumentInfo, scrollMode: ScrollMode = 'singlePageContinuous') {
+	/** `scrollMode` is the Settings choice for documents being opened. A tab moved here from
+	 * another window brings what it had there instead (`handoff`). */
+	constructor(info: DocumentInfo, scrollMode: ScrollMode = 'singlePageContinuous', handoff: TabHandoff | null = null) {
 		this.id = info.id;
 		this.update(info);
 		const asked = documentMode(info.pageLayout);
-		if (scrollMode !== 'document') this.mode = scrollMode;
+		if (handoff && handoff.scrollMode !== 'document') {
+			this.mode = handoff.scrollMode;
+			this.cover = handoff.cover;
+			this.signedWarningAccepted = handoff.signedWarningAccepted;
+		} else if (scrollMode !== 'document') this.mode = scrollMode;
 		else if (asked) {
 			this.mode = asked.mode;
 			this.cover = asked.cover;
@@ -456,6 +462,12 @@ export class DocTab {
 	/** Every cached text page, for building copied text. */
 	textMap(): ReadonlyMap<number, TextGeometry> {
 		return this.texts;
+	}
+
+	/** What the tab takes along to another window, besides its place in the document (which
+	 * goes as the remembered view). */
+	handoff(): TabHandoff {
+		return { scrollMode: this.mode, cover: this.cover, signedWarningAccepted: this.signedWarningAccepted };
 	}
 
 	viewState(): ViewState {

@@ -13,9 +13,10 @@ mod protocol;
 mod recovery;
 mod store;
 mod update;
+mod windows;
 
 use std::path::{Path, PathBuf};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, OnceLock};
 use std::time::Instant;
 
@@ -42,17 +43,19 @@ const MUPDF_STORE_MB: usize = 96;
 
 pub(crate) static MAIN_START: OnceLock<Instant> = OnceLock::new();
 
-/// Whether the main window is minimized (its webview then uses less memory).
-static MINIMIZED: AtomicBool = AtomicBool::new(false);
-
 /// Event carrying `Vec<OpenResult>` for files opened outside a command (drag-and-drop,
-/// a second launch with a file).
+/// a second launch with a file), for the window they open in.
 const DOCUMENTS_OPENED: &str = "documents-opened";
-/// Event carrying `FileChangedEvent`.
+/// Event carrying `FileChangedEvent`, for every window: the one that shows the document
+/// acts on it.
 const FILE_CHANGED: &str = "file-changed";
-/// Event carrying `Vec<OpenResult>` for files dropped on the Combine view (opened as
-/// sources, not tabs).
+/// Event carrying `Vec<OpenResult>` for files dropped on a window's Combine view (opened
+/// as sources, not tabs).
 const MERGE_SOURCES_ADDED: &str = "merge-sources-added";
+/// Event carrying `Settings`, for the windows other than the one that changed them.
+pub(crate) const SETTINGS_CHANGED: &str = "settings-changed";
+/// Event carrying `DocumentSaved`, for the window that shows a document another one saved.
+pub(crate) const DOCUMENT_SAVED: &str = "document-saved";
 
 pub struct AppState {
     documents: Documents,
@@ -64,8 +67,8 @@ pub struct AppState {
     /// PDFs passed on the command line, opened once the frontend is ready.
     startup_paths: Mutex<Vec<PathBuf>>,
     platform: &'static dyn Platform,
-    /// Dropped files go to the Combine view instead of tabs.
-    drop_to_combine: AtomicBool,
+    /// Which window shows which document, and what else differs between windows.
+    windows: windows::Windows,
     /// Set while combining; storing `true` in it stops the merge.
     merge_cancel: Mutex<Option<Arc<AtomicBool>>>,
     updates: update::Updates,
@@ -99,9 +102,9 @@ fn pdf_args(args: impl IntoIterator<Item = String>, cwd: &Path) -> Vec<PathBuf> 
         .collect()
 }
 
-/// Opens paths off the main thread and tells the frontend: as tabs, or as sources when
-/// they were dropped on the Combine view (`as_sources`).
-fn open_in_background(app: &AppHandle, paths: Vec<PathBuf>, as_sources: bool) {
+/// Opens paths off the main thread and tells the window `label`, which gets them: as
+/// tabs, or as sources when they were dropped on its Combine view (`as_sources`).
+fn open_in_background(app: &AppHandle, paths: Vec<PathBuf>, as_sources: bool, label: String) {
     let paths: Vec<PathBuf> = paths.into_iter().filter(|p| is_pdf(p)).collect();
     if paths.is_empty() {
         return;
@@ -109,28 +112,24 @@ fn open_in_background(app: &AppHandle, paths: Vec<PathBuf>, as_sources: bool) {
     let app = app.clone();
     tauri::async_runtime::spawn_blocking(move || {
         let state = app.state::<AppState>();
-        let (event, results): (&str, Vec<OpenResult>) = if as_sources {
-            (
-                MERGE_SOURCES_ADDED,
-                paths.iter().map(|p| state.open_source(p)).collect(),
-            )
+        let opened: Vec<OpenResult> = if as_sources {
+            paths.iter().map(|p| state.open_source(p)).collect()
         } else {
-            (
-                DOCUMENTS_OPENED,
-                paths.iter().map(|p| state.open(p)).collect(),
-            )
+            paths.iter().map(|p| state.open(p)).collect()
         };
-        if let Err(e) = app.emit(event, results) {
+        let results: Vec<OpenResult> = opened
+            .into_iter()
+            .map(|result| windows::adopt(&app, &label, result))
+            .collect();
+        let event = if as_sources {
+            MERGE_SOURCES_ADDED
+        } else {
+            DOCUMENTS_OPENED
+        };
+        if let Err(e) = app.emit_to(label.as_str(), event, results) {
             applog::warn(format!("could not notify the window of opened files: {e}"));
         }
     });
-}
-
-fn focus_main_window(app: &AppHandle) {
-    if let Some(window) = app.get_webview_window("main") {
-        let _ = window.unminimize();
-        let _ = window.set_focus();
-    }
 }
 
 /// Polls open files for changes made by other programs (section 7).
@@ -195,15 +194,26 @@ fn dark(appearance: ipc::Appearance) -> Option<bool> {
     }
 }
 
-/// Applies the Settings appearance to the main window: its frame, background and the
+/// Applies the Settings appearance to every window: its frame, background and the
 /// webview's `prefers-color-scheme` (the frontend also marks the forced theme itself).
 pub(crate) fn apply_appearance(app: &AppHandle, appearance: ipc::Appearance) {
-    if let Some(window) = app.get_webview_window("main") {
-        if let Err(e) = platform::current().set_appearance(&window, dark(appearance)) {
+    for window in app.webview_windows().values() {
+        if let Err(e) = platform::current().set_appearance(window, dark(appearance)) {
             applog::warn(format!("could not change the window theme: {e}"));
         }
-        paint_window_background(&window);
+        paint_window_background(window);
     }
+}
+
+/// Gives a window just made the Settings appearance.
+pub(crate) fn apply_appearance_to(window: &tauri::WebviewWindow, appearance: ipc::Appearance) {
+    // As the system is: the window is that already.
+    if appearance != ipc::Appearance::System
+        && let Err(e) = platform::current().set_appearance(window, dark(appearance))
+    {
+        applog::warn(format!("could not change the window theme: {e}"));
+    }
+    paint_window_background(window);
 }
 
 /// The title bar's colour in the light and the dark theme (`--lectrix-chrome` in
@@ -221,13 +231,10 @@ fn paint_window_background(window: &tauri::WebviewWindow) {
     }
 }
 
-/// Notes where the main window is, for the next start (placement.rs).
-fn remember_placement(window: &tauri::Window) {
-    if window.label() != "main" {
-        return;
-    }
+/// Notes where a window is, for the next start (placement.rs).
+fn remember_placement(window: &tauri::Window, write: bool) {
     if let Ok(mut store) = window.app_handle().state::<AppState>().store.lock() {
-        placement::remember(window, &mut store);
+        placement::remember(window, &mut store, write);
     }
 }
 
@@ -266,8 +273,11 @@ pub fn run() {
         // PDF) hands its arguments to this instance and exits.
         .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             let paths = pdf_args(args.into_iter().skip(1), Path::new(&cwd));
-            open_in_background(app, paths, false);
-            focus_main_window(app);
+            // In the window used last, which comes to the front.
+            if let Some(label) = windows::for_new_files(app) {
+                open_in_background(app, paths, false, label.clone());
+                windows::focus(app, &label);
+            }
         }))
         .plugin(tauri_plugin_dialog::init())
         // Updates from GitHub releases (ADR 0011). Only Rust uses it: the webview has no
@@ -306,7 +316,7 @@ pub fn run() {
                 previews: protocol::PreviewCache::default(),
                 startup_paths: Mutex::new(startup_paths.clone()),
                 platform: platform::current(),
-                drop_to_combine: AtomicBool::new(false),
+                windows: windows::Windows::default(),
                 merge_cancel: Mutex::new(None),
                 updates: update::Updates::default(),
             });
@@ -314,65 +324,55 @@ pub fn run() {
             if recovering {
                 write_recovery_copies(app.handle().clone());
             }
-            // The main window is made here, not from tauri.conf.json, so it can get browser
-            // arguments the platform needs (`create: false` in the config).
-            if let Some(config) = app.config().app.windows.iter().find(|w| w.label == "main") {
-                let mut window = tauri::WebviewWindowBuilder::from_config(app.handle(), config)?
-                    .zoom_hotkeys_enabled(platform::current().webview_needs_zoom_controls());
-                if let Some(args) = platform::current().webview_browser_args() {
-                    window = window.additional_browser_args(&args);
-                }
-                // Where it was last time, maximized if it was (placement.rs).
-                let saved = app
-                    .state::<AppState>()
-                    .store
-                    .lock()
-                    .ok()
-                    .and_then(|s| s.window_placement());
-                let initial = placement::initial(saved, &placement::monitors(app.handle()));
-                if let Some((x, y, width, height)) = initial.bounds {
-                    window = window.position(x, y).inner_size(width, height);
-                }
-                if initial.maximized {
-                    window = window.maximized(true);
-                }
-                let window = window.build()?;
-                platform::current().route_touchpad_pinch(&window);
-                let appearance = app
-                    .state::<AppState>()
-                    .store
-                    .lock()
-                    .map(|s| s.settings().appearance)
-                    .unwrap_or_default();
-                if appearance == ipc::Appearance::System {
-                    paint_window_background(&window);
-                } else {
-                    apply_appearance(app.handle(), appearance);
-                }
-            }
+            // The first window, where the window was last time, maximized if it was.
+            windows::create(app.handle(), windows::MAIN, windows::Place::Remembered)?;
             Ok(())
         })
         .on_window_event(|window, event| match event {
             WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) => {
                 let app = window.app_handle();
-                let to_combine = app
-                    .state::<AppState>()
-                    .drop_to_combine
-                    .load(Ordering::Relaxed);
-                open_in_background(app, paths.clone(), to_combine);
+                let label = window.label();
+                let to_combine = app.state::<AppState>().windows.drops_to_combine(label);
+                open_in_background(app, paths.clone(), to_combine, label.to_owned());
             }
-            WindowEvent::Moved(_) => remember_placement(window),
+            // A window made for a tab, asked to close before its page runs: the page could
+            // not ask about the tab's unsaved changes yet, so the window stays.
+            WindowEvent::CloseRequested { api, .. }
+                if window
+                    .app_handle()
+                    .state::<AppState>()
+                    .windows
+                    .is_starting(window.label()) =>
+            {
+                api.prevent_close();
+            }
+            WindowEvent::Moved(_) => remember_placement(window, true),
             // A minimized window asks WebView2 to use less memory (ADR 0002).
             WindowEvent::Resized(_) => {
-                remember_placement(window);
+                remember_placement(window, true);
+                let app = window.app_handle();
                 if let (Ok(minimized), Some(webview)) = (
                     window.is_minimized(),
-                    window.app_handle().get_webview_window(window.label()),
-                ) && MINIMIZED.swap(minimized, Ordering::Relaxed) != minimized
+                    app.get_webview_window(window.label()),
+                ) && app
+                    .state::<AppState>()
+                    .windows
+                    .set_minimized(window.label(), minimized)
                 {
                     platform::current().set_low_memory(&webview, minimized);
                 }
             }
+            // The window in use: files from a second launch open here, and its place is
+            // the one Lectrix starts at next time.
+            WindowEvent::Focused(true) => {
+                window
+                    .app_handle()
+                    .state::<AppState>()
+                    .windows
+                    .set_focused(window.label());
+                remember_placement(window, false);
+            }
+            WindowEvent::Destroyed => windows::destroyed(window.app_handle(), window.label()),
             // The system switched between light and dark (with Settings on System).
             WindowEvent::ThemeChanged(_) => {
                 if let Some(webview) = window.app_handle().get_webview_window(window.label()) {
@@ -431,6 +431,9 @@ pub fn run() {
             commands::log_metric,
             commands::log_error,
             commands::open_web_page,
+            commands::move_document,
+            commands::list_windows,
+            commands::close_other_windows,
             update::check_for_update,
             update::skip_update,
             update::download_update,

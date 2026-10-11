@@ -26,7 +26,8 @@ modes (single page, two pages, each continuous or not), with a Settings default.
 changelog (`CHANGELOG.md`), shown by Help > What's new, before and after an update, and
 used as each release's description. Update checks once a day. Files that claim PDF/A
 open for reading only until Enable editing, with a Settings switch, and lose the claim
-when a save may have broken it.
+when a save may have broken it. Several windows: a tab moves into a window of its own or
+into another window, with its document as it is.
 
 ## Performance
 
@@ -69,6 +70,16 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
   a filtered-out text box's text can still be selected and found: page text is read from
   the page with all its annotations. Annotations that are not indirect objects (rare; they
   can't be told apart) are hidden on a page only when the filters leave out all of them.
+- **Windows.** A tab dragged out of its window shows nothing under the pointer once the
+  pointer has left the window (the stand-in is drawn by the window's page). A tab dropped
+  on another window goes to the end of its tabs, not to the place it was dropped at. The
+  side panes' layout and the thumbnail size are one for all windows: a new window starts
+  with what was last stored, and the window changed last decides what the next start
+  gets. A search, a text selection and the annotation tool in use stay behind when a tab
+  changes windows. Lectrix does not reopen several windows at the
+  next start, and has no command for an empty new window. An update downloaded in one
+  window and put off with Later is not known to the others: Check for updates there
+  downloads it again.
 - **Undo history restarts** after each save (ADR 0003) and after restoring a crash
   recovery copy: MuPDF 1.27.2 cannot load a saved journal (ADR 0001).
 - **Recovery copies of large damaged files** are full copies and take 1.2 to 1.5 s for
@@ -91,7 +102,10 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
   page, and the controls in its row of the annotation list with Tab from the list. Page text is not exposed to screen readers, and Windows high-contrast themes are
   not handled specifically.
 - **Not covered by automated tests:** drag-and-drop from Explorer (an OLE drag can't be
-  scripted), touch or stylus input, and touchpad pinch zoom.
+  scripted), touch or stylus input, touchpad pinch zoom, and a tab dragged out of its
+  window onto another one (WebDriver's pointer stays inside the page; the end-to-end test
+  drops the tab inside its own window, and moves it between windows from its menu). The
+  manual checklist has it.
 - **Touchscreen pinch** does not zoom: only touchpad pinch and Ctrl+wheel do. The app
   blocks touchscreen pinch (`touch-action`) so it cannot scale the whole window.
 - **Test corpus.** `tests/corpus/` is still empty. Geometric cases come from generated
@@ -111,7 +125,9 @@ Nothing has been run interactively there.
   base 14 render with MuPDF's substitutes, and non-embedded CJK text has no glyphs. This
   needs fontconfig (Linux) and Core Text (macOS) behind the existing `SystemFonts` trait.
 - **Window:** the title bar's window buttons follow Windows (macOS puts them on the
-  left).
+  left). A tab dropped where two Lectrix windows overlap goes by the windows' frames, not
+  by which one is on top (only the Windows build asks the system for the window under the
+  cursor), and moving tabs between windows has not been run there.
 - **Touchpad pinch on Linux** (2026-10-08, built, not yet tried with a real touchpad):
   WebKitGTK magnified the whole app. `platform/linux.rs` now stops the pinch on the
   webview widget's `event` signal (before WebKit's bubble-phase zoom gesture) and emits

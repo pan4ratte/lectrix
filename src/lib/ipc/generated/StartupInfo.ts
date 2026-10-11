@@ -4,6 +4,11 @@ import type { PaneLayout } from "./PaneLayout";
 
 export type StartupInfo = { 
 /**
+ * The window Lectrix started with, not one made for a tab moved out of another: it
+ * offers crash recovery, opens the startup files and says what an update brought.
+ */
+firstWindow: boolean, 
+/**
  * Milliseconds from the start of `main` to the frontend's first mount.
  */
 mainToReadyMs: number, 

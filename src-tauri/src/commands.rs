@@ -14,20 +14,21 @@ use std::time::Instant;
 use pdf_core::merge::{LabelMode as CoreLabelMode, MergeOptions, PagePick};
 use pdf_core::save::SaveKind;
 use tauri::ipc::Channel;
-use tauri::{AppHandle, State};
+use tauri::{AppHandle, Emitter, Manager, State, WebviewWindow};
 use tauri_plugin_dialog::DialogExt;
 
 use crate::annotations::RepairSummary;
 use crate::combine::{self, Progress};
 use crate::ipc::{
-    AppError, DocumentChange, DocumentInfo, ImageFormat, LabelMode, MergeOutcome, MergePlan,
-    MergeProgress, MergeRequest, MergeStage, OpenResult, OperationInput, PageHits, PageText,
-    PaneLayout, RecentFile, RecoveredDocument, SaveResult, SearchChunk, Settings, SettingsInput,
-    StartupInfo, UnsavedSource, ViewState, WebPage,
+    AppError, DocumentChange, DocumentInfo, DocumentSaved, ImageFormat, LabelMode, MergeOutcome,
+    MergePlan, MergeProgress, MergeRequest, MergeStage, MoveTarget, OpenResult, OperationInput,
+    PageHits, PageText, PaneLayout, RecentFile, RecoveredDocument, SaveResult, SearchChunk,
+    Settings, SettingsInput, StartupInfo, TabHandoff, UnsavedSource, ViewState, WebPage,
+    WindowDocument, WindowEntry,
 };
 use crate::platform::Platform;
 use crate::store::StoredSettings;
-use crate::{AppState, MAIN_START};
+use crate::{AppState, MAIN_START, windows};
 
 /// The most pages one `search_text` call visits; the frontend searches in chunks so it
 /// can show progress and stop early.
@@ -130,28 +131,41 @@ fn file_name(path: &Path) -> String {
 #[tauri::command(async)]
 pub fn open_with_dialog(
     app: AppHandle,
+    window: WebviewWindow,
     state: State<'_, AppState>,
 ) -> Result<Vec<OpenResult>, AppError> {
     Ok(pick_pdfs(&app, None, true)?
         .iter()
-        .map(|p| state.open(p))
+        .map(|p| windows::adopt(&app, window.label(), state.open(p)))
         .collect())
 }
 
 /// Opens the PDFs given on the command line (file association or `lectrix a.pdf b.pdf`),
 /// once.
 #[tauri::command(async)]
-pub fn open_startup_documents(state: State<'_, AppState>) -> Vec<OpenResult> {
+pub fn open_startup_documents(
+    app: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+) -> Vec<OpenResult> {
     let paths = state
         .startup_paths
         .lock()
         .map(|mut p| std::mem::take(&mut *p))
         .unwrap_or_default();
-    paths.iter().map(|p| state.open(p)).collect()
+    paths
+        .iter()
+        .map(|p| windows::adopt(&app, window.label(), state.open(p)))
+        .collect()
 }
 
 #[tauri::command(async)]
-pub fn open_recent(state: State<'_, AppState>, index: u32) -> Result<OpenResult, AppError> {
+pub fn open_recent(
+    app: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    index: u32,
+) -> Result<OpenResult, AppError> {
     let path = state
         .store
         .lock()
@@ -160,7 +174,7 @@ pub fn open_recent(state: State<'_, AppState>, index: u32) -> Result<OpenResult,
         .get(index as usize)
         .map(|e| e.path.clone())
         .ok_or_else(|| AppError::new("That file is no longer in the recent list.", None))?;
-    Ok(state.open(&path))
+    Ok(windows::adopt(&app, window.label(), state.open(&path)))
 }
 
 #[tauri::command]
@@ -233,10 +247,18 @@ pub fn list_recovered(state: State<'_, AppState>) -> Vec<RecoveredDocument> {
 
 /// Opens recovered documents as tabs, with their unsaved changes.
 #[tauri::command(async)]
-pub fn restore_recovered(state: State<'_, AppState>, slots: Vec<String>) -> Vec<OpenResult> {
+pub fn restore_recovered(
+    app: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    slots: Vec<String>,
+) -> Vec<OpenResult> {
     slots
         .iter()
-        .map(|slot| state.documents.restore(slot, state.platform, &state.store))
+        .map(|slot| {
+            let restored = state.documents.restore(slot, state.platform, &state.store);
+            windows::adopt(&app, window.label(), restored)
+        })
         .collect()
 }
 
@@ -246,23 +268,30 @@ pub fn discard_recovered(state: State<'_, AppState>, slots: Vec<String>) {
     state.documents.recovery().discard_pending(&slots);
 }
 
-/// The user agreed to quit (saved or chose not to save): this run's recovery copies go now,
-/// not only when the event loop ends, so a quit cut short does not bring them back.
+/// The user agreed to close the window (saved or chose not to save). If it is the last
+/// one, Lectrix quits: this run's recovery copies go now, not only when the event loop
+/// ends, so a quit cut short does not bring them back. With other windows open, only this
+/// window's documents close, once it is gone (`windows::destroyed`).
 #[tauri::command]
-pub fn exit_confirmed(state: State<'_, AppState>) {
-    state.documents.recovery().close();
+pub fn exit_confirmed(app: AppHandle, window: WebviewWindow, state: State<'_, AppState>) {
+    if !app.webview_windows().keys().any(|l| l != window.label()) {
+        state.documents.recovery().close();
+    }
 }
 
 /// Retries an encrypted document with the password the user typed.
 #[tauri::command(async)]
 pub fn unlock_document(
+    app: AppHandle,
+    window: WebviewWindow,
     state: State<'_, AppState>,
     token: u32,
     password: String,
 ) -> Result<OpenResult, AppError> {
-    state
+    let result = state
         .documents
-        .unlock(token, &password, state.platform, &state.store)
+        .unlock(token, &password, state.platform, &state.store)?;
+    Ok(windows::adopt(&app, window.label(), result))
 }
 
 #[tauri::command]
@@ -275,6 +304,7 @@ pub fn close_document(state: State<'_, AppState>, id: u32) {
     if state.documents.close(id).is_some() {
         state.image_cache.remove_document(id);
     }
+    state.windows.release(id);
 }
 
 #[tauri::command(async)]
@@ -289,17 +319,136 @@ pub fn get_document_info(state: State<'_, AppState>, id: u32) -> Result<Document
     Ok(crate::documents::document_info(id, session.info()?, view))
 }
 
-/// Every document Rust has open, for a page that loads after they were opened (the
-/// webview reloaded after a renderer crash, or a test driver navigated it).
+/// The documents the asking window shows in tabs, for a page that loads after it got
+/// them: a window made for a tab moved out of another, a window a tab was moved into
+/// (`documents-moved`), or a webview that reloaded (after a renderer crash, or because a
+/// test driver navigated it). A moved tab comes with what it kept of its own, once.
 #[tauri::command(async)]
-pub fn list_open_documents(state: State<'_, AppState>) -> Result<Vec<DocumentInfo>, AppError> {
-    state
-        .documents
-        .ids()?
+pub fn list_open_documents(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+) -> Result<Vec<WindowDocument>, AppError> {
+    let tabs = state.documents.ids()?;
+    let documents = state
+        .windows
+        .owned_by(window.label())
         .into_iter()
-        .filter_map(|id| get_document_info(state.clone(), id).ok())
-        .map(Ok)
-        .collect()
+        .filter(|id| tabs.contains(id))
+        .filter_map(|id| {
+            let document = get_document_info(state.clone(), id).ok()?;
+            Some(WindowDocument {
+                document,
+                handoff: state.windows.take_handoff(id),
+            })
+        })
+        .collect();
+    // A window made for a tab has it now, and can ask about its unsaved changes.
+    state.windows.set_ready(window.label());
+    Ok(documents)
+}
+
+// ----- windows (section 8) -----
+
+/// Moves the tab of document `id` out of the asking window: into a new window, or into
+/// another one that is open. Returns the label of the window that has it now, or null
+/// when it stays (`MoveTarget::Cursor` found nowhere to go). The document itself stays as
+/// it is, unsaved changes and undo history included; `handoff` is what the tab keeps
+/// outside it, for its new window.
+#[tauri::command(async)]
+pub fn move_document(
+    app: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    id: u32,
+    target: MoveTarget,
+    handoff: TabHandoff,
+) -> Result<Option<String>, AppError> {
+    let from = window.label();
+    if state.windows.owner(id).as_deref() != Some(from) || !state.documents.ids()?.contains(&id) {
+        return Err(AppError::document_closed());
+    }
+    // An open window to move into, or a new one: under the cursor, or beside this one.
+    let (existing, at_cursor) = match target {
+        MoveTarget::New => (None, false),
+        MoveTarget::Cursor { or_new } => match windows::under_cursor(&app, from) {
+            Some(label) => (Some(label), true),
+            None if or_new => (None, true),
+            None => return Ok(None),
+        },
+        MoveTarget::Window { label } => {
+            if label == from || app.get_webview_window(&label).is_none() {
+                return Err(AppError::new(
+                    "That window is no longer open.",
+                    Some("Move the tab to a new window instead."),
+                ));
+            }
+            (Some(label), false)
+        }
+    };
+    state.windows.set_handoff(id, handoff);
+    // A change to its file that this window was told about: the next one is told again.
+    state.documents.report_again(id);
+    if let Some(label) = existing {
+        windows::move_into(&app, id, &label);
+        crate::applog::info(format!("document {id} moved to window {label}"));
+        return Ok(Some(label));
+    }
+    let label = windows::next_label(&app);
+    // Before the window is made: it asks for its documents as soon as it starts.
+    state.windows.own(id, &label);
+    if let Err(e) = windows::create_for_tab(&app, &window, at_cursor, &label) {
+        crate::applog::error(format!("could not make window {label}: {e}"));
+        state.windows.own(id, from);
+        state.windows.take_handoff(id);
+        return Err(AppError::new(
+            "A new window couldn’t be opened.",
+            Some("The tab stays where it is. Try again."),
+        ));
+    }
+    crate::applog::info(format!("document {id} moved to the new window {label}"));
+    Ok(Some(label))
+}
+
+/// Lectrix's other windows, for "Move to window", in the order they were made.
+#[tauri::command]
+pub fn list_windows(app: AppHandle, window: WebviewWindow) -> Vec<WindowEntry> {
+    let mut others: Vec<WindowEntry> = app
+        .webview_windows()
+        .into_iter()
+        .filter(|(label, _)| label != window.label())
+        .map(|(label, w)| WindowEntry {
+            title: w.title().unwrap_or_default(),
+            label,
+        })
+        .collect();
+    // "main", then "window-2", "window-3"… by number.
+    others.sort_by_key(|w| {
+        w.label
+            .rsplit('-')
+            .next()
+            .and_then(|n| n.parse::<u32>().ok())
+            .unwrap_or(0)
+    });
+    others
+}
+
+/// File > Exit, or restarting into an update: asks every other window to close, as its
+/// own close button would, so each asks about its unsaved changes first. The asking window
+/// closes itself once they are gone (`list_windows` is then empty).
+#[tauri::command(async)]
+pub fn close_other_windows(app: AppHandle, window: WebviewWindow) {
+    for (label, other) in app.webview_windows() {
+        if label == window.label() {
+            continue;
+        }
+        // One made a moment ago can't ask yet.
+        windows::wait_until_started(&app, &label);
+        // Where the user can see what it asks.
+        let _ = other.unminimize();
+        if let Err(e) = other.close() {
+            crate::applog::warn(format!("could not ask window {label} to close: {e}"));
+        }
+    }
 }
 
 #[tauri::command(async)]
@@ -442,6 +591,7 @@ pub fn get_settings(state: State<'_, AppState>) -> Result<Settings, AppError> {
 #[tauri::command]
 pub fn set_settings(
     app: AppHandle,
+    window: WebviewWindow,
     state: State<'_, AppState>,
     settings: SettingsInput,
 ) -> Result<Settings, AppError> {
@@ -491,17 +641,24 @@ pub fn set_settings(
             })
             .collect(),
     };
-    store_settings(&app, &state, stored)
+    store_settings(&app, &window, &state, stored)
 }
 
 /// Puts every setting back to its default, the shortcuts included (section 6.6).
 #[tauri::command]
-pub fn reset_settings(app: AppHandle, state: State<'_, AppState>) -> Result<Settings, AppError> {
-    store_settings(&app, &state, StoredSettings::default())
+pub fn reset_settings(
+    app: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+) -> Result<Settings, AppError> {
+    store_settings(&app, &window, &state, StoredSettings::default())
 }
 
+/// Stores the settings, applies the appearance to every window, and tells the other
+/// windows, which put the settings into effect as the asking one does.
 fn store_settings(
     app: &AppHandle,
+    window: &WebviewWindow,
     state: &State<'_, AppState>,
     stored: StoredSettings,
 ) -> Result<Settings, AppError> {
@@ -509,7 +666,17 @@ fn store_settings(
     store.set_settings(stored.clone());
     drop(store);
     crate::apply_appearance(app, stored.appearance);
-    Ok(settings_of(&stored, state.platform))
+    let settings = settings_of(&stored, state.platform);
+    for label in app.webview_windows().into_keys() {
+        if label != window.label()
+            && let Err(e) = app.emit_to(label.as_str(), crate::SETTINGS_CHANGED, &settings)
+        {
+            crate::applog::warn(format!(
+                "could not tell window {label} of the settings: {e}"
+            ));
+        }
+    }
+    Ok(settings)
 }
 
 // ----- combining files and inserting pages (section 6.4) -----
@@ -518,11 +685,12 @@ fn store_settings(
 #[tauri::command(async)]
 pub fn open_merge_sources(
     app: AppHandle,
+    window: WebviewWindow,
     state: State<'_, AppState>,
 ) -> Result<Vec<OpenResult>, AppError> {
     Ok(pick_pdfs(&app, Some("Add files to combine"), true)?
         .iter()
-        .map(|p| state.open_source(p))
+        .map(|p| windows::adopt(&app, window.label(), state.open_source(p)))
         .collect())
 }
 
@@ -530,18 +698,19 @@ pub fn open_merge_sources(
 #[tauri::command(async)]
 pub fn open_insert_source(
     app: AppHandle,
+    window: WebviewWindow,
     state: State<'_, AppState>,
 ) -> Result<Option<OpenResult>, AppError> {
     Ok(pick_pdfs(&app, Some("Insert pages from"), false)?
         .first()
-        .map(|p| state.open_source(p)))
+        .map(|p| windows::adopt(&app, window.label(), state.open_source(p))))
 }
 
-/// Where dropped files go: to the Combine view (`true`, reported as
+/// Where files dropped on the asking window go: to its Combine view (`true`, reported as
 /// `merge-sources-added`) or into tabs.
 #[tauri::command]
-pub fn set_drop_target(state: State<'_, AppState>, combine: bool) {
-    state.drop_to_combine.store(combine, Ordering::Relaxed);
+pub fn set_drop_target(window: WebviewWindow, state: State<'_, AppState>, combine: bool) {
+    state.windows.set_drop_to_combine(window.label(), combine);
 }
 
 /// Checks the sources before combining: files moved or deleted, and files open in a tab
@@ -576,6 +745,7 @@ pub fn plan_merge(state: State<'_, AppState>, sources: Vec<u32>) -> Result<Merge
 #[tauri::command(async)]
 pub fn execute_merge(
     app: AppHandle,
+    window: WebviewWindow,
     state: State<'_, AppState>,
     request: MergeRequest,
     on_progress: Channel<MergeProgress>,
@@ -684,7 +854,7 @@ pub fn execute_merge(
         started.elapsed().as_secs_f64() * 1000.0
     ));
     Ok(Some(MergeOutcome {
-        opened: state.open(&target),
+        opened: windows::adopt(&app, window.label(), state.open(&target)),
         report: report.into(),
         name: file_name(&target),
     }))
@@ -734,16 +904,35 @@ pub fn redo(state: State<'_, AppState>, id: u32) -> Result<DocumentChange, AppEr
     Ok(state.documents.session(id)?.redo()?.into())
 }
 
-/// Saves the document to its own file (incrementally where possible).
+/// Saves the document to its own file (incrementally where possible). Saved from a
+/// window other than the one that shows it (the Combine view's "Save and combine"), that
+/// window is told, so its tab is no longer marked unsaved.
 #[tauri::command(async)]
-pub fn save(state: State<'_, AppState>, id: u32) -> Result<SaveResult, AppError> {
-    state.documents.save(
+pub fn save(
+    app: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    id: u32,
+) -> Result<SaveResult, AppError> {
+    let result = state.documents.save(
         id,
         SaveKind::Incremental,
         None,
         state.platform,
         &state.store,
-    )
+    )?;
+    if let Some(owner) = state.windows.owner(id)
+        && owner != window.label()
+    {
+        let saved = DocumentSaved {
+            id,
+            result: result.clone(),
+        };
+        if let Err(e) = app.emit_to(owner.as_str(), crate::DOCUMENT_SAVED, saved) {
+            crate::applog::warn(format!("could not tell window {owner} of a save: {e}"));
+        }
+    }
+    Ok(result)
 }
 
 /// Shows the Save As dialog and saves there. `optimized` rewrites the file with garbage
@@ -802,7 +991,7 @@ pub fn remember_view(state: State<'_, AppState>, id: u32, view: ViewState) -> Re
 
 /// Called by the frontend on first mount: startup time and how to start up.
 #[tauri::command]
-pub fn app_ready(app: AppHandle, state: State<'_, AppState>) -> StartupInfo {
+pub fn app_ready(app: AppHandle, window: WebviewWindow, state: State<'_, AppState>) -> StartupInfo {
     let elapsed = MAIN_START.get().map(Instant::elapsed).unwrap_or_default();
     let (panes, updated) = state
         .store
@@ -810,6 +999,7 @@ pub fn app_ready(app: AppHandle, state: State<'_, AppState>) -> StartupInfo {
         .map(|mut s| (s.panes(), s.note_version(&app.package_info().version)))
         .unwrap_or_default();
     StartupInfo {
+        first_window: window.label() == windows::MAIN,
         main_to_ready_ms: elapsed.as_secs_f64() * 1000.0,
         perf_mode: std::env::var_os("LECTRIX_PERF").is_some(),
         perf_scroll_only: std::env::var("LECTRIX_PERF").as_deref() == Ok("scroll"),

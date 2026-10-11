@@ -16,6 +16,10 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ### Viewer and tabs
 
+- A document can have a window of its own: drag its tab away from the others and let go, or right-click the tab and pick **Move to new window**. Drop a tab on another Lectrix window to move it there. Unsaved changes, and where you were in the document, go with it.
+- A tab you drag along the others follows the pointer while they make way for it, and its right-click menu has **Move left** and **Move right**.
+- The taskbar names each window after the document it shows.
+- **File > Exit** closes every window, after asking about unsaved changes in each.
 - On Linux, pinching on a touchpad zooms the document instead of the whole window, and pages appear sooner while scrolling.
 - A document stays where you were when you switch to another tab and come back, instead of returning to its first page.
 - Drag the start or the end of selected text to select more or less of it.

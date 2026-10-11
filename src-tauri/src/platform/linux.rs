@@ -44,7 +44,7 @@ impl Platform for Linux {
                     x,
                     y,
                 };
-                if let Err(e) = target.emit(TOUCHPAD_PINCH, event) {
+                if let Err(e) = target.emit_to(target.label(), TOUCHPAD_PINCH, event) {
                     crate::applog::warn(format!("could not pass on a touchpad pinch: {e}"));
                 }
                 glib::Propagation::Stop

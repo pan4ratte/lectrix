@@ -70,6 +70,9 @@
 				<Menubar.Item class="menu-item" disabled={!hasDoc && !app.combineActive} onSelect={commands.closeTab}>
 					Close{@render keys('closeTab')}
 				</Menubar.Item>
+				<Menubar.Item class="menu-item" disabled={!tab || app.isOnlyTab(tab.id)} onSelect={commands.moveTabToNewWindow}>
+					Move tab to new window{@render keys('moveTabToNewWindow')}
+				</Menubar.Item>
 				<Menubar.Separator class="menu-separator" />
 				<Menubar.Item class="menu-item" onSelect={commands.settings}>
 					Settings…{@render keys('settings')}

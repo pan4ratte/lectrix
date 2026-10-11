@@ -34,6 +34,7 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 			{ command: 'saveAsOptimized', label: 'Save as (optimized)', keys: [], inInputs: true },
 			{ command: 'reload', label: 'Reload from disk', keys: [], inInputs: true },
 			{ command: 'closeTab', label: 'Close tab', keys: ['Ctrl+W', 'Ctrl+F4'], inInputs: true },
+			{ command: 'moveTabToNewWindow', label: 'Move tab to new window', keys: [], inInputs: true },
 			{ command: 'settings', label: 'Settings', keys: ['Ctrl+,'], inInputs: true },
 			{ command: 'exit', label: 'Exit', keys: [], inInputs: true }
 		]

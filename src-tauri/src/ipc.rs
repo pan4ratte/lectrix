@@ -221,6 +221,67 @@ pub enum OpenResult {
     },
 }
 
+/// What a tab keeps of its own, outside the document, and takes along when it moves to
+/// another window (section 8): its page display (section 6.1), and that the warning about
+/// editing a signed document was accepted.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct TabHandoff {
+    /// One of the four scroll modes, not `document`.
+    pub scroll_mode: ScrollMode,
+    pub cover: bool,
+    pub signed_warning_accepted: bool,
+}
+
+/// A document the asking window shows in a tab, with what its tab brought from the
+/// window it was moved out of, if it was.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct WindowDocument {
+    pub document: DocumentInfo,
+    pub handoff: Option<TabHandoff>,
+}
+
+/// Where a tab moves to (section 8).
+#[derive(Debug, Clone, Deserialize, TS)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[ts(export)]
+pub enum MoveTarget {
+    /// A new window beside the one it is in.
+    New,
+    /// Where the tab was dropped: the Lectrix window under the cursor, else (`or_new`) a
+    /// new window there. Without `or_new` and with no window there, nothing moves: the
+    /// tab is its window's only one, so a new window would be the same window elsewhere.
+    Cursor { or_new: bool },
+    /// Another window that is open.
+    Window { label: String },
+}
+
+/// Another of Lectrix's windows, for "Move to window": named by its title.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct WindowEntry {
+    pub label: String,
+    pub title: String,
+}
+
+/// Emitted as `document-saved` to the window that shows a document another window saved
+/// (the Combine view's "Save and combine").
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DocumentSaved {
+    pub id: u32,
+    pub result: SaveResult,
+}
+
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -989,6 +1050,9 @@ pub enum ImageFormat {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct StartupInfo {
+    /// The window Lectrix started with, not one made for a tab moved out of another: it
+    /// offers crash recovery, opens the startup files and says what an update brought.
+    pub first_window: bool,
     /// Milliseconds from the start of `main` to the frontend's first mount.
     pub main_to_ready_ms: f64,
     /// Set by the LECTRIX_PERF environment variable: the frontend runs its scripted

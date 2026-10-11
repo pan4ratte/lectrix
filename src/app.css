@@ -1283,6 +1283,10 @@ button.shortcut-key:hover,
 	background: var(--lectrix-tab-active);
 	box-shadow: inset 0 0 0 1px var(--lectrix-tab-active-line);
 }
+/* A tab being dragged along the row follows the pointer, over the tabs it passes. */
+.doc-tab-held {
+	z-index: 1;
+}
 /* A tab's close button: 4 px clear of the 28 px tab's edges, so its hover fill sits inside
    the pill instead of filling it. */
 .tab-close {
@@ -1905,7 +1909,9 @@ button.shortcut-key:hover,
 	pointer-events: none;
 }
 :root.panel-dragging,
-:root.panel-dragging * {
+:root.panel-dragging *,
+:root.tab-dragging,
+:root.tab-dragging * {
 	cursor: grabbing !important;
 }
 

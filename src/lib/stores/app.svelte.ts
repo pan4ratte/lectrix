@@ -1,20 +1,27 @@
 // App-wide state: tabs, dialogs, notifications, and the flows that span them (open, save,
 // close, exit). Rust owns the documents; this owns what the window shows.
 
+import { getCurrentWindow } from '@tauri-apps/api/window';
+
 import {
 	applyOperation,
 	cancelUnlock,
 	closeDocument,
+	closeOtherWindows as closeOtherWindowsCommand,
 	discardRecovered,
 	enableEditing as enableEditingCommand,
 	exitConfirmed,
 	listOpenDocuments,
 	listRecentFiles,
 	listRecovered,
+	listWindows,
+	moveDocument,
+	onCloseDeclined,
 	openInsertSource,
 	openRecent,
 	openStartupDocuments,
 	openWithDialog,
+	recentChanged,
 	redo as redoCommand,
 	reloadDocument,
 	rememberView,
@@ -31,6 +38,7 @@ import {
 	type DocumentChange,
 	type DocumentInfo,
 	type InsertLabelMode,
+	type MoveTarget,
 	type OpenResult,
 	type OperationInput,
 	type PaneLayout,
@@ -214,6 +222,8 @@ class AppStore {
 	/** The start screen was shown over the Combine view, which going back returns to. */
 	private startOverCombine = false;
 	private exiting = false;
+	/** Tabs on their way to another window. */
+	private moving = new Set<number>();
 
 	/** The document on screen; null while the Combine view or the start screen is. */
 	active = $derived(
@@ -337,7 +347,15 @@ class AppStore {
 
 	// ----- opening -----
 
+	/** Reads the recent files again after something here may have changed them, and tells
+	 * Lectrix's other windows to. */
 	async refreshRecent() {
+		await this.loadRecent();
+		void recentChanged().catch(() => {});
+	}
+
+	/** Reads the recent files (they may have changed in another window). */
+	async loadRecent() {
 		try {
 			this.recent = await listRecentFiles();
 		} catch {
@@ -359,7 +377,8 @@ class AppStore {
 					break;
 				}
 				case 'alreadyOpen':
-					activate = result.id;
+					// In a tab here. (In another window, Rust shows it there.)
+					if (this.tabs.some((t) => t.id === result.id)) activate = result.id;
 					break;
 				case 'needsPassword':
 					this.askPassword(result.token, result.name, result.retry, 'open');
@@ -409,11 +428,35 @@ class AppStore {
 
 	async openStartup() {
 		try {
-			// Documents Rust already has open come back first: the page may have reloaded
-			// (a renderer crash, or a test driver navigating it) after they were opened.
-			const open = await listOpenDocuments();
-			if (open.length) this.handleOpenResults(open.map((document) => ({ kind: 'opened', document })));
+			// The documents Rust has for this window come first: the tab this window was made
+			// for, or the ones it had before its page reloaded (a renderer crash, or a test
+			// driver navigating it).
+			await this.adoptTabs();
 			this.handleOpenResults(await openStartupDocuments());
+		} catch (e) {
+			this.showError(toAppError(e));
+		}
+	}
+
+	/**
+	 * Adds the tabs Rust has for this window that it does not show yet (section 8): a tab
+	 * moved here from another window comes with its page display, and opens where the user
+	 * was. The last one is shown.
+	 */
+	async adoptTabs() {
+		let shown: number | null = null;
+		for (const { document, handoff } of await listOpenDocuments()) {
+			if (this.tabs.some((t) => t.id === document.id)) continue;
+			this.tabs = [...this.tabs, new DocTab(document, this.settings?.scrollMode, handoff)];
+			shown = document.id;
+		}
+		if (shown !== null) this.activate(shown);
+	}
+
+	/** Tabs were moved into this window while it was open. */
+	async tabsMovedIn() {
+		try {
+			await this.adoptTabs();
 		} catch (e) {
 			this.showError(toAppError(e));
 		}
@@ -488,6 +531,7 @@ class AppStore {
 	// ----- tabs -----
 
 	activate(id: number) {
+		if (!this.tabs.some((t) => t.id === id)) return;
 		this.startShown = false;
 		if (this.combineActive) this.leaveCombine();
 		if (this.activeId === id) return;
@@ -510,7 +554,18 @@ class AppStore {
 				askPassword: (token, name, retry) => this.askPassword(token, name, retry, 'combine'),
 				saveTab: async (id) => {
 					const tab = this.tabs.find((t) => t.id === id);
-					return tab ? (await this.save(tab)) !== null : true;
+					if (tab) return (await this.save(tab)) !== null;
+					// In a tab of another window: saved from here, and Rust tells that window.
+					try {
+						await saveCommand(id);
+						return true;
+					} catch (e) {
+						const error = toAppError(e);
+						// Closed meanwhile: nothing left to save.
+						if (error.code === 'documentClosed') return true;
+						this.showError(error);
+						return false;
+					}
 				},
 				opened: (result) => this.handleOpenResults([result])
 			});
@@ -702,6 +757,90 @@ class AppStore {
 		this.tabs = tabs;
 	}
 
+	// ----- windows (section 8) -----
+
+	/** The tab is all this window shows: in a new window it would be this window again. */
+	isOnlyTab(id: number): boolean {
+		return this.tabs.length === 1 && this.tabs[0]?.id === id && !this.combine;
+	}
+
+	/**
+	 * Moves a tab into another window: a new one, one that is open, or wherever it was
+	 * dropped. The document stays open in Rust as it is, unsaved changes and undo history
+	 * included; the tab takes its place in the document and its page display along. A
+	 * window left with nothing to show closes. Returns whether the tab moved.
+	 */
+	async moveToWindow(id: number, target: MoveTarget): Promise<boolean> {
+		const tab = this.tabs.find((t) => t.id === id);
+		// Not in the middle of a save, whose result this window's tab is waiting for.
+		if (!tab || tab.saving || this.moving.has(id)) return false;
+		this.moving.add(id);
+		try {
+			if (this.insertRequest?.tabId === id) this.cancelInsert();
+			await this.settled();
+			// Where the user is: the tab opens there in its new window.
+			await rememberView(tab.id, tab.viewState()).catch(() => {});
+			if ((await moveDocument(id, target, tab.handoff())) === null) return false;
+			this.removeTab(tab);
+			if (this.tabs.length === 0 && !this.combine) void getCurrentWindow().close();
+			return true;
+		} catch (e) {
+			this.showError(toAppError(e));
+			return false;
+		} finally {
+			this.moving.delete(id);
+		}
+	}
+
+	/** A file opened in another window is open in a tab of this one: shows it. */
+	showDocument(id: number) {
+		this.activate(id);
+	}
+
+	/**
+	 * Closes Lectrix's other windows, each after asking about its unsaved changes, as its
+	 * close button does. Resolves once they are gone, or with false as soon as one stays
+	 * open (the user cancelled there).
+	 */
+	async closeOtherWindows(): Promise<boolean> {
+		if ((await listWindows()).length === 0) return true;
+		let declined = false;
+		const unlisten = await onCloseDeclined(() => (declined = true));
+		try {
+			await closeOtherWindowsCommand();
+			for (;;) {
+				await new Promise((r) => setTimeout(r, 100));
+				if ((await listWindows()).length === 0) return true;
+				if (declined) return false;
+			}
+		} finally {
+			unlisten();
+		}
+	}
+
+	/** File > Exit: closes every window, this one last. */
+	async exit() {
+		try {
+			if (await this.closeOtherWindows()) await getCurrentWindow().close();
+		} catch (e) {
+			this.showError(toAppError(e));
+		}
+	}
+
+	/** Takes a tab out of this window: the one after it shows, or what else is open. */
+	private removeTab(tab: DocTab) {
+		tab.search.cancel();
+		const index = this.tabs.indexOf(tab);
+		this.tabs = this.tabs.filter((t) => t !== tab);
+		if (this.activeId === tab.id) {
+			const next = this.tabs[Math.min(index, this.tabs.length - 1)];
+			this.activeId = next?.id ?? null;
+			// The last document gone while the Combine view is open: show it.
+			if (!next && this.combine && !this.startShown) this.openCombine();
+		}
+		this.endStartIfAlone();
+	}
+
 	rememberView(tab: DocTab) {
 		// Best effort: a lost view position is not worth an error message.
 		rememberView(tab.id, tab.viewState()).catch(() => {});
@@ -736,24 +875,18 @@ class AppStore {
 		await this.settled();
 		if (tab.state.dirty) this.activate(id);
 		if (!(await this.confirmDiscard(tab))) return;
+		// Moved to another window while it asked: it is that window's to close now.
+		if (!this.tabs.includes(tab)) return;
 		this.rememberView(tab);
-		tab.search.cancel();
-		const index = this.tabs.indexOf(tab);
-		this.tabs = this.tabs.filter((t) => t !== tab);
-		if (this.activeId === id) {
-			const next = this.tabs[Math.min(index, this.tabs.length - 1)];
-			this.activeId = next?.id ?? null;
-			// The last document closed while the Combine view is open: show it.
-			if (!next && this.combine && !this.startShown) this.openCombine();
-		}
-		this.endStartIfAlone();
+		this.removeTab(tab);
 		await closeDocument(id).catch(() => {});
 		void this.refreshRecent();
 	}
 
 	/**
-	 * Handles the window's close request: prompts about unsaved documents. Returns true if
-	 * the window may close.
+	 * Handles the window's close request: prompts about its unsaved documents. Returns true
+	 * if the window may close. Lectrix quits with its last window; while others stay open,
+	 * Rust closes this window's documents once it is gone.
 	 */
 	async confirmExit(): Promise<boolean> {
 		if (this.exiting) return true;
@@ -805,11 +938,13 @@ class AppStore {
 	}
 
 	/**
-	 * Asks about unsaved documents as closing the window does, then runs `quit`, which ends
-	 * the app (restarting into an update). Returns false if the user cancelled. If `quit`
-	 * fails, Lectrix stays open and closing asks again.
+	 * Asks about unsaved documents as closing the windows does (the other windows first,
+	 * which close; then this one), then runs `quit`, which ends the app (restarting into an
+	 * update). Returns false if the user cancelled. If `quit` fails, Lectrix stays open and
+	 * closing asks again.
 	 */
 	async quitWith(quit: () => Promise<void>): Promise<boolean> {
+		if (!(await this.closeOtherWindows())) return false;
 		if (!(await this.confirmExit())) return false;
 		try {
 			await quit();
@@ -1006,6 +1141,12 @@ class AppStore {
 		} finally {
 			tab.saving = false;
 		}
+	}
+
+	/** A document in a tab here was saved from another window (its Combine view). */
+	savedElsewhere(id: number, result: SaveResult) {
+		const tab = this.tabs.find((t) => t.id === id);
+		if (tab) this.afterSave(tab, result);
 	}
 
 	// ----- outside changes -----

@@ -26,6 +26,7 @@
 	import AnnotationPropertiesDialog from '#lib/features/annotations/AnnotationPropertiesDialog.svelte';
 	import AnnotationToolbar from '#lib/features/annotations/AnnotationToolbar.svelte';
 	import { announceUpdate } from '#lib/features/changelog/announce.ts';
+	import { APP_NAME } from '#lib/config.ts';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
 	import { applySettings } from '#lib/features/settings/apply.ts';
 	import CombineView from '#lib/features/merge/CombineView.svelte';
@@ -40,12 +41,18 @@
 	import WhatsNewDialog from '#lib/features/changelog/WhatsNewDialog.svelte';
 	import {
 		appReady,
+		closeDeclined,
 		closeDocument,
 		getSettings,
 		logMetric,
+		onDocumentSaved,
+		onDocumentsMoved,
 		onDocumentsOpened,
 		onFileChanged,
 		onMergeSourcesAdded,
+		onRecentChanged,
+		onSettingsChanged,
+		onShowDocument,
 		onTouchpadPinch,
 		setImageFormat,
 		setPaneLayout,
@@ -61,25 +68,30 @@
 			const info = await appReady();
 			app.startup = info;
 			app.restorePanes(info.panes);
-			void getSettings()
+			const settings = getSettings()
 				.then(applySettings)
 				.catch(() => {});
 			setImageFormat(info.imageFormat);
-			void logMetric('main_to_ready_ms', info.mainToReadyMs);
+			// A window made for a tab moved out of another (section 8) only shows that tab:
+			// Lectrix has started already.
+			const first = info.firstWindow;
+			if (first) void logMetric('main_to_ready_ms', info.mainToReadyMs);
 			void app.refreshRecent();
 			// Before the startup files: if one of them is a recovered document, it then
 			// switches to the restored tab instead of opening without the changes.
-			await app.offerRecovery();
+			if (first) await app.offerRecovery();
+			// Tabs open as Settings say (the page display).
+			await settings;
 			const openStartedAt = performance.now();
 			await app.openStartup();
-			if (app.tabs.length > 0) {
+			if (first && app.tabs.length > 0) {
 				await firstPagePainted();
 				void logMetric('first_page_visible_ms', performance.now() - openStartedAt);
 				if (info.perfWatch) await watchPerf();
 				else if (info.perfMode && app.active) await runPerf(app.active, info.perfScrollOnly);
 			}
 			// The first start after an update offers what changed (section 6.6).
-			if (info.updated) void announceUpdate();
+			if (first && info.updated) void announceUpdate();
 			// Once the documents are up, so the check never delays them (ADR 0011).
 			update.startChecks();
 		} catch (e) {
@@ -139,6 +151,14 @@
 		if (event.ctrlKey) event.preventDefault();
 	}
 
+	// The window's title, for the taskbar and Alt+Tab: what it shows, then the app's name.
+	$effect(() => {
+		const shown = tab?.name ?? (app.combineActive ? 'Combine files' : null);
+		void getCurrentWindow()
+			.setTitle(shown ? `${shown} - ${APP_NAME}` : APP_NAME)
+			.catch(() => {});
+	});
+
 	// Remember the side panes, once a resize has settled.
 	let panesTimer: ReturnType<typeof setTimeout> | undefined;
 	$effect(() => {
@@ -175,9 +195,19 @@
 				}
 			}),
 			onFileChanged((event) => app.fileChanged(event.id, event.exists)),
+			// Other windows (section 8): tabs moved into this one, a file opened elsewhere that
+			// is open here, a save and a change of settings made in another window.
+			onDocumentsMoved(() => void app.tabsMovedIn()),
+			onShowDocument((id) => app.showDocument(id)),
+			onDocumentSaved((event) => app.savedElsewhere(event.id, event.result)),
+			onSettingsChanged(applySettings),
+			onRecentChanged(() => void app.loadRecent()),
 			onTouchpadPinch(dispatchPinch),
 			getCurrentWindow().onCloseRequested(async (event) => {
-				if (!(await app.confirmExit())) event.preventDefault();
+				if (await app.confirmExit()) return;
+				event.preventDefault();
+				// For a window that asked this one to close, to quit Lectrix.
+				void closeDeclined().catch(() => {});
 			}),
 			getCurrentWebview().onDragDropEvent((event) => {
 				const type = event.payload.type;

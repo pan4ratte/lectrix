@@ -1,7 +1,5 @@
 // App commands, shared by the menus and the keyboard shortcuts (section 8).
 
-import { getCurrentWindow } from '@tauri-apps/api/window';
-
 import { repair } from '#lib/features/annotations/actions.ts';
 import { tools } from '#lib/features/annotations/state.svelte.ts';
 import type { Tool } from '#lib/features/annotations/tools.ts';
@@ -56,7 +54,11 @@ export const commands = {
 		else if (app.active) void app.closeTab(app.active.id);
 	},
 	combineFiles: () => app.openCombine(),
-	exit: () => void getCurrentWindow().close(),
+	/** The active tab into a window of its own (section 8). */
+	moveTabToNewWindow: withTab((t) => {
+		if (!app.isOnlyTab(t.id)) void app.moveToWindow(t.id, { kind: 'new' });
+	}),
+	exit: () => void app.exit(),
 	settings: () => {
 		app.settingsOpen = true;
 	},

@@ -46,8 +46,31 @@ pub trait Platform: Send + Sync {
     }
 
     /// Makes touchpad pinches reach the page as document zoom where the webview would
-    /// otherwise magnify the whole app with them. Called once the main window is made.
+    /// otherwise magnify the whole app with them. Called once a window is made.
     fn route_touchpad_pinch(&self, _window: &tauri::WebviewWindow) {}
+
+    /// The Lectrix window the cursor is over, for a tab dropped outside its own window.
+    /// Here, without knowing which window is on top: one whose frame the cursor is in, the
+    /// focused one first.
+    fn window_under_cursor(&self, app: &tauri::AppHandle) -> Option<String> {
+        use tauri::Manager;
+        let cursor = app.cursor_position().ok()?;
+        let mut over: Vec<(String, tauri::WebviewWindow)> = app
+            .webview_windows()
+            .into_iter()
+            .filter(|(_, w)| {
+                let (Ok(false), Ok(p), Ok(s)) =
+                    (w.is_minimized(), w.outer_position(), w.outer_size())
+                else {
+                    return false;
+                };
+                let (x, y) = (cursor.x - f64::from(p.x), cursor.y - f64::from(p.y));
+                x >= 0.0 && y >= 0.0 && x < f64::from(s.width) && y < f64::from(s.height)
+            })
+            .collect();
+        over.sort_by_key(|(label, w)| (!w.is_focused().unwrap_or(false), label.clone()));
+        over.into_iter().next().map(|(label, _)| label)
+    }
 
     /// Browser arguments for the webview, when they must differ from Tauri's defaults.
     fn webview_browser_args(&self) -> Option<String> {

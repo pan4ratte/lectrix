@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-move-document"
+description = "Enables the move_document command without any pre-configured scope."
+commands.allow = ["move_document"]
+
+[[permission]]
+identifier = "deny-move-document"
+description = "Denies the move_document command without any pre-configured scope."
+commands.deny = ["move_document"]

@@ -505,6 +505,16 @@ impl Documents {
         Ok(document_info(id, info, view))
     }
 
+    /// Reports a change of document `id`'s file again at the next check: its tab moved to
+    /// another window, which has not been told.
+    pub fn report_again(&self, id: u32) {
+        if let Ok(mut docs) = self.docs.lock()
+            && let Some(doc) = docs.get_mut(&id)
+        {
+            doc.reported = None;
+        }
+    }
+
     /// Checks every open file once and returns the changes not yet reported.
     pub fn poll_changes(&self) -> Vec<FileChangedEvent> {
         let snapshot: Vec<(u32, PathBuf)> = match self.docs.lock() {
@@ -730,6 +740,10 @@ mod tests {
         let events = docs.poll_changes();
         assert_eq!(events.len(), 1);
         assert!(!events[0].exists);
+        // Its tab moved to another window, which is told too.
+        assert!(docs.poll_changes().is_empty());
+        docs.report_again(document.id);
+        assert_eq!(docs.poll_changes().len(), 1);
     }
 
     #[test]

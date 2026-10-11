@@ -89,6 +89,44 @@ impl Platform for Windows {
         }
     }
 
+    /// The window on top at the cursor, if it is one of Lectrix's.
+    fn window_under_cursor(&self, app: &tauri::AppHandle) -> Option<String> {
+        use std::ffi::c_void;
+        use tauri::Manager;
+
+        #[repr(C)]
+        struct Point {
+            x: i32,
+            y: i32,
+        }
+        #[link(name = "user32")]
+        unsafe extern "system" {
+            fn GetCursorPos(point: *mut Point) -> i32;
+            fn WindowFromPoint(point: Point) -> *mut c_void;
+            fn GetAncestor(hwnd: *mut c_void, flags: u32) -> *mut c_void;
+        }
+        /// GA_ROOT: the top-level window a child window (the webview's) belongs to.
+        const GA_ROOT: u32 = 2;
+
+        let mut point = Point { x: 0, y: 0 };
+        // SAFETY: `point` is a valid POINT to write to. WindowFromPoint and GetAncestor take
+        // any point and any window handle, and return null when there is no such window.
+        let top = unsafe {
+            if GetCursorPos(&mut point) == 0 {
+                return None;
+            }
+            let at = WindowFromPoint(point);
+            if at.is_null() {
+                return None;
+            }
+            GetAncestor(at, GA_ROOT)
+        };
+        app.webview_windows()
+            .into_iter()
+            .find(|(_, w)| w.hwnd().is_ok_and(|hwnd| hwnd.0 == top))
+            .map(|(label, _)| label)
+    }
+
     /// WebView2 drops touchpad pinches unless `IsPinchZoomEnabled` is on, which wry ties
     /// to Tauri's zoom hotkeys setting. A change at runtime would only apply after the
     /// next navigation, so it is set when the webview is made.
