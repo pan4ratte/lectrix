@@ -79,7 +79,7 @@
 									class="icon-button tool-button {draggedPanel() === panel ? 'opacity-50' : ''}"
 									aria-label={info.label}
 									aria-describedby={badge ? 'annotations-tab-needs-repair' : undefined}
-									title={info.label}
+									data-tip={info.label}
 									data-panel-tab={panel}
 									onpointerdown={(event: PointerEvent) => startPanelDrag(panel, event)}
 									onkeydown={(event: KeyboardEvent) => onTabKeyDown(event, panel)}

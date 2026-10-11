@@ -21,7 +21,7 @@
 		type="button"
 		class="window-button"
 		aria-label="Minimize"
-		title="Minimize"
+		data-tip="Minimize"
 		onclick={() => void appWindow.minimize()}
 	>
 		<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M0 5h10" stroke="currentColor" /></svg>
@@ -30,7 +30,7 @@
 		type="button"
 		class="window-button"
 		aria-label={maximized ? 'Restore' : 'Maximize'}
-		title={maximized ? 'Restore' : 'Maximize'}
+		data-tip={maximized ? 'Restore' : 'Maximize'}
 		onclick={() => void appWindow.toggleMaximize()}
 	>
 		{#if maximized}
@@ -47,7 +47,7 @@
 		type="button"
 		class="window-button window-close"
 		aria-label="Close"
-		title="Close"
+		data-tip="Close"
 		onclick={() => void appWindow.close()}
 	>
 		<svg width="10" height="10" viewBox="0 0 10 10" aria-hidden="true"><path d="M0 0l10 10M10 0L0 10" stroke="currentColor" /></svg>

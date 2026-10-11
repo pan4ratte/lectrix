@@ -129,7 +129,7 @@
 		type="button"
 		class="icon-button recent-remove {className}"
 		aria-label="Remove {file.name} from the list"
-		title="Remove from the list"
+		data-tip="Remove from the list"
 		onclick={() => void remove(file.index)}
 	>
 		<X size={14} aria-hidden="true" />
@@ -223,7 +223,7 @@
 						type="button"
 						class="icon-button tool-button size-8"
 						aria-label="List"
-						title="List"
+						data-tip="List"
 						aria-pressed={!app.recentFilesGrid}
 						onclick={() => showAs(false)}
 					>
@@ -233,7 +233,7 @@
 						type="button"
 						class="icon-button tool-button size-8"
 						aria-label="Grid"
-						title="Grid"
+						data-tip="Grid"
 						aria-pressed={app.recentFilesGrid}
 						onclick={() => showAs(true)}
 					>
@@ -247,7 +247,7 @@
 					{#each app.recent as file, i (file.index)}
 						{@const url = previewUrl(file)}
 						<li class="recent-card" class:recent-missing={!file.exists} style:--recent-i={Math.min(i, STAGGERED)}>
-							<button type="button" class="recent-open" title={folderTip(file)} onclick={() => void app.openRecent(file.index)}>
+							<button type="button" class="recent-open" data-tip={folderTip(file)} onclick={() => void app.openRecent(file.index)}>
 								<span class="recent-preview">
 									{#if file.exists && !failed[url]}
 										<img
@@ -268,7 +268,7 @@
 								</span>
 								<span class="recent-name">{file.name}</span>
 								<span class="recent-details">
-									<span title={fullDate(file.openedAt)}>{openedDate(file.openedAt)}</span>
+									<span data-tip={fullDate(file.openedAt)}>{openedDate(file.openedAt)}</span>
 									<span aria-hidden="true">·</span>
 									<span class="tabular-nums">{sizeText(file)}</span>
 								</span>
@@ -300,7 +300,7 @@
 									<button
 										type="button"
 										class="recent-open recent-open-row"
-										title={folderTip(file)}
+										data-tip={folderTip(file)}
 										onclick={() => void app.openRecent(file.index)}
 									>
 										<!-- Decorative: the name says what it is. -->
@@ -308,7 +308,7 @@
 										<span class="truncate">{file.name}</span>
 									</button>
 								</td>
-								<td class="truncate" title={fullDate(file.openedAt)}>{openedDate(file.openedAt)}</td>
+								<td class="truncate" data-tip={fullDate(file.openedAt)}>{openedDate(file.openedAt)}</td>
 								<td class="text-right tabular-nums">{sizeText(file)}</td>
 								<td>{@render removeButton(file, 'size-7')}</td>
 							</tr>

@@ -338,7 +338,7 @@
 							class="icon-button size-6"
 							tabindex="-1"
 							aria-label="Turn counter-clockwise"
-							title="Turn counter-clockwise (Shift+R)"
+							data-tip="Turn counter-clockwise (Shift+R)"
 							onclick={() => combine.rotate(new Set([page.key]), -90)}
 						>
 							<RotateCcw size={14} aria-hidden="true" />
@@ -349,7 +349,7 @@
 							class="icon-button size-6"
 							tabindex="-1"
 							aria-label="Turn clockwise"
-							title="Turn clockwise (R)"
+							data-tip="Turn clockwise (R)"
 							onclick={() => combine.rotate(new Set([page.key]), 90)}
 						>
 							<RotateCw size={14} aria-hidden="true" />
@@ -360,7 +360,7 @@
 							class="icon-button size-6"
 							tabindex="-1"
 							aria-label="Remove"
-							title="Remove (Del)"
+							data-tip="Remove (Del)"
 							onclick={() => combine.remove(new Set([page.key]))}
 						>
 							<X size={14} aria-hidden="true" />

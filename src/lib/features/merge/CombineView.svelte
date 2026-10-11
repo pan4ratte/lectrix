@@ -41,7 +41,7 @@
 				type="button"
 				class="icon-button size-7"
 				aria-label="Add files"
-				title="Add files"
+				data-tip="Add files"
 				disabled={combine.running}
 				onclick={() => void combine.addFiles()}
 			>
@@ -58,7 +58,7 @@
 						aria-hidden="true"
 					></span>
 					<span class="min-w-0 flex-1">
-						<span class="block truncate" title={source.path}>{source.name}</span>
+						<span class="block truncate" data-tip={source.path}>{source.name}</span>
 						<span class="block text-xs text-fg-muted">{pagesText(count, source.pages.length)}</span>
 					</span>
 					{#if count < source.pages.length}
@@ -66,7 +66,7 @@
 							type="button"
 							class="icon-button size-7 shrink-0"
 							aria-label="Put back the pages of {source.name} that were removed"
-							title="Put back removed pages"
+							data-tip="Put back removed pages"
 							onclick={() => combine.restoreFile(source.id)}
 						>
 							<ArchiveRestore size={14} aria-hidden="true" />
@@ -77,7 +77,7 @@
 							type="button"
 							class="icon-button size-7 shrink-0"
 							aria-label="Leave out {source.name}"
-							title="Leave out this file"
+							data-tip="Leave out this file"
 							onclick={() => combine.removeFile(source.id)}
 						>
 							<X size={14} aria-hidden="true" />
@@ -119,7 +119,7 @@
 				type="button"
 				class="icon-button"
 				aria-label="Turn selected pages counter-clockwise"
-				title="Turn counter-clockwise (Shift+R)"
+				data-tip="Turn counter-clockwise (Shift+R)"
 				disabled={!hasSelection}
 				onclick={() => combine.rotate(combine.selectedSet, -90)}
 			>
@@ -129,7 +129,7 @@
 				type="button"
 				class="icon-button"
 				aria-label="Turn selected pages clockwise"
-				title="Turn clockwise (R)"
+				data-tip="Turn clockwise (R)"
 				disabled={!hasSelection}
 				onclick={() => combine.rotate(combine.selectedSet, 90)}
 			>
@@ -139,7 +139,7 @@
 				type="button"
 				class="icon-button"
 				aria-label="Remove selected pages"
-				title="Remove (Del)"
+				data-tip="Remove (Del)"
 				disabled={!hasSelection}
 				onclick={() => combine.remove(combine.selectedSet)}
 			>
@@ -150,7 +150,7 @@
 				type="button"
 				class="icon-button"
 				aria-label="Undo"
-				title={app.hint('Undo', 'undo')}
+				data-tip={app.hint('Undo', 'undo')}
 				disabled={!combine.canUndo}
 				onclick={() => combine.undo()}
 			>
@@ -160,7 +160,7 @@
 				type="button"
 				class="icon-button"
 				aria-label="Redo"
-				title={app.hint('Redo', 'redo')}
+				data-tip={app.hint('Redo', 'redo')}
 				disabled={!combine.canRedo}
 				onclick={() => combine.redo()}
 			>

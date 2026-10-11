@@ -66,7 +66,7 @@ test('two 500-page files combine with progress, and Stop writes nothing', async 
 		console.log(`combined 1,000 pages (slowed by 3 ms a page) in ${elapsed} ms; bar values: ${counts.length}`);
 
 		// 2. Combine again into the second file and stop halfway.
-		await (await browser.$('div[role=tab][title="Combine files"]')).click();
+		await (await browser.$('div[role=tab][data-tip="Combine files"]')).click();
 		await (await browser.$('button=Combine…')).click();
 		const bar = await browser.$('[role=progressbar]');
 		await bar.waitForExist({ timeout: 10_000 });

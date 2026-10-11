@@ -53,7 +53,7 @@
 		type="button"
 		class="app-home flex shrink-0 items-center pr-[8px] select-none"
 		aria-label="{APP_NAME}: start screen"
-		title={canShowStart ? (app.startShown ? 'Back to where you were' : 'Start screen') : undefined}
+		data-tip={canShowStart ? (app.startShown ? 'Back to where you were' : 'Start screen') : undefined}
 		aria-pressed={canShowStart ? app.startShown : undefined}
 		aria-disabled={!canShowStart}
 		tabindex={canShowStart ? 0 : -1}

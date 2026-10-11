@@ -15,7 +15,8 @@
 		/** The button's id, for a <label for> elsewhere. */
 		id?: string;
 		describedby?: string;
-		title?: string;
+		/** Its tooltip. */
+		tip?: string;
 		disabled?: boolean;
 		/** Size classes for the button (height, text size, width). */
 		class?: string;
@@ -28,7 +29,7 @@
 		label,
 		id,
 		describedby,
-		title,
+		tip,
 		disabled = false,
 		class: className = ''
 	}: Props = $props();
@@ -54,7 +55,7 @@
 </script>
 
 <Select.Root type="single" bind:open value={String(value)} onValueChange={pick} {items} {disabled}>
-	<Select.Trigger class="dropdown {className}" {id} aria-label={label} aria-describedby={describedby} {title}>
+	<Select.Trigger class="dropdown {className}" {id} aria-label={label} aria-describedby={describedby} data-tip={tip}>
 		<span class="min-w-0 flex-1 truncate text-left">{current?.label ?? ''}</span>
 		<ChevronDown size={14} aria-hidden="true" class="shrink-0 text-fg-muted" />
 	</Select.Trigger>

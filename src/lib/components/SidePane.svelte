@@ -92,7 +92,7 @@
 			aria-valuemax={limits.max}
 			aria-valuenow={shown}
 			tabindex="0"
-			title="Drag to resize; double-click to reset"
+			data-tip="Drag to resize; double-click to reset"
 			onpointerdown={onPointerDown}
 			onpointermove={onPointerMove}
 			onpointerup={onPointerUp}

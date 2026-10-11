@@ -59,7 +59,7 @@ test('combine three files after removing, turning and moving pages', async () =>
 	const { browser, stop } = await launch([], { dialogs: [files, out] });
 	try {
 		await (await browser.$('button*=Combine files')).click();
-		await (await browser.$('div[role=tab][title="Combine files"]')).waitForDisplayed();
+		await (await browser.$('div[role=tab][data-tip="Combine files"]')).waitForDisplayed();
 		await (await browser.$('button*=Add files')).click();
 		await waitForCells(
 			browser,

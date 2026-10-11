@@ -932,13 +932,29 @@ button.shortcut-key:hover,
 	border-left: 2px solid var(--lectrix-line);
 	list-style: none;
 }
-/* The comment of the annotation under the pointer: plain text, up to 12 lines. */
-.comment-tip {
+/* A tooltip (section 8), the app's own in place of the system's: flat, in the menus'
+   colour with their thin edge, and a tail with curved sides pointing at what it is about
+   (the tail overlaps the edge, so the two read as one shape). Whoever shows it places it:
+   in the window for a control's, in the scrolled pages for an annotation's comment (plain
+   text, up to 12 lines). It never takes the pointer. */
+.tip {
 	position: absolute;
 	z-index: 10;
+	width: max-content;
+	min-width: 28px;
 	max-width: 320px;
-	padding: 4px 8px;
+	pointer-events: none;
+	animation: tip-in 100ms ease-out;
+}
+/* Over everything, dialogs and menus included. */
+.tip-fixed {
+	position: fixed;
+	z-index: 1000;
+}
+.tip-text {
+	display: -webkit-box;
 	overflow: hidden;
+	padding: 4px 8px;
 	border: 1px solid var(--lectrix-menu-line);
 	border-radius: var(--radius-control);
 	background: var(--lectrix-menu);
@@ -947,10 +963,26 @@ button.shortcut-key:hover,
 	line-height: 1.4;
 	white-space: pre-wrap;
 	overflow-wrap: anywhere;
-	pointer-events: none;
-	display: -webkit-box;
 	-webkit-box-orient: vertical;
-	-webkit-line-clamp: 12;
+}
+.tip-tail {
+	position: absolute;
+	top: 0;
+	left: 0;
+	overflow: visible;
+}
+.tip-tail-fill {
+	fill: var(--lectrix-menu);
+}
+.tip-tail-edge {
+	fill: none;
+	stroke: var(--lectrix-menu-line);
+	stroke-width: 1px;
+}
+@keyframes tip-in {
+	from {
+		opacity: 0;
+	}
 }
 /* A page's group in the annotation list: a rule above each but the first, and a header that
    stands apart from the rows. */

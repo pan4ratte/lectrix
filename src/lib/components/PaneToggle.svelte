@@ -30,7 +30,7 @@
 	aria-label={open ? `Hide ${name}` : `Show ${name}`}
 	aria-pressed={open}
 	aria-describedby={needing ? `${side}-pane-needs-repair` : undefined}
-	title={open ? `Hide ${name}` : `Show ${name}`}
+	data-tip={open ? `Hide ${name}` : `Show ${name}`}
 	data-panel-drop={open ? undefined : side}
 	onclick={() => app.togglePane(side)}
 >

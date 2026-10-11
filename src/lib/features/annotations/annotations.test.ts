@@ -6,6 +6,7 @@ import { prepareText } from '#lib/features/viewer/selection.ts';
 import {
 	BAR_GAP,
 	TIP_OFFSET,
+	TIP_TAIL,
 	barControls,
 	clampPanel,
 	PANEL_MIN,
@@ -237,10 +238,11 @@ describe('floating bars', () => {
 
 	it('puts a tooltip by the pointer, always wholly in view', () => {
 		const tipSize = { w: 300, h: 60 };
-		// Room everywhere: below and right of the pointer.
-		expect(placeTip({ x: 100, y: 1100 }, tipSize, view, 800)).toEqual({ left: 100 + TIP_OFFSET.x, top: 1100 + TIP_OFFSET.y });
+		// Room everywhere: below the pointer, with room for the tail under the cursor.
+		const below = 1100 + TIP_OFFSET.y + TIP_TAIL.length;
+		expect(placeTip({ x: 100, y: 1100 }, tipSize, view, 800)).toEqual({ left: 100 - TIP_OFFSET.x, top: below });
 		// Near the right edge: shifted left, still below.
-		expect(placeTip({ x: 700, y: 1100 }, tipSize, view, 800)).toEqual({ left: 800 - BAR_GAP - 300, top: 1100 + TIP_OFFSET.y });
+		expect(placeTip({ x: 700, y: 1100 }, tipSize, view, 800)).toEqual({ left: 800 - BAR_GAP - 300, top: below });
 		// Near the bottom: above the pointer.
 		expect(placeTip({ x: 100, y: 1580 }, tipSize, view, 800).top).toBe(1580 - BAR_GAP - 60);
 		// Content narrower than the view: its edge counts.

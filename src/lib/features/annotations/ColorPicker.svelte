@@ -108,7 +108,7 @@
 		bind:ref={trigger}
 		class="color-button"
 		aria-label="{label}: {name}, opacity {Math.round(opacity * 100)}%"
-		title={label}
+		data-tip={label}
 		data-color-button
 	>
 		<span class="swatch-dot" style:--swatch={color ?? 'transparent'} aria-hidden="true"></span>
@@ -135,7 +135,7 @@
 							role="radio"
 							aria-checked={color === c.value}
 							aria-label={c.name}
-							title={c.name}
+							data-tip={c.name}
 							tabindex={i === tabStop ? 0 : -1}
 							style:--swatch={c.value}
 							onclick={() => oncolor(c.value)}
@@ -150,7 +150,7 @@
 					aria-label={custom ? `Custom colour, ${color}` : 'Custom colour'}
 					aria-expanded={expanded}
 					aria-controls={pickerId}
-					title="Custom colour"
+					data-tip="Custom colour"
 					onclick={() => (expanded = !expanded)}
 				></button>
 			</div>

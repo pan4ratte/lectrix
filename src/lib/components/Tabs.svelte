@@ -95,7 +95,7 @@
 			role="tab"
 			tabindex={reachable ? 0 : -1}
 			aria-selected={active}
-			title={tab.path}
+			data-tip={tab.path}
 			onpointerdown={(e) => onPointerDown(e, tab.id)}
 			onkeydown={(e) => onKeyDown(e, tab.id)}
 		>
@@ -104,7 +104,7 @@
 				<span
 					class="size-3 shrink-0 animate-spin rounded-full border-2 border-fg-muted border-t-transparent"
 					aria-label="saving"
-					title="Saving…"
+					data-tip="Saving…"
 					role="img"
 					data-saving
 				></span>
@@ -112,7 +112,7 @@
 				<span
 					class="size-2 shrink-0 rounded-full bg-fg"
 					aria-label="unsaved changes"
-					title="Unsaved changes"
+					data-tip="Unsaved changes"
 					role="img"
 					data-unsaved
 				></span>
@@ -122,7 +122,7 @@
 				data-close
 				class="icon-button tab-close ml-auto shrink-0"
 				aria-label="Close {tab.name}"
-				title={app.hint('Close', 'closeTab')}
+				data-tip={app.hint('Close', 'closeTab')}
 				tabindex={reachable ? 0 : -1}
 				onclick={() => void app.closeTab(tab.id)}
 			>
@@ -139,7 +139,7 @@
 			role="tab"
 			tabindex={reachable ? 0 : -1}
 			aria-selected={active}
-			title="Combine files"
+			data-tip="Combine files"
 			onpointerdown={(e) => {
 				if (e.button === 1) {
 					e.preventDefault();
@@ -157,7 +157,7 @@
 				data-close
 				class="icon-button tab-close ml-auto shrink-0"
 				aria-label="Close Combine files"
-				title={app.hint('Close', 'closeTab')}
+				data-tip={app.hint('Close', 'closeTab')}
 				tabindex={reachable ? 0 : -1}
 				onclick={() => void app.closeCombine()}
 			>

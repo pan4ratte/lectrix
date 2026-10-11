@@ -73,7 +73,7 @@
 			type="button"
 			class="icon-button"
 			aria-label={t.label}
-			title={t.label}
+			data-tip={t.label}
 			disabled={!quickToolAllowed(t.id, tab.flags, tab.canEditBookmarks)}
 			onclick={() => void run(t.id)}
 		>

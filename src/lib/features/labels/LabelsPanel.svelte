@@ -214,14 +214,14 @@
 			type="button"
 			class="icon-button"
 			aria-label="New range from the current page"
-			title="New range from the current page"
+			data-tip="New range from the current page"
 			disabled={!editable}
 			onclick={() => void startRangeAt(tab, tab.currentPage)}
 		>
 			<Plus size={16} aria-hidden="true" />
 		</button>
 		<DropdownMenu.Root>
-			<DropdownMenu.Trigger class="icon-button" aria-label="More label actions" title="More label actions">
+			<DropdownMenu.Trigger class="icon-button" aria-label="More label actions" data-tip="More label actions">
 				<Ellipsis size={16} aria-hidden="true" />
 			</DropdownMenu.Trigger>
 			<DropdownMenu.Portal>
@@ -286,7 +286,7 @@
 					style:top="{top}px"
 					role="option"
 					aria-selected={index === selectedRow}
-					title="Pages {pagesText(rule.startPage, end)}: {rangeText(rowLabels, rule.startPage, end)}"
+					data-tip="Pages {pagesText(rule.startPage, end)}: {rangeText(rowLabels, rule.startPage, end)}"
 				>
 					<span class="w-16 shrink-0 text-xs text-fg-muted tabular-nums">{pagesText(rule.startPage, end)}</span>
 					<span class="truncate">{rangeText(rowLabels, rule.startPage, end)}</span>
@@ -314,7 +314,7 @@
 						inputmode="numeric"
 						bind:value={draft.start}
 						disabled={!editable || selectedIndex === 0}
-						title={selectedIndex === 0 ? 'The first range always starts at page 1.' : undefined}
+						data-tip={selectedIndex === 0 ? 'The first range always starts at page 1.' : undefined}
 						aria-invalid={problem !== null && /page/i.test(problem)}
 						onkeydown={(e) => onFieldKey(e, 'start')}
 						onblur={() => void commit('blur')}
@@ -327,7 +327,7 @@
 						inputmode="numeric"
 						bind:value={draft.first}
 						disabled={!editable || draft.style === 'none'}
-						title={draft.style === 'none' ? 'This style shows the prefix only.' : undefined}
+						data-tip={draft.style === 'none' ? 'This style shows the prefix only.' : undefined}
 						aria-invalid={problem !== null && /number/i.test(problem)}
 						onkeydown={(e) => onFieldKey(e, 'first')}
 						onblur={() => void commit('blur')}
@@ -365,7 +365,7 @@
 					type="button"
 					class="button gap-1"
 					disabled={!editable || selectedIndex === 0}
-					title={selectedIndex === 0 ? 'The first range can’t be deleted; every document needs one.' : undefined}
+					data-tip={selectedIndex === 0 ? 'The first range can’t be deleted; every document needs one.' : undefined}
 					onclick={() => void deleteRule(tab, rules[selectedIndex]!.startPage)}
 				>
 					<Trash size={14} aria-hidden="true" />Delete range

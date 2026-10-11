@@ -45,7 +45,7 @@
 					<Menubar.SubContent class="menu-content max-w-[480px]" align="start" alignOffset={SUBMENU_OFFSET}>
 						{#each app.recent as file (file.index)}
 							<Menubar.Item class="menu-item" onSelect={() => void app.openRecent(file.index)}>
-								<span class="truncate" class:text-fg-muted={!file.exists} title="{file.folder}\{file.name}">
+								<span class="truncate" class:text-fg-muted={!file.exists} data-tip="{file.folder}\{file.name}">
 									{file.name}
 								</span>
 							</Menubar.Item>

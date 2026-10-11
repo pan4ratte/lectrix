@@ -190,7 +190,7 @@ test('menus, tabs and lists move with arrow keys; dialogs keep focus inside', as
 		await browser.waitUntil(() => browser.execute(() => document.querySelector('[role="dialog"]') !== null));
 		const about = await browser.execute(() => ({
 			text: document.querySelector('[role="dialog"]')?.textContent ?? '',
-			source: [...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent.includes('GitHub'))?.title ?? ''
+			source: [...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent.includes('GitHub'))?.dataset.tip ?? ''
 		}));
 		assert.match(about.text, /Version \d+\.\d+\.\d+\S* · by Mark Ingrem/);
 		assert.match(about.text, /GNU Affero\s+General\s+Public License/);

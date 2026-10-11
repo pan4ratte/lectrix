@@ -112,6 +112,9 @@ export interface TailShape {
 
 /** How far the tail reaches out of the panel, and how wide its base is. */
 export const TAIL = { length: 12, width: 18 };
+/** The same for a tooltip's tail, and the tooltip's corner radius (--radius-control). */
+export const TIP_TAIL = { length: 6, width: 12 };
+export const TIP_RADIUS = 6;
 
 /**
  * The tail of a `w` × `h` panel with rounded corners (`radius`) pointing at the centre of
@@ -119,15 +122,16 @@ export const TAIL = { length: 12, width: 18 };
  * panel, the base is on that side, opposite the centre (clear of the corners), so the tail
  * points straight at it; beyond two sides at once, the base spans that corner and the tail
  * leans towards the centre. The point stops short of the annotation. None while the
- * annotation's centre is inside the panel.
+ * annotation's centre is inside the panel. A tooltip's tail is the same shape at its own
+ * `size`.
  */
-export function tailShape(w: number, h: number, anchor: Area, radius: number): TailShape | null {
+export function tailShape(w: number, h: number, anchor: Area, radius: number, size = TAIL): TailShape | null {
 	const target = { x: (anchor.x0 + anchor.x1) / 2, y: (anchor.y0 + anchor.y1) / 2 };
 	const across = target.x < 0 ? -1 : target.x > w ? 1 : 0;
 	const down = target.y < 0 ? -1 : target.y > h ? 1 : 0;
 	if (across === 0 && down === 0) return null;
 	const inside = 2;
-	const half = TAIL.width / 2;
+	const half = size.width / 2;
 	const reach = radius + half;
 	const around = radius + 4;
 	const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(v, hi));
@@ -156,7 +160,7 @@ export function tailShape(w: number, h: number, anchor: Area, radius: number): T
 	// Short of the annotation itself, so it never covers what it marks.
 	const near = { x: clamp(mid.x, anchor.x0, anchor.x1), y: clamp(mid.y, anchor.y0, anchor.y1) };
 	const gap = Math.hypot(near.x - mid.x, near.y - mid.y);
-	const length = clamp(gap - 2, 6, TAIL.length + inside);
+	const length = clamp(gap - 2, Math.min(6, size.length), size.length + inside);
 	const tip = { x: mid.x + u.x * length, y: mid.y + u.y * length };
 	// Each side bends in: its control point is pulled from the side's middle towards the
 	// tail's axis.
@@ -166,6 +170,11 @@ export function tailShape(w: number, h: number, anchor: Area, radius: number): T
 		return { x: side.x + (axis.x - side.x) * 0.6, y: side.y + (axis.y - side.y) * 0.6 };
 	};
 	return { e1, e2, tip, c1: bend(e1), c2: bend(e2) };
+}
+
+/** A tail's two sides as an SVG path, from one end of its base to its point to the other. */
+export function tailPath(t: TailShape): string {
+	return `M${t.e1.x} ${t.e1.y} Q${t.c1.x} ${t.c1.y} ${t.tip.x} ${t.tip.y} Q${t.c2.x} ${t.c2.y} ${t.e2.x} ${t.e2.y}`;
 }
 
 /** An edge or corner the panel is resized from: n, s, e, w, ne, nw, se, sw. */
@@ -212,12 +221,14 @@ export const DEFAULT_TIP_DELAY_MS = 300;
 /** The longest delay Settings offer (mirrors `store::MAX_TOOLTIP_DELAY_MS`). */
 export const MAX_TIP_DELAY_MS = 2000;
 
-/** Where a tooltip sits from the pointer: right of it, and below the cursor's arrow. */
-export const TIP_OFFSET = { x: 12, y: 20 };
+/** Where a comment's tooltip sits from the pointer: the point of its tail below the
+ * cursor's arrow (`y`), and its left edge `x` before the pointer, so the tail is clear of
+ * the corner. */
+export const TIP_OFFSET = { x: 16, y: 20 };
 
 /**
- * Where a tooltip of size `w` × `h` goes for the pointer at `pointer` (content pixels):
- * below and to the right of it, as Windows tooltips are; shifted left near the right
+ * Where a comment's tooltip of size `w` × `h` goes for the pointer at `pointer` (content
+ * pixels): below it, its tail pointing up at the pointer; shifted left near the right
  * edge, and above the pointer when there is no room below. It always stays wholly inside
  * the visible part of the content (`view`, cut at `contentWidth`).
  */
@@ -231,8 +242,8 @@ export function placeTip(
 	const x1 = Math.min(view.x1, contentWidth) - BAR_GAP;
 	const y0 = view.y0 + BAR_GAP;
 	const y1 = view.y1 - BAR_GAP;
-	const left = pointer.x + TIP_OFFSET.x;
-	let top = pointer.y + TIP_OFFSET.y;
+	const left = pointer.x - TIP_OFFSET.x;
+	let top = pointer.y + TIP_OFFSET.y + TIP_TAIL.length;
 	if (top + size.h > y1) top = pointer.y - BAR_GAP - size.h;
 	return {
 		left: Math.max(x0, Math.min(left, x1 - size.w)),

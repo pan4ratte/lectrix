@@ -38,6 +38,7 @@
 		clampPanel,
 		placePanel,
 		resizePanel,
+		tailPath,
 		tailShape,
 		type Area,
 		type ResizeEdge
@@ -95,11 +96,7 @@
 					RADIUS
 				)
 	);
-	const tailSides = $derived(
-		tail
-			? `M${tail.e1.x} ${tail.e1.y} Q${tail.c1.x} ${tail.c1.y} ${tail.tip.x} ${tail.tip.y} Q${tail.c2.x} ${tail.c2.y} ${tail.e2.x} ${tail.e2.y}`
-			: ''
-	);
+	const tailSides = $derived(tail ? tailPath(tail) : '');
 
 	function putAt(left: number, top: number) {
 		if (key) positions.set(key, { dx: left - anchor.x0, dy: top - anchor.y0 });
@@ -273,7 +270,7 @@
 						<Dropdown
 							class="toolbar-dropdown"
 							label="Stroke width"
-							title="Stroke width"
+							tip="Stroke width"
 							value={a.width ?? 1}
 							options={ptOptions([...PEN_WIDTHS, a.width ?? 1])}
 							onchange={(width) => void update(tab, a.page, a.id, { width })}
@@ -283,7 +280,7 @@
 						<Dropdown
 							class="toolbar-dropdown"
 							label="Font size"
-							title="Font size"
+							tip="Font size"
 							value={a.fontSize ?? 12}
 							options={ptOptions([...FONT_SIZES, a.fontSize ?? 12])}
 							onchange={(fontSize) => void update(tab, a.page, a.id, { fontSize })}
@@ -300,7 +297,7 @@
 									class="icon-button tool-button"
 									aria-pressed={a.subtype === m.subtype}
 									aria-label={typeName(m.subtype)}
-									title={typeName(m.subtype)}
+									data-tip={typeName(m.subtype)}
 									onclick={() => setKind(m.kind, m.subtype)}
 								>
 									<Icon size={18} aria-hidden="true" />
@@ -310,12 +307,12 @@
 					{/if}
 					<span class="ml-auto flex items-center gap-1">
 						{#if !caps.text}
-							<button type="button" class="icon-button" aria-label="Properties" title="Properties" onclick={openProperties}>
+							<button type="button" class="icon-button" aria-label="Properties" data-tip="Properties" onclick={openProperties}>
 								<Info size={18} aria-hidden="true" />
 							</button>
 						{/if}
 						{#if caps.delete}
-							<button type="button" class="icon-button" aria-label="Delete" title="Delete (Del)" onclick={del}>
+							<button type="button" class="icon-button" aria-label="Delete" data-tip="Delete (Del)" onclick={del}>
 								<Trash size={18} aria-hidden="true" />
 							</button>
 						{/if}

@@ -852,6 +852,12 @@ test('the list counts, searches, filters and sorts annotations', async () => {
 
 		// Filter: the types as their icons, the colours, the authors as pills.
 		await (await browser.$('button[aria-label="Filter annotations"]')).click();
+		// The filters slide open, moving as they do: a click sent meanwhile lands where its
+		// button was a moment before.
+		await browser.waitUntil(
+			() => browser.execute(() => document.querySelector('[role=group][aria-label="Filters"]')?.getAnimations().length === 0),
+			{ timeoutMsg: 'the filters did not finish opening' }
+		);
 		const types = await browser.$('[role=group][aria-labelledby^="filter-types-"]');
 		await (await types.$('button[aria-label="Note"]')).click();
 		await waitForRowCount(browser, 1, 'the Note filter');

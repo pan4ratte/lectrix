@@ -83,7 +83,7 @@
 		type="button"
 		class="icon-button"
 		aria-label="Previous match (Shift+Enter)"
-		title="Previous match (Shift+Enter)"
+		data-tip="Previous match (Shift+Enter)"
 		disabled={tab.search.hits.length === 0}
 		onclick={() => tab.search.step(-1)}
 	>
@@ -93,13 +93,13 @@
 		type="button"
 		class="icon-button"
 		aria-label="Next match (Enter)"
-		title="Next match (Enter)"
+		data-tip="Next match (Enter)"
 		disabled={tab.search.hits.length === 0}
 		onclick={() => tab.search.step(1)}
 	>
 		<ChevronDown size={16} aria-hidden="true" />
 	</button>
-	<button type="button" class="icon-button" aria-label="Close find (Esc)" title="Close (Esc)" onclick={close}>
+	<button type="button" class="icon-button" aria-label="Close find (Esc)" data-tip="Close (Esc)" onclick={close}>
 		<X size={16} aria-hidden="true" />
 	</button>
 </div>

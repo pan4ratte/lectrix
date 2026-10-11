@@ -146,7 +146,7 @@
 				class="icon-button tool-button"
 				aria-pressed={active === t.id}
 				aria-label={t.label}
-				title={t.key ? `${t.label} (${t.key})` : t.label}
+				data-tip={t.key ? `${t.label} (${t.key})` : t.label}
 				disabled={t.id !== 'select' && locked}
 				onclick={() => pick(t.id)}
 			>
@@ -170,7 +170,7 @@
 					<Dropdown
 						class="toolbar-dropdown"
 						label="Stroke width"
-						title="Stroke width"
+						tip="Stroke width"
 						value={style.width}
 						options={ptOptions(PEN_WIDTHS)}
 						onchange={(width) => tools.setStyle('ink', { width })}
@@ -182,7 +182,7 @@
 					<Dropdown
 						class="toolbar-dropdown"
 						label="Font size"
-						title="Font size"
+						tip="Font size"
 						value={style.fontSize}
 						options={ptOptions(FONT_SIZES)}
 						onchange={(fontSize) => tools.setStyle('freeText', { fontSize })}

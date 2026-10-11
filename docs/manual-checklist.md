@@ -173,6 +173,11 @@ Needs an installed earlier release and a newer one published (ADR 0011,
 
 - [ ] Turn on Narrator (Ctrl+Win+Enter). Tab through the window with a document open:
       each control is announced with a sensible name (tools, page box, zoom, pane buttons and panel tabs,
-      bookmarks, annotation rows). Turn Narrator off.
+      bookmarks, annotation rows). On the page box and on a document's tab, Narrator also
+      reads what their tooltips say (how to use the page box; the file's path). Turn
+      Narrator off.
+- [ ] Rest the pointer on a view bar button, an annotation tool and the window's Close
+      button, then Tab to a panel tab: each shows Lectrix's own tooltip, with a tail
+      pointing at the control, in both appearances. No tooltip is drawn by Windows.
 - [ ] Focus rings, the selected tab, the active annotation tool and text fields are
       easy to see in Lectrix blue in both the light and the dark appearance.

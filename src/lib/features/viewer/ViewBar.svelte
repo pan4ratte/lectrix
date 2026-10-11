@@ -76,7 +76,7 @@
 			type="button"
 			class="icon-button size-7"
 			aria-label="Previous page"
-			title="Previous page"
+			data-tip="Previous page"
 			disabled={row <= 0}
 			onclick={() => tab.viewer?.turn(-1)}
 		>
@@ -86,7 +86,7 @@
 			type="button"
 			class="icon-button size-7"
 			aria-label="Next page"
-			title="Next page"
+			data-tip="Next page"
 			disabled={row >= rows - 1}
 			onclick={() => tab.viewer?.turn(1)}
 		>
@@ -107,7 +107,7 @@
 				invalid = false;
 			}}
 			onkeydown={onKeyDown}
-			title={app.hint('Type a page number or label and press Enter', 'goToPage')}
+			data-tip={app.hint('Type a page number or label and press Enter', 'goToPage')}
 			aria-invalid={invalid}
 			data-page-box
 		/>
@@ -132,7 +132,7 @@
 			type="button"
 			class="icon-button size-7"
 			aria-label={app.hint('Zoom out', 'zoomOut')}
-			title={app.hint('Zoom out', 'zoomOut')}
+			data-tip={app.hint('Zoom out', 'zoomOut')}
 			onclick={() => tab.viewer?.zoomStep(-1)}
 		>
 			<Minus size={16} aria-hidden="true" />
@@ -166,7 +166,7 @@
 			type="button"
 			class="icon-button size-7"
 			aria-label={app.hint('Zoom in', 'zoomIn')}
-			title={app.hint('Zoom in', 'zoomIn')}
+			data-tip={app.hint('Zoom in', 'zoomIn')}
 			onclick={() => tab.viewer?.zoomStep(1)}
 		>
 			<Plus size={16} aria-hidden="true" />
@@ -178,7 +178,7 @@
 			<DropdownMenu.Trigger
 				class="icon-button size-7"
 				aria-label="Page display: {modeLabel}"
-				title="Page display: {modeLabel}"
+				data-tip="Page display: {modeLabel}"
 				data-page-display
 			>
 				<PageDisplayIcon mode={tab.mode} />

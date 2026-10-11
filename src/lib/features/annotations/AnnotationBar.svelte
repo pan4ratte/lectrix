@@ -62,7 +62,7 @@
 					class="icon-button tool-button"
 					aria-pressed={a.subtype === m.subtype}
 					aria-label={typeName(m.subtype)}
-					title={typeName(m.subtype)}
+					data-tip={typeName(m.subtype)}
 					onclick={() => setKind(m.kind, m.subtype)}
 				>
 					<Icon size={18} aria-hidden="true" />
@@ -75,7 +75,7 @@
 		<span class="mx-1 h-6 w-px bg-line" aria-hidden="true"></span>
 	{/if}
 	{#if a.kind === 'freeText' && controls.text}
-		<button type="button" class="icon-button" aria-label="Edit text" title="Edit text (double-click)" onclick={onedittext}>
+		<button type="button" class="icon-button" aria-label="Edit text" data-tip="Edit text (double-click)" onclick={onedittext}>
 			<Type size={18} aria-hidden="true" />
 		</button>
 	{:else if controls.text}
@@ -83,18 +83,18 @@
 			type="button"
 			class="icon-button"
 			aria-label="Note"
-			title="Note (double-click)"
+			data-tip="Note (double-click)"
 			onclick={() => openInspector(tab, true)}
 		>
 			<MessageSquareText size={18} aria-hidden="true" />
 		</button>
 	{:else}
-		<button type="button" class="icon-button" aria-label="Properties" title="Properties" onclick={openProperties}>
+		<button type="button" class="icon-button" aria-label="Properties" data-tip="Properties" onclick={openProperties}>
 			<Info size={18} aria-hidden="true" />
 		</button>
 	{/if}
 	{#if controls.delete}
-		<button type="button" class="icon-button" aria-label="Delete" title="Delete (Del)" onclick={del}>
+		<button type="button" class="icon-button" aria-label="Delete" data-tip="Delete (Del)" onclick={del}>
 			<Trash size={18} aria-hidden="true" />
 		</button>
 	{/if}

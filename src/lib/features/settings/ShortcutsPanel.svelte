@@ -175,7 +175,7 @@
 										class="shortcut-key"
 										data-slot={i}
 										aria-label={active === i ? `Press the shortcut for ${c.label}` : `${c.label}: ${k}. Change`}
-										title={active === i ? undefined : 'Change'}
+										data-tip={active === i ? undefined : 'Change'}
 										onclick={() => record(c, i)}
 										onkeydown={(e) => onKey(e, c, i)}
 										onblur={() => {
@@ -190,7 +190,7 @@
 											type="button"
 											class="shortcut-remove"
 											aria-label="Remove {k} from {c.label}"
-											title="Remove"
+											data-tip="Remove"
 											onclick={() => {
 												stop();
 												set(c, keys.filter((_, j) => j !== i));
@@ -209,7 +209,7 @@
 								disabled={keys.length >= MAX_KEYS}
 								data-add
 								aria-label="Add a shortcut for {c.label}"
-								title="Add a shortcut"
+								data-tip="Add a shortcut"
 								onclick={() => record(c, keys.length)}
 							>
 								<Plus size={14} aria-hidden="true" />

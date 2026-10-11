@@ -94,7 +94,7 @@
 				class="button gap-1"
 				disabled={!editable}
 				onclick={() => void setDestinationHere(tab, b.id)}
-				title="Point this bookmark at what is shown now"
+				data-tip="Point this bookmark at what is shown now"
 			>
 				<Crosshair size={14} aria-hidden="true" />Set to current view
 			</button>

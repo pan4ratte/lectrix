@@ -309,7 +309,7 @@
 			type="button"
 			class="icon-button"
 			aria-label={app.hint('Add bookmark', 'addBookmark')}
-			title={app.hint('Add bookmark', 'addBookmark')}
+			data-tip={app.hint('Add bookmark', 'addBookmark')}
 			disabled={!editable}
 			onclick={() => void addBookmark(tab)}
 		>
@@ -371,7 +371,7 @@
 									aria-posinset={row.index + 1}
 									aria-expanded={b.children.length ? b.open : undefined}
 									aria-selected={tab.selectedBookmark === b.id}
-									title="{b.title}&#10;{describeTarget(b.target, tab.labels)}"
+									data-tip="{b.title}&#10;{describeTarget(b.target, tab.labels)}"
 								>
 									{#if b.children.length}
 										<span data-toggle class="tree-toggle" class:rotate-90={b.open} aria-hidden="true">

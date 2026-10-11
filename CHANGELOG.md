@@ -43,6 +43,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ### General
 
+- Tooltips have Lectrix’s own look in both themes, with a small tail pointing at what they describe. They also show for the control you reach with **Tab** or the arrow keys.
 - **Help > What’s new** shows what changed in each version. The first time Lectrix starts after an update, it offers it beside its name on the start screen, or in a notification.
 - On Windows, saving no longer fails when an antivirus or Windows Search looks at the file at that moment.
 - Saving again after a save failed (for example because the file was open in another program) no longer damages the file. A file damaged this way opened as a blank document with no pages; Lectrix now repairs it when you open it, with everything in it, and **Save As** writes it sound again.

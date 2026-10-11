@@ -327,7 +327,7 @@
 				type="button"
 				class="icon-button tool-button"
 				aria-label="Search annotations"
-				title="Search annotations"
+				data-tip="Search annotations"
 				aria-pressed={searchOpen}
 				disabled={listed.length === 0}
 				onclick={openSearch}
@@ -338,7 +338,7 @@
 				<DropdownMenu.Trigger
 					class="icon-button"
 					aria-label={sortLabel}
-					title={sortLabel}
+					data-tip={sortLabel}
 					disabled={listed.length === 0}
 				>
 					<ArrowDownUp size={16} aria-hidden="true" />
@@ -371,7 +371,7 @@
 				type="button"
 				class="icon-button tool-button relative"
 				aria-label={filtering ? `Filter annotations (${filtering} picked)` : 'Filter annotations'}
-				title="Filter annotations"
+				data-tip="Filter annotations"
 				aria-pressed={filterOpen}
 				aria-expanded={filterOpen}
 				disabled={listed.length === 0}
@@ -402,7 +402,7 @@
 							type="button"
 							class="icon-button field-button"
 							aria-label="Clear the search"
-							title="Clear the search"
+							data-tip="Clear the search"
 							onclick={() => {
 								query = '';
 								searchField?.focus();
@@ -415,7 +415,7 @@
 						type="button"
 						class="icon-button tool-button field-button"
 						aria-label="Search the text annotations mark, not their comments"
-						title="Search the text annotations mark, not their comments"
+						data-tip="Search the text annotations mark, not their comments"
 						aria-pressed={searchMarked}
 						onclick={() => (searchMarked = !searchMarked)}
 					>
@@ -438,7 +438,7 @@
 							type="button"
 							class="icon-button tool-button"
 							aria-label={typeName(t)}
-							title={typeName(t)}
+							data-tip={typeName(t)}
 							aria-pressed={filter.types.has(t)}
 							onclick={() => (filter = { ...filter, types: toggle(filter.types, t) })}
 						>
@@ -454,7 +454,7 @@
 								type="button"
 								class="swatch"
 								aria-label={colorName(c)}
-								title={colorName(c)}
+								data-tip={colorName(c)}
 								aria-pressed={filter.colors.has(c)}
 								style:--swatch={c}
 								onclick={() => (filter = { ...filter, colors: toggle(filter.colors, c) })}
@@ -489,7 +489,7 @@
 				class="button mt-2 h-7 gap-1 text-xs"
 				disabled={!tab.flags.canAnnotate}
 				onclick={() => void repair(tab)}
-				title="Fix annotations other apps may not show correctly"
+				data-tip="Fix annotations other apps may not show correctly"
 			>
 				<Wrench size={14} aria-hidden="true" />Repair {needing === 1 ? '1 annotation' : `${needing} annotations`}…
 			</button>
@@ -548,16 +548,16 @@
 											style:color={iconColor(a)}
 											role="img"
 											aria-label={typeName(a.subtype)}
-											title={typeName(a.subtype)}
+											data-tip={typeName(a.subtype)}
 										>
 											<Icon size={16} aria-hidden="true" />
 										</span>
 										<span class="min-w-0 truncate">{a.author || 'Unknown'}</span>
 										{#if a.modified !== null}
-											<span class="shrink-0" title={formatDate(a.modified)}>{shortDate(a.modified)}</span>
+											<span class="shrink-0" data-tip={formatDate(a.modified)}>{shortDate(a.modified)}</span>
 										{/if}
 										{#if a.problems.length}
-											<span class="repair-badge" title={problemsText(a)}>
+											<span class="repair-badge" data-tip={problemsText(a)}>
 												<TriangleAlert size={12} aria-hidden="true" />Needs repair
 											</span>
 										{/if}
@@ -582,7 +582,7 @@
 													<div class="flex min-w-0 items-center gap-2 text-xs text-fg-muted">
 														<span class="min-w-0 truncate font-semibold">{r.author || 'Unknown'}</span>
 														{#if r.modified !== null}
-															<span class="shrink-0" title={formatDate(r.modified)}>{shortDate(r.modified)}</span>
+															<span class="shrink-0" data-tip={formatDate(r.modified)}>{shortDate(r.modified)}</span>
 														{/if}
 													</div>
 													{#if editingReply === keyOf(r)}

@@ -226,7 +226,7 @@
 	</div>
 	<div class="flex items-center gap-2">
 		{#if EyeDropper}
-			<button type="button" class="icon-button size-7 shrink-0" aria-label="Pick a colour from the screen" title="Pick a colour from the screen" onclick={() => void sample()}>
+			<button type="button" class="icon-button size-7 shrink-0" aria-label="Pick a colour from the screen" data-tip="Pick a colour from the screen" onclick={() => void sample()}>
 				<Pipette size={16} aria-hidden="true" />
 			</button>
 		{/if}

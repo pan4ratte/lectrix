@@ -190,7 +190,7 @@
 			type="button"
 			class="icon-button"
 			aria-label="Rotate current page counter-clockwise"
-			title="Rotate current page counter-clockwise"
+			data-tip="Rotate current page counter-clockwise"
 			disabled={!tab.flags.canAssemble}
 			onclick={() => void app.rotatePages(tab, [tab.currentPage], -90)}
 		>
@@ -200,7 +200,7 @@
 			type="button"
 			class="icon-button"
 			aria-label="Rotate current page clockwise"
-			title="Rotate current page clockwise"
+			data-tip="Rotate current page clockwise"
 			disabled={!tab.flags.canAssemble}
 			onclick={() => void app.rotatePages(tab, [tab.currentPage], 90)}
 		>
@@ -211,7 +211,7 @@
 			type="button"
 			class="icon-button"
 			aria-label="Smaller thumbnails"
-			title="Smaller thumbnails"
+			data-tip="Smaller thumbnails"
 			disabled={smaller === null}
 			onclick={() => resize(smaller)}
 		>
@@ -221,7 +221,7 @@
 			type="button"
 			class="icon-button"
 			aria-label="Larger thumbnails"
-			title="Larger thumbnails"
+			data-tip="Larger thumbnails"
 			disabled={larger === null}
 			onclick={() => resize(larger)}
 		>
@@ -231,7 +231,7 @@
 			type="button"
 			class="icon-button tool-button"
 			aria-label="Fit thumbnails to the panel width"
-			title="Fit thumbnails to the panel width"
+			data-tip="Fit thumbnails to the panel width"
 			aria-pressed={app.thumbnailsFit}
 			onclick={toggleFit}
 		>
@@ -242,7 +242,7 @@
 			type="button"
 			class="icon-button"
 			aria-label="Thumbnails in a grid"
-			title={app.thumbnailsGrid ? 'Grid: as many columns as fit (click for one column)' : 'One column (click for a grid)'}
+			data-tip={app.thumbnailsGrid ? 'Grid: as many columns as fit (click for one column)' : 'One column (click for a grid)'}
 			aria-pressed={app.thumbnailsGrid}
 			onclick={() => (app.thumbnailsGrid = !app.thumbnailsGrid)}
 		>
