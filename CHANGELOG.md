@@ -18,12 +18,19 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 - On Linux, pinching on a touchpad zooms the document instead of the whole window, and pages appear sooner while scrolling.
 - A document stays where you were when you switch to another tab and come back, instead of returning to its first page.
+- Drag the start or the end of selected text to select more or less of it.
+- With text selected, **Shift** and the arrow keys select more or less: a character or a line at a time, and a word or a paragraph with **Ctrl** too.
+- A double-click selects the whole word and a triple-click the whole line, instead of only the part before the pointer.
 
 ### Annotations
 
 - The annotation list shows the annotations of a page from its top to its bottom, not in the order they were made.
 - A comment is no longer lost when you click on the page after typing it, and no longer goes to another annotation when you click that one.
 - **Esc** in a comment keeps what you typed instead of discarding it.
+
+### Settings
+
+- **Show handles on selected text**, under General, puts a handle at the start and at the end of selected text, to drag it by.
 
 ### Installation and updates
 

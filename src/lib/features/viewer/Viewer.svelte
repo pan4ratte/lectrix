@@ -66,14 +66,21 @@
 	import PageView from './PageView.svelte';
 	import SearchBar from './SearchBar.svelte';
 	import {
+		caretBox,
+		caretPoint,
 		compareCarets,
+		edgeAt,
 		hitTest,
 		isOverText,
 		lineAt,
+		moveCaret,
 		ordered,
+		selectionIsEmpty,
 		selectionRects,
 		wordAt,
-		type Caret
+		type Caret,
+		type CaretStep,
+		type SelectionEdge
 	} from './selection.ts';
 	import {
 		ZOOM_GLIDE_MS,
@@ -632,7 +639,10 @@
 
 	/** What a pointer drag is doing. Coordinates are page points of `page`. */
 	type Gesture =
-		| { kind: 'text'; anchor: Caret }
+		// `grabbed`: where a side of the selection was taken (client pixels), until the pointer
+		// moves from there.
+		// `unit`: the word or line a double- or triple-click selected, which stays selected.
+		| { kind: 'text'; anchor: Caret; grabbed?: { x: number; y: number } | null; unit?: [Caret, Caret] }
 		| { kind: 'move'; page: number; id: number; start: [number, number]; box: Box; handle: Handle | null; moved: boolean }
 		| { kind: 'ink'; page: number; points: number[] }
 		| { kind: 'area'; page: number; start: [number, number] }
@@ -692,17 +702,52 @@
 		}
 		const text = tab.text(caret.page)!;
 		let anchor = caret;
+		let unit: [Caret, Caret] | undefined;
 		if (clicks === 2 || clicks === 3) {
-			const [a, focus] = clicks === 2 ? wordAt(text, caret) : lineAt(text, caret);
-			tab.selection = { anchor: a, focus };
-			anchor = a;
+			unit = clicks === 2 ? wordAt(text, caret) : lineAt(text, caret);
+			tab.selection = { anchor: unit[0], focus: unit[1] };
+			anchor = unit[0];
 		} else if (event.shiftKey && tab.selection) {
 			anchor = tab.selection.anchor;
 			tab.selection = { anchor, focus: caret };
 		} else {
 			tab.selection = { anchor: caret, focus: caret };
 		}
-		begin(event, { kind: 'text', anchor });
+		begin(event, { kind: 'text', anchor, unit });
+		return true;
+	}
+
+	/** How close (screen pixels) the pointer must be to a side of the selection to take it. */
+	const EDGE_REACH_PX = 5;
+
+	/** The side of the text selection at a point on `page` (page points), for the tools that
+	 * select text. */
+	function selectionEdgeAt(page: number, x: number, y: number): SelectionEdge | null {
+		const sel = tab.selection;
+		const text = tab.text(page);
+		if (!sel || !text || !(tools.tool === 'select' || isMarkupTool(tools.tool))) return null;
+		const [start, end] = ordered(sel.anchor, sel.focus);
+		return edgeAt(text, start, end, x, y, px(EDGE_REACH_PX));
+	}
+
+	/**
+	 * Takes the side of the selection under the pointer, to extend or reduce the selection
+	 * from there (section 6.1): the drag moves that side, and the other one stays. Only a
+	 * single press does: a double-click still selects a word, and Shift extends as ever.
+	 */
+	function beginEdge(event: PointerEvent, page: number, x: number, y: number, clicks: number): boolean {
+		const sel = tab.selection;
+		if (!sel || clicks !== 1 || event.shiftKey) return false;
+		const edge = selectionEdgeAt(page, x, y);
+		if (!edge) return false;
+		const [start, end] = ordered(sel.anchor, sel.focus);
+		tab.selectedAnnotation = null;
+		overEdge = edge;
+		begin(event, {
+			kind: 'text',
+			anchor: edge.side === 'start' ? end : start,
+			grabbed: { x: event.clientX, y: event.clientY }
+		});
 		return true;
 	}
 
@@ -740,6 +785,8 @@
 					return;
 				}
 			}
+			// A side of the selected text comes before an annotation under it.
+			if (beginEdge(event, page, x, y, clicks)) return;
 			const hit = annotationAt(tab.hitTargets(page), x, y, px(4));
 			if (hit) {
 				tab.selectAnnotation(page, hit.id);
@@ -773,7 +820,7 @@
 				tab.selection = null;
 				tab.draft = { kind: 'area', page, box: [x, y, x, y] };
 				begin(event, { kind: 'area', page, start: [x, y] });
-			} else {
+			} else if (!beginEdge(event, page, x, y, clicks)) {
 				beginText(event, clicks);
 			}
 		} else if (tool === 'ink') {
@@ -803,8 +850,22 @@
 		const g = gesture;
 		if (!g) return;
 		if (g.kind === 'text') {
+			if (g.grabbed) {
+				// A side taken and let go where it was leaves the selection as it is.
+				if (Math.hypot(clientX - g.grabbed.x, clientY - g.grabbed.y) < 3) return;
+				g.grabbed = null;
+			}
 			const focus = caretAt(clientX, clientY, true);
-			if (focus) tab.selection = { anchor: g.anchor, focus };
+			if (!focus) return;
+			if (g.unit) {
+				// The word or line stays whole; a drag out of it selects on from its far side.
+				const [from, to] = g.unit;
+				if (compareCarets(focus, from) < 0) tab.selection = { anchor: to, focus };
+				else if (compareCarets(focus, to) > 0) tab.selection = { anchor: from, focus };
+				else tab.selection = { anchor: from, focus: to };
+				return;
+			}
+			tab.selection = { anchor: g.anchor, focus };
 			return;
 		}
 		const [x, y] = pointOn(g.page, clientX, clientY);
@@ -830,6 +891,14 @@
 	let overText = $state(false);
 	/** What the pointer is over with the Select tool: an annotation that moves, or one that doesn't. */
 	let overAnnotation = $state<'move' | 'select' | null>(null);
+	/** The side of the text selection the pointer is on, or is dragging. */
+	let overEdge = $state<SelectionEdge | null>(null);
+	/** The cursor for it: the arrows along the line as it is on screen. */
+	const edgeCursor = $derived.by(() => {
+		if (!overEdge || !tab.selection) return null;
+		const turned = tab.rotation === 90 || tab.rotation === 270;
+		return overEdge.vertical !== turned ? 'ns' : 'ew';
+	});
 
 	function onPointerMove(event: PointerEvent) {
 		lastPointer = { x: event.clientX, y: event.clientY };
@@ -845,11 +914,13 @@
 			if (!target?.closest('.page')) {
 				overText = false;
 				overAnnotation = null;
+				overEdge = null;
 				hideTip();
 				return;
 			}
 			const page = pageUnder(lastPointer.x, lastPointer.y);
 			const [x, y] = toPage(page, lastPointer.x, lastPointer.y);
+			overEdge = selectionEdgeAt(page, x, y);
 			overAnnotation = null;
 			const hit = annotationAt(tab.hitTargets(page), x, y, px(4));
 			if (hit && tools.tool === 'select') overAnnotation = capabilities(hit, tab.flags.canAnnotate).move ? 'move' : 'select';
@@ -922,6 +993,7 @@
 		const tool = tools.tool;
 		switch (g.kind) {
 			case 'text': {
+				if (g.grabbed) break;
 				const sel = tab.selection;
 				if (sel && compareCarets(sel.anchor, sel.focus) === 0) {
 					tab.selection = null;
@@ -1072,9 +1144,11 @@
 		if (!gesture || !scroller) return;
 		const rect = scroller.getBoundingClientRect();
 		const edge = 32;
+		// A side of the selection pressed near the top or bottom scrolls nothing until it moves.
+		const pressed = gesture.kind === 'text' && !!gesture.grabbed;
 		let dy = 0;
-		if (lastPointer.y < rect.top + edge) dy = -Math.min(40, rect.top + edge - lastPointer.y);
-		else if (lastPointer.y > rect.bottom - edge) dy = Math.min(40, lastPointer.y - (rect.bottom - edge));
+		if (!pressed && lastPointer.y < rect.top + edge) dy = -Math.min(40, rect.top + edge - lastPointer.y);
+		else if (!pressed && lastPointer.y > rect.bottom - edge) dy = Math.min(40, lastPointer.y - (rect.bottom - edge));
 		if (dy !== 0) {
 			scroller.scrollTop += dy;
 			onScroll();
@@ -1111,9 +1185,81 @@
 		return true;
 	}
 
+	// ----- the text selection from the keyboard (section 6.1) -----
+
+	/** Where Shift+Up and Shift+Down are heading, across lines of other lengths: the point
+	 * they set out from, for as long as the selection ends where they left it. */
+	let lineGoal: { focus: Caret; point: [number, number] } | null = null;
+	/** Presses are taken one after another: a step may wait for a page's text. */
+	let keySteps: Promise<void> = Promise.resolve();
+
+	/**
+	 * Shift with an arrow key moves the end of the selected text (the side last dragged or
+	 * moved; the other one stays): Left and Right by a character, Up and Down by a line, and
+	 * with Ctrl too, by a word and by a paragraph. True if the key was taken.
+	 */
+	function extendOnKey(event: KeyboardEvent): boolean {
+		if (!event.shiftKey || event.altKey || event.metaKey || !tab.selection) return false;
+		const sideways = event.key === 'ArrowLeft' || event.key === 'ArrowRight';
+		if (!sideways && event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return false;
+		const direction = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : -1;
+		const step: CaretStep = sideways ? (event.ctrlKey ? 'word' : 'character') : event.ctrlKey ? 'paragraph' : 'line';
+		keySteps = keySteps.then(() => extendSelection(direction, step));
+		return true;
+	}
+
+	async function extendSelection(direction: 1 | -1, step: CaretStep) {
+		const sel = tab.selection;
+		if (!sel) return;
+		const { anchor, focus: from } = sel;
+		const source = (page: number) => tab.loadText(page);
+		let goal: [number, number] | undefined;
+		if (step === 'line') {
+			const line = tab.text(from.page)?.lines[from.line];
+			if (lineGoal && compareCarets(lineGoal.focus, from) === 0) goal = lineGoal.point;
+			else if (line) goal = caretPoint(line, from.offset);
+		}
+		// Never nothing selected: a step that would end on the other side goes on past it, and
+		// the selection turns over.
+		const empty = (c: Caret) => selectionIsEmpty(tab.textMap(), ...ordered(anchor, c));
+		let focus = await moveCaret(source, tab.pageCount, from, direction, step, goal);
+		if (empty(focus)) {
+			focus = await moveCaret(source, tab.pageCount, focus, direction, step, goal);
+			if (empty(focus)) return;
+		}
+		// Something else changed the selection while a page's text was read.
+		const now = tab.selection;
+		if (!now || compareCarets(now.anchor, anchor) !== 0 || compareCarets(now.focus, from) !== 0) return;
+		tab.selection = { anchor, focus };
+		lineGoal = goal ? { focus, point: goal } : null;
+		const text = tab.text(focus.page);
+		const box = text ? caretBox(text, focus) : null;
+		if (box) await keepInView(focus.page, box);
+	}
+
+	/** Scrolls just far enough to show a rectangle of page `index` (page points). */
+	async function keepInView(index: number, rect: readonly number[]) {
+		const showing = showRowOf(index);
+		if (showing) await showing;
+		if (!scroller || !layout.pages[index]) return;
+		const area = contentArea(index, rect);
+		const margin = 32;
+		let top: number | null = null;
+		let left: number | null = null;
+		if (area.y0 < scrollTop + margin) top = area.y0 - margin;
+		else if (area.y1 > scrollTop + viewportH - margin) top = area.y1 + margin - viewportH;
+		if (area.x0 < scrollLeft + margin) left = area.x0 - margin;
+		else if (area.x1 > scrollLeft + viewportW - margin) left = area.x1 + margin - viewportW;
+		glideScroll(top, left, 0);
+	}
+
 	function onKeyDown(event: KeyboardEvent) {
 		// Keys in the comment panel are its own: Delete there doesn't delete the annotation.
 		if ((event.target as HTMLElement).closest('[data-annotation-panel]')) return;
+		if (event.target === scroller && extendOnKey(event)) {
+			event.preventDefault();
+			return;
+		}
 		if (event.target === scroller && flipOnKey(event)) {
 			event.preventDefault();
 			return;
@@ -1240,10 +1386,12 @@
 					{...props}
 					bind:this={scroller}
 					class="viewer-scroll h-full overflow-auto bg-canvas outline-none"
-					class:cursor-text={overText && !overAnnotation && (tools.tool === 'select' || isMarkupTool(tools.tool))}
+					class:cursor-text={overText && !overAnnotation && !edgeCursor && (tools.tool === 'select' || isMarkupTool(tools.tool))}
 					class:cursor-crosshair={tools.tool === 'ink' || tools.tool === 'note' || tools.tool === 'freeText'}
-					class:cursor-move={overAnnotation === 'move'}
-					class:cursor-pointer={overAnnotation === 'select'}
+					class:cursor-move={overAnnotation === 'move' && !edgeCursor}
+					class:cursor-pointer={overAnnotation === 'select' && !edgeCursor}
+					class:cursor-ew-resize={edgeCursor === 'ew'}
+					class:cursor-ns-resize={edgeCursor === 'ns'}
 					tabindex="0"
 					role="document"
 					aria-label="{tab.name}, {tab.pageCount} pages"

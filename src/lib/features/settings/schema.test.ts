@@ -19,7 +19,8 @@ const STORED: Settings = {
 	smoothAnnotationScroll: true,
 	tooltipDelayMs: 300,
 	openCommentAfterMarkup: false,
-	rememberAnnotationStyle: true
+	rememberAnnotationStyle: true,
+	selectionHandles: false
 };
 
 const rows = SETTING_GROUPS.flatMap((g) => g.sections.flatMap((s) => s.rows));

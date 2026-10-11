@@ -23,13 +23,18 @@ import {
 } from './layout.ts';
 import { pageBoxText, pageOf, pagePosition, resolvePageInput } from './pagebox.ts';
 import {
+	edgeAt,
 	hitTest,
 	lineAt,
+	moveCaret,
 	ordered,
 	prepareText,
+	selectionHandles,
+	selectionIsEmpty,
 	selectionRects,
 	selectionText,
 	wordAt,
+	type CaretStep,
 	type TextGeometry
 } from './selection.ts';
 import {
@@ -342,6 +347,141 @@ describe('selection', () => {
 			[1, p1]
 		]);
 		expect(selectionText(texts, start, end)).toBe('world\nsecond line\n\nNext para\nPage');
+	});
+
+	it('finds the side of the selection under the pointer', () => {
+		// "world" on the first line to "second" on the next: it starts at x 60 and ends at x 60.
+		const start = { page: 0, line: 0, offset: 6 };
+		const end = { page: 0, line: 1, offset: 6 };
+		expect(edgeAt(p0, start, end, 58, 6, 3)).toEqual({ side: 'start', vertical: false });
+		expect(edgeAt(p0, start, end, 62, 26, 3)).toEqual({ side: 'end', vertical: false });
+		// Not the other ends of those lines, nor further away than the reach.
+		expect(edgeAt(p0, start, end, 110, 6, 3)).toBeNull();
+		expect(edgeAt(p0, start, end, 0, 26, 3)).toBeNull();
+		expect(edgeAt(p0, start, end, 54, 6, 3)).toBeNull();
+		expect(edgeAt(p0, start, end, 60, 40, 3)).toBeNull();
+		// Of two sides in reach, the closer one.
+		const a = { page: 0, line: 0, offset: 2 };
+		const b = { page: 0, line: 0, offset: 3 };
+		expect(edgeAt(p0, a, b, 23, 6, 10)?.side).toBe('start');
+		expect(edgeAt(p0, a, b, 27, 6, 10)?.side).toBe('end');
+	});
+
+	it('gives a page only the sides of the selection that are on it', () => {
+		const start = { page: 0, line: 2, offset: 5 };
+		const end = { page: 1, line: 0, offset: 4 };
+		expect(edgeAt(p0, start, end, 50, 56, 3)?.side).toBe('start');
+		// Where the selection runs off the first page and onto the second, there is no side.
+		expect(edgeAt(p0, start, end, 90, 56, 3)).toBeNull();
+		expect(edgeAt(p1, start, end, 0, 6, 3)).toBeNull();
+		expect(edgeAt(p1, start, end, 40, 6, 3)?.side).toBe('end');
+	});
+
+	it('finds the sides of text running in other directions', () => {
+		// Top to bottom, then right to left: the selection starts where its text does.
+		const down = prepareText({
+			page: 0,
+			revision: 0,
+			lines: [{ text: 'abc', boxes: [0, 0, 12, 10, 0, 10, 12, 20, 0, 20, 12, 30], bbox: [0, 0, 12, 30], block: 0, vertical: false }]
+		});
+		const from = { page: 0, line: 0, offset: 1 };
+		const to = { page: 0, line: 0, offset: 3 };
+		expect(edgeAt(down, from, to, 6, 9, 2)).toEqual({ side: 'start', vertical: true });
+		expect(edgeAt(down, from, to, 6, 31, 2)).toEqual({ side: 'end', vertical: true });
+		const leftward = prepareText({
+			page: 0,
+			revision: 0,
+			lines: [{ text: 'abc', boxes: [20, 0, 30, 12, 10, 0, 20, 12, 0, 0, 10, 12], bbox: [0, 0, 30, 12], block: 0, vertical: false }]
+		});
+		expect(edgeAt(leftward, from, to, 21, 6, 2)?.side).toBe('start');
+		expect(edgeAt(leftward, from, to, 1, 6, 2)?.side).toBe('end');
+	});
+
+	it('places a handle on each side, the start one at the top and the end one at the bottom', () => {
+		const handles = selectionHandles(p0, { page: 0, line: 0, offset: 6 }, { page: 0, line: 1, offset: 6 });
+		expect(handles).toEqual([
+			{ side: 'start', vertical: false, box: [60, 0, 60, 12], knob: [60, 0] },
+			{ side: 'end', vertical: false, box: [60, 20, 60, 32], knob: [60, 32] }
+		]);
+		// A selection that runs on to the next page has no end here.
+		expect(selectionHandles(p0, { page: 0, line: 2, offset: 5 }, { page: 1, line: 0, offset: 4 }).map((h) => h.side)).toEqual([
+			'start'
+		]);
+	});
+
+	it('knows a selection with nothing in it', () => {
+		const both = new Map([
+			[0, p0],
+			[1, p1]
+		]);
+		const at = (page: number, line: number, offset: number) => ({ page, line, offset });
+		expect(selectionIsEmpty(both, at(0, 0, 4), at(0, 0, 4))).toBe(true);
+		// The end of a line and the start of the next are one place, across pages too.
+		expect(selectionIsEmpty(both, at(0, 0, 11), at(0, 1, 0))).toBe(true);
+		expect(selectionIsEmpty(both, at(0, 2, 9), at(1, 0, 0))).toBe(true);
+		expect(selectionIsEmpty(both, at(0, 0, 10), at(0, 1, 0))).toBe(false);
+		// A page whose text is not known may have some.
+		expect(selectionIsEmpty(new Map([[0, p0]]), at(0, 2, 9), at(1, 0, 0))).toBe(false);
+	});
+
+	describe('moving the end of the selection from the keyboard', () => {
+		const texts = new Map([
+			[0, p0],
+			[1, p1]
+		]);
+		const at = (page: number, line: number, offset: number) => ({ page, line, offset });
+		const move = (from: ReturnType<typeof at>, direction: 1 | -1, step: CaretStep, goal?: [number, number]) =>
+			moveCaret((page) => texts.get(page) ?? null, 2, from, direction, step, goal);
+
+		it('goes a character at a time, across lines and pages', async () => {
+			expect(await move(at(0, 0, 3), 1, 'character')).toEqual(at(0, 0, 4));
+			expect(await move(at(0, 0, 3), -1, 'character')).toEqual(at(0, 0, 2));
+			// From the end of a line, past the first character of the next, and back.
+			expect(await move(at(0, 0, 11), 1, 'character')).toEqual(at(0, 1, 1));
+			expect(await move(at(0, 1, 0), -1, 'character')).toEqual(at(0, 0, 10));
+			expect(await move(at(0, 2, 9), 1, 'character')).toEqual(at(1, 0, 1));
+			expect(await move(at(1, 0, 0), -1, 'character')).toEqual(at(0, 2, 8));
+			// Nowhere to go at the ends of the document.
+			expect(await move(at(1, 0, 8), 1, 'character')).toEqual(at(1, 0, 8));
+			expect(await move(at(0, 0, 0), -1, 'character')).toEqual(at(0, 0, 0));
+		});
+
+		it('goes to the end of a word forward, and to the start of one back', async () => {
+			expect(await move(at(0, 0, 0), 1, 'word')).toEqual(at(0, 0, 5));
+			expect(await move(at(0, 0, 5), 1, 'word')).toEqual(at(0, 0, 11));
+			expect(await move(at(0, 0, 11), 1, 'word')).toEqual(at(0, 1, 6));
+			expect(await move(at(0, 1, 9), -1, 'word')).toEqual(at(0, 1, 7));
+			expect(await move(at(0, 1, 7), -1, 'word')).toEqual(at(0, 1, 0));
+			expect(await move(at(0, 1, 0), -1, 'word')).toEqual(at(0, 0, 6));
+		});
+
+		it('goes a line down or up, keeping its place across the line', async () => {
+			expect(await move(at(0, 0, 8), 1, 'line')).toEqual(at(0, 1, 8));
+			expect(await move(at(0, 1, 8), -1, 'line')).toEqual(at(0, 0, 8));
+			// A shorter line ends sooner; the point the keys set out from brings the place back.
+			expect(await move(at(0, 1, 11), 1, 'line')).toEqual(at(0, 2, 9));
+			expect(await move(at(1, 0, 8), -1, 'line', [110, 26])).toEqual(at(0, 2, 9));
+			expect(await move(at(0, 2, 9), -1, 'line', [110, 26])).toEqual(at(0, 1, 11));
+			expect(await move(at(0, 2, 3), 1, 'line')).toEqual(at(1, 0, 3));
+			// On the first line, to its start; on the last, to its end.
+			expect(await move(at(0, 0, 4), -1, 'line')).toEqual(at(0, 0, 0));
+			expect(await move(at(1, 0, 3), 1, 'line')).toEqual(at(1, 0, 8));
+		});
+
+		it('goes to the end of the paragraph, then of the next one', async () => {
+			expect(await move(at(0, 0, 3), 1, 'paragraph')).toEqual(at(0, 1, 11));
+			expect(await move(at(0, 1, 11), 1, 'paragraph')).toEqual(at(0, 2, 9));
+			expect(await move(at(0, 2, 9), 1, 'paragraph')).toEqual(at(1, 0, 8));
+			expect(await move(at(0, 2, 4), -1, 'paragraph')).toEqual(at(0, 2, 0));
+			expect(await move(at(0, 2, 0), -1, 'paragraph')).toEqual(at(0, 0, 0));
+		});
+
+		it('passes pages without text', async () => {
+			const far = page(2, [line('Far', 0, 0)]);
+			const source = (index: number) => (index === 0 ? p0 : index === 2 ? far : null);
+			expect(await moveCaret(source, 3, at(0, 2, 9), 1, 'character')).toEqual(at(2, 0, 1));
+			expect(await moveCaret(source, 3, at(2, 0, 0), -1, 'word')).toEqual(at(0, 2, 5));
+		});
 	});
 
 	it('selects words and lines', () => {

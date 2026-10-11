@@ -149,6 +149,11 @@ describe.each([
 			expect(contrast(brand, canvas), `${end} text on the canvas`).toBeGreaterThanOrEqual(4.5);
 			expect(contrast(brand, mix(canvas, brand, wash)), `${end} text on its wash`).toBeGreaterThanOrEqual(4.5);
 		}
+		// The handles of selected text, on the page (white in both themes) and on the
+		// selection's tint over it.
+		const handle = solid('--lectrix-selection-handle', vars);
+		expect(contrast(handle, '#ffffff'), 'selection handle on the page').toBeGreaterThanOrEqual(3);
+		expect(contrast(handle, on('--lectrix-selection', vars, '#ffffff')), 'selection handle on the selection').toBeGreaterThanOrEqual(3);
 		for (let i = 1; i <= 6; i++) {
 			for (const bg of ['--lectrix-surface', '--lectrix-chrome']) {
 				expect(contrast(solid(`--lectrix-source-${i}`, vars), solid(bg, vars)), `source ${i} on ${bg}`).toBeGreaterThanOrEqual(3);

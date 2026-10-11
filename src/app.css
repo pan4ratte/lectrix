@@ -86,6 +86,8 @@
 	--lectrix-page-shadow: rgb(0 0 0 / 0.14);
 	--lectrix-overlay: rgb(0 0 0 / 0.5);
 	--lectrix-selection: color-mix(in srgb, var(--lectrix-accent) 32%, transparent);
+	/* On the page, which is white in both themes: the dark theme keeps this. */
+	--lectrix-selection-handle: #2f5daa;
 	--lectrix-search-hit: rgb(255 196 0 / 0.38);
 	--lectrix-search-current: rgb(255 120 0 / 0.5);
 	--lectrix-row-selected: color-mix(in srgb, var(--lectrix-accent) 16%, transparent);
@@ -286,6 +288,14 @@ input[type='color'],
 /* SVG overlays on pages. */
 .fill-selection {
 	fill: var(--lectrix-selection);
+}
+.selection-handle {
+	stroke: var(--lectrix-selection-handle);
+	stroke-width: 2px;
+	stroke-linecap: round;
+}
+.selection-handle-knob {
+	fill: var(--lectrix-selection-handle);
 }
 .fill-search-hit {
 	fill: var(--lectrix-search-hit);

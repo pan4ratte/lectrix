@@ -65,7 +65,8 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
   are meant to show in the parent's thread there, which no engine the harness runs can
   confirm. The manual checklist covers it.
 - **Accessibility.** Creating, moving and resizing annotations needs a pointer, and so
-  does selecting text, which brings up the quick tools. So do moving and resizing an
+  does starting a text selection, which brings up the quick tools (once text is selected,
+  Shift and the arrow keys extend and reduce it). So do moving and resizing an
   annotation's comment panel (its place beside the annotation needs neither). A reply's own menu (Edit reply,
   Delete reply) opens only with a right-click; Reply itself is in the row's menu, which
   the keyboard reaches. Editing, deleting and repairing

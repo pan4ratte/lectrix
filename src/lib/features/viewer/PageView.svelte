@@ -10,13 +10,14 @@
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
 	import { capabilities, isMarkupTool } from '#lib/features/annotations/tools.ts';
 	import { pageUrl, type PageSize } from '#lib/ipc/index.ts';
+	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
 	import { CSS_PX_PER_PT, type Rotation } from './layout.ts';
 	import { blankTracker } from './perf.ts';
 	import { markPageDrawn } from './perfrun.ts';
 	import RenderedImage from './RenderedImage.svelte';
-	import { ordered, selectionRects } from './selection.ts';
+	import { ordered, selectionHandles, selectionRects } from './selection.ts';
 	import {
 		TILE_SIZE,
 		TILE_THRESHOLD_PIXELS,
@@ -219,6 +220,17 @@
 		return selectionRects(text, start, end);
 	});
 
+	/** The handles on the sides of the selection that are on this page, when Settings asks
+	 * for them (section 6.1). */
+	const sides = $derived.by(() => {
+		void tab.textVersion;
+		const sel = tab.selection;
+		const text = tab.text(index);
+		if (!app.settings?.selectionHandles || !sel || !text) return [];
+		const [start, end] = ordered(sel.anchor, sel.focus);
+		return selectionHandles(text, start, end);
+	});
+
 	const hits = $derived(tab.search.byPage.get(index) ?? []);
 	const label = $derived(tab.displayLabels?.[index]);
 
@@ -332,6 +344,20 @@
 				{/each}
 				{#each selection as r, ri (ri)}
 					<rect x={r[0]} y={r[1]} width={r[2]! - r[0]!} height={r[3]! - r[1]!} class="fill-selection" />
+				{/each}
+				{#each sides as s (s.side)}
+					<!-- A bar down the side, with a knob at the top of the start and the bottom of the
+					     end: the same size on screen at any zoom. -->
+					<line
+						x1={s.box[0]}
+						y1={s.box[1]}
+						x2={s.box[2]}
+						y2={s.box[3]}
+						class="selection-handle"
+						data-selection-handle={s.side}
+						vector-effect="non-scaling-stroke"
+					/>
+					<circle cx={s.knob[0]} cy={s.knob[1]} r={4.5 / k} class="selection-handle-knob" />
 				{/each}
 				{#if showSelected && selected}
 					{@const b = selected.bounds}

@@ -417,6 +417,7 @@ fn settings_of(stored: &StoredSettings, platform: &dyn Platform) -> Settings {
         tooltip_delay_ms: stored.tooltip_delay_ms,
         open_comment_after_markup: stored.open_comment_after_markup,
         remember_annotation_style: stored.remember_annotation_style,
+        selection_handles: stored.selection_handles,
     }
 }
 
@@ -458,6 +459,7 @@ pub fn set_settings(
             .min(crate::store::MAX_TOOLTIP_DELAY_MS),
         open_comment_after_markup: settings.open_comment_after_markup,
         remember_annotation_style: settings.remember_annotation_style,
+        selection_handles: settings.selection_handles,
     };
     let mut store = state.store.lock().map_err(|_| AppError::bad_state())?;
     store.set_settings(stored.clone());

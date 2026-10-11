@@ -51,4 +51,9 @@ openCommentAfterMarkup: boolean,
  * Whether new annotations get the colour and opacity last given to one of their type
  * (section 6.5); otherwise the defaults, and the toolbar's choice until Lectrix closes.
  */
-rememberAnnotationStyle: boolean, };
+rememberAnnotationStyle: boolean, 
+/**
+ * Whether selected text shows a handle at its start and at its end, to drag it from
+ * (section 6.1); its sides can be dragged either way.
+ */
+selectionHandles: boolean, };

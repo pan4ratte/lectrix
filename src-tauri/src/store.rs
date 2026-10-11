@@ -118,6 +118,9 @@ pub struct StoredSettings {
     /// ones of that type get.
     #[serde(default = "yes")]
     pub remember_annotation_style: bool,
+    /// Whether selected text shows a handle at its start and at its end.
+    #[serde(default)]
+    pub selection_handles: bool,
 }
 
 fn yes() -> bool {
@@ -149,6 +152,7 @@ impl Default for StoredSettings {
             tooltip_delay_ms: DEFAULT_TOOLTIP_DELAY_MS,
             open_comment_after_markup: false,
             remember_annotation_style: true,
+            selection_handles: false,
         }
     }
 }
@@ -422,6 +426,7 @@ mod tests {
             tooltip_delay_ms: 800,
             open_comment_after_markup: true,
             remember_annotation_style: false,
+            selection_handles: true,
         };
         store.set_settings(settings.clone());
         let reloaded = Store::load(Some(file.clone()));
@@ -449,6 +454,7 @@ mod tests {
         assert_eq!(v1.settings().tooltip_delay_ms, DEFAULT_TOOLTIP_DELAY_MS);
         assert!(!v1.settings().open_comment_after_markup);
         assert!(v1.settings().remember_annotation_style);
+        assert!(!v1.settings().selection_handles);
         // Tools from a newer version are skipped, not fatal; an empty list stays empty.
         fs::write(
             &file,

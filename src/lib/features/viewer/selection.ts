@@ -119,7 +119,6 @@ export function isOverText(text: TextGeometry, x: number, y: number): boolean {
 export function wordAt(text: TextGeometry, caret: Caret): [Caret, Caret] {
 	const line = text.lines[caret.line];
 	if (!line) return [caret, caret];
-	const isWord = (c: string | undefined) => c !== undefined && /[\p{L}\p{N}_'’-]/u.test(c);
 	let start = Math.min(caret.offset, line.chars.length - 1);
 	if (!isWord(line.chars[start]) && isWord(line.chars[start - 1])) start--;
 	if (!isWord(line.chars[start])) {
@@ -135,6 +134,11 @@ export function wordAt(text: TextGeometry, caret: Caret): [Caret, Caret] {
 		{ ...caret, offset: start },
 		{ ...caret, offset: end }
 	];
+}
+
+/** True for a character that is part of a word. */
+function isWord(c: string | undefined): boolean {
+	return c !== undefined && /[\p{L}\p{N}_'’-]/u.test(c);
 }
 
 /** The whole line around a caret (triple-click). */
@@ -168,9 +172,9 @@ function lineRange(
 	return to > from ? [from, to] : null;
 }
 
-/** One rectangle per selected line on `text`'s page: [x0, y0, x1, y1] in points. */
-export function selectionRects(text: TextGeometry, start: Caret, end: Caret): number[][] {
-	const rects: number[][] = [];
+/** The selected part of each line on `text`'s page, as the line and its rectangle. */
+function selectedLines(text: TextGeometry, start: Caret, end: Caret): { line: Line; rect: number[] }[] {
+	const out: { line: Line; rect: number[] }[] = [];
 	text.lines.forEach((line, i) => {
 		const range = lineRange(text.page, i, line.chars.length, start, end);
 		if (!range) return;
@@ -184,9 +188,234 @@ export function selectionRects(text: TextGeometry, start: Caret, end: Caret): nu
 			x1 = Math.max(x1, line.boxes[c * 4 + 2]!);
 			y1 = Math.max(y1, line.boxes[c * 4 + 3]!);
 		}
-		rects.push([x0, y0, x1, y1]);
+		out.push({ line, rect: [x0, y0, x1, y1] });
 	});
-	return rects;
+	return out;
+}
+
+/** One rectangle per selected line on `text`'s page: [x0, y0, x1, y1] in points. */
+export function selectionRects(text: TextGeometry, start: Caret, end: Caret): number[][] {
+	return selectedLines(text, start, end).map((s) => s.rect);
+}
+
+/** A side of the selection that can be dragged: where it starts, or where it ends. */
+export interface SelectionEdge {
+	side: 'start' | 'end';
+	/** The line there runs down or up the page rather than across it. */
+	vertical: boolean;
+}
+
+/** A side of the selection as it is on its page, for its handle (section 6.1). */
+export interface SelectionHandle extends SelectionEdge {
+	/** The side of the line's rectangle the selection starts (or ends) at: a box of no width. */
+	box: number[];
+	/** Where the handle's knob goes: the top of the line for the start, its bottom for the end. */
+	knob: [number, number];
+}
+
+/** The side of a selected line's rectangle its text starts (or ends) at. */
+function handleOf(line: Line, r: readonly number[], side: 'start' | 'end'): SelectionHandle {
+	const [dx, dy] = line.dir;
+	const vertical = Math.abs(dy) > Math.abs(dx);
+	const forward = (vertical ? dy : dx) > 0;
+	const low = (side === 'start') === forward;
+	if (vertical) {
+		// The top of a line running down the page is on its right, and the other way round.
+		const y = low ? r[1]! : r[3]!;
+		const top = dy > 0 ? r[2]! : r[0]!;
+		const bottom = dy > 0 ? r[0]! : r[2]!;
+		return { side, vertical, box: [r[0]!, y, r[2]!, y], knob: [side === 'start' ? top : bottom, y] };
+	}
+	const x = low ? r[0]! : r[2]!;
+	return { side, vertical, box: [x, r[1]!, x, r[3]!], knob: [x, side === 'start' ? r[1]! : r[3]!] };
+}
+
+/**
+ * The sides of the selection that are on `text`'s page: the start of its first selected
+ * line and the end of its last one. A selection that starts on an earlier page has no
+ * start here, and one that ends on a later page no end.
+ */
+export function selectionHandles(text: TextGeometry, start: Caret, end: Caret): SelectionHandle[] {
+	const lines = selectedLines(text, start, end);
+	const first = lines[0];
+	const last = lines.at(-1);
+	const out: SelectionHandle[] = [];
+	if (first && text.page === start.page) out.push(handleOf(first.line, first.rect, 'start'));
+	if (last && text.page === end.page) out.push(handleOf(last.line, last.rect, 'end'));
+	return out;
+}
+
+/** The side of the selection within `reach` points of a point on `text`'s page; of two, the
+ * closer one. */
+export function edgeAt(
+	text: TextGeometry,
+	start: Caret,
+	end: Caret,
+	x: number,
+	y: number,
+	reach: number
+): SelectionEdge | null {
+	let best: SelectionEdge | null = null;
+	let bestDistance = Infinity;
+	for (const h of selectionHandles(text, start, end)) {
+		const d = distanceToBox(x, y, h.box);
+		if (d <= reach && d < bestDistance) {
+			best = { side: h.side, vertical: h.vertical };
+			bestDistance = d;
+		}
+	}
+	return best;
+}
+
+/**
+ * True if nothing is selected between two carets: the same place, or the end of one line
+ * and the start of the next. A page between them whose text is not in `texts` counts as
+ * having some.
+ */
+export function selectionIsEmpty(texts: ReadonlyMap<number, TextGeometry>, start: Caret, end: Caret): boolean {
+	for (let page = start.page; page <= end.page; page++) {
+		const text = texts.get(page);
+		if (!text || selectedLines(text, start, end).length > 0) return false;
+	}
+	return true;
+}
+
+// ----- moving a caret from the keyboard (section 6.1) -----
+
+/** How far a key moves the end of the selection. */
+export type CaretStep = 'character' | 'word' | 'line' | 'paragraph';
+
+/** A page's text, for `moveCaret`: null if it has none or can't be read. */
+export type TextSource = (page: number) => Promise<TextGeometry | null> | TextGeometry | null;
+
+/** The box of the character a caret is at (the last one, at the end of its line). */
+export function caretBox(text: TextGeometry, caret: Caret): number[] | null {
+	const line = text.lines[caret.line];
+	if (!line) return null;
+	if (line.chars.length === 0) return [...line.bbox];
+	const i = Math.min(caret.offset, line.chars.length - 1) * 4;
+	return [line.boxes[i]!, line.boxes[i + 1]!, line.boxes[i + 2]!, line.boxes[i + 3]!];
+}
+
+/** Where a caret is on its line: on the line's middle, between two characters. */
+export function caretPoint(line: Line, offset: number): [number, number] {
+	const n = line.chars.length;
+	if (n === 0) return [(line.bbox[0] + line.bbox[2]) / 2, (line.bbox[1] + line.bbox[3]) / 2];
+	const i = Math.min(offset, n - 1);
+	const [cx, cy] = center(line.boxes, i);
+	const [dx, dy] = line.dir;
+	const along =
+		Math.abs(dx) * (line.boxes[i * 4 + 2]! - line.boxes[i * 4]!) +
+		Math.abs(dy) * (line.boxes[i * 4 + 3]! - line.boxes[i * 4 + 1]!);
+	// Before character `i`, or after the last one.
+	const half = offset < n ? -along / 2 : along / 2;
+	return [cx + dx * half, cy + dy * half];
+}
+
+/** The end of the word at or after `offset` (forward), or the start of the one at or
+ * before it. */
+function wordBoundary(line: Line, offset: number, direction: 1 | -1): number {
+	const n = line.chars.length;
+	let i = offset;
+	if (direction > 0) {
+		while (i < n && !isWord(line.chars[i])) i++;
+		while (i < n && isWord(line.chars[i])) i++;
+	} else {
+		while (i > 0 && !isWord(line.chars[i - 1])) i--;
+		while (i > 0 && isWord(line.chars[i - 1])) i--;
+	}
+	return i;
+}
+
+/** The last line (forward) or the first line of the paragraph (block) that `line` is in. */
+function paragraphEnd(text: TextGeometry, line: number, direction: 1 | -1): number {
+	const block = text.lines[line]!.block;
+	let i = line;
+	while (text.lines[i + direction]?.block === block) i += direction;
+	return i;
+}
+
+/** The next line with text after (or before) a line, on its page or on the nearest page
+ * that has any; null at the end (or the start) of the document. */
+async function adjacentLine(
+	source: TextSource,
+	pageCount: number,
+	page: number,
+	line: number,
+	direction: 1 | -1
+): Promise<{ text: TextGeometry; line: number } | null> {
+	let text = await source(page);
+	let i = line + direction;
+	for (;;) {
+		if (text) {
+			for (; i >= 0 && i < text.lines.length; i += direction) {
+				if (text.lines[i]!.chars.length > 0) return { text, line: i };
+			}
+		}
+		page += direction;
+		if (page < 0 || page >= pageCount) return null;
+		text = await source(page);
+		i = direction > 0 ? 0 : (text?.lines.length ?? 0) - 1;
+	}
+}
+
+/**
+ * Where a caret goes by one step forward (1) or back (-1), across lines and pages; the
+ * caret itself where there is nowhere to go.
+ *
+ * - `character`: the end of a line and the start of the next are one place, so each step
+ *   passes a character.
+ * - `word`: forward to the end of the word, back to the start of it.
+ * - `line`: the place on the next line closest to `goal` (a point on the page; the
+ *   caret's own, without one). On the last line, its end; on the first, its start.
+ * - `paragraph`: forward to the end of the paragraph, back to its start; from there, the
+ *   next paragraph's.
+ */
+export async function moveCaret(
+	source: TextSource,
+	pageCount: number,
+	caret: Caret,
+	direction: 1 | -1,
+	step: CaretStep,
+	goal?: readonly [number, number]
+): Promise<Caret> {
+	const text = await source(caret.page);
+	const line = text?.lines[caret.line];
+	if (!text || !line) return caret;
+	const forward = direction > 0;
+	const length = line.chars.length;
+	const atEnd = forward ? caret.offset >= length : caret.offset <= 0;
+	const next = () => adjacentLine(source, pageCount, caret.page, caret.line, direction);
+	switch (step) {
+		case 'character': {
+			if (!atEnd) return { ...caret, offset: caret.offset + direction };
+			const to = await next();
+			if (!to) return caret;
+			return { page: to.text.page, line: to.line, offset: forward ? 1 : to.text.lines[to.line]!.chars.length - 1 };
+		}
+		case 'word': {
+			if (!atEnd) return { ...caret, offset: wordBoundary(line, caret.offset, direction) };
+			const to = await next();
+			if (!to) return caret;
+			const l = to.text.lines[to.line]!;
+			return { page: to.text.page, line: to.line, offset: wordBoundary(l, forward ? 0 : l.chars.length, direction) };
+		}
+		case 'line': {
+			const to = await next();
+			if (!to) return { ...caret, offset: forward ? length : 0 };
+			const [x, y] = goal ?? caretPoint(line, caret.offset);
+			return { page: to.text.page, line: to.line, offset: offsetInLine(to.text.lines[to.line]!, x, y) };
+		}
+		case 'paragraph': {
+			let here = { text, line: paragraphEnd(text, caret.line, direction) };
+			if (atEnd && here.line === caret.line) {
+				const to = await next();
+				if (!to) return caret;
+				here = { text: to.text, line: paragraphEnd(to.text, to.line, direction) };
+			}
+			return { page: here.text.page, line: here.line, offset: forward ? here.text.lines[here.line]!.chars.length : 0 };
+		}
+	}
 }
 
 /**

@@ -1150,6 +1150,9 @@ pub struct Settings {
     /// Whether new annotations get the colour and opacity last given to one of their type
     /// (section 6.5); otherwise the defaults, and the toolbar's choice until Lectrix closes.
     pub remember_annotation_style: bool,
+    /// Whether selected text shows a handle at its start and at its end, to drag it from
+    /// (section 6.1); its sides can be dragged either way.
+    pub selection_handles: bool,
 }
 
 #[derive(Debug, Clone, Deserialize, TS)]
@@ -1170,6 +1173,7 @@ pub struct SettingsInput {
     pub tooltip_delay_ms: u32,
     pub open_comment_after_markup: bool,
     pub remember_annotation_style: bool,
+    pub selection_handles: bool,
 }
 
 /// A newer release of Lectrix, found when it started (ADR 0011).

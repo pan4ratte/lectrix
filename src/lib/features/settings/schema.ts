@@ -189,6 +189,15 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 						}
 					)
 				]
+			},
+			{
+				title: 'Selected text',
+				rows: [
+					toggle('selectionHandles', 'Show handles on selected text', {
+						description:
+							'A handle at the start and at the end of the text you select, to drag for selecting more or less. Without them, the two sides can still be dragged.'
+					})
+				]
 			}
 		]
 	},
@@ -302,7 +311,8 @@ export function toInput(d: Draft): SettingsInput {
 		smoothAnnotationScroll: d.smoothAnnotationScroll,
 		tooltipDelayMs: Number(d.tooltipDelayMs),
 		openCommentAfterMarkup: d.openCommentAfterMarkup,
-		rememberAnnotationStyle: d.rememberAnnotationStyle
+		rememberAnnotationStyle: d.rememberAnnotationStyle,
+		selectionHandles: d.selectionHandles
 	};
 }
 
