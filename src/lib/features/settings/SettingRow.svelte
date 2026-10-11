@@ -1,7 +1,7 @@
 <script lang="ts">
 	// One setting: its name and description at the left, its control at the right (a switch,
-	// a dropdown, a pill of segments, a text field, a slider or a button, by the row's kind in
-	// schema.ts). The name labels the control, so clicking it flips a switch or focuses the
+	// a dropdown, a pill of segments, a text field, a slider, the preset colours or a button,
+	// by the row's kind in schema.ts). The name labels the control, so clicking it flips a switch or focuses the
 	// field. Each change goes to `commit`: switches, dropdowns and segments at once, fields
 	// and sliders once they pause or are left. A button goes to `onaction`.
 	import Dropdown from '#lib/components/Dropdown.svelte';
@@ -9,6 +9,7 @@
 	import Slider from '#lib/components/Slider.svelte';
 	import Switch from '#lib/components/Switch.svelte';
 
+	import PresetColorsField from './PresetColorsField.svelte';
 	import type { Draft, SettingRow } from './schema.ts';
 
 	interface Props {
@@ -109,6 +110,17 @@
 				/>
 				<span class="w-10 shrink-0 text-right text-[13px] tabular-nums" aria-hidden="true">{text}</span>
 			</div>
+		{:else if row.kind === 'presets'}
+			<PresetColorsField
+				{id}
+				labelledby={labelId}
+				describedby={description ? noteId : undefined}
+				value={row.read(draft)}
+				onchange={(v) => {
+					row.write(draft, v);
+					commit();
+				}}
+			/>
 		{:else if row.kind === 'action'}
 			<button
 				{id}

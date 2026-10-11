@@ -63,6 +63,17 @@ selectionHandles: boolean,
  */
 pdfaReadOnly: boolean, 
 /**
+ * Whether a colour button opens its panel when the pointer rests on it (section
+ * 6.5); otherwise only when it is clicked.
+ */
+colorPanelOnHover: boolean, 
+/**
+ * The colour panel's presets that differ from the defaults (section 6.5): a preset's
+ * place in the panel, from 0, and its colour ("#rrggbb"). The frontend knows the
+ * defaults (`PRESET_COLORS` in `tools.ts`).
+ */
+presetColors: { [key in number]: string }, 
+/**
  * Keyboard shortcuts that differ from the defaults (section 6.6): a command's name
  * and its keys ("Ctrl+Shift+S"); no keys, no shortcut. The frontend knows the
  * commands and their defaults (`src/lib/shortcuts.ts`).

@@ -1,10 +1,10 @@
 <script lang="ts">
-	// The custom colour in the colour panel (section 6.5): a square for saturation and
-	// brightness, a hue bar, the eyedropper where the webview has one, and a field that takes
-	// a hex value (six or three digits; no RGB or HSL). Dragging and typing preview in the
-	// swatch beside the field. The colour applies when the pointer is let go, on Enter or
-	// leaving the field, half a second after the arrow keys stop, or when the eyedropper
-	// picks one, so each choice is one undo step.
+	// The custom colour in the colour panel, and a preset's colour in Settings (section 6.5):
+	// a square for saturation and brightness, a hue bar, the eyedropper where the webview has
+	// one, and a field that takes a hex value (six or three digits; no RGB or HSL). Dragging
+	// and typing preview in the swatch beside the field. The colour applies when the pointer
+	// is let go, on Enter or leaving the field, half a second after the arrow keys stop, or
+	// when the eyedropper picks one, so each choice is one undo step.
 	import { Pipette } from '@lucide/svelte';
 	import { onDestroy, untrack } from 'svelte';
 
@@ -184,7 +184,7 @@
 	}
 </script>
 
-<div class="mt-2 flex flex-col gap-2 border-t border-menu-line pt-2">
+<div class="flex flex-col gap-2">
 	<div
 		bind:this={square}
 		class="hue-square"

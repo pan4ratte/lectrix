@@ -682,6 +682,123 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 	assert.ok(saved.some((l) => /Highlight .*text "Comment at once"/.test(l)), saved.join('\n'));
 });
 
+test('the colour panel opens under the pointer, and Settings changes its presets', async () => {
+	const { browser, stop } = await launch([sample('colours.pdf', 1)]);
+	try {
+		await waitForDocument(browser);
+		await (await browser.$('[role=document]')).click();
+		await browser.keys('h');
+		const tools = await browser.$('[role=toolbar][aria-label="Annotation tools"]');
+		const button = await tools.$('[data-color-button]');
+		await button.waitForDisplayed({ timeoutMsg: 'no colour button for the Highlight tool' });
+		const box = await browser.execute((el) => el.getBoundingClientRect().toJSON(), button);
+		const on = { x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2) };
+		const away = { x: on.x - 200, y: on.y - 200 };
+		const rest = async () => {
+			await browser.action('pointer').move({ ...away, origin: 'viewport' }).perform();
+			await browser.pause(100);
+			await browser.action('pointer').move({ ...on, origin: 'viewport', duration: 100 }).perform();
+		};
+		const leave = () => browser.action('pointer').move({ ...away, origin: 'viewport', duration: 100 }).perform();
+		// (Looked up each time: a panel that went and came back is another element.)
+		const panel = () => browser.$('.color-panel');
+
+		// The pointer resting on the button opens the colours, and the focus stays put.
+		await rest();
+		await (await panel()).waitForDisplayed({ timeoutMsg: 'the pointer on the colour button opened no panel' });
+		assert.equal(await browser.execute(() => document.querySelector('.color-panel').contains(document.activeElement)), false, 'the panel took the focus');
+		// 18 presets, 6 px apart; the custom colour's button is on the opacity slider's row.
+		const layout = await browser.execute(() => {
+			const box = (sel) => document.querySelector(sel).getBoundingClientRect();
+			const swatches = [...document.querySelectorAll('.color-panel [role=radiogroup] .swatch')].map((s) => s.getBoundingClientRect());
+			const middle = (r) => r.top + r.height / 2;
+			return {
+				presets: swatches.length,
+				across: Math.round(swatches[1].left - swatches[0].right),
+				down: Math.round(swatches[6].top - swatches[0].bottom),
+				row: Math.abs(middle(box('.color-panel .swatch-custom')) - middle(box('.color-panel input[type=range]'))) < 4,
+				afterSlider: box('.color-panel .swatch-custom').left > box('.color-panel input[type=range]').right
+			};
+		});
+		assert.deepEqual(layout, { presets: 18, across: 6, down: 6, row: true, afterSlider: true });
+		// The custom colour's picker opens below that row.
+		await (await (await panel()).$('.swatch-custom')).click();
+		await (await (await panel()).$('.hue-square')).waitForDisplayed({ timeoutMsg: 'the custom colour opened no picker' });
+		await browser.waitUntil(() => browser.execute(() => document.querySelector('.color-panel').getAnimations({ subtree: true }).length === 0), {
+			timeoutMsg: 'the picker did not finish opening'
+		});
+		assert.equal(
+			await browser.execute(
+				() => document.querySelector('.color-panel .hue-square').getBoundingClientRect().top > document.querySelector('.color-panel .swatch-custom').getBoundingClientRect().bottom
+			),
+			true,
+			'the picker is not below the custom colour button'
+		);
+		// Something in it was pressed, so it stays when the pointer leaves, until Esc.
+		await leave();
+		await browser.pause(600);
+		assert.equal(await (await panel()).isExisting(), true, 'the panel went though it was being used');
+		await browser.keys(['Escape']);
+		await (await panel()).waitForExist({ reverse: true, timeoutMsg: 'Esc left the colours open' });
+		// Opened by the pointer and left alone, it goes when the pointer leaves.
+		await rest();
+		await (await panel()).waitForDisplayed({ timeoutMsg: 'the pointer opened no panel the second time' });
+		await leave();
+		await (await panel()).waitForExist({ reverse: true, timeoutMsg: 'the panel stayed after the pointer left' });
+
+		// Settings: without opening on hover, the button opens its colours on a click only.
+		await browser.keys(['Control', ',']);
+		await (await browser.$('button[role="tab"]*=Annotations')).click();
+		await (await browser.$('label*=Open the colours when the pointer is on their button')).click();
+		assert.equal(await (await browser.$('#setting-colorPanelOnHover')).getAttribute('aria-checked'), 'false');
+		await closeSettings(browser);
+		await rest();
+		await browser.pause(600);
+		assert.equal(await (await panel()).isExisting(), false, 'the pointer opened the panel though Settings turned that off');
+		await button.click();
+		await (await panel()).waitForDisplayed({ timeoutMsg: 'a click on the colour button opened no panel' });
+		await browser.keys(['Escape']);
+		await (await panel()).waitForExist({ reverse: true });
+
+		// Settings: the first preset (blue) gets another colour, which every panel then offers.
+		const firstPreset = () => browser.execute(() => document.querySelector('#setting-presetColors [data-preset="0"]')?.getAttribute('aria-label'));
+		await browser.keys(['Control', ',']);
+		await (await browser.$('button[role="tab"]*=Annotations')).click();
+		assert.equal(await firstPreset(), 'Blue');
+		assert.equal((await browser.$$('#setting-presetColors .swatch')).length, 18);
+		assert.equal(await (await browser.$('#setting-resetPresetColors')).isEnabled(), false, 'Restore colours is offered with nothing changed');
+		await (await browser.$('#setting-presetColors [data-preset="0"]')).click();
+		const hex = await browser.$('.color-panel input[aria-label="Hex colour"]');
+		await hex.waitForDisplayed({ timeoutMsg: 'the preset opened no colour picker' });
+		await hex.click();
+		await browser.keys(['Control', 'a']);
+		await browser.keys([...'12AB34']);
+		await browser.keys(['Enter']);
+		await browser.waitUntil(async () => (await firstPreset()) === '#12AB34, in place of Blue', { timeoutMsg: `the preset did not change: ${await firstPreset()}` });
+		// Esc closes the picker, not Settings.
+		await browser.keys(['Escape']);
+		await (await panel()).waitForExist({ reverse: true, timeoutMsg: 'Esc left the preset’s picker open' });
+		assert.equal(await (await browser.$('[role="dialog"]')).isExisting(), true, 'Esc in the picker closed Settings');
+		await closeSettings(browser);
+		await button.click();
+		await (await panel()).waitForDisplayed();
+		const own = await (await panel()).$('[role=radiogroup] .swatch');
+		assert.equal(await own.getAttribute('aria-label'), '#12AB34');
+		await own.click();
+		await browser.waitUntil(async () => /^Colour: #12AB34/.test(await button.getAttribute('aria-label')), { timeoutMsg: 'the tool did not take the changed preset' });
+		await browser.keys(['Escape']);
+		await (await panel()).waitForExist({ reverse: true });
+
+		// Restore colours puts blue back.
+		await browser.keys(['Control', ',']);
+		await (await browser.$('button=Restore colours')).click();
+		await browser.waitUntil(async () => (await firstPreset()) === 'Blue', { timeoutMsg: 'Restore colours left the changed preset' });
+		await closeSettings(browser);
+	} finally {
+		await stop();
+	}
+});
+
 /** A file written by hand, as another app might: a highlight with no appearance and its
  * corners in the spec's counter-clockwise order, and a note without /NM, /M or /P. */
 function problemsFile() {

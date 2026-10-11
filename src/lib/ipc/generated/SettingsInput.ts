@@ -10,4 +10,4 @@ export type SettingsInput = {
 /**
  * Empty: use the default (the Windows user name).
  */
-author: string, appearance: Appearance, scrollMode: ScrollMode, toolbarStyle: ToolbarStyle, toolbarPosition: ToolbarPosition, toolbarVisibility: ToolbarVisibility, quickTools: Array<QuickTool>, checkForUpdates: boolean, smoothZoom: boolean, smoothAnnotationScroll: boolean, tooltipDelayMs: number, openCommentAfterMarkup: boolean, rememberAnnotationStyle: boolean, selectionHandles: boolean, pdfaReadOnly: boolean, shortcuts: { [key in string]: Array<string> }, };
+author: string, appearance: Appearance, scrollMode: ScrollMode, toolbarStyle: ToolbarStyle, toolbarPosition: ToolbarPosition, toolbarVisibility: ToolbarVisibility, quickTools: Array<QuickTool>, checkForUpdates: boolean, smoothZoom: boolean, smoothAnnotationScroll: boolean, tooltipDelayMs: number, openCommentAfterMarkup: boolean, rememberAnnotationStyle: boolean, selectionHandles: boolean, pdfaReadOnly: boolean, colorPanelOnHover: boolean, presetColors: { [key in number]: string }, shortcuts: { [key in string]: Array<string> }, };

@@ -33,9 +33,13 @@ the wording, translations): docs/releasing.md, "The changelog".
 - With the list open, a new note, or a new highlight that opens its comment, puts the cursor in its comment in the list.
 - Searching or filtering the annotation list hides the other annotations on the page too, while the list is open. A new annotation the filters would hide clears them.
 - A comment in the annotation list stays where it is when you select its row, instead of shifting, and the type, author and date above it line up with it.
+- A colour button shows its colours when the pointer rests on it, without a click.
+- The colours sit closer together, the custom colour’s button is beside the opacity slider, and its picker slides open below.
 
 ### Settings
 
+- **Preset colours**, under Annotations, shows the 18 colours every tool offers and lets you replace any of them with your own. **Restore colours** puts the original ones back.
+- **Open the colours when the pointer is on their button**, under Annotations, can be turned off to open them with a click.
 - **Show handles on selected text**, under General, puts a handle at the start and at the end of selected text, to drag it by.
 - **Open PDF/A files for reading only**, under General, can be turned off to open such files ready to edit.
 - **Shortcuts** lists every keyboard shortcut, with a search field, and lets you change them: press a shortcut, then the keys it should have. Commands without one can get one, and menus and tooltips show the keys you chose.

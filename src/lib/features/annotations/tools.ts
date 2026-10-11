@@ -62,12 +62,18 @@ const ACROBAT_RED = '#e52237';
 /** Columns of the preset grid. */
 export const PRESET_COLUMNS = 6;
 
+/** A swatch of the colour panel: its colour (#rrggbb, lower case) and what it is called. */
+export interface PresetColor {
+	value: string;
+	name: string;
+}
+
 /**
  * Acrobat's 18 preset colours (section 6.5), in its grid of three rows: bright colours,
  * their light tints, and white to black. Read from Acrobat DC's own table (`Acrobat.dll`,
  * beside `AVInPlaceColorPickerView`), so the swatches match the colours its annotations have.
  */
-export const PRESET_COLORS: readonly { value: string; name: string }[] = [
+export const PRESET_COLORS: readonly PresetColor[] = [
 	{ value: '#0000ff', name: 'Blue' },
 	{ value: '#6ad928', name: 'Green' },
 	{ value: ACROBAT_YELLOW, name: 'Yellow' },
@@ -87,6 +93,19 @@ export const PRESET_COLORS: readonly { value: string; name: string }[] = [
 	{ value: '#444444', name: 'Charcoal' },
 	{ value: '#000000', name: 'Black' }
 ];
+
+/**
+ * The colour panel's presets as the user has them: the defaults, with the colours Settings
+ * keeps for the places that were changed (`custom`: place in the panel, from 0, to #rrggbb).
+ * A changed preset is called by its value ("#12AB34").
+ */
+export function presetColors(custom: Readonly<Record<number, string>> | undefined): readonly PresetColor[] {
+	if (!custom) return PRESET_COLORS;
+	return PRESET_COLORS.map((preset, place) => {
+		const own = custom[place]?.toLowerCase();
+		return own && own !== preset.value && /^#[0-9a-f]{6}$/.test(own) ? { value: own, name: own.toUpperCase() } : preset;
+	});
+}
 
 export interface ToolStyle {
 	/** #rrggbb */

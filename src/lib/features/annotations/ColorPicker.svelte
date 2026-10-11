@@ -1,20 +1,28 @@
 <script lang="ts">
-	// The colour control of the annotation toolbar, an annotation's bar and its comment panel
-	// (section 6.5), as Acrobat has it: one button showing the colour in use, which opens a
-	// panel with Acrobat's 18 presets (a grid the arrow keys move in, one Tab stop), a custom
-	// colour and the opacity slider. A colour applies
-	// when picked and the panel stays open for the opacity, which applies when the slider is
-	// let go. The custom colour's button opens Lectrix's own picker in the panel (HexPicker),
-	// open from the start when the colour in use is not a preset. Esc or a click elsewhere
-	// closes the panel.
+	// The colour control of the annotation toolbar, an annotation's bar, its comment panel and
+	// its row in the annotation list (section 6.5): one button showing the colour in use, which
+	// opens a panel with the 18 presets (Acrobat's, or the user's own from Settings; a grid the
+	// arrow keys move in, one Tab stop), then the opacity slider with the custom colour's
+	// button at its end. A colour applies when picked and the panel stays open for the
+	// opacity, which applies when the slider is let go. The custom colour's button slides
+	// Lectrix's own picker (HexPicker) open below, open from the start when the colour in use
+	// is not a preset.
+	//
+	// The panel opens when the pointer rests on the button (Settings can turn that off), and
+	// then goes when the pointer leaves the button and the panel. Once something in it has
+	// been pressed or focused, or the button clicked, it stays as a panel opened by a click or
+	// a key does: until Esc or a click elsewhere (Bits UI's popover keeps track of this).
 	import { ChevronDown } from '@lucide/svelte';
 	import { Popover } from 'bits-ui';
-	import { untrack } from 'svelte';
+	import { slide } from 'svelte/transition';
 
+	import { motionMs } from '#lib/components/panes.ts';
 	import Slider from '#lib/components/Slider.svelte';
+	import { app } from '#lib/stores/app.svelte.ts';
 
 	import HexPicker from './HexPicker.svelte';
-	import { PRESET_COLORS, PRESET_COLUMNS } from './tools.ts';
+	import { tools } from './state.svelte.ts';
+	import { PRESET_COLUMNS } from './tools.ts';
 
 	interface Props {
 		/** #rrggbb, or null for an annotation without a colour. */
@@ -30,10 +38,16 @@
 
 	/** The slider's low end: below it, a mark is hard to find again. */
 	const MIN_OPACITY = 0.1;
+	/** How long the pointer rests on the button before the panel opens, and how long after
+	 * it has left the button and the panel they close. */
+	const HOVER_OPEN_MS = 150;
+	const HOVER_CLOSE_MS = 300;
 
-	const preset = $derived(PRESET_COLORS.find((c) => c.value === color));
+	const presets = $derived(tools.presets);
+	const preset = $derived(presets.find((c) => c.value === color));
 	const custom = $derived(color !== null && !preset);
 	const name = $derived(preset?.name ?? (color === null ? 'none' : 'custom'));
+	const onHover = $derived(app.settings?.colorPanelOnHover !== false);
 
 	let open = $state(false);
 	/** The custom colour's picker is shown. */
@@ -45,14 +59,18 @@
 	/** The slider's value while it moves, before it is applied. */
 	let value = $state(1);
 	const percent = $derived(`${Math.round(value * 100)}%`);
+	/** The panel took the focus as it opened (a click or a key opened it, not the pointer). */
+	let tookFocus = false;
 
 	$effect(() => {
 		if (open) value = opacity;
 	});
 
-	$effect(() => {
-		if (open) expanded = untrack(() => custom);
-	});
+	function setOpen(next: boolean) {
+		// Before the panel is there, so the picker of a custom colour doesn't slide open.
+		if (next) expanded = custom;
+		open = next;
+	}
 
 	function apply() {
 		if (Math.abs(value - opacity) > 1e-3) onopacity(value);
@@ -67,11 +85,11 @@
 	}
 
 	/** The swatch Tab reaches: the colour in use, else the first. */
-	const tabStop = $derived(Math.max(0, PRESET_COLORS.findIndex((c) => c.value === color)));
+	const tabStop = $derived(Math.max(0, presets.findIndex((c) => c.value === color)));
 
 	/** Arrows move among the swatches, a row at a time up and down; Enter or Space picks. */
 	function onSwatchKey(event: KeyboardEvent, index: number) {
-		const last = PRESET_COLORS.length - 1;
+		const last = presets.length - 1;
 		const steps: Record<string, number> = {
 			ArrowRight: index + 1,
 			ArrowLeft: index - 1,
@@ -87,29 +105,38 @@
 		content?.querySelectorAll<HTMLElement>('[role=radiogroup] .swatch')[next]?.focus();
 	}
 
-	/** Opens on the colour in use, so arrows move from it. */
+	/** Opened by a click or a key, the panel takes the focus, on the colour in use, so arrows
+	 * move from it. Opened by the pointer, it leaves the focus where it is (the popover has
+	 * said so already). */
 	function focusChosen(event: Event) {
+		tookFocus = !event.defaultPrevented;
 		event.preventDefault();
+		if (!tookFocus) return;
 		const chosen =
 			content?.querySelector<HTMLElement>('.swatch[aria-checked="true"], .swatch-custom-on') ?? content?.querySelector<HTMLElement>('.swatch');
 		chosen?.focus();
 	}
 
-	/** Back to the button, unless the focus went somewhere else on purpose. */
+	/** Back to the button, unless the focus went somewhere else on purpose, or never came
+	 * to a panel the pointer opened. */
 	function restoreFocus(event: Event) {
 		event.preventDefault();
 		const active = document.activeElement;
-		if (active === null || active === document.body || content?.contains(active)) trigger?.focus();
+		const stranded = active === null || active === document.body;
+		if (content?.contains(active) || (stranded && tookFocus)) trigger?.focus();
 	}
 </script>
 
-<Popover.Root bind:open>
+<Popover.Root bind:open={() => open, setOpen}>
 	<Popover.Trigger
 		bind:ref={trigger}
 		class="color-button"
 		aria-label="{label}: {name}, opacity {Math.round(opacity * 100)}%"
-		data-tip={label}
+		data-tip={open ? undefined : label}
 		data-color-button
+		openOnHover={onHover}
+		openDelay={HOVER_OPEN_MS}
+		closeDelay={HOVER_CLOSE_MS}
 	>
 		<span class="swatch-dot" style:--swatch={color ?? 'transparent'} aria-hidden="true"></span>
 		<ChevronDown size={12} aria-hidden="true" />
@@ -126,23 +153,27 @@
 			onOpenAutoFocus={focusChosen}
 			onCloseAutoFocus={restoreFocus}
 		>
-			<div class="flex items-start justify-between">
-				<div class="swatch-grid" role="radiogroup" aria-label={label}>
-					{#each PRESET_COLORS as c, i (c.value)}
-						<button
-							type="button"
-							class="swatch"
-							role="radio"
-							aria-checked={color === c.value}
-							aria-label={c.name}
-							data-tip={c.name}
-							tabindex={i === tabStop ? 0 : -1}
-							style:--swatch={c.value}
-							onclick={() => oncolor(c.value)}
-							onkeydown={(e) => onSwatchKey(e, i)}
-						></button>
-					{/each}
-				</div>
+			<div class="swatch-grid" role="radiogroup" aria-label={label}>
+				{#each presets as c, i (i)}
+					<button
+						type="button"
+						class="swatch"
+						role="radio"
+						aria-checked={color === c.value}
+						aria-label={c.name}
+						data-tip={c.name}
+						tabindex={i === tabStop ? 0 : -1}
+						style:--swatch={c.value}
+						onclick={() => oncolor(c.value)}
+						onkeydown={(e) => onSwatchKey(e, i)}
+					></button>
+				{/each}
+			</div>
+			<div class="mt-2 flex items-center gap-2">
+				<span class="flex min-w-0 flex-1" data-tip="Opacity">
+					<Slider min={MIN_OPACITY} max={1} step={0.05} label="Opacity" valuetext={percent} bind:value onchange={apply} />
+				</span>
+				<span class="w-8 shrink-0 text-right text-xs tabular-nums" aria-hidden="true">{percent}</span>
 				<button
 					type="button"
 					class="swatch swatch-custom"
@@ -155,15 +186,12 @@
 				></button>
 			</div>
 			{#if expanded}
-				<div id={pickerId}>
-					<HexPicker {color} onpick={oncolor} />
+				<div id={pickerId} transition:slide={{ duration: motionMs(140) }}>
+					<div class="mt-2 border-t border-menu-line pt-2">
+						<HexPicker {color} onpick={oncolor} />
+					</div>
 				</div>
 			{/if}
-			<label class="mt-2 flex items-center gap-2">
-				<span class="text-xs text-fg-muted">Opacity</span>
-				<Slider min={MIN_OPACITY} max={1} step={0.05} label="Opacity" valuetext={percent} bind:value onchange={apply} />
-				<span class="w-9 shrink-0 text-right text-xs tabular-nums" aria-hidden="true">{percent}</span>
-			</label>
 		</Popover.Content>
 	</Popover.Portal>
 </Popover.Root>

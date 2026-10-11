@@ -3,7 +3,16 @@
 // defaults. Only styles that differ from the defaults are kept, so a tool the user never
 // restyled follows the defaults of the running version.
 
-import { changedStyles, DEFAULT_STYLES, type DrawTool, type Tool, type ToolStyle } from './tools.ts';
+import {
+	changedStyles,
+	DEFAULT_STYLES,
+	PRESET_COLORS,
+	presetColors,
+	type DrawTool,
+	type PresetColor,
+	type Tool,
+	type ToolStyle
+} from './tools.ts';
 
 const STORAGE_KEY = 'lectrix.toolStyles';
 /** Every tool's style, defaults included, as versions before Acrobat's defaults kept them. */
@@ -36,6 +45,14 @@ class ToolState {
 	/** Settings: styles are kept across restarts, and restyling an annotation sets its
 	 * tool's style. Off, every start begins from the defaults. */
 	remember = true;
+	/** The colour panel's presets, the same for every tool: Acrobat's, with the ones the
+	 * user changed in Settings. */
+	presets = $state.raw<readonly PresetColor[]>(PRESET_COLORS);
+
+	/** Follows Settings' preset colours (the ones that differ from the defaults). */
+	setPresets(custom: Readonly<Record<number, string>> | undefined) {
+		this.presets = presetColors(custom);
+	}
 
 	style(tool: DrawTool): ToolStyle {
 		return this.styles[tool];

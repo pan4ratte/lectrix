@@ -419,6 +419,8 @@ fn settings_of(stored: &StoredSettings, platform: &dyn Platform) -> Settings {
         remember_annotation_style: stored.remember_annotation_style,
         selection_handles: stored.selection_handles,
         pdfa_read_only: stored.pdfa_read_only,
+        color_panel_on_hover: stored.color_panel_on_hover,
+        preset_colors: stored.preset_colors.clone(),
         shortcuts: stored.shortcuts.clone(),
     }
 }
@@ -470,6 +472,14 @@ pub fn set_settings(
         remember_annotation_style: settings.remember_annotation_style,
         selection_handles: settings.selection_handles,
         pdfa_read_only: settings.pdfa_read_only,
+        color_panel_on_hover: settings.color_panel_on_hover,
+        // Only colours of presets the panel has, written one way.
+        preset_colors: settings
+            .preset_colors
+            .iter()
+            .filter(|&(&place, _)| place < crate::store::PRESET_COLOR_COUNT)
+            .filter_map(|(&place, color)| Some((place, crate::store::preset_color(color)?)))
+            .collect(),
         shortcuts: settings
             .shortcuts
             .iter()

@@ -5,7 +5,8 @@
 // A row reads and writes its value on the dialog's draft (`read` and `write`), so one setting
 // can show as several rows (each quick tool is a switch) and a two-value setting can show as
 // a switch (the floating toolbar's visibility). Booleans, and choices between "the usual" and
-// one alternative, are switches; choices between peers are dropdowns.
+// one alternative, are switches; choices between peers are dropdowns. The colour panel's
+// presets are a row of their own kind.
 import { Highlighter, Keyboard, Monitor, Moon, Palette, PanelBottom, SlidersHorizontal, Sun } from '@lucide/svelte';
 import type { Component } from 'svelte';
 
@@ -71,6 +72,12 @@ export type SettingRow =
 			maxLength: number;
 			read: (d: Draft) => string;
 			write: (d: Draft, value: string) => void;
+	  })
+	| (RowBase & {
+			/** The colour panel's presets, each changeable. */
+			kind: 'presets';
+			read: (d: Draft) => Readonly<Record<number, string>>;
+			write: (d: Draft, value: Record<number, string>) => void;
 	  })
 	| (RowBase & {
 			kind: 'range';
@@ -191,6 +198,8 @@ const docked = (d: Draft) => d.toolbarStyle === 'panel';
 
 /** The id of the row that restores the defaults. */
 export const RESET_ROW = 'resetSettings';
+/** The id of the row that puts the default preset colours back. */
+export const RESET_COLORS_ROW = 'resetPresetColors';
 
 export const SETTING_GROUPS: readonly SettingGroup[] = [
 	{
@@ -325,6 +334,31 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 						write: (d, ms) => (d.tooltipDelayMs = ms)
 					}
 				]
+			},
+			{
+				title: 'Colours',
+				rows: [
+					toggle('colorPanelOnHover', 'Open the colours when the pointer is on their button', {
+						description: 'When off, a colour button shows its colours when you click it.'
+					}),
+					{
+						kind: 'presets',
+						id: 'presetColors',
+						key: 'presetColors',
+						label: 'Preset colours',
+						description: 'The colours every tool offers. Click one to give it another colour.',
+						read: (d) => d.presetColors,
+						write: (d, value) => (d.presetColors = value)
+					},
+					{
+						kind: 'action',
+						id: RESET_COLORS_ROW,
+						label: 'Default preset colours',
+						description: 'Puts back the colours Lectrix comes with.',
+						button: 'Restore colours',
+						disabled: (d) => Object.keys(d.presetColors).length === 0
+					}
+				]
 			}
 		]
 	},
@@ -394,6 +428,8 @@ export function toInput(d: Draft): SettingsInput {
 		rememberAnnotationStyle: d.rememberAnnotationStyle,
 		selectionHandles: d.selectionHandles,
 		pdfaReadOnly: d.pdfaReadOnly,
+		colorPanelOnHover: d.colorPanelOnHover,
+		presetColors: { ...d.presetColors },
 		shortcuts: copyShortcuts(d.shortcuts)
 	};
 }
@@ -403,6 +439,7 @@ export function toDraft(s: Settings): Draft {
 	return {
 		...s,
 		quickTools: [...s.quickTools],
+		presetColors: { ...s.presetColors },
 		shortcuts: copyShortcuts(s.shortcuts),
 		author: s.author === s.defaultAuthor ? '' : s.author
 	};

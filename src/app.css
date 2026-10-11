@@ -498,11 +498,11 @@ input[type='color'],
 	border-radius: 50%;
 	background: var(--swatch);
 }
-/* Acrobat's presets: three rows of six. */
+/* The presets: three rows of six, close together (a chosen one's ring fits between). */
 .swatch-grid {
 	display: grid;
 	grid-template-columns: repeat(6, 22px);
-	gap: 8px 10px;
+	gap: 6px;
 }
 .swatch[aria-checked='true'],
 .swatch[aria-pressed='true'],
@@ -560,6 +560,10 @@ input[type='color'],
 	align-items: center;
 	gap: 2px;
 	font-variant-numeric: tabular-nums;
+}
+/* The field shows the focus (.field:focus-within), so the input inside it has no ring. */
+.hex-field input:focus-visible {
+	outline: none;
 }
 .hex-field-invalid,
 .hex-field-invalid:hover,
@@ -870,9 +874,10 @@ button.shortcut-key:hover,
 	border-radius: 50%;
 	background: var(--swatch);
 }
+/* As wide as the presets' grid (162 px) and its padding and edge. */
 .color-panel {
 	z-index: 50;
-	width: 236px;
+	width: 180px;
 	padding: 8px;
 	border: 1px solid var(--lectrix-menu-line);
 	border-radius: var(--radius-panel);

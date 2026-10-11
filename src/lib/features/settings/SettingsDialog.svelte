@@ -18,7 +18,7 @@
 
 	import { applySettings } from './apply.ts';
 	import SettingRow from './SettingRow.svelte';
-	import { RESET_ROW, SETTING_GROUPS, toDraft, toInput, type Draft } from './schema.ts';
+	import { RESET_COLORS_ROW, RESET_ROW, SETTING_GROUPS, toDraft, toInput, type Draft } from './schema.ts';
 	import ShortcutsPanel from './ShortcutsPanel.svelte';
 
 	let draft = $state<Draft | null>(null);
@@ -94,6 +94,10 @@
 
 	function onAction(id: string) {
 		if (id === RESET_ROW) void restoreDefaults();
+		else if (id === RESET_COLORS_ROW && draft) {
+			draft.presetColors = {};
+			commit();
+		}
 	}
 </script>
 

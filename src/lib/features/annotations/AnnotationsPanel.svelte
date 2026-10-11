@@ -50,7 +50,8 @@
 		type ListSort,
 		type SortOrder
 	} from './listing.ts';
-	import { PRESET_COLORS, PROBLEM_SUMMARY, capabilities, formatDate, shortDate, typeName } from './tools.ts';
+	import { tools } from './state.svelte.ts';
+	import { PROBLEM_SUMMARY, capabilities, formatDate, shortDate, typeName } from './tools.ts';
 
 	let { tab }: { tab: DocTab } = $props();
 
@@ -76,7 +77,7 @@
 	}
 
 	function colorName(hex: string): string {
-		return PRESET_COLORS.find((c) => c.value === hex)?.name ?? hex.toUpperCase();
+		return tools.presets.find((c) => c.value === hex)?.name ?? hex.toUpperCase();
 	}
 
 	// ----- search -----

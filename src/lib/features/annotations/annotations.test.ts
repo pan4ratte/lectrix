@@ -38,6 +38,7 @@ import {
 	isMarkupTool,
 	lineBreaks,
 	PRESET_COLORS,
+	presetColors,
 	shortDate,
 	showsComment,
 	typeName,
@@ -327,6 +328,20 @@ describe('tool styles', () => {
 		}
 		const presets = PRESET_COLORS.map((c) => c.value);
 		for (const style of Object.values(DEFAULT_STYLES)) expect(presets).toContain(style.color);
+	});
+
+	it('offer the presets with the user’s own colours in the places they changed', () => {
+		expect(presetColors(undefined)).toBe(PRESET_COLORS);
+		expect(presetColors({})).toEqual(PRESET_COLORS);
+		const own = presetColors({ 0: '#12AB34', 17: '#101010' });
+		expect(own).toHaveLength(PRESET_COLORS.length);
+		// A changed preset is in lower case, as annotations' colours are, and named by its value.
+		expect(own[0]).toEqual({ value: '#12ab34', name: '#12AB34' });
+		expect(own[17]).toEqual({ value: '#101010', name: '#101010' });
+		expect(own.slice(1, 17)).toEqual(PRESET_COLORS.slice(1, 17));
+		// The default's own colour, a place the panel doesn't have and a value that is no
+		// colour change nothing.
+		expect(presetColors({ 0: PRESET_COLORS[0]!.value.toUpperCase(), 40: '#123456', 3: 'red' })).toEqual(PRESET_COLORS);
 	});
 
 	it('remember only what differs from the defaults', () => {

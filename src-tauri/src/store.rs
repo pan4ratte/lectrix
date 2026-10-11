@@ -124,6 +124,14 @@ pub struct StoredSettings {
     /// Whether a file that claims PDF/A opens for reading only until editing is enabled.
     #[serde(default = "yes")]
     pub pdfa_read_only: bool,
+    /// Whether a colour button opens its panel when the pointer rests on it, without a
+    /// click.
+    #[serde(default = "yes")]
+    pub color_panel_on_hover: bool,
+    /// The colour panel's presets that differ from the defaults (section 6.5): a preset's
+    /// place in the panel, from 0, and its colour ("#rrggbb").
+    #[serde(default)]
+    pub preset_colors: BTreeMap<u8, String>,
     /// Keyboard shortcuts that differ from the defaults (section 6.6): a command's name
     /// and its keys, as Settings shows them ("Ctrl+Shift+S"); no keys, no shortcut.
     #[serde(default)]
@@ -141,6 +149,17 @@ pub const MAX_TOOLTIP_DELAY_MS: u32 = 2000;
 
 fn default_tooltip_delay() -> u32 {
     DEFAULT_TOOLTIP_DELAY_MS
+}
+
+/// The colour panel has this many presets (`PRESET_COLORS` in the frontend's `tools.ts`).
+pub const PRESET_COLOR_COUNT: u8 = 18;
+
+/// `value` as a preset's colour is stored, "#rrggbb" in lower case; `None` if it is not
+/// six hex digits after a `#`.
+pub fn preset_color(value: &str) -> Option<String> {
+    let digits = value.strip_prefix('#')?;
+    (digits.len() == 6 && digits.bytes().all(|b| b.is_ascii_hexdigit()))
+        .then(|| format!("#{}", digits.to_ascii_lowercase()))
 }
 
 impl Default for StoredSettings {
@@ -161,6 +180,8 @@ impl Default for StoredSettings {
             remember_annotation_style: true,
             selection_handles: false,
             pdfa_read_only: true,
+            color_panel_on_hover: true,
+            preset_colors: BTreeMap::new(),
             shortcuts: BTreeMap::new(),
         }
     }
@@ -363,6 +384,17 @@ impl Store {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn preset_colours_are_six_hex_digits() {
+        assert_eq!(preset_color("#12AB34").as_deref(), Some("#12ab34"));
+        assert_eq!(preset_color("#000000").as_deref(), Some("#000000"));
+        for bad in [
+            "", "#", "12ab34", "#12ab3", "#12ab345", "#12ab3g", "red", "#fff", "# 2ab34",
+        ] {
+            assert_eq!(preset_color(bad), None, "{bad}");
+        }
+    }
     use crate::ipc::{PanelId, ZoomMode};
 
     fn temp_store(name: &str) -> PathBuf {
@@ -437,6 +469,11 @@ mod tests {
             remember_annotation_style: false,
             selection_handles: true,
             pdfa_read_only: false,
+            color_panel_on_hover: false,
+            preset_colors: BTreeMap::from([
+                (2, "#12ab34".to_string()),
+                (17, "#101010".to_string()),
+            ]),
             shortcuts: BTreeMap::from([
                 ("save".to_string(), vec!["Ctrl+Alt+S".to_string()]),
                 ("copy".to_string(), Vec::new()),
@@ -470,6 +507,8 @@ mod tests {
         assert!(v1.settings().remember_annotation_style);
         assert!(!v1.settings().selection_handles);
         assert!(v1.settings().pdfa_read_only);
+        assert!(v1.settings().color_panel_on_hover);
+        assert!(v1.settings().preset_colors.is_empty());
         assert!(v1.settings().shortcuts.is_empty());
         // Tools from a newer version are skipped, not fatal; an empty list stays empty.
         fs::write(

@@ -22,6 +22,8 @@ const STORED: Settings = {
 	rememberAnnotationStyle: true,
 	selectionHandles: false,
 	pdfaReadOnly: true,
+	colorPanelOnHover: true,
+	presetColors: { 2: '#12ab34' },
 	shortcuts: { save: ['Ctrl+Alt+S'], copy: [] }
 };
 
@@ -55,6 +57,21 @@ describe('settings schema', () => {
 		if (author.kind !== 'text') throw new Error('author is not a text field');
 		author.write(draft, '  Grace  ');
 		expect(toInput(draft).author).toBe('Grace');
+	});
+
+	it('keeps the preset colours that were changed, as a copy', () => {
+		const draft = toDraft(STORED);
+		expect(draft.presetColors).toEqual({ 2: '#12ab34' });
+		expect(draft.presetColors).not.toBe(STORED.presetColors);
+		const presets = row('presetColors');
+		if (presets.kind !== 'presets') throw new Error('presetColors is not a presets row');
+		presets.write(draft, { ...presets.read(draft), 5: '#abcdef' });
+		expect(toInput(draft).presetColors).toEqual({ 2: '#12ab34', 5: '#abcdef' });
+		// Restoring them is offered only while some are changed.
+		const restore = row('resetPresetColors');
+		expect(restore.disabled?.(draft)).toBe(false);
+		presets.write(draft, {});
+		expect(restore.disabled?.(draft)).toBe(true);
 	});
 
 	it('switches booleans and two-value settings', () => {

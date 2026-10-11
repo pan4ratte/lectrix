@@ -1189,6 +1189,13 @@ pub struct Settings {
     /// Whether a file that claims PDF/A opens for reading only, until the user enables
     /// editing (section 5.4); otherwise it opens ready to edit, as any file.
     pub pdfa_read_only: bool,
+    /// Whether a colour button opens its panel when the pointer rests on it (section
+    /// 6.5); otherwise only when it is clicked.
+    pub color_panel_on_hover: bool,
+    /// The colour panel's presets that differ from the defaults (section 6.5): a preset's
+    /// place in the panel, from 0, and its colour ("#rrggbb"). The frontend knows the
+    /// defaults (`PRESET_COLORS` in `tools.ts`).
+    pub preset_colors: BTreeMap<u8, String>,
     /// Keyboard shortcuts that differ from the defaults (section 6.6): a command's name
     /// and its keys ("Ctrl+Shift+S"); no keys, no shortcut. The frontend knows the
     /// commands and their defaults (`src/lib/shortcuts.ts`).
@@ -1215,6 +1222,8 @@ pub struct SettingsInput {
     pub remember_annotation_style: bool,
     pub selection_handles: bool,
     pub pdfa_read_only: bool,
+    pub color_panel_on_hover: bool,
+    pub preset_colors: BTreeMap<u8, String>,
     pub shortcuts: BTreeMap<String, Vec<String>>,
 }
 
