@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Settings } from '#lib/ipc/index.ts';
 
-import { SETTING_GROUPS, toDraft, toInput, type SettingRow } from './schema.ts';
+import { RESET_ROW, SETTING_GROUPS, toDraft, toInput, type SettingRow } from './schema.ts';
 
 /** Every stored setting, as Rust sends them (a new field in Rust fails to compile here). */
 const STORED: Settings = {
@@ -20,7 +20,8 @@ const STORED: Settings = {
 	tooltipDelayMs: 300,
 	openCommentAfterMarkup: false,
 	rememberAnnotationStyle: true,
-	selectionHandles: false
+	selectionHandles: false,
+	shortcuts: { save: ['Ctrl+Alt+S'], copy: [] }
 };
 
 const rows = SETTING_GROUPS.flatMap((g) => g.sections.flatMap((s) => s.rows));
@@ -32,7 +33,8 @@ const row = (id: string): SettingRow => {
 
 describe('settings schema', () => {
 	it('has a row for every setting, and unique ids', () => {
-		const shown = new Set(rows.map((r) => r.key));
+		// A setting shows as a row, or in a group's own panel (the shortcuts).
+		const shown = new Set<string>([...rows.flatMap((r) => ('key' in r ? [r.key] : [])), ...SETTING_GROUPS.flatMap((g) => (g.panel ? [g.panel.key] : []))]);
 		for (const key of Object.keys(toInput(toDraft(STORED)))) expect(shown, key).toContain(key);
 		expect(new Set(rows.map((r) => r.id)).size).toBe(rows.length);
 		expect(new Set(SETTING_GROUPS.map((g) => g.id)).size).toBe(SETTING_GROUPS.length);
@@ -40,7 +42,7 @@ describe('settings schema', () => {
 
 	it('has no empty group or section', () => {
 		for (const g of SETTING_GROUPS) {
-			expect(g.sections.length, g.id).toBeGreaterThan(0);
+			if (!g.panel) expect(g.sections.length, g.id).toBeGreaterThan(0);
 			for (const s of g.sections) expect(s.rows.length, `${g.id} ${s.title ?? ''}`).toBeGreaterThan(0);
 		}
 	});
@@ -88,10 +90,24 @@ describe('settings schema', () => {
 		expect(draft.quickTools).toEqual(['highlight', 'underline', 'bookmark']);
 	});
 
+	it('offers to restore the defaults with a button, not a value', () => {
+		const reset = row(RESET_ROW);
+		expect(reset.kind).toBe('action');
+		expect('key' in reset).toBe(false);
+	});
+
+	it('sends the shortcuts as its own copy', () => {
+		const draft = toDraft(STORED);
+		const input = toInput(draft);
+		expect(input.shortcuts).toEqual({ save: ['Ctrl+Alt+S'], copy: [] });
+		expect(input.shortcuts).not.toBe(draft.shortcuts);
+	});
+
 	it('ignores a choice that is not offered', () => {
 		const draft = toDraft(STORED);
 		const theme = row('appearance');
-		if (theme.kind !== 'choice') throw new Error('appearance is not a choice');
+		if (theme.kind !== 'segments') throw new Error('appearance is not a pill of segments');
+		expect(theme.options.map((o) => o.value)).toEqual(['system', 'light', 'dark']);
 		theme.write(draft, 'sepia');
 		expect(draft.appearance).toBe('system');
 		theme.write(draft, 'dark');

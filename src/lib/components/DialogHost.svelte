@@ -30,6 +30,7 @@
 							type="button"
 							class="button"
 							class:button-primary={button.primary}
+						class:button-danger={button.danger}
 							onclick={() => request.resolve(button.id)}
 						>
 							{button.label}

@@ -1479,7 +1479,7 @@
 					onSelect={() => void copySelection(tab)}
 				>
 					Copy
-					<span class="menu-shortcut">Ctrl+C</span>
+					<span class="menu-shortcut">{app.shortcut('copy')}</span>
 				</ContextMenu.Item>
 			</ContextMenu.Content>
 		</ContextMenu.Portal>

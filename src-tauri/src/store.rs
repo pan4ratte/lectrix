@@ -2,7 +2,7 @@
 //! section 6.1), settings, the panes and the window's place (placement.rs). Stored as JSON
 //! in the app's local data folder, never in the PDF.
 
-use std::collections::HashMap;
+use std::collections::{BTreeMap, HashMap};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
@@ -121,6 +121,10 @@ pub struct StoredSettings {
     /// Whether selected text shows a handle at its start and at its end.
     #[serde(default)]
     pub selection_handles: bool,
+    /// Keyboard shortcuts that differ from the defaults (section 6.6): a command's name
+    /// and its keys, as Settings shows them ("Ctrl+Shift+S"); no keys, no shortcut.
+    #[serde(default)]
+    pub shortcuts: BTreeMap<String, Vec<String>>,
 }
 
 fn yes() -> bool {
@@ -153,6 +157,7 @@ impl Default for StoredSettings {
             open_comment_after_markup: false,
             remember_annotation_style: true,
             selection_handles: false,
+            shortcuts: BTreeMap::new(),
         }
     }
 }
@@ -427,6 +432,10 @@ mod tests {
             open_comment_after_markup: true,
             remember_annotation_style: false,
             selection_handles: true,
+            shortcuts: BTreeMap::from([
+                ("save".to_string(), vec!["Ctrl+Alt+S".to_string()]),
+                ("copy".to_string(), Vec::new()),
+            ]),
         };
         store.set_settings(settings.clone());
         let reloaded = Store::load(Some(file.clone()));
@@ -455,6 +464,7 @@ mod tests {
         assert!(!v1.settings().open_comment_after_markup);
         assert!(v1.settings().remember_annotation_style);
         assert!(!v1.settings().selection_handles);
+        assert!(v1.settings().shortcuts.is_empty());
         // Tools from a newer version are skipped, not fatal; an empty list stays empty.
         fs::write(
             &file,

@@ -1,6 +1,8 @@
 //! IPC payloads. TypeScript types are generated from these by ts-rs into
 //! `src/lib/ipc/generated/` (run `cargo test -p lectrix`); never write them by hand.
 
+use std::collections::BTreeMap;
+
 use serde::{Deserialize, Serialize};
 use ts_rs::TS;
 
@@ -1153,6 +1155,10 @@ pub struct Settings {
     /// Whether selected text shows a handle at its start and at its end, to drag it from
     /// (section 6.1); its sides can be dragged either way.
     pub selection_handles: bool,
+    /// Keyboard shortcuts that differ from the defaults (section 6.6): a command's name
+    /// and its keys ("Ctrl+Shift+S"); no keys, no shortcut. The frontend knows the
+    /// commands and their defaults (`src/lib/shortcuts.ts`).
+    pub shortcuts: BTreeMap<String, Vec<String>>,
 }
 
 #[derive(Debug, Clone, Deserialize, TS)]
@@ -1174,6 +1180,7 @@ pub struct SettingsInput {
     pub open_comment_after_markup: bool,
     pub remember_annotation_style: bool,
     pub selection_handles: bool,
+    pub shortcuts: BTreeMap<String, Vec<String>>,
 }
 
 /// A newer release of Lectrix, found when it started (ADR 0011).

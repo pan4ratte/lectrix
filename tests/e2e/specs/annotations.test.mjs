@@ -233,8 +233,7 @@ test('create, edit, delete, undo, save and reopen annotations', async () => {
 		await (await browser.$('button[role="tab"]*=General')).click();
 		await (await browser.$('#setting-author')).setValue('E2E Tester');
 		await (await browser.$('button[role="tab"]*=Appearance')).click();
-		await (await browser.$('#setting-appearance')).click();
-		await (await browser.$('[role="option"]*=Dark')).click();
+		await (await (await browser.$('#setting-appearance')).$('[role="radio"]*=Dark')).click();
 		await browser.waitUntil(async () => (await browser.execute(() => document.documentElement.dataset.theme)) === 'dark', {
 			timeoutMsg: 'the dark appearance did not apply while Settings was open'
 		});

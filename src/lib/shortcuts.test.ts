@@ -1,6 +1,23 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it } from 'vitest';
 
-import { COMMIT_FIELD_FIRST, commandFor, isBlocked, isBrowserZoomKey, stopUnlessShortcut } from './shortcuts';
+import {
+	COMMIT_FIELD_FIRST,
+	FIXED_KEYS,
+	MAX_KEYS,
+	SHORTCUT_GROUPS,
+	chordOf,
+	commandFor,
+	commandUsing,
+	isBlocked,
+	isBrowserZoomKey,
+	isChanged,
+	keysOf,
+	reservedReason,
+	setShortcuts,
+	shortcutOf,
+	stopUnlessShortcut,
+	withKeys
+} from './shortcuts';
 
 function key(k: string, mods: { ctrl?: boolean; shift?: boolean; alt?: boolean; code?: string } = {}) {
 	return {
@@ -99,5 +116,130 @@ describe('shortcuts', () => {
 			expect(stopped(k), k.key).toBe(true);
 		}
 		expect([...COMMIT_FIELD_FIRST].sort()).toEqual(['closeTab', 'save', 'saveAs']);
+	});
+});
+
+describe('shortcuts changed in Settings', () => {
+	afterEach(() => setShortcuts(null));
+
+	const all = SHORTCUT_GROUPS.flatMap((g) => g.commands);
+
+	it('lists every command once, with defaults that are written as shown and free to use', () => {
+		expect(new Set(all.map((c) => c.command)).size).toBe(all.length);
+		const seen = new Map<string, string>();
+		for (const c of all) {
+			expect(c.keys.length, c.command).toBeLessThanOrEqual(MAX_KEYS);
+			// Written as Settings writes them: storing them changes nothing.
+			expect(keysOf(c.command, { [c.command]: c.keys }), c.command).toEqual(c.keys);
+			for (const k of [...c.keys, ...(c.aliases ?? [])]) {
+				expect(reservedReason(k), `${c.command} ${k}`).toBeNull();
+				expect(seen.get(k), `${k} for ${c.command}`).toBeUndefined();
+				seen.set(k, c.command);
+			}
+		}
+		expect(FIXED_KEYS.length).toBeGreaterThan(0);
+	});
+
+	it('reads a key press as Settings writes it', () => {
+		expect(chordOf(key('s', { ctrl: true }))).toBe('Ctrl+S');
+		expect(chordOf(key('S', { ctrl: true, shift: true }))).toBe('Ctrl+Shift+S');
+		expect(chordOf(key('ArrowLeft', { alt: true }))).toBe('Alt+Left');
+		expect(chordOf(key('PageDown', { ctrl: true }))).toBe('Ctrl+Page Down');
+		expect(chordOf(key('F3', { shift: true }))).toBe('Shift+F3');
+		expect(chordOf(key('=', { ctrl: true }))).toBe('Ctrl+=');
+		expect(chordOf(key('k', { ctrl: true, alt: true, shift: true }))).toBe('Ctrl+Alt+Shift+K');
+		expect(chordOf(key('h'))).toBe('H');
+		// A non-Latin layout: by the key's place, as the shortcuts are matched.
+		expect(chordOf(key('я', { ctrl: true, code: 'KeyZ' }))).toBe('Ctrl+Z');
+		// A modifier alone is no shortcut yet.
+		expect(chordOf(key('Control', { ctrl: true }))).toBeNull();
+		expect(chordOf(key('Shift', { shift: true }))).toBeNull();
+	});
+
+	it('runs a command from its new shortcut, and no longer from the old one', () => {
+		const overrides = withKeys(null, 'save', ['Ctrl+Alt+S']);
+		setShortcuts(overrides);
+		expect(commandFor(key('s', { ctrl: true, alt: true }), false)).toBe('save');
+		expect(commandFor(key('s', { ctrl: true }), false)).toBeNull();
+		expect(shortcutOf('save', overrides)).toBe('Ctrl+Alt+S');
+		// The others keep theirs.
+		expect(commandFor(key('o', { ctrl: true }), false)).toBe('open');
+		// Back to the defaults.
+		setShortcuts({});
+		expect(commandFor(key('s', { ctrl: true }), false)).toBe('save');
+	});
+
+	it('gives a command without one a shortcut, takes one away, and adds a second', () => {
+		let overrides = withKeys(null, 'fitPage', ['Ctrl+9']);
+		overrides = withKeys(overrides, 'copy', []);
+		overrides = withKeys(overrides, 'find', ['Ctrl+F', 'F6']);
+		setShortcuts(overrides);
+		expect(commandFor(key('9', { ctrl: true }), false)).toBe('fitPage');
+		expect(commandFor(key('c', { ctrl: true }), false)).toBeNull();
+		expect(shortcutOf('copy', overrides)).toBe('');
+		expect(commandFor(key('F6'), false)).toBe('find');
+		expect(commandFor(key('f', { ctrl: true }), false)).toBe('find');
+		expect(isChanged('copy', overrides)).toBe(true);
+		expect(isChanged('open', overrides)).toBe(false);
+	});
+
+	it('stores nothing for a command put back to the keys it came with', () => {
+		const overrides = withKeys(withKeys(null, 'redo', ['Ctrl+Shift+Y']), 'redo', ['Ctrl+Y', 'Ctrl+Shift+Z']);
+		expect(overrides).toEqual({});
+		expect(isChanged('redo', overrides)).toBe(false);
+	});
+
+	it('keeps the unlisted keys of a command only while it has its own', () => {
+		// The keypad's plus zooms in, with the default.
+		expect(commandFor(key('+', { ctrl: true }), false)).toBe('zoomIn');
+		expect(commandUsing('Ctrl++', null)?.command).toBe('zoomIn');
+		const overrides = withKeys(null, 'zoomIn', ['Ctrl+I']);
+		setShortcuts(overrides);
+		expect(commandFor(key('+', { ctrl: true }), false)).toBeNull();
+		expect(commandUsing('Ctrl++', overrides)).toBeNull();
+	});
+
+	it('finds the command that already has a shortcut', () => {
+		expect(commandUsing('Ctrl+S', null)?.command).toBe('save');
+		expect(commandUsing('Ctrl+S', null, 'save')).toBeNull();
+		expect(commandUsing('Ctrl+Alt+S', null)).toBeNull();
+		const overrides = withKeys(null, 'save', ['Ctrl+Alt+S']);
+		expect(commandUsing('Ctrl+S', overrides)).toBeNull();
+		expect(commandUsing('Ctrl+Alt+S', overrides)?.label).toBe('Save');
+	});
+
+	it('refuses keys with a fixed use', () => {
+		const fixed = ['Esc', 'Enter', 'Tab', 'Space', 'Del', 'Left', 'Shift+Down', 'Page Down', 'Home', 'Ctrl+Enter'];
+		for (const k of [...fixed, 'Ctrl+Shift+Left', 'Alt+Shift+Up', 'Shift+F10', 'F2', 'Alt+F4', 'Ctrl+V', 'Ctrl+A']) {
+			expect(reservedReason(k), k).not.toBeNull();
+		}
+		for (const k of ['Ctrl+Alt+S', 'F6', 'Ctrl+Left', 'Alt+Left', 'Ctrl+Page Down', 'Q', 'Shift+H', 'Ctrl+P', 'Ctrl+Shift+V']) {
+			expect(reservedReason(k), k).toBeNull();
+		}
+	});
+
+	it('drops stored shortcuts it cannot use', () => {
+		const stored = { save: ['ctrl+s', 'Shift+Ctrl+S', 'Esc', 'Ctrl+Alt+S', 'Ctrl+Alt+S', 'F7', 'F8', 'F9'], nonsense: ['Ctrl+Q'] };
+		// Lower-case letters and fixed keys go, the order of modifiers is put right, each key
+		// once, three at most.
+		expect(keysOf('save', stored)).toEqual(['Ctrl+Shift+S', 'Ctrl+Alt+S', 'F7']);
+		setShortcuts(stored);
+		expect(commandFor(key('q', { ctrl: true }), false)).toBeNull();
+		// Two commands stored with one shortcut: the first listed has it.
+		setShortcuts({ save: ['Ctrl+O'] });
+		expect(commandFor(key('o', { ctrl: true }), false)).toBe('open');
+	});
+
+	it('never runs a command from a key that types or edits text while a field has the focus', () => {
+		setShortcuts({ save: ['S', 'Ctrl+C', 'F6'], reload: ['Alt+S'], toolPen: ['Ctrl+Alt+P'] });
+		expect(commandFor(key('s'), false)).toBe('save');
+		expect(commandFor(key('s'), true)).toBeNull();
+		expect(commandFor(key('c', { ctrl: true }), false)).toBe('save');
+		expect(commandFor(key('c', { ctrl: true }), true)).toBeNull();
+		expect(commandFor(key('F6'), true)).toBe('save');
+		expect(commandFor(key('s', { alt: true }), true)).toBe('reload');
+		// A command that leaves text fields alone still does, whatever its key.
+		expect(commandFor(key('p', { ctrl: true, alt: true }), false)).toBe('toolPen');
+		expect(commandFor(key('p', { ctrl: true, alt: true }), true)).toBeNull();
 	});
 });

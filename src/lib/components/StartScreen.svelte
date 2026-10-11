@@ -16,19 +16,21 @@
 	import { toolMark } from '#lib/features/annotations/toolMark.ts';
 	import { fileSize, fullDate, openedDate } from '#lib/format.ts';
 	import { recentPreviewUrl, removeRecent, type RecentFile } from '#lib/ipc/index.ts';
+	import type { CommandName } from '#lib/commands.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 
 	interface Tool {
 		id: string;
 		label: string;
 		icon: Component<{ size?: number; color?: string; 'aria-hidden'?: boolean | 'true' }>;
-		shortcut?: string;
+		/** The command whose shortcut the tile shows. */
+		command?: CommandName;
 		run: () => void;
 	}
 
 	/** The tools, as tiles in a grid; more will come. */
 	const TOOLS: readonly Tool[] = [
-		{ id: 'open', label: 'Open…', icon: FolderOpen, shortcut: 'Ctrl+O', run: () => void app.open() },
+		{ id: 'open', label: 'Open…', icon: FolderOpen, command: 'open', run: () => void app.open() },
 		{ id: 'combine', label: 'Combine files…', icon: Layers, run: () => app.openCombine() }
 	];
 
@@ -206,7 +208,7 @@
 					</svg>
 					<tool.icon size={ICON_SIZE} color="url(#start-tool-gradient-{tool.id})" aria-hidden="true" />
 					{tool.label}
-					{#if tool.shortcut}<span class="start-tool-shortcut">{tool.shortcut}</span>{/if}
+					{#if tool.command && app.shortcut(tool.command)}<span class="start-tool-shortcut">{app.shortcut(tool.command)}</span>{/if}
 				</button>
 			{/each}
 		</div>

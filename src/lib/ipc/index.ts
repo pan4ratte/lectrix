@@ -184,6 +184,8 @@ export const repairAnnotations = (id: number) => invoke<DocumentChange>('repair_
 export const getSettings = () => invoke<Settings>('get_settings');
 /** Stores the settings; the appearance applies to the window at once. */
 export const setSettings = (settings: SettingsInput) => invoke<Settings>('set_settings', { settings });
+/** Puts every setting back to its default, the shortcuts included. */
+export const resetSettings = () => invoke<Settings>('reset_settings');
 export const appReady = () => invoke<StartupInfo>('app_ready');
 /** Remembers which side panes are open and their widths. */
 export const setPaneLayout = (panes: PaneLayout) => invoke<void>('set_pane_layout', { panes });

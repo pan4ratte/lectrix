@@ -5,26 +5,29 @@
 
 <script lang="ts">
 	// Settings (section 6.6): the groups of schema.ts as tabs down the left side, the chosen
-	// group's settings at the right, one per row. Every change is stored in app data through
-	// Rust and applies at once; there is no Save button. Typing in a field is stored once
-	// the typing pauses, or when the field is left.
+	// group's settings at the right, one per row (the shortcuts have a panel of their own).
+	// Every change is stored in app data through Rust and applies at once; there is no Save
+	// button. Typing in a field is stored once the typing pauses, or when the field is left.
 	import { X } from '@lucide/svelte';
 	import { Dialog, Tabs } from 'bits-ui';
 	import { untrack } from 'svelte';
 
-	import { tools } from '#lib/features/annotations/state.svelte.ts';
-	import { getSettings, setSettings, toAppError } from '#lib/ipc/index.ts';
+	import { toolMark } from '#lib/features/annotations/toolMark.ts';
+	import { getSettings, resetSettings, setSettings, toAppError } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
-	import { applyAppearance } from '#lib/theme.ts';
 
+	import { applySettings } from './apply.ts';
 	import SettingRow from './SettingRow.svelte';
-	import { SETTING_GROUPS, toDraft, toInput, type Draft } from './schema.ts';
+	import { RESET_ROW, SETTING_GROUPS, toDraft, toInput, type Draft } from './schema.ts';
+	import ShortcutsPanel from './ShortcutsPanel.svelte';
 
 	let draft = $state<Draft | null>(null);
 	let group = $state(lastGroup);
 	let pending: ReturnType<typeof setTimeout> | undefined;
 	/** Stores run one after another, so the last change is the one stored. */
 	let stored = Promise.resolve();
+	/** A shortcut is being pressed: Esc leaves that, not the dialog. */
+	let capturing = $state(false);
 
 	$effect(() => {
 		lastGroup = group;
@@ -55,27 +58,57 @@
 		const input = toInput(draft);
 		stored = stored.then(async () => {
 			try {
-				const s = await setSettings(input);
-				app.settings = s;
-				applyAppearance(s.appearance);
-				tools.setRemember(s.rememberAnnotationStyle);
+				applySettings(await setSettings(input));
 			} catch (e) {
 				app.showError(toAppError(e));
 			}
 		});
+	}
+
+	/** Restores the defaults, after asking: every setting, the shortcuts included. */
+	async function restoreDefaults() {
+		const choice = await app.ask({
+			title: 'Restore default settings?',
+			message: 'Every setting goes back to its default, your keyboard shortcuts and author name included.',
+			detail: 'This can’t be undone.',
+			buttons: [
+				{ id: 'reset', label: 'Restore defaults', danger: true },
+				{ id: 'cancel', label: 'Cancel' }
+			],
+			cancel: 'cancel'
+		});
+		if (choice !== 'reset') return;
+		// A change still waiting to be stored is dropped with the rest.
+		clearTimeout(pending);
+		pending = undefined;
+		stored = stored.then(async () => {
+			try {
+				const s = await resetSettings();
+				applySettings(s);
+				if (draft) draft = toDraft(s);
+			} catch (e) {
+				app.showError(toAppError(e));
+			}
+		});
+	}
+
+	function onAction(id: string) {
+		if (id === RESET_ROW) void restoreDefaults();
 	}
 </script>
 
 <Dialog.Root bind:open={app.settingsOpen}>
 	<Dialog.Portal>
 		<Dialog.Overlay class="dialog-overlay" />
-		<Dialog.Content class="dialog-content settings-dialog">
+		<Dialog.Content class="dialog-content settings-dialog" escapeKeydownBehavior={capturing ? 'ignore' : 'close'}>
 			<Tabs.Root bind:value={group} orientation="vertical" class="flex min-h-0 min-w-0 flex-1">
 				<div class="settings-nav">
 					<Dialog.Title class="settings-title">Settings</Dialog.Title>
-					<Tabs.List class="flex flex-col gap-0.5" aria-label="Settings groups">
+					<!-- The chosen group's fill is a mark that glides to the tab picked. -->
+					<Tabs.List class="tool-group flex flex-col gap-0.5" aria-label="Settings groups" {@attach toolMark}>
+						<span class="tool-mark settings-mark" aria-hidden="true"></span>
 						{#each SETTING_GROUPS as g (g.id)}
-							<Tabs.Trigger value={g.id} class="settings-tab">
+							<Tabs.Trigger value={g.id} class="settings-tab glide-item">
 								<g.icon size={16} aria-hidden="true" />
 								<span class="truncate">{g.label}</span>
 							</Tabs.Trigger>
@@ -86,6 +119,9 @@
 					<Tabs.Content value={g.id} class="settings-page">
 						<h2 class="settings-heading">{g.label}</h2>
 						{#if draft}
+							{#if g.panel?.kind === 'shortcuts'}
+								<ShortcutsPanel {draft} {commit} bind:capturing />
+							{/if}
 							{#each g.sections as section, i (i)}
 								<section class="settings-section" aria-label={section.title}>
 									{#if section.title}
@@ -96,7 +132,7 @@
 									{/if}
 									<div class="flex flex-col">
 										{#each section.rows as row (row.id)}
-											<SettingRow {row} {draft} {commit} />
+											<SettingRow {row} {draft} {commit} onaction={onAction} />
 										{/each}
 									</div>
 								</section>

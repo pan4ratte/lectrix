@@ -424,6 +424,7 @@ pub fn run() {
             commands::repair_annotations,
             commands::get_settings,
             commands::set_settings,
+            commands::reset_settings,
             commands::app_ready,
             commands::set_pane_layout,
             commands::log_metric,

@@ -107,7 +107,7 @@
 				invalid = false;
 			}}
 			onkeydown={onKeyDown}
-			title="Type a page number or label and press Enter (Ctrl+G)"
+			title={app.hint('Type a page number or label and press Enter', 'goToPage')}
 			aria-invalid={invalid}
 			data-page-box
 		/>
@@ -131,8 +131,8 @@
 		<button
 			type="button"
 			class="icon-button size-7"
-			aria-label="Zoom out (Ctrl+-)"
-			title="Zoom out (Ctrl+-)"
+			aria-label={app.hint('Zoom out', 'zoomOut')}
+			title={app.hint('Zoom out', 'zoomOut')}
 			onclick={() => tab.viewer?.zoomStep(-1)}
 		>
 			<Minus size={16} aria-hidden="true" />
@@ -148,7 +148,7 @@
 				<DropdownMenu.Content class="menu-content" side="bottom" align="center">
 					<DropdownMenu.Item class="menu-item" onSelect={() => tab.viewer?.fit('fitWidth')}>
 						Fit width
-						<span class="menu-shortcut">Ctrl+0</span>
+						<span class="menu-shortcut">{app.shortcut('fitWidth')}</span>
 					</DropdownMenu.Item>
 					<DropdownMenu.Item class="menu-item" onSelect={() => tab.viewer?.fit('fitPage')}>
 						Fit page
@@ -165,8 +165,8 @@
 		<button
 			type="button"
 			class="icon-button size-7"
-			aria-label="Zoom in (Ctrl+=)"
-			title="Zoom in (Ctrl+=)"
+			aria-label={app.hint('Zoom in', 'zoomIn')}
+			title={app.hint('Zoom in', 'zoomIn')}
 			onclick={() => tab.viewer?.zoomStep(1)}
 		>
 			<Plus size={16} aria-hidden="true" />

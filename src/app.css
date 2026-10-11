@@ -81,11 +81,21 @@
 	--lectrix-brand-wash: 0.12;
 	--lectrix-focus: var(--lectrix-accent);
 	--lectrix-danger: #c9303a;
+	--lectrix-danger-fg: #ffffff;
 	--lectrix-danger-bg: #f9edef;
 	--lectrix-info-bg: #eef4fd;
 	--lectrix-page-shadow: rgb(0 0 0 / 0.14);
 	--lectrix-overlay: rgb(0 0 0 / 0.5);
 	--lectrix-selection: color-mix(in srgb, var(--lectrix-accent) 32%, transparent);
+	/* The thumb of a switch that is on, and a slider's handle: white in both themes (the
+	   dark theme keeps this). */
+	--lectrix-handle: #ffffff;
+	/* Sliders: the track, the part of it up to the handle, and the handle. */
+	--lectrix-slider-track: var(--lectrix-line);
+	--lectrix-slider-fill: var(--lectrix-accent);
+	--lectrix-slider-handle: var(--lectrix-handle);
+	--lectrix-slider-handle-line: var(--lectrix-accent);
+	--lectrix-slider-handle-shadow: rgb(0 0 0 / 0.3);
 	/* On the page, which is white in both themes: the dark theme keeps this. */
 	--lectrix-selection-handle: #2f5daa;
 	--lectrix-search-hit: rgb(255 196 0 / 0.38);
@@ -132,6 +142,7 @@
 		--lectrix-brand-to: #5089e6;
 		--lectrix-brand-wash: 0.16;
 		--lectrix-danger: #e85a5f;
+		--lectrix-danger-fg: #1b0b0c;
 		--lectrix-danger-bg: #2f1618;
 		--lectrix-info-bg: #181f29;
 		--lectrix-page-shadow: rgb(0 0 0 / 0.5);
@@ -171,6 +182,7 @@
 	--lectrix-brand-to: #5089e6;
 	--lectrix-brand-wash: 0.16;
 	--lectrix-danger: #e85a5f;
+	--lectrix-danger-fg: #1b0b0c;
 	--lectrix-danger-bg: #2f1618;
 	--lectrix-info-bg: #181f29;
 	--lectrix-page-shadow: rgb(0 0 0 / 0.5);
@@ -390,6 +402,16 @@ input[type='color'],
 .button-primary:hover {
 	background: color-mix(in srgb, var(--lectrix-accent), var(--lectrix-bg) 10%);
 }
+/* Something that can't be undone (restoring the default settings). */
+.button-danger {
+	border-color: transparent;
+	background: var(--lectrix-danger);
+	color: var(--lectrix-danger-fg);
+}
+.button-danger:hover:not(:disabled) {
+	border-color: transparent;
+	background: color-mix(in srgb, var(--lectrix-danger), var(--lectrix-bg) 12%);
+}
 
 .field {
 	padding: 0 8px;
@@ -454,7 +476,7 @@ input[type='color'],
 	transition-timing-function: ease-out;
 }
 /* Positioned, so the buttons draw over the mark that comes before them. */
-.tool-group > .tool-button {
+.tool-group > :is(.tool-button, .glide-item) {
 	position: relative;
 	transition: color 140ms ease-out;
 }
@@ -545,11 +567,202 @@ input[type='color'],
 	border-color: var(--lectrix-danger);
 	box-shadow: inset 0 0 0 1px var(--lectrix-danger);
 }
-.settings-slider {
-	flex: 1;
+/* Sliders (Slider.svelte): a thin track with no outline, filled up to the handle in the
+   accent, as a switch that is on; the handle is the colour of that switch's thumb, with a
+   thin edge and a slight shadow. The native range input lies over them, unseen but for its
+   focus ring, and takes the pointer and the keys; the fill and the handle glide to each new
+   step. The handle's middle travels the track's length less the handle's width, as the
+   native one does. */
+.slider {
+	--slider-handle: 16px;
+	position: relative;
+	display: flex;
 	min-width: 0;
 	height: 28px;
-	accent-color: var(--lectrix-accent);
+	flex: 1;
+	align-items: center;
+}
+.slider input {
+	position: absolute;
+	inset: 0;
+	width: 100%;
+	height: 100%;
+	margin: 0;
+	appearance: none;
+	border-radius: var(--radius-control);
+	background: transparent;
+	cursor: pointer;
+}
+.slider input::-webkit-slider-runnable-track {
+	height: 100%;
+	border: 0;
+	background: transparent;
+}
+.slider input::-webkit-slider-thumb {
+	width: var(--slider-handle);
+	height: var(--slider-handle);
+	appearance: none;
+	border: 0;
+	background: transparent;
+	box-shadow: none;
+}
+.slider-track {
+	position: absolute;
+	top: 50%;
+	right: 0;
+	left: 0;
+	height: 4px;
+	margin-top: -2px;
+	overflow: hidden;
+	border-radius: 2px;
+	background: var(--lectrix-slider-track);
+}
+.slider-fill {
+	display: block;
+	width: calc(var(--slider-handle) / 2 + (100% - var(--slider-handle)) * var(--ratio, 0));
+	height: 100%;
+	background: var(--lectrix-slider-fill);
+	transition: width 100ms ease-out;
+}
+.slider-handle {
+	position: absolute;
+	top: 50%;
+	left: calc((100% - var(--slider-handle)) * var(--ratio, 0));
+	box-sizing: border-box;
+	width: var(--slider-handle);
+	height: var(--slider-handle);
+	margin-top: calc(var(--slider-handle) / -2);
+	border: 1px solid var(--lectrix-slider-handle-line);
+	border-radius: 50%;
+	background: var(--lectrix-slider-handle);
+	box-shadow: 0 1px 2px var(--lectrix-slider-handle-shadow);
+	pointer-events: none;
+	transition: left 100ms ease-out;
+}
+.slider:has(input:disabled) {
+	opacity: 0.45;
+}
+.slider input:disabled {
+	cursor: default;
+}
+/* A choice between a few peers (Segmented.svelte): one pill, the chosen segment raised as
+   the active document tab is. The raised part is one mark that glides to the segment
+   chosen (toolMark.ts). */
+.segmented {
+	display: inline-flex;
+	height: 32px;
+	gap: 2px;
+	padding: 2px;
+	border: 1px solid var(--lectrix-line);
+	border-radius: 8px;
+	/* The darkest surface, so the raised segment shows in both themes. */
+	background: var(--lectrix-bg);
+}
+.tool-mark.segment-mark {
+	background: var(--lectrix-tab-active);
+	box-shadow: 0 0 0 1px var(--lectrix-tab-active-line);
+}
+.segment {
+	position: relative;
+	display: inline-flex;
+	min-width: 72px;
+	align-items: center;
+	justify-content: center;
+	gap: 6px;
+	padding: 0 10px;
+	border-radius: var(--radius-control);
+	color: var(--lectrix-fg-muted);
+	font-size: 13px;
+	transition: color 140ms ease-out;
+}
+.segment:hover:not(:disabled, [aria-checked='true']) {
+	background: var(--lectrix-hover);
+}
+.segment[aria-checked='true'] {
+	color: var(--lectrix-fg-strong);
+}
+.segment svg {
+	transition: color 140ms ease-out;
+}
+.segment[aria-checked='true'] svg {
+	color: var(--lectrix-accent);
+}
+.segment:disabled {
+	opacity: 0.45;
+}
+/* Settings > Shortcuts (ShortcutsPanel.svelte): a command per row, its shortcuts as chips,
+   then the button that adds one. A chip's key is a button that changes it; one that was
+   added has a button that removes it. The chip being pressed anew is outlined in the
+   accent. */
+.shortcut-search input:focus-visible {
+	/* The field around it shows the focus. */
+	outline: none;
+}
+.shortcut-row {
+	display: flex;
+	min-height: 36px;
+	flex-wrap: wrap;
+	align-items: center;
+	gap: 2px 16px;
+	padding: 4px 0;
+	border-bottom: 1px solid var(--lectrix-line);
+}
+.shortcut-row:last-child {
+	border-bottom: 0;
+}
+.shortcut-chip {
+	display: inline-flex;
+	height: 24px;
+	align-items: stretch;
+	overflow: hidden;
+	border: 1px solid var(--lectrix-line);
+	border-radius: var(--radius-control);
+	background: var(--lectrix-button);
+	font-size: 12px;
+	white-space: nowrap;
+}
+.shortcut-chip:has(button):hover {
+	border-color: var(--lectrix-line-strong);
+}
+.shortcut-key {
+	display: inline-flex;
+	align-items: center;
+	padding: 0 8px;
+}
+.shortcut-remove {
+	display: inline-flex;
+	width: 20px;
+	align-items: center;
+	justify-content: center;
+	margin-left: -4px;
+	color: var(--lectrix-fg-muted);
+}
+button.shortcut-key:hover,
+.shortcut-remove:hover {
+	background: var(--lectrix-button-hover);
+}
+.shortcut-remove:hover {
+	color: var(--lectrix-danger);
+}
+.shortcut-chip button:focus-visible {
+	outline-offset: -2px;
+}
+.shortcut-chip-recording,
+.shortcut-chip-recording:has(button):hover {
+	border-color: var(--lectrix-accent);
+	background: var(--lectrix-row-selected);
+	box-shadow: inset 0 0 0 1px var(--lectrix-accent);
+}
+.shortcut-chip-fixed {
+	background: transparent;
+	color: var(--lectrix-fg-muted);
+}
+.shortcut-problem {
+	flex-basis: 100%;
+	padding-bottom: 4px;
+	color: var(--lectrix-danger);
+	font-size: 12px;
+	text-align: right;
 }
 /* The comment panel beside an annotation: its note field, the tail pointing at the
    annotation (it overlaps the panel's border, so the two read as one shape), and the
@@ -869,15 +1082,18 @@ input[type='color'],
 	background: var(--lectrix-accent);
 }
 /* An on/off switch (Switch.svelte), as Windows 11's toggle: a pill outlined in the muted text
-   colour with a thumb of that colour when off, filled with the accent and a thumb in the
-   accent's text colour when on (both 3:1 or more on the dialogs, src/lib/contrast.test.ts). */
+   colour with a thumb of that colour when off, filled with the accent and a white thumb when
+   on, in both themes (the pill and the off thumb are 3:1 or more on the dialogs,
+   src/lib/contrast.test.ts; on the dark theme's lighter accent the white thumb is 2.6:1, and
+   the fill and the thumb's side say that the switch is on). */
 .switch {
 	display: inline-flex;
+	/* A thumb the size of a slider's handle, with 1 px around it. */
 	width: 40px;
 	height: 20px;
 	flex-shrink: 0;
 	align-items: center;
-	padding: 0 3px;
+	padding: 0 1px;
 	border: 1px solid var(--lectrix-fg-muted);
 	border-radius: 10px;
 	background: var(--lectrix-surface);
@@ -896,16 +1112,17 @@ input[type='color'],
 	opacity: 0.45;
 }
 .switch-thumb {
-	width: 12px;
-	height: 12px;
+	/* As a slider's handle (--slider-handle). */
+	width: 16px;
+	height: 16px;
 	border-radius: 50%;
 	background: var(--lectrix-fg-muted);
 	transition: transform 120ms ease-out;
 }
 .switch-thumb[data-state='checked'] {
-	/* Across the 32 px inside the padding. */
+	/* Across the 36 px inside the padding. */
 	transform: translateX(20px);
-	background: var(--lectrix-accent-fg);
+	background: var(--lectrix-handle);
 }
 
 /* ----- dropdowns (Dropdown.svelte) ----- */
@@ -1367,8 +1584,11 @@ input[type='color'],
 	background: var(--lectrix-hover);
 }
 .settings-tab[data-state='active'] {
-	background: var(--lectrix-row-selected);
 	color: var(--lectrix-fg-strong);
+}
+/* The chosen group's fill is one mark, which glides to the tab picked (toolMark.ts). */
+.tool-mark.settings-mark {
+	box-shadow: none;
 }
 .settings-tab[data-state='active'] svg {
 	color: var(--lectrix-accent);
@@ -1381,6 +1601,16 @@ input[type='color'],
 	flex: 1;
 	padding: 20px 24px 16px;
 	overflow-y: auto;
+}
+/* A group's settings come in as it is chosen: up a little, as they fade in. */
+.settings-page:not([hidden]) {
+	animation: settings-page-in 140ms ease-out;
+}
+@keyframes settings-page-in {
+	from {
+		opacity: 0;
+		transform: translateY(6px);
+	}
 }
 .settings-page:focus-visible {
 	outline-offset: -2px;

@@ -46,6 +46,7 @@
     "allow-repair-annotations",
     "allow-get-settings",
     "allow-set-settings",
+    "allow-reset-settings",
     "allow-app-ready",
     "allow-set-pane-layout",
     "allow-log-metric",

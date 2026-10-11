@@ -81,17 +81,16 @@
 
 <style>
 	/* The app's icon and name: the way to the start screen while something is open (a fill
-	   under the pointer, and while the start screen shows); with nothing open, only a place
-	   to drag the window by. */
+	   under the pointer, and none once the start screen shows: there it is where one is, not
+	   something being pointed at); with nothing open, only a place to drag the window by. */
 	.app-home {
 		border: 0;
 		background: transparent;
 	}
-	.app-home:not([aria-disabled='true']):hover,
-	.app-home[aria-pressed='true'] {
+	.app-home:not([aria-disabled='true'], [aria-pressed='true']):hover {
 		background: var(--lectrix-hover);
 	}
-	.app-home:not([aria-disabled='true']):active {
+	.app-home:not([aria-disabled='true'], [aria-pressed='true']):active {
 		background: var(--lectrix-pressed);
 	}
 	.app-home:focus-visible {

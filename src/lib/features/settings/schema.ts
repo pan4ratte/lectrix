@@ -6,7 +6,7 @@
 // can show as several rows (each quick tool is a switch) and a two-value setting can show as
 // a switch (the floating toolbar's visibility). Booleans, and choices between "the usual" and
 // one alternative, are switches; choices between peers are dropdowns.
-import { Highlighter, Palette, PanelBottom, SlidersHorizontal } from '@lucide/svelte';
+import { Highlighter, Keyboard, Monitor, Moon, Palette, PanelBottom, SlidersHorizontal, Sun } from '@lucide/svelte';
 import type { Component } from 'svelte';
 
 import { APP_NAME } from '#lib/config.ts';
@@ -27,15 +27,20 @@ export type Draft = Settings;
 
 type KeyOf<V> = { [K in keyof SettingsInput]: SettingsInput[K] extends V ? K : never }[keyof SettingsInput];
 
-interface RowBase {
+type Icon = Component<{ size?: number; 'aria-hidden'?: boolean | 'true' }>;
+
+interface RowText {
 	/** Unique in the dialog; the control's element id is `setting-<id>`. */
 	id: string;
-	/** The setting it changes, for the test that every setting has a row. */
-	key: keyof SettingsInput;
 	label: string;
 	description?: string | ((draft: Draft) => string);
 	/** Shown, but not changeable, while another setting makes it moot. */
 	disabled?: (draft: Draft) => boolean;
+}
+
+interface RowBase extends RowText {
+	/** The setting it changes, for the test that every setting has a row. */
+	key: keyof SettingsInput;
 }
 
 export type SettingRow =
@@ -45,6 +50,20 @@ export type SettingRow =
 			options: readonly { value: string; label: string }[];
 			read: (d: Draft) => string;
 			write: (d: Draft, value: string) => void;
+	  })
+	| (RowBase & {
+			/** A few peers, all shown: one pill with a segment each. */
+			kind: 'segments';
+			options: readonly { value: string; label: string; icon?: Icon }[];
+			read: (d: Draft) => string;
+			write: (d: Draft, value: string) => void;
+	  })
+	| (RowText & {
+			/** Something to do, not a value: a button, which the dialog acts on by the row's id. */
+			kind: 'action';
+			button: string;
+			/** It can't be undone: the button is in the destructive colour. */
+			danger?: boolean;
 	  })
 	| (RowBase & {
 			kind: 'text';
@@ -74,8 +93,11 @@ export interface SettingSection {
 export interface SettingGroup {
 	id: string;
 	label: string;
-	icon: Component<{ size?: number; 'aria-hidden'?: boolean | 'true' }>;
+	icon: Icon;
 	sections: SettingSection[];
+	/** A group the dialog shows with a panel of its own instead of rows, and the setting
+	 * that panel changes. */
+	panel?: { kind: 'shortcuts'; key: keyof SettingsInput };
 }
 
 type Extra = Pick<RowBase, 'description' | 'disabled'>;
@@ -126,6 +148,28 @@ function choice<K extends KeyOf<string>>(
 	};
 }
 
+/** One pill with a segment per value, for a setting with a few. */
+function segments<K extends KeyOf<string>>(
+	key: K,
+	label: string,
+	options: readonly { value: SettingsInput[K]; label: string; icon?: Icon }[],
+	extra: Extra = {}
+): SettingRow {
+	return {
+		kind: 'segments',
+		id: key,
+		key,
+		label,
+		options,
+		...extra,
+		read: (d) => d[key],
+		write: (d, value) => {
+			const option = options.find((o) => o.value === value);
+			if (option) (d as SettingsInput)[key] = option.value;
+		}
+	};
+}
+
 /** A switch per quick tool, writing the chosen ones in the bar's order. */
 function quickTool(tool: QuickTool, label: string): SettingRow {
 	return {
@@ -144,6 +188,9 @@ function quickTool(tool: QuickTool, label: string): SettingRow {
 }
 
 const docked = (d: Draft) => d.toolbarStyle === 'panel';
+
+/** The id of the row that restores the defaults. */
+export const RESET_ROW = 'resetSettings';
 
 export const SETTING_GROUPS: readonly SettingGroup[] = [
 	{
@@ -198,6 +245,19 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 							'A handle at the start and at the end of the text you select, to drag for selecting more or less. Without them, the two sides can still be dragged.'
 					})
 				]
+			},
+			{
+				title: 'Reset',
+				rows: [
+					{
+						kind: 'action',
+						id: RESET_ROW,
+						label: 'Restore default settings',
+						description: `Puts every setting back to how ${APP_NAME} came, the keyboard shortcuts and the author name included. Your documents, recent files and panes are not touched.`,
+						button: 'Restore defaults…',
+						danger: true
+					}
+				]
 			}
 		]
 	},
@@ -208,11 +268,16 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 		sections: [
 			{
 				rows: [
-					choice('appearance', 'Theme', [
-						{ value: 'system', label: 'Use system setting' },
-						{ value: 'light', label: 'Light' },
-						{ value: 'dark', label: 'Dark' }
-					] satisfies { value: Appearance; label: string }[])
+					segments(
+						'appearance',
+						'Theme',
+						[
+							{ value: 'system', label: 'System', icon: Monitor },
+							{ value: 'light', label: 'Light', icon: Sun },
+							{ value: 'dark', label: 'Dark', icon: Moon }
+						] satisfies { value: Appearance; label: string; icon: Icon }[],
+						{ description: 'System follows the light or dark mode Windows is in.' }
+					)
 				]
 			},
 			{
@@ -293,8 +358,19 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 				rows: QUICK_TOOLS.map((t) => quickTool(t.id, t.label))
 			}
 		]
+	},
+	{
+		id: 'shortcuts',
+		label: 'Shortcuts',
+		icon: Keyboard,
+		sections: [],
+		panel: { kind: 'shortcuts', key: 'shortcuts' }
 	}
 ];
+
+function copyShortcuts(shortcuts: Settings['shortcuts']): Settings['shortcuts'] {
+	return Object.fromEntries(Object.entries(shortcuts).map(([command, keys]) => [command, [...keys]]));
+}
 
 /** What `setSettings` takes, from the draft. */
 export function toInput(d: Draft): SettingsInput {
@@ -312,11 +388,17 @@ export function toInput(d: Draft): SettingsInput {
 		tooltipDelayMs: Number(d.tooltipDelayMs),
 		openCommentAfterMarkup: d.openCommentAfterMarkup,
 		rememberAnnotationStyle: d.rememberAnnotationStyle,
-		selectionHandles: d.selectionHandles
+		selectionHandles: d.selectionHandles,
+		shortcuts: copyShortcuts(d.shortcuts)
 	};
 }
 
 /** The draft for stored settings: the author left empty when it is the Windows user name. */
 export function toDraft(s: Settings): Draft {
-	return { ...s, quickTools: [...s.quickTools], author: s.author === s.defaultAuthor ? '' : s.author };
+	return {
+		...s,
+		quickTools: [...s.quickTools],
+		shortcuts: copyShortcuts(s.shortcuts),
+		author: s.author === s.defaultAuthor ? '' : s.author
+	};
 }

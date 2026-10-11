@@ -55,6 +55,8 @@ import { CombineState } from '#lib/features/merge/combine.svelte.ts';
 import { reportDetail, signedWarning } from '#lib/features/merge/pages.ts';
 import { clampThumbWidth, DEFAULT_THUMB_WIDTH } from '#lib/features/viewer/thumbs.ts';
 import { discardQuestion, recoveryQuestion } from '#lib/features/recovery/recovery.ts';
+import type { CommandName } from '#lib/commands.ts';
+import { shortcutOf } from '#lib/shortcuts.ts';
 
 import { DocTab } from './doc.svelte.ts';
 
@@ -62,6 +64,8 @@ export interface DialogButton {
 	id: string;
 	label: string;
 	primary?: boolean;
+	/** The button does something that can't be undone. */
+	danger?: boolean;
 }
 
 export interface DialogRequest {
@@ -141,6 +145,18 @@ class AppStore {
 	settingsOpen = $state(false);
 	/** The stored settings, once loaded. */
 	settings = $state<Settings | null>(null);
+
+	/** A command's first shortcut as Settings has it, for menus; '' without one. */
+	shortcut(command: CommandName): string {
+		return shortcutOf(command, this.settings?.shortcuts);
+	}
+
+	/** A control's name with its command's shortcut, for tooltips: "Zoom in (Ctrl+=)". */
+	hint(label: string, command: CommandName): string {
+		const keys = this.shortcut(command);
+		return keys ? `${label} (${keys})` : label;
+	}
+
 	/** Where the search bar and inspectors start, CSS pixels from the top of the page
 	 * canvas: below the floating annotation toolbar when it stays at the top. (Docked, it
 	 * is in the bar above the canvas.) */

@@ -108,7 +108,7 @@ export async function deleteBookmark(tab: DocTab, id: number) {
 		const choice = await app.ask({
 			title: 'Delete bookmark?',
 			message: `Delete “${loc.bookmark.title}” and the ${inside === 1 ? 'bookmark' : `${inside} bookmarks`} inside it?`,
-			detail: 'You can undo this with Ctrl+Z.',
+			detail: app.shortcut('undo') ? `You can undo this with ${app.shortcut('undo')}.` : 'You can undo this from the Edit menu.',
 			buttons: [
 				{ id: 'delete', label: 'Delete', primary: true },
 				{ id: 'cancel', label: 'Cancel' }

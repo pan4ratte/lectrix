@@ -418,8 +418,16 @@ fn settings_of(stored: &StoredSettings, platform: &dyn Platform) -> Settings {
         open_comment_after_markup: stored.open_comment_after_markup,
         remember_annotation_style: stored.remember_annotation_style,
         selection_handles: stored.selection_handles,
+        shortcuts: stored.shortcuts.clone(),
     }
 }
+
+/// The most commands with their own shortcuts, keys for one command, and characters in a
+/// name or a key, that are stored: far more than the app has, so app data stays small
+/// whatever the webview sends.
+const MAX_SHORTCUT_COMMANDS: usize = 200;
+const MAX_SHORTCUT_KEYS: usize = 4;
+const MAX_SHORTCUT_CHARS: usize = 40;
 
 #[tauri::command]
 pub fn get_settings(state: State<'_, AppState>) -> Result<Settings, AppError> {
@@ -460,11 +468,35 @@ pub fn set_settings(
         open_comment_after_markup: settings.open_comment_after_markup,
         remember_annotation_style: settings.remember_annotation_style,
         selection_handles: settings.selection_handles,
+        shortcuts: settings
+            .shortcuts
+            .iter()
+            .take(MAX_SHORTCUT_COMMANDS)
+            .map(|(command, keys)| {
+                let short = |s: &String| s.chars().take(MAX_SHORTCUT_CHARS).collect::<String>();
+                let keys = keys.iter().take(MAX_SHORTCUT_KEYS).map(short).collect();
+                (short(command), keys)
+            })
+            .collect(),
     };
+    store_settings(&app, &state, stored)
+}
+
+/// Puts every setting back to its default, the shortcuts included (section 6.6).
+#[tauri::command]
+pub fn reset_settings(app: AppHandle, state: State<'_, AppState>) -> Result<Settings, AppError> {
+    store_settings(&app, &state, StoredSettings::default())
+}
+
+fn store_settings(
+    app: &AppHandle,
+    state: &State<'_, AppState>,
+    stored: StoredSettings,
+) -> Result<Settings, AppError> {
     let mut store = state.store.lock().map_err(|_| AppError::bad_state())?;
     store.set_settings(stored.clone());
     drop(store);
-    crate::apply_appearance(&app, stored.appearance);
+    crate::apply_appearance(app, stored.appearance);
     Ok(settings_of(&stored, state.platform))
 }
 

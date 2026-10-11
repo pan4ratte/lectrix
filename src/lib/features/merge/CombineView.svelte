@@ -150,7 +150,7 @@
 				type="button"
 				class="icon-button"
 				aria-label="Undo"
-				title="Undo (Ctrl+Z)"
+				title={app.hint('Undo', 'undo')}
 				disabled={!combine.canUndo}
 				onclick={() => combine.undo()}
 			>
@@ -160,7 +160,7 @@
 				type="button"
 				class="icon-button"
 				aria-label="Redo"
-				title="Redo (Ctrl+Y)"
+				title={app.hint('Redo', 'redo')}
 				disabled={!combine.canRedo}
 				onclick={() => combine.redo()}
 			>
@@ -180,7 +180,7 @@
 				</h2>
 				<p class="max-w-md text-fg-muted">
 					{combine.sources.length
-						? 'Put pages back from the file list, undo (Ctrl+Z), or add more files.'
+						? `Put pages back from the file list, ${app.hint('undo', 'undo')}, or add more files.`
 						: 'Add files, or drop them here. You can reorder, turn and remove pages before combining; the files themselves are not changed.'}
 				</p>
 				<button type="button" class="button button-primary gap-2" onclick={() => void combine.addFiles()}>

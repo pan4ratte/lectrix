@@ -308,8 +308,8 @@
 		<button
 			type="button"
 			class="icon-button"
-			aria-label="Add bookmark (Ctrl+B)"
-			title="Add bookmark (Ctrl+B)"
+			aria-label={app.hint('Add bookmark', 'addBookmark')}
+			title={app.hint('Add bookmark', 'addBookmark')}
 			disabled={!editable}
 			onclick={() => void addBookmark(tab)}
 		>
@@ -326,7 +326,7 @@
 
 	{#if rows.length === 0}
 		<p class="px-3 py-2 text-sm text-fg-muted">
-			No bookmarks yet. Press Ctrl+B to add one for the current page.
+			No bookmarks yet. {app.shortcut('addBookmark') ? `Press ${app.shortcut('addBookmark')}` : 'Use the button above'} to add one for the current page.
 		</p>
 	{:else}
 		<ContextMenu.Root>
@@ -465,7 +465,7 @@
 						</ContextMenu.Item>
 						<ContextMenu.Separator class="menu-separator" />
 						<ContextMenu.Item class="menu-item" disabled={!editable} onSelect={() => void addBookmark(tab)}>
-							Add bookmark after this<span class="menu-shortcut">Ctrl+B</span>
+							Add bookmark after this<span class="menu-shortcut">{app.shortcut('addBookmark')}</span>
 						</ContextMenu.Item>
 						<ContextMenu.Item
 							class="menu-item"

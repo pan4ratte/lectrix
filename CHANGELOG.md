@@ -31,6 +31,10 @@ the wording, translations): docs/releasing.md, "The changelog".
 ### Settings
 
 - **Show handles on selected text**, under General, puts a handle at the start and at the end of selected text, to drag it by.
+- **Shortcuts** lists every keyboard shortcut, with a search field, and lets you change them: press a shortcut, then the keys it should have. Commands without one can get one, and menus and tooltips show the keys you chose.
+- **Restore defaults…**, under General, puts every setting back to how Lectrix came, after asking.
+- The theme is chosen with a three-way switch (System, Light, Dark) instead of a list.
+- Sliders have a cleaner look, like the switches: no outline, a round handle that stands out from the filled part of the track, and a glide from step to step.
 
 ### Installation and updates
 

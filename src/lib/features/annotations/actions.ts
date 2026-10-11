@@ -257,7 +257,11 @@ export async function repair(tab: DocTab) {
 	if (!(await app.allowEdit(tab))) return;
 	try {
 		tab.applyChange(await repairCommand(tab.id));
-		app.notify({ kind: 'info', message: `Repaired ${plural(summary.fixable, 'annotation', 'annotations')}. Undo with Ctrl+Z.` });
+		const undo = app.shortcut('undo');
+		app.notify({
+			kind: 'info',
+			message: `Repaired ${plural(summary.fixable, 'annotation', 'annotations')}. Undo ${undo ? `with ${undo}` : 'from the Edit menu'}.`
+		});
 	} catch (e) {
 		app.showError(toAppError(e));
 	}

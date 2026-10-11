@@ -26,6 +26,7 @@
 	import AnnotationToolbar from '#lib/features/annotations/AnnotationToolbar.svelte';
 	import { announceUpdate } from '#lib/features/changelog/announce.ts';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
+	import { applySettings } from '#lib/features/settings/apply.ts';
 	import CombineView from '#lib/features/merge/CombineView.svelte';
 	import InsertPagesDialog from '#lib/features/merge/InsertPagesDialog.svelte';
 	import SettingsDialog from '#lib/features/settings/SettingsDialog.svelte';
@@ -51,7 +52,6 @@
 	} from '#lib/ipc/index.ts';
 	import { COMMIT_FIELD_FIRST, commandFor, isBlocked, isBrowserZoomKey, isTextInput } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
-	import { applyAppearance } from '#lib/theme.ts';
 
 	const tab = $derived(app.active);
 
@@ -61,11 +61,7 @@
 			app.startup = info;
 			app.restorePanes(info.panes);
 			void getSettings()
-				.then((s) => {
-					app.settings = s;
-					applyAppearance(s.appearance);
-					tools.setRemember(s.rememberAnnotationStyle);
-				})
+				.then(applySettings)
 				.catch(() => {});
 			setImageFormat(info.imageFormat);
 			void logMetric('main_to_ready_ms', info.mainToReadyMs);
@@ -91,16 +87,17 @@
 	}
 
 	function onKeyDown(event: KeyboardEvent) {
-		if (isBlocked(event)) {
+		const inInput = isTextInput(event.target);
+		const command = commandFor(event, inInput);
+		// A browser key (print, view source...) does nothing, unless Settings made it a shortcut.
+		if (!command && isBlocked(event)) {
 			event.preventDefault();
 			return;
 		}
-		const inInput = isTextInput(event.target);
 		if (!inInput && isContextMenuKey(event) && openContextMenu(event.target)) {
 			event.preventDefault();
 			return;
 		}
-		const command = commandFor(event, inInput);
 		if (command) {
 			event.preventDefault();
 			// Saving or closing from a text field: the field commits its edit on blur, and

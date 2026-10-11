@@ -149,6 +149,19 @@ describe.each([
 			expect(contrast(brand, canvas), `${end} text on the canvas`).toBeGreaterThanOrEqual(4.5);
 			expect(contrast(brand, mix(canvas, brand, wash)), `${end} text on its wash`).toBeGreaterThanOrEqual(4.5);
 		}
+		// A slider: filled in a switch's accent, its handle that switch's thumb (white in both
+		// themes) with an edge in the accent, which is what shows the handle on the dialogs
+		// and menus.
+		expect(solid('--lectrix-slider-fill', vars)).toBe(solid('--lectrix-accent', vars));
+		expect(solid('--lectrix-slider-handle', vars)).toBe('#ffffff');
+		expect(solid('--lectrix-handle', vars)).toBe('#ffffff');
+		for (const surface of ['--lectrix-surface-raised', '--lectrix-menu']) {
+			const bg = solid(surface, vars);
+			expect(contrast(solid('--lectrix-slider-handle-line', vars), bg), `slider handle's edge on ${surface}`).toBeGreaterThanOrEqual(3);
+		}
+		expect(contrast(solid('--lectrix-slider-fill', vars), solid('--lectrix-slider-track', vars)), 'slider fill beside the track').toBeGreaterThanOrEqual(1.5);
+		// A destructive button's text on it.
+		expect(contrast(solid('--lectrix-danger-fg', vars), solid('--lectrix-danger', vars)), 'text on a destructive button').toBeGreaterThanOrEqual(4.5);
 		// The handles of selected text, on the page (white in both themes) and on the
 		// selection's tint over it.
 		const handle = solid('--lectrix-selection-handle', vars);

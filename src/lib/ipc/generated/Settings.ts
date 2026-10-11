@@ -56,4 +56,10 @@ rememberAnnotationStyle: boolean,
  * Whether selected text shows a handle at its start and at its end, to drag it from
  * (section 6.1); its sides can be dragged either way.
  */
-selectionHandles: boolean, };
+selectionHandles: boolean, 
+/**
+ * Keyboard shortcuts that differ from the defaults (section 6.6): a command's name
+ * and its keys ("Ctrl+Shift+S"); no keys, no shortcut. The frontend knows the
+ * commands and their defaults (`src/lib/shortcuts.ts`).
+ */
+shortcuts: { [key in string]: Array<string> }, };

@@ -11,6 +11,8 @@
 	import { Popover } from 'bits-ui';
 	import { untrack } from 'svelte';
 
+	import Slider from '#lib/components/Slider.svelte';
+
 	import HexPicker from './HexPicker.svelte';
 	import { PRESET_COLORS, PRESET_COLUMNS } from './tools.ts';
 
@@ -159,17 +161,7 @@
 			{/if}
 			<label class="mt-2 flex items-center gap-2">
 				<span class="text-xs text-fg-muted">Opacity</span>
-				<input
-					type="range"
-					class="settings-slider"
-					min={MIN_OPACITY}
-					max="1"
-					step="0.05"
-					aria-label="Opacity"
-					aria-valuetext={percent}
-					bind:value
-					onchange={apply}
-				/>
+				<Slider min={MIN_OPACITY} max={1} step={0.05} label="Opacity" valuetext={percent} bind:value onchange={apply} />
 				<span class="w-9 shrink-0 text-right text-xs tabular-nums" aria-hidden="true">{percent}</span>
 			</label>
 		</Popover.Content>

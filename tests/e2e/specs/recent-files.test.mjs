@@ -66,6 +66,12 @@ test('the title bar shows the start screen over open documents, which stay open'
 		await start.click();
 		await (await browser.$('h2=Recent files')).waitForDisplayed({ timeoutMsg: 'the title bar did not show the start screen' });
 		assert.equal(await start.getAttribute('aria-pressed'), 'true');
+		// On the start screen the button is plain, though the pointer is still on it.
+		assert.equal(
+			await browser.execute((el) => getComputedStyle(el).backgroundColor, start),
+			'rgba(0, 0, 0, 0)',
+			'the title bar button is filled while the start screen shows'
+		);
 		assert.equal((await browser.$$('[role=tablist][aria-label="Open documents"] [role=tab]')).length, 2, 'a tab closed');
 		assert.equal(await selectedTabs(browser), 0, 'a tab is shown as on screen behind the start screen');
 		assert.equal(await pageBox(browser), null, 'the document is still on screen');

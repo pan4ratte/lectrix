@@ -122,7 +122,7 @@
 				data-close
 				class="icon-button tab-close ml-auto shrink-0"
 				aria-label="Close {tab.name}"
-				title="Close (Ctrl+W)"
+				title={app.hint('Close', 'closeTab')}
 				tabindex={reachable ? 0 : -1}
 				onclick={() => void app.closeTab(tab.id)}
 			>
@@ -157,7 +157,7 @@
 				data-close
 				class="icon-button tab-close ml-auto shrink-0"
 				aria-label="Close Combine files"
-				title="Close (Ctrl+W)"
+				title={app.hint('Close', 'closeTab')}
 				tabindex={reachable ? 0 : -1}
 				onclick={() => void app.closeCombine()}
 			>

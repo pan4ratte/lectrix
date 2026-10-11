@@ -35,6 +35,7 @@ const COMMANDS: &[&str] = &[
     "repair_annotations",
     "get_settings",
     "set_settings",
+    "reset_settings",
     "app_ready",
     "set_pane_layout",
     "log_metric",
