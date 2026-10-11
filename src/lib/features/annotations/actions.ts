@@ -15,6 +15,7 @@ import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
 import { ordered } from '#lib/features/viewer/selection.ts';
 
+import { commentKeeper } from './commentField.ts';
 import { selectionRanges } from './geometry.ts';
 import { tools } from './state.svelte.ts';
 import { PROBLEM_SUMMARY, showsComment, type DrawTool, type MarkupKind } from './tools.ts';
@@ -142,6 +143,15 @@ export function openProperties() {
 export async function update(tab: DocTab, page: number, id: number, edit: AnnotationEditInput) {
 	if (refuseIfLocked(tab)) return null;
 	return app.apply(tab, { kind: 'updateAnnotation', page, id, edit });
+}
+
+/** Keeps what is typed in the comment field of annotation `id` on `page` (`commentKeeper`):
+ * one undo step when the field is left or goes with other text than the comment. */
+export function keepsComment(tab: DocTab, page: number, id: number) {
+	return commentKeeper(
+		() => (app.tabs.includes(tab) ? (tab.annotation(page, id)?.contents ?? null) : null),
+		(contents) => update(tab, page, id, { contents })
+	);
 }
 
 /** Replies to annotation `parent` on `page` (ADR 0012); the author is the name from

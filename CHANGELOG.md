@@ -15,6 +15,8 @@ the wording, translations): docs/releasing.md, "The changelog".
 ### Annotations
 
 - The annotation list shows the annotations of a page from its top to its bottom, not in the order they were made.
+- A comment is no longer lost when you click on the page after typing it, and no longer goes to another annotation when you click that one.
+- **Esc** in a comment keeps what you typed instead of discarding it.
 
 ### Installation and updates
 

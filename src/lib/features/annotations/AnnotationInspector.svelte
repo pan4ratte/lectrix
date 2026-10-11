@@ -24,13 +24,14 @@
 	// only as a limit, so a short comment gets a shorter panel. Where it was put
 	// is kept for each annotation. The author and dates are in the Properties dialog.
 	import { Info, Trash, TriangleAlert, Wrench } from '@lucide/svelte';
+	import { untrack } from 'svelte';
 
 	import Dropdown from '#lib/components/Dropdown.svelte';
 	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
-	import { openProperties, remove, repair, restyle, setPanel, update } from './actions.ts';
+	import { keepsComment, openProperties, remove, repair, restyle, setPanel, update } from './actions.ts';
 	import {
 		BAR_GAP,
 		barControls,
@@ -171,20 +172,18 @@
 		return () => cancelAnimationFrame(frame);
 	});
 
-	function commitText(event: Event) {
-		if (!a) return;
-		const value = (event.currentTarget as HTMLTextAreaElement).value;
-		if (value !== a.contents) void update(tab, a.page, a.id, { contents: value });
-	}
+	// Keeps what is typed in the note, for the annotation the field was made for: a click on
+	// the page selects another annotation, or none, before the field loses the focus.
+	const keepNote = $derived.by(() => {
+		if (!key) return undefined;
+		return untrack(() => (a ? keepsComment(tab, a.page, a.id) : undefined));
+	});
 
+	/** Ctrl+Enter and Esc leave the note, which keeps what was typed. */
 	function textKey(event: KeyboardEvent) {
 		stopUnlessShortcut(event);
-		if (event.key === 'Enter' && event.ctrlKey) {
+		if ((event.key === 'Enter' && event.ctrlKey) || event.key === 'Escape') {
 			event.preventDefault();
-			(event.currentTarget as HTMLElement).blur();
-		} else if (event.key === 'Escape') {
-			event.preventDefault();
-			(event.currentTarget as HTMLTextAreaElement).value = a?.contents ?? '';
 			(event.currentTarget as HTMLElement).blur();
 		}
 	}
@@ -337,7 +336,7 @@
 					readonly={!caps.text}
 					placeholder={caps.text ? 'Add a note' : ''}
 					onkeydown={textKey}
-					onblur={commitText}
+					{@attach keepNote}
 				></textarea>
 			{/key}
 

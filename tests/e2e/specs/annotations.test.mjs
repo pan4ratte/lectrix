@@ -125,7 +125,13 @@ test('create, edit, delete, undo, save and reopen annotations', async () => {
 			timeoutMsg: 'the note text is not focused'
 		});
 		await browser.keys([...'Hello from the note']);
-		await browser.keys(['Control', 'Enter']);
+		// Esc leaves the note, keeping what was typed (the tooltip below shows it, and the
+		// saved file has it); the panel stays.
+		await browser.keys(['Escape']);
+		await browser.waitUntil(async () => (await browser.execute(() => document.activeElement?.tagName)) !== 'TEXTAREA', {
+			timeoutMsg: 'Esc did not leave the note'
+		});
+		assert.equal(await note.isExisting(), true, 'Esc in the note closed the comment panel');
 
 		// Pen: P, a stroke. Escape first closes the note's comment panel, which in a small
 		// window (CI's) sits left of the note, over the place the stroke starts.
@@ -550,8 +556,46 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 				),
 			{ timeoutMsg: 'the new highlight’s note is not focused' }
 		);
-		await browser.keys([...'Comment at once']);
-		await browser.keys(['Control', 'Enter']);
+		// What is typed is kept when a click on the page closes the panel, though the click
+		// deselects the highlight before the note hears that it lost the focus: a click on
+		// the page's text (which takes the focus at once), then one beside the text (where
+		// the note goes while it still has the focus). Both below the panel, on the page.
+		const below = async (x) => {
+			const panelBottom = await browser.execute(() => document.querySelector('[data-annotation-panel]').getBoundingClientRect().bottom);
+			// A line of text every 15 pt from 120 pt down; its letters are just above that.
+			for (let y = 116; y < 700; y += 15) {
+				const at = await pagePoint(browser, 0, x, y);
+				if (at.y > panelBottom + 12) return at;
+			}
+			throw new Error('no line of the page below the comment panel');
+		};
+		const noteGone = () =>
+			browser.waitUntil(() => browser.execute(() => document.querySelector('aside[aria-label="Annotation comment"]') === null), {
+				timeoutMsg: 'a click on the page left the comment panel open'
+			});
+		const commentShown = (text) =>
+			browser.waitUntil(async () => (await listRows(browser)).some((r) => r.startsWith('Highlight') && r.endsWith(text)), {
+				timeoutMsg: `the list does not show "${text}"`
+			});
+		const viewBottom = await browser.execute(() => document.querySelector('.viewer-scroll').getBoundingClientRect().bottom);
+		await browser.keys([...'Comment']);
+		const onText = await below(60);
+		assert.ok(onText.y < viewBottom - 8, `the line at ${JSON.stringify(onText)} is off screen`);
+		await click(browser, onText);
+		await noteGone();
+		await commentShown('Comment');
+		await browser.keys(['Escape']);
+		await click(browser, await pagePoint(browser, 0, 120, 92));
+		const openNote = await browser.$('aside[aria-label="Annotation comment"] textarea');
+		await openNote.waitForDisplayed({ timeoutMsg: 'a click on the commented highlight showed no comment panel' });
+		await openNote.click();
+		await browser.keys(['Control', 'End']);
+		await browser.keys([...' at once']);
+		const besideText = await below(585);
+		assert.ok(besideText.y < viewBottom - 8, `the spot at ${JSON.stringify(besideText)} is off screen`);
+		await click(browser, besideText);
+		await noteGone();
+		await commentShown('Comment at once');
 		await browser.keys(['Control', 's']);
 		await browser.waitUntil(async () => (await statusText(browser)).includes('All changes saved'), { timeoutMsg: 'not saved' });
 

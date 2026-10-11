@@ -22,7 +22,7 @@
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 	import { legibleOnPane } from '#lib/theme.ts';
 
-	import { addReply, copyComment, openInspector, remove, repair, update } from './actions.ts';
+	import { addReply, copyComment, keepsComment, openInspector, remove, repair, update } from './actions.ts';
 	import { typeIcon } from './icons.ts';
 	import {
 		colorKey,
@@ -305,19 +305,11 @@
 		replyKey(event);
 	}
 
-	function commitNote(a: Annotation, event: Event) {
-		const value = (event.currentTarget as HTMLTextAreaElement).value;
-		if (value !== a.contents) void update(tab, a.page, a.id, { contents: value });
-	}
-
-	function noteKey(a: Annotation, event: KeyboardEvent) {
+	/** Ctrl+Enter and Esc leave the comment, which keeps what was typed. */
+	function noteKey(event: KeyboardEvent) {
 		stopUnlessShortcut(event);
-		if (event.key === 'Enter' && event.ctrlKey) {
+		if ((event.key === 'Enter' && event.ctrlKey) || event.key === 'Escape') {
 			event.preventDefault();
-			(event.currentTarget as HTMLElement).blur();
-		} else if (event.key === 'Escape') {
-			event.preventDefault();
-			(event.currentTarget as HTMLTextAreaElement).value = a.contents;
 			(event.currentTarget as HTMLElement).blur();
 		}
 	}
@@ -577,8 +569,8 @@
 											aria-label={a.kind === 'freeText' ? 'Text' : 'Note'}
 											placeholder="Add a note"
 											onclick={(e) => e.stopPropagation()}
-											onkeydown={(e) => noteKey(a, e)}
-											onblur={(e) => commitNote(a, e)}
+											onkeydown={noteKey}
+											{@attach keepsComment(tab, a.page, a.id)}
 										></textarea>
 									{:else if a.contents}
 										<p class="text-sm break-words whitespace-pre-wrap">{a.contents}</p>
