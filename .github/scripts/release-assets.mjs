@@ -1,9 +1,10 @@
 // Release assets for .github/workflows/release.yml (ADR 0011).
 //
 //   node .github/scripts/release-assets.mjs collect <rust target> <version> <out dir>
-//     Copies the installers `tauri build` made for <rust target> into <out dir>/installers,
-//     their updater signatures into <out dir>/signatures, and writes
-//     <out dir>/updater-<rust target>.json: the platforms this build adds to latest.json.
+//     Copies the installers `tauri build` made for <rust target> into <out dir>/installers
+//     and writes <out dir>/updater-<rust target>.json: the platforms this build adds to
+//     latest.json, each with its updater signature (the release has no .sig files: the
+//     updater reads the signatures from latest.json).
 //
 //   node .github/scripts/release-assets.mjs manifest <version> <fragments dir> <out file>
 //     Merges the fragments into the updater manifest (latest.json). Its notes are the
@@ -49,9 +50,7 @@ function collect(target, version, out) {
 	if (!existsSync(bundleDir)) throw new Error(`${bundleDir} not found: run tauri build --target ${target}`);
 	const { os, arch } = platformOf(target);
 	const installers = join(out, 'installers');
-	const signatures = join(out, 'signatures');
 	mkdirSync(installers, { recursive: true });
-	mkdirSync(signatures, { recursive: true });
 	const platforms = {};
 	for (const dir of readdirSync(bundleDir)) {
 		const path = join(bundleDir, dir);
@@ -70,7 +69,6 @@ function collect(target, version, out) {
 				if (kind.bundle !== DEFAULT_BUNDLE[os]) continue;
 				throw new Error(`${sig} missing: is TAURI_SIGNING_PRIVATE_KEY set?`);
 			}
-			copyFileSync(sig, join(signatures, `${kind.asset}.sig`));
 			const entry = {
 				signature: readFileSync(sig, 'utf8').trim(),
 				url: `https://github.com/${repository}/releases/download/v${version}/${encodeURIComponent(kind.asset)}`

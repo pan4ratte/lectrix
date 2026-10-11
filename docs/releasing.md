@@ -126,6 +126,8 @@ Each installer has a build provenance attestation:
 gh attestation verify Lectrix_1.0.0-beta.1_x64-setup.exe -R pan4ratte/lectrix
 ```
 
+The release has no `.sig` files: the updater's signatures are in `latest.json`.
+
 ## What users see on first install
 
 The builds are not code-signed by Microsoft or Apple (ADR 0011):

@@ -184,9 +184,10 @@ jobs:
         with:
           subject-path: dist/installers/*
 
+      # The updater signatures are not uploaded: latest.json carries them.
       - name: Upload to the draft release
         shell: bash
-        run: gh release upload "v$VERSION" -R "$GITHUB_REPOSITORY" --clobber dist/installers/* dist/signatures/*
+        run: gh release upload "v$VERSION" -R "$GITHUB_REPOSITORY" --clobber dist/installers/*
 
       - uses: actions/upload-artifact@v4
         with:

@@ -105,6 +105,10 @@ The user chose (2026-10-05):
    GitHub's generated list of commits and pull requests. The workflow fails when the
    version has no heading there, or when changes are still listed under `## Unreleased`.
 
+   *Amended 2026-10-11 (the user's request):* the updater's `.sig` files are no longer
+   uploaded to the release, which lists the installers and `latest.json` only. The
+   updater reads each signature from `latest.json`, and nothing read the files.
+
    The updater key lives in the `TAURI_SIGNING_PRIVATE_KEY` and
    `TAURI_SIGNING_PRIVATE_KEY_PASSWORD` secrets (`docs/releasing.md`). Ordinary CI builds
    don't need it: they don't make update bundles.
