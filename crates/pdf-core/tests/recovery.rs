@@ -86,6 +86,44 @@ fn copies_are_written_only_for_new_unsaved_revisions_and_leave_the_session_alone
     );
 }
 
+/// A file with a cross-reference stream (most files other programs write): MuPDF makes the
+/// stream an object while it writes the copy, which it recorded as an undo step of its own,
+/// "Save document". Undo then undid that, nothing, while the session counted the user's
+/// last edit as undone. The copies leave the history alone.
+#[test]
+fn copies_of_a_file_with_a_cross_reference_stream_add_nothing_to_undo() {
+    let dir = fresh_dir("recovery-xref-stream");
+    let plain = sample_file(&dir, "plain.pdf", SampleSpec::default());
+    let path = dir.join("doc.pdf");
+    if !common::with_object_streams(&plain, &path) {
+        return;
+    }
+    let copy = dir.join("copy.pdf");
+    let (session, _) = Session::open(&path, None).unwrap();
+    session.apply(rotate(0)).unwrap();
+    let edited = session.apply(rotate(1)).unwrap().state;
+    for _ in 0..2 {
+        writing(|| session.write_recovery(&copy, None))
+            .map(written)
+            .unwrap();
+    }
+    qpdf_check(&copy);
+    assert_eq!(
+        (rotation_on_disk(&copy, 0), rotation_on_disk(&copy, 1)),
+        (90, 90)
+    );
+    assert_eq!(session.info().unwrap().state, edited);
+
+    // Undo takes back the last rotation, and the save after it has only the first.
+    session.undo().unwrap();
+    writing(|| session.save(SaveKind::Incremental, None)).unwrap();
+    qpdf_check(&path);
+    assert_eq!(
+        (rotation_on_disk(&path, 0), rotation_on_disk(&path, 1)),
+        (90, 0)
+    );
+}
+
 #[test]
 fn a_restored_session_is_dirty_and_saves_onto_the_original_incrementally() {
     let dir = fresh_dir("recovery-restore");

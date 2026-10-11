@@ -24,6 +24,11 @@ unsafe extern "C" {
         out: *mut *mut pdf_document,
         err: *mut LectrixError,
     ) -> c_int;
+    fn lectrix_pdf_repair(
+        ctx: *mut fz_context,
+        doc: *mut pdf_document,
+        err: *mut LectrixError,
+    ) -> c_int;
     fn lectrix_pdf_was_repaired(
         ctx: *mut fz_context,
         doc: *mut pdf_document,
@@ -79,6 +84,19 @@ pub fn open_pdf_shared(path: &Path) -> Result<PdfDocument> {
     // SAFETY: the shim returned a document carrying one reference that we now own, opened
     // with this thread's context.
     Ok(unsafe { PdfDocument::from_raw_owned(raw) })
+}
+
+/// Rebuilds `doc`'s cross-reference table from the objects in its file, as MuPDF does by
+/// itself when it cannot read the table. For a table that reads without an error but leads
+/// nowhere (see `lectrix_pdf_repair` in the shim). Afterwards [`was_repaired`] is true.
+pub fn repair(doc: &mut PdfDocument) -> Result<()> {
+    let ctx = Context::get().as_raw_ptr();
+    let mut err = LectrixError::new();
+    // SAFETY: `ctx` is this thread's context; `doc` is mutably borrowed for the call
+    // (PdfDocument is not Send, so this is its owning thread), and nothing else holds
+    // objects of it yet where this is called (right after opening); `err` is a live local.
+    let rc = unsafe { lectrix_pdf_repair(ctx, doc.as_raw_pdf_ptr(), &mut err) };
+    check(rc, err)
 }
 
 /// True if MuPDF had to repair the file's cross-reference table (such files cannot be

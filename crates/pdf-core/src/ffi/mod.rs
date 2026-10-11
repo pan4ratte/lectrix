@@ -13,8 +13,8 @@ mod xref;
 pub use annot::request_appearance;
 pub use journal::{Journal, JournalState};
 pub use objects::set_new_stream;
-pub use snapshot::{has_unsaved_changes, save_snapshot};
-pub use stream::{open_pdf_shared, was_repaired};
+pub use snapshot::{has_unsaved_changes, save_incremental, save_snapshot};
+pub use stream::{open_pdf_shared, repair, was_repaired};
 pub use xref::trim_unused_objects;
 
 use std::ffi::{CStr, c_char};

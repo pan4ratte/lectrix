@@ -34,6 +34,9 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 - **Help > What’s new** shows what changed in each version. The first time Lectrix starts after an update, it offers it beside its name on the start screen, or in a notification.
 - On Windows, saving no longer fails when an antivirus or Windows Search looks at the file at that moment.
+- Saving again after a save failed (for example because the file was open in another program) no longer damages the file. A file damaged this way opened as a blank document with no pages; Lectrix now repairs it when you open it, with everything in it, and **Save As** writes it sound again.
+- After a **Save As (optimized)** that failed, the next save no longer loses changes.
+- In many documents, **Undo** did nothing the first time after Lectrix had written a crash recovery copy. It undoes your last change again.
 
 ## 1.0.0
 

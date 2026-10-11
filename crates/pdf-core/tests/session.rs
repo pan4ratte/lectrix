@@ -268,6 +268,97 @@ fn repaired_file_falls_back_to_a_full_save() {
     assert!(!again.outcome.fell_back_to_full);
 }
 
+/// A file whose last cross-reference section names itself as the previous one (as Lectrix
+/// wrote before, saving again after a save that failed). MuPDF reads that section alone,
+/// without an error, and finds no pages; the session rebuilds the table from the objects
+/// instead, so the document opens with everything in it and is then saved whole.
+#[test]
+fn a_file_whose_last_section_follows_itself_is_repaired_on_open() {
+    let dir = out_dir("session-self-prev");
+    let original = sample_file(&dir, "original.pdf", SampleSpec::default());
+    let path = dir.join("damaged.pdf");
+    fs::copy(&original, &path).unwrap();
+    {
+        let (session, _) = Session::open(&path, None).unwrap();
+        session.apply(rotate(vec![1], 90)).unwrap();
+        writing(|| session.save(SaveKind::Incremental, None)).unwrap();
+        session.close();
+    }
+    // Point the update's /Prev at the update's own section.
+    let good = fs::read(&path).unwrap();
+    let own = common::last_number_after(&good, b"startxref").unwrap();
+    let prev = good.windows(5).rposition(|w| w == b"/Prev").unwrap() + 5;
+    let digits = prev
+        + good[prev..]
+            .iter()
+            .position(|b| b.is_ascii_digit())
+            .unwrap();
+    let end = digits
+        + good[digits..]
+            .iter()
+            .position(|b| !b.is_ascii_digit())
+            .unwrap();
+    let mut bytes = good[..digits].to_vec();
+    bytes.extend_from_slice(own.to_string().as_bytes());
+    bytes.extend_from_slice(&good[end..]);
+    fs::write(&path, &bytes).unwrap();
+    assert_eq!(
+        open(&path).page_count().unwrap(),
+        0,
+        "MuPDF alone finds no pages"
+    );
+
+    let (session, info) = Session::open(&path, None).unwrap();
+    assert_eq!(info.pages.len(), 3);
+    assert_eq!(info.pages[1].rotation, 90, "the update's changes are there");
+    assert!(info.flags.repaired);
+    session.apply(rotate(vec![0], 90)).unwrap();
+    let saved = writing(|| session.save(SaveKind::Incremental, None)).unwrap();
+    assert!(saved.outcome.fell_back_to_full);
+    qpdf_check(&path);
+    assert_eq!(
+        (rotation_on_disk(&path, 0), rotation_on_disk(&path, 1)),
+        (90, 90)
+    );
+}
+
+/// "Save As (optimized)" that fails once the file is written (here the target's name is
+/// taken by a folder) leaves the session's document as it was: the next save in place has
+/// every change. Optimizing renumbers the document it works on, so it works on a copy.
+#[test]
+fn a_failed_optimized_save_leaves_the_session_as_it_was() {
+    let dir = out_dir("session-optimized-failed");
+    let path = sample_file(&dir, "doc.pdf", SampleSpec::default());
+    let taken = dir.join("taken.pdf");
+    let _ = fs::remove_dir_all(&taken);
+    fs::create_dir_all(&taken).unwrap();
+
+    let (session, _) = Session::open(&path, None).unwrap();
+    session.apply(rotate(vec![0], 90)).unwrap();
+    session.apply(rotate(vec![1], 180)).unwrap();
+    session.undo().unwrap();
+    let before = session.info().unwrap();
+    assert!(writing(|| session.save(SaveKind::Optimized, Some(taken.clone()))).is_err());
+    let leftovers = fs::read_dir(&dir)
+        .unwrap()
+        .filter_map(|e| e.ok())
+        .filter(|e| e.file_name().to_string_lossy().ends_with(".lectrix-tmp"))
+        .count();
+    assert_eq!(leftovers, 0, "no temporary file is left");
+    let after = session.info().unwrap();
+    assert_eq!(after.state, before.state);
+    assert_eq!(after.path, path);
+
+    session.redo().unwrap();
+    let saved = writing(|| session.save(SaveKind::Incremental, None)).unwrap();
+    assert!(!saved.outcome.fell_back_to_full);
+    qpdf_check(&path);
+    assert_eq!(
+        (rotation_on_disk(&path, 0), rotation_on_disk(&path, 1)),
+        (90, 180)
+    );
+}
+
 #[test]
 fn reload_picks_up_external_changes() {
     let dir = out_dir("session-reload");

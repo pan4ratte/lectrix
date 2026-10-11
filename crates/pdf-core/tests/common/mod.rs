@@ -135,6 +135,41 @@ pub fn assemble(objects: &[String]) -> Vec<u8> {
     out
 }
 
+/// The number written after the last `keyword` in `bytes` (`startxref`, `/Prev`).
+pub fn last_number_after(bytes: &[u8], keyword: &[u8]) -> Option<usize> {
+    let at = bytes.windows(keyword.len()).rposition(|w| w == keyword)? + keyword.len();
+    let digits: String = bytes[at..]
+        .iter()
+        .skip_while(|b| b.is_ascii_whitespace())
+        .take_while(|b| b.is_ascii_digit())
+        .map(|&b| char::from(b))
+        .collect();
+    digits.parse().ok()
+}
+
+/// Writes `src` to `out` with its objects in object streams and a cross-reference stream
+/// (qpdf does it; MuPDF's crate has no option for it). False if qpdf is not installed
+/// (it is required in CI).
+pub fn with_object_streams(src: &Path, out: &Path) -> bool {
+    let _guard = SPAWN_LOCK.write().unwrap_or_else(|e| e.into_inner());
+    match std::process::Command::new(qpdf_program())
+        .arg("--object-streams=generate")
+        .arg(src)
+        .arg(out)
+        .output()
+    {
+        Ok(output) => {
+            assert!(output.status.success(), "qpdf --object-streams failed");
+            true
+        }
+        Err(e) if std::env::var_os("CI").is_none() => {
+            eprintln!("qpdf not found ({e}); skipping the object stream case");
+            false
+        }
+        Err(e) => panic!("qpdf is required in CI: {e}"),
+    }
+}
+
 /// Object numbers written after `from` (the objects an incremental save rewrote or added).
 pub fn objects_written_after(bytes: &[u8], from: usize) -> BTreeSet<u32> {
     let tail = String::from_utf8_lossy(&bytes[from..]);

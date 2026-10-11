@@ -46,6 +46,52 @@ the document's own `xref_base`, and nothing re-bases them onto the saved file).
    its undo stack on save. Revisions (used for image caching and dirty state) carry over,
    so nothing is re-rendered.
 
+## A save that fails (2026-10-11)
+
+The write to the temporary file can succeed and the replace still fail (the target is
+locked by another program, or a check before the replace refuses). The document in memory
+then has to be exactly as it was, because the user saves again. MuPDF does not leave it
+so, in three ways, each found from a damaged file or a test:
+
+1. **Incremental save.** `pdf_save_document` with `do_incremental` moves the document on
+   to the update it wrote: `doc->startxref` becomes that update's cross-reference offset
+   (`writexref`, `writexrefstream`). The next incremental save then wrote an update whose
+   `/Prev` was its own offset. Readers stop at such a loop: MuPDF read that last section
+   alone, found no catalog, and opened the file with no pages and no error. A user's
+   29 MB book was damaged this way on 2026-10-08, by saving again after "the file is
+   open in another program". Fix: incremental saves are written with `do_snapshot`
+   (`lectrix_pdf_save_incremental` in the shim), which leaves `startxref` alone and
+   removes the cross-reference stream's object again; `/ID` is still renewed. After a
+   save that succeeds the session reopens the file anyway (above), so nothing needs the
+   document moved on.
+2. **The undo history.** MuPDF wraps a save in an operation, "Save document". With a
+   cross-reference stream (most files other programs write), the stream's object is
+   created and deleted inside it, so the operation stayed in the journal as a step. That
+   also happened for every recovery copy (a snapshot): Undo undid "Save document", nothing,
+   while the session counted the user's last edit as undone. Fix: the journal is set
+   aside for these writes (`lectrix_save_untouched`), and the object number the stream
+   took is trimmed.
+3. **Save As (optimized).** Garbage collection renumbers and merges the document's objects
+   in memory. After a failed optimized save, the next incremental save lost changes. Fix:
+   the session writes the document whole to a file beside the target, opens that, and
+   optimizes the copy (`Actor::save_optimized`). Writing a file whole changes nothing in
+   the document (tested).
+
+Files already damaged by (1) open again: a document that opens with no pages gets its
+cross-reference table rebuilt from the objects (`pdf_repair_xref`, what MuPDF's own
+on-demand repair calls), which brings back everything in the file, the last update's
+changes included. It then counts as repaired, so its next save is a full one.
+
+Tests: `journal_and_save::a_save_after_one_that_failed_writes_a_sound_file`,
+`journal_and_save::an_incremental_save_after_a_failed_whole_save_is_sound`,
+`session::a_failed_optimized_save_leaves_the_session_as_it_was`,
+`session::a_file_whose_last_section_follows_itself_is_repaired_on_open`,
+`recovery::copies_of_a_file_with_a_cross_reference_stream_add_nothing_to_undo`.
+
+`do_snapshot` is marked "do not use directly" in MuPDF's header; the snapshot functions
+have no variant that renews `/ID`. The shim's comment lists what the flag does in 1.27.2;
+check it again when MuPDF is upgraded.
+
 ## Hazard recorded for later
 
 MuPDF writes output files with the C runtime's `fopen`, which creates **inheritable**

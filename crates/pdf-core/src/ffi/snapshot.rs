@@ -25,6 +25,12 @@ unsafe extern "C" {
         path: *const c_char,
         err: *mut LectrixError,
     ) -> c_int;
+    fn lectrix_pdf_save_incremental(
+        ctx: *mut fz_context,
+        doc: *mut pdf_document,
+        path: *const c_char,
+        err: *mut LectrixError,
+    ) -> c_int;
     fn lectrix_pdf_has_unsaved_changes(
         ctx: *mut fz_context,
         doc: *mut pdf_document,
@@ -49,6 +55,29 @@ pub fn save_snapshot(doc: &mut PdfDocument, path: &Path) -> Result<()> {
     // thread); `path` is a live NUL-terminated string; `err` is a live LectrixError.
     let rc =
         unsafe { lectrix_pdf_save_snapshot(ctx, doc.as_raw_pdf_ptr(), path.as_ptr(), &mut err) };
+    check(rc, err)
+}
+
+/// Writes `doc`'s file followed by its unsaved changes as one incremental update to `path`,
+/// leaving the document as it was (see `lectrix_pdf_save_incremental` in the shim): if the
+/// file written is then thrown away, the next save is still right. The second half of
+/// `/ID` is renewed, as for any save. Fails for documents MuPDF repaired on open.
+pub fn save_incremental(doc: &PdfDocument, path: &Path) -> Result<()> {
+    let s = path.to_str().ok_or_else(|| {
+        Error::InvalidArgument(format!("path is not valid Unicode: {}", path.display()))
+    })?;
+    let path = CString::new(s).map_err(|_| Error::InvalidArgument(format!("NUL in {s}")))?;
+    // Objects an undone step created must not count towards the trailer's /Size.
+    super::trim_unused_objects(doc);
+    let ctx = Context::get().as_raw_ptr();
+    let mut err = LectrixError::new();
+    // SAFETY: `ctx` is this thread's context, from the family that opened `doc`; `doc` is a
+    // live document owned by this thread (PdfDocument is not Send) with no MuPDF call in
+    // progress on it, and the shim takes a mutable pointer as the crate's own
+    // `save_with_options` does from `&self`; `path` is a live NUL-terminated string; `err`
+    // is a live LectrixError.
+    let rc =
+        unsafe { lectrix_pdf_save_incremental(ctx, doc.as_raw_pdf_ptr(), path.as_ptr(), &mut err) };
     check(rc, err)
 }
 

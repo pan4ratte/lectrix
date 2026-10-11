@@ -145,6 +145,95 @@ fn incremental_save_keeps_original_bytes_as_prefix() {
     assert!(leftovers.is_empty());
 }
 
+/// A save that fails once the new file is written (the replace is refused: the target is
+/// locked, or the user cancels) leaves the document as it was, so saving again writes a
+/// sound file. MuPDF's own incremental save moves the document on to the update it wrote
+/// whether or not the file is kept; the next save then gave its cross-reference section
+/// itself as the previous one, and the file opened with no pages.
+#[test]
+fn a_save_after_one_that_failed_writes_a_sound_file() {
+    use pdf_core::Error;
+    use pdf_core::save::save_atomic_checked;
+
+    let dir = out_dir("save-after-failed");
+    let plain = sample_file(&dir, "plain.pdf", SampleSpec::default());
+    let streams = dir.join("streams.pdf");
+    let mut sources = vec![("plain", plain.clone())];
+    if common::with_object_streams(&plain, &streams) {
+        sources.push(("streams", streams));
+    }
+    for (name, src) in sources {
+        let original = fs::read(&src).unwrap();
+        let mut doc = open(&src);
+        Journal::new(&mut doc).enable().unwrap();
+        doc.begin_operation("Add highlight").unwrap();
+        add_text_markup(
+            &mut doc,
+            &MarkupSpec {
+                kind: MarkupKind::Highlight,
+                page: 0,
+                quads: vec![Quad::from_view_rect(Rect::new(72.0, 100.0, 200.0, 112.0))],
+                color: Rgb::YELLOW,
+                opacity: 1.0,
+                author: "Lectrix".into(),
+                note: None,
+            },
+        )
+        .unwrap();
+        doc.end_operation().unwrap();
+        let history = Journal::new(&mut doc).state().unwrap();
+
+        let target = dir.join(format!("{name}-saved.pdf"));
+        fs::copy(&src, &target).unwrap();
+        for _ in 0..2 {
+            let refused = common::writing(|| {
+                save_atomic_checked(
+                    &doc,
+                    SaveKind::Incremental,
+                    Some(&src),
+                    &target,
+                    &mut || Err(Error::Cancelled),
+                )
+            });
+            assert!(matches!(refused, Err(Error::Cancelled)), "{name}");
+        }
+        assert_eq!(
+            fs::read(&target).unwrap(),
+            original,
+            "{name}: the target is untouched"
+        );
+        assert_eq!(
+            Journal::new(&mut doc).state().unwrap(),
+            history,
+            "{name}: the failed saves left no step to undo"
+        );
+
+        common::writing(|| save_atomic(&doc, SaveKind::Incremental, Some(&src), &target)).unwrap();
+        let saved = fs::read(&target).unwrap();
+        assert!(saved.starts_with(&original), "{name}");
+        assert_eq!(
+            common::last_number_after(&saved, b"/Prev"),
+            common::last_number_after(&original, b"startxref"),
+            "{name}: the update follows the original's cross-reference section"
+        );
+        qpdf_check(&target);
+        let reopened = open(&target);
+        assert_eq!(reopened.page_count().unwrap(), 3, "{name}");
+        assert!(!pdf_core::ffi::was_repaired(&reopened).unwrap(), "{name}");
+        assert_eq!(annotation_count(&reopened), 1, "{name}");
+        // One update, whatever was tried before it: with a cross-reference stream, only its own.
+        let added = common::objects_written_after(&saved, original.len());
+        let xref_streams = added
+            .iter()
+            .filter(|&&n| common::raw_object(&saved, n).contains("/Type/XRef"))
+            .count();
+        assert!(
+            xref_streams <= 1,
+            "{name}: {xref_streams} cross-reference streams"
+        );
+    }
+}
+
 #[cfg(windows)]
 #[test]
 fn a_target_locked_for_a_moment_is_replaced_once_it_is_free() {
@@ -204,4 +293,81 @@ fn locked_target_is_reported_and_left_untouched() {
         .filter(|e| e.file_name().to_string_lossy().ends_with(".lectrix-tmp"))
         .count();
     assert_eq!(leftovers, 0);
+}
+
+/// After a whole-file save that failed, an incremental save is still sound: writing the
+/// file whole changes nothing in the document. (Optimizing does: a session optimizes a
+/// copy, see `a_failed_optimized_save_leaves_the_session_as_it_was` in session.rs.)
+#[test]
+fn an_incremental_save_after_a_failed_whole_save_is_sound() {
+    use pdf_core::Error;
+    use pdf_core::save::save_atomic_checked;
+
+    let dir = out_dir("save-after-failed-whole");
+    let plain = sample_file(&dir, "plain.pdf", SampleSpec::default());
+    let streams = dir.join("streams.pdf");
+    let mut sources = vec![("plain", plain.clone())];
+    if common::with_object_streams(&plain, &streams) {
+        sources.push(("streams", streams));
+    }
+    for (name, src) in sources {
+        {
+            let kind = SaveKind::Full;
+            let original = fs::read(&src).unwrap();
+            let mut doc = open(&src);
+            Journal::new(&mut doc).enable().unwrap();
+            for y in [100.0, 200.0] {
+                doc.begin_operation("Add highlight").unwrap();
+                add_text_markup(
+                    &mut doc,
+                    &MarkupSpec {
+                        kind: MarkupKind::Highlight,
+                        page: 0,
+                        quads: vec![Quad::from_view_rect(Rect::new(72.0, y, 200.0, y + 12.0))],
+                        color: Rgb::YELLOW,
+                        opacity: 1.0,
+                        author: "Lectrix".into(),
+                        note: None,
+                    },
+                )
+                .unwrap();
+                doc.end_operation().unwrap();
+            }
+            // One undone, so the history has a step each way.
+            Journal::new(&mut doc).undo().unwrap();
+            let history = Journal::new(&mut doc).state().unwrap();
+
+            let target = dir.join(format!("{name}-{kind:?}.pdf"));
+            let refused = common::writing(|| {
+                save_atomic_checked(&doc, kind, None, &target, &mut || Err(Error::Cancelled))
+            });
+            assert!(matches!(refused, Err(Error::Cancelled)), "{name} {kind:?}");
+            assert_eq!(
+                Journal::new(&mut doc).state().unwrap(),
+                history,
+                "{name} {kind:?}: the failed save left the history alone"
+            );
+
+            common::writing(|| save_atomic(&doc, SaveKind::Incremental, Some(&src), &target))
+                .unwrap();
+            let saved = fs::read(&target).unwrap();
+            assert!(saved.starts_with(&original), "{name} {kind:?}");
+            qpdf_check(&target);
+            let reopened = open(&target);
+            assert_eq!(reopened.page_count().unwrap(), 3, "{name} {kind:?}");
+            assert_eq!(annotation_count(&reopened), 1, "{name} {kind:?}");
+            // The pages still say what they said.
+            let text = reopened
+                .load_page(2)
+                .unwrap()
+                .to_text_page(mupdf::TextPageFlags::empty())
+                .unwrap()
+                .to_text()
+                .unwrap();
+            assert!(text.contains("Page 3"), "{name} {kind:?}: {text}");
+            // And the step undone can be redone.
+            Journal::new(&mut doc).redo().unwrap();
+            assert_eq!(annotation_count(&doc), 2, "{name} {kind:?}");
+        }
+    }
 }

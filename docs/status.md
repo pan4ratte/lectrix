@@ -161,6 +161,12 @@ Nothing has been run interactively there.
   writes none of them (`writexref` in `pdf-write.c`). Lectrix trims those entries before
   every incremental save and recovery copy (`ffi::trim_unused_objects`); the fix belongs in
   MuPDF and could be reported.
+- An incremental save that is not kept leaves the document pointing at it: MuPDF sets
+  `doc->startxref` to the update it wrote, so a caller that writes to a temporary file
+  and fails to move it into place writes a self-referring `/Prev` next time (ADR 0003, "A
+  save that fails"). And a snapshot of a document with a cross-reference stream leaves a
+  "Save document" step in the journal, although a snapshot is meant to leave the document
+  as it was. Lectrix works around both in the shim; both could be reported.
 - The vendored `mupdf` crate's patches (`third_party/mupdf-rs/LECTRIX_PATCHES.md`) could be
   offered to mupdf-rs as a pull request, if the user wants.
 

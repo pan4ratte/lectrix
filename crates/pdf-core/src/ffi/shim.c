@@ -289,6 +289,23 @@ int lectrix_pdf_open_os_handle(fz_context *ctx, intptr_t handle, pdf_document **
 	return 0;
 }
 
+/*
+ * Rebuilds the cross-reference table from the objects in the file, as MuPDF does by itself
+ * when it cannot read the table (pdf_repair_xref is what its own on-demand repair calls).
+ * For files whose table reads without an error but leads nowhere: a last section that names
+ * itself as the previous one is read alone (pdf_read_xref_sections stops at the recursion
+ * with a warning), so the catalog is missing and the document has no pages. Afterwards the
+ * document counts as repaired (pdf_was_repaired), so it is saved in full.
+ */
+int lectrix_pdf_repair(fz_context *ctx, pdf_document *doc, lectrix_error *err)
+{
+	fz_try(ctx)
+		pdf_repair_xref(ctx, doc);
+	fz_catch(ctx)
+		return lectrix_caught(ctx, err);
+	return 0;
+}
+
 /* 1 if MuPDF had to repair the file's cross-reference table when opening it. */
 int lectrix_pdf_was_repaired(fz_context *ctx, pdf_document *doc, int *repaired, lectrix_error *err)
 {
@@ -299,6 +316,44 @@ int lectrix_pdf_was_repaired(fz_context *ctx, pdf_document *doc, int *repaired, 
 	return 0;
 }
 
+
+int lectrix_pdf_trim_unused_objects(pdf_document *doc);
+
+/*
+ * Writes `doc` with do_snapshot (`opts`, or as pdf_save_snapshot does when NULL) so that
+ * nothing of the write stays in the document, the undo history included.
+ *
+ * MuPDF wraps a save in an operation, "Save document". For a file with a classic
+ * cross-reference table the operation changes no object and is dropped. For one with a
+ * cross-reference stream, the stream is an object that the save creates and, with
+ * do_snapshot, deletes again (writexrefstream): two changes, so the operation stays in
+ * the journal as a step, and Undo would undo "Save document" (nothing) while the session
+ * counts it as the user's last edit. So the journal is set aside for the write: every
+ * journal function returns at once without one (pdf_begin_operation, pdf_end_operation,
+ * pdf_abandon_operation, pdf_add_journal_fragment in pdf-object.c). The object number the
+ * stream took is left as a never-used entry at the end of the edit section
+ * (pdf_delete_object), which lectrix_pdf_trim_unused_objects drops, as after an undo.
+ */
+static int lectrix_save_untouched(fz_context *ctx, pdf_document *doc, const char *path, const pdf_write_options *opts, lectrix_error *err)
+{
+	pdf_journal *journal = doc->journal;
+	int failed = 0;
+
+	doc->journal = NULL;
+	fz_try(ctx)
+	{
+		if (opts)
+			pdf_save_document(ctx, doc, path, opts);
+		else
+			pdf_save_snapshot(ctx, doc, path);
+	}
+	fz_always(ctx)
+		doc->journal = journal;
+	fz_catch(ctx)
+		failed = lectrix_caught(ctx, err);
+	lectrix_pdf_trim_unused_objects(doc);
+	return failed;
+}
 
 /*
  * Crash recovery (AGENTS.md section 7). A snapshot is the document's file followed by its
@@ -314,11 +369,40 @@ int lectrix_pdf_was_repaired(fz_context *ctx, pdf_document *doc, int *repaired, 
  */
 int lectrix_pdf_save_snapshot(fz_context *ctx, pdf_document *doc, const char *path, lectrix_error *err)
 {
-	fz_try(ctx)
-		pdf_save_snapshot(ctx, doc, path);
-	fz_catch(ctx)
-		return lectrix_caught(ctx, err);
-	return 0;
+	return lectrix_save_untouched(ctx, doc, path, NULL, err);
+}
+
+/*
+ * An incremental save (sections 5.4 and 7) that leaves the document as it was, as a
+ * snapshot does: the file MuPDF has open, then the unsaved changes as one update.
+ *
+ * MuPDF's ordinary incremental save (pdf_save_document with do_incremental) moves the
+ * document on to the update it wrote: doc->startxref becomes that update's
+ * cross-reference offset, and with a cross-reference stream the stream's object stays in
+ * the document (writexref and writexrefstream in pdf-write.c). That is right only if the
+ * file written becomes the document's file. Lectrix writes to a temporary file and then
+ * replaces the target, which can fail (the target is locked, or the user cancels); the
+ * document then described a file that does not exist, and the next save wrote an update
+ * whose /Prev was its own offset, which readers follow in a loop: no pages. After a save
+ * that succeeds, the session opens the saved file anew (ADR 0003), so nothing needs the
+ * document moved on.
+ *
+ * So this writes with do_snapshot, which makes exactly those differences in 1.27.2 (every
+ * use of the flag in pdf-write.c): startxref is left alone, the cross-reference stream's
+ * object is deleted again, and unsaved signatures are neither sized nor completed (Lectrix
+ * makes none). Unlike pdf_save_snapshot, the second half of /ID is regenerated, as for any
+ * save (dont_regenerate_id stays 0; the snapshot check in pdf_save_document allows it).
+ * The header says to reach do_snapshot through the snapshot functions; they have no
+ * variant that renews /ID, so check these uses again when MuPDF is upgraded
+ * (journal_and_save.rs tests the behaviour).
+ */
+int lectrix_pdf_save_incremental(fz_context *ctx, pdf_document *doc, const char *path, lectrix_error *err)
+{
+	pdf_write_options opts = pdf_default_write_options;
+
+	opts.do_incremental = 1;
+	opts.do_snapshot = 1;
+	return lectrix_save_untouched(ctx, doc, path, &opts, err);
 }
 
 /*

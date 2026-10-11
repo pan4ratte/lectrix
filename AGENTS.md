@@ -169,7 +169,7 @@ Repair must never change an annotation's content, color, author or position. Log
 ### 5.4 Saving rules that protect interoperability
 
 - Default save is incremental: changes are appended and the original bytes stay intact.
-- If MuPDF reports the file was repaired on open (damaged cross-reference table), it cannot be saved incrementally; do a full save and tell the user once, in plain words, why.
+- If MuPDF reports the file was repaired on open (damaged cross-reference table), it cannot be saved incrementally; do a full save and tell the user once, in plain words, why. A file that opens without an error but with no pages (a cross-reference table that leads nowhere, such as a last section naming itself as the previous one) gets the same repair from Lectrix, and is then treated the same way; if it still has no pages, it is reported as too damaged to open.
 - "Save As (optimized)" does a full rewrite with garbage collection and stream compression.
 - If the document is digitally signed, warn before the first edit that edits will be shown as changes after signing, and always save incrementally.
 - Encrypted documents: prompt for the password, keep the encryption on save, and respect permission flags (no annotating if the document disallows it).
@@ -320,6 +320,8 @@ The Rust session is the single source of truth: the frontend holds only a view o
 2. Flush it to disk.
 3. Replace the original in one rename on the same volume.
 4. On failure, delete the temp file and leave the original untouched.
+
+A failed save also leaves the document in memory as it was, so saving again (or Save As) is safe: an incremental save is written without moving the document on to the update it wrote, and "Save As (optimized)" optimizes a copy of the document (ADR 0003, "A save that fails").
 
 Documents are opened through a file stream that allows that rename (ADR 0003). On Windows the rename is retried for up to a second while a file is locked, since antivirus scanners and the search indexer open a file just written for a moment. If the target is still locked by another program (Acrobat locks files it has open), show a clear message naming the likely cause and offer Save As.
 

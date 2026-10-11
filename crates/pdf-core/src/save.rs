@@ -6,6 +6,10 @@
 //! 3. Replace the target with one rename on the same volume (on Windows, retried for a
 //!    moment while the file is locked).
 //! 4. On failure, delete the temporary file and leave the target untouched.
+//!
+//! A failure also leaves the document untouched, so the user can save again: incremental
+//! saves are written without moving the document on to the update (`ffi::save_incremental`),
+//! and MuPDF records nothing when it writes a file whole.
 
 use std::fs::{self, OpenOptions};
 use std::io;
@@ -24,6 +28,8 @@ pub enum SaveKind {
     /// Rewrite the whole file, keeping all objects.
     Full,
     /// Rewrite with garbage collection and stream compression ("Save As (optimized)").
+    /// Garbage collection renumbers the document's objects in memory: only for a document
+    /// that is not used afterwards (a session optimizes a copy of its own).
     Optimized,
 }
 
@@ -90,9 +96,9 @@ fn write_to(doc: &PdfDocument, kind: SaveKind, original: Option<&Path>, temp: &P
                 Error::InvalidArgument("an incremental save needs the original file".into())
             })?;
             fs::copy(original, temp)?;
-            options.set_incremental(true);
-            // Objects an undone step created must not count towards the trailer's /Size.
-            crate::ffi::trim_unused_objects(doc);
+            // Written so that the document stays as it was: the file is still to replace
+            // the target, and if that fails the next save must not build on this one.
+            return crate::ffi::save_incremental(doc, temp);
         }
         SaveKind::Full => {}
         SaveKind::Optimized => {
@@ -113,7 +119,7 @@ fn write_to(doc: &PdfDocument, kind: SaveKind, original: Option<&Path>, temp: &P
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// A temporary file next to `target` (same folder, so the final rename stays on one volume).
-fn temp_path_for(target: &Path) -> Result<PathBuf> {
+pub(crate) fn temp_path_for(target: &Path) -> Result<PathBuf> {
     let name = target
         .file_name()
         .ok_or_else(|| Error::InvalidArgument(format!("not a file path: {}", target.display())))?;

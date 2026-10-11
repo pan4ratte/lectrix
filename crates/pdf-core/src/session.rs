@@ -501,8 +501,32 @@ fn load(path: &Path, password: Option<&str>) -> Result<PdfDocument> {
             return Err(Error::WrongPassword);
         }
     }
+    repair_if_without_pages(&mut doc)?;
     Journal::new(&mut doc).enable()?;
     Ok(doc)
+}
+
+/// A file can have a cross-reference table that MuPDF reads without an error but that
+/// leads nowhere: its last section names itself as the previous one (Lectrix wrote such
+/// files up to version 1.0.0, when saving again after a save that failed), so that section is read alone
+/// and the catalog is not found. MuPDF repairs a table it cannot read; this one it reads,
+/// and the document has no pages. Then the table is rebuilt from the objects in the file,
+/// which brings back everything in it; the document counts as repaired, so its next save
+/// is a full one (section 5.4). A file that still has no pages cannot be shown.
+fn repair_if_without_pages(doc: &mut PdfDocument) -> Result<()> {
+    let has_pages = |doc: &PdfDocument| matches!(doc.page_count(), Ok(n) if n > 0);
+    if has_pages(doc) {
+        return Ok(());
+    }
+    if !crate::ffi::was_repaired(doc)? {
+        // If the repair fails too, the file has no pages either way.
+        let _ = crate::ffi::repair(doc);
+    }
+    if has_pages(doc) {
+        Ok(())
+    } else {
+        Err(Error::NotPdf)
+    }
 }
 
 impl Actor {
@@ -778,7 +802,11 @@ impl Actor {
             kind
         };
         self.write_open_states()?;
-        let outcome = save_atomic(&self.doc, kind, Some(&self.file), &target)?;
+        let outcome = if kind == SaveKind::Optimized {
+            self.save_optimized(&target)?
+        } else {
+            save_atomic(&self.doc, kind, Some(&self.file), &target)?
+        };
         let revision = self.revision();
         self.saved_revision = revision;
         let mut outline_changed = None;
@@ -813,6 +841,23 @@ impl Actor {
             outline: outline_changed,
             annotations,
         })
+    }
+
+    /// "Save As (optimized)": garbage collection renumbers and merges the objects of the
+    /// document it is given, in memory, whether or not the file it writes is kept. If the
+    /// replace then failed, this session went on with a document that no longer matched its
+    /// file, and its next incremental save lost changes. So the optimizing is done on a
+    /// second document: this one written whole (which changes nothing in it) to a file
+    /// beside the target, and opened from there.
+    fn save_optimized(&self, target: &Path) -> Result<SaveOutcome> {
+        let staging = crate::save::temp_path_for(target)?;
+        let result = save_atomic(&self.doc, SaveKind::Full, None, &staging).and_then(|_| {
+            let copy = load(&staging, self.password.as_deref())?;
+            save_atomic(&copy, SaveKind::Optimized, None, target)
+        });
+        // Best effort: it may not exist if writing failed early.
+        let _ = std::fs::remove_file(&staging);
+        result
     }
 
     /// Writes a recovery copy (see [`Session::write_recovery`]).
