@@ -20,11 +20,11 @@ use tauri_plugin_dialog::DialogExt;
 use crate::annotations::RepairSummary;
 use crate::combine::{self, Progress};
 use crate::ipc::{
-    AppError, DocumentChange, DocumentInfo, DocumentSaved, ImageFormat, LabelMode, MergeOutcome,
-    MergePlan, MergeProgress, MergeRequest, MergeStage, MoveTarget, OpenResult, OperationInput,
-    PageHits, PageText, PaneLayout, RecentFile, RecoveredDocument, SaveResult, SearchChunk,
-    Settings, SettingsInput, StartupInfo, TabHandoff, UnsavedSource, ViewState, WebPage,
-    WindowDocument, WindowEntry,
+    AppError, DocumentChange, DocumentInfo, DocumentSaved, ImageFormat, LabelMode, LinkPlace,
+    MergeOutcome, MergePlan, MergeProgress, MergeRequest, MergeStage, MoveTarget, OpenResult,
+    OperationInput, PageHits, PageText, PaneLayout, RecentFile, RecoveredDocument, SaveResult,
+    SearchChunk, Settings, SettingsInput, StartupInfo, TabHandoff, UnsavedSource, ViewState,
+    WebPage, WindowDocument, WindowEntry,
 };
 use crate::platform::Platform;
 use crate::store::StoredSettings;
@@ -453,8 +453,17 @@ pub fn close_other_windows(app: AppHandle, window: WebviewWindow) {
 
 #[tauri::command(async)]
 pub fn get_page_text(state: State<'_, AppState>, id: u32, page: u32) -> Result<PageText, AppError> {
-    let (text, revision) = state.documents.session(id)?.page_text(page as usize)?;
-    Ok(PageText::new(page as usize, revision, text))
+    let session = state.documents.session(id)?;
+    let (text, revision) = session.page_text(page as usize)?;
+    // A page whose links can't be read is still read and selected.
+    let links = match session.page_links(page as usize) {
+        Ok((links, _)) => links,
+        Err(e) => {
+            crate::applog::warn(format!("document {id}: links of page {page}: {e:?}"));
+            Vec::new()
+        }
+    };
+    Ok(PageText::new(page as usize, revision, text, links))
 }
 
 /// Searches pages `start .. start + count` (at most 64 per call).
@@ -568,6 +577,8 @@ fn settings_of(stored: &StoredSettings, platform: &dyn Platform) -> Settings {
         remember_annotation_style: stored.remember_annotation_style,
         selection_handles: stored.selection_handles,
         pdfa_read_only: stored.pdfa_read_only,
+        highlight_links: stored.highlight_links,
+        link_previews: stored.link_previews,
         color_panel_on_hover: stored.color_panel_on_hover,
         preset_colors: stored.preset_colors.clone(),
         shortcuts: stored.shortcuts.clone(),
@@ -622,6 +633,8 @@ pub fn set_settings(
         remember_annotation_style: settings.remember_annotation_style,
         selection_handles: settings.selection_handles,
         pdfa_read_only: settings.pdfa_read_only,
+        highlight_links: settings.highlight_links,
+        link_previews: settings.link_previews,
         color_panel_on_hover: settings.color_panel_on_hover,
         // Only colours of presets the panel has, written one way.
         preset_colors: settings
@@ -1046,6 +1059,79 @@ pub fn log_metric(name: String, ms: f64) {
     println!("[lectrix-metric] {name}={ms:.1}");
 }
 
+/// The address a link's web address is opened at, if Lectrix opens it: http or https with
+/// something after it, of a sane length, and without spaces or control characters. Nothing
+/// else is handed to the system, which would run a program or open a file as readily as
+/// a web page.
+fn web_address(uri: &str) -> Option<&str> {
+    let lower = uri.get(..8).unwrap_or(uri).to_ascii_lowercase();
+    let scheme = ["https://", "http://"]
+        .into_iter()
+        .find(|s| lower.starts_with(s))?;
+    let plain = uri.chars().all(|c| !c.is_control() && !c.is_whitespace());
+    (uri.len() > scheme.len() && uri.len() <= MAX_WEB_ADDRESS && plain).then_some(uri)
+}
+
+/// The longest web address opened (browsers take about this much).
+const MAX_WEB_ADDRESS: usize = 2048;
+
+/// Hands a web address to the default browser. With LECTRIX_BROWSER_LOG set (automation,
+/// tests/e2e), the address is written to that file instead and nothing opens.
+fn open_in_browser(url: &str) -> std::io::Result<()> {
+    if let Some(log) = std::env::var_os("LECTRIX_BROWSER_LOG") {
+        use std::io::Write;
+        let mut file = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log)?;
+        return writeln!(file, "{url}");
+    }
+    crate::platform::current().open_web_page(url)
+}
+
+/// Opens the web address of a link on a page, or of a bookmark, in the default browser
+/// (sections 6.1 and 6.2). The address must be one the document carries at `from`, so the
+/// webview can have no other page opened, and a web address (`web_address`).
+#[tauri::command(async)]
+pub fn open_link(
+    state: State<'_, AppState>,
+    id: u32,
+    from: LinkPlace,
+    uri: String,
+) -> Result<(), AppError> {
+    use pdf_core::outline::Target;
+    let session = state.documents.session(id)?;
+    let carried = match from {
+        LinkPlace::Page { page } => session
+            .page_links(page as usize)?
+            .0
+            .iter()
+            .any(|l| matches!(&l.target, Target::Uri(u) if *u == uri)),
+        LinkPlace::Bookmark { bookmark } => {
+            let mut found = false;
+            session.info()?.outline.for_each(|b| {
+                found |= b.id == bookmark && matches!(&b.target, Target::Uri(u) if *u == uri);
+            });
+            found
+        }
+    };
+    let Some(url) = web_address(&uri).filter(|_| carried) else {
+        return Err(AppError::new(
+            "Lectrix doesn’t open this link.",
+            Some("It opens web addresses only (http and https)."),
+        ));
+    };
+    open_in_browser(url).map_err(|e| {
+        crate::applog::warn(format!("could not open {url}: {e}"));
+        AppError::new(
+            "The browser couldn’t be opened.",
+            Some("Copy the link and open it in your browser."),
+        )
+    })?;
+    crate::applog::info(format!("document {id}: opened the link {url}"));
+    Ok(())
+}
+
 /// About: opens the source code's page or the author's profile in the default browser.
 /// The addresses are fixed in Rust, so the webview can't have any other page opened.
 #[tauri::command]
@@ -1080,6 +1166,36 @@ mod tests {
         assert!(debug_menu(Some("1"), false));
         assert!(!debug_menu(Some("0"), true));
         assert!(!debug_menu(Some("yes"), false));
+    }
+
+    #[test]
+    fn only_web_addresses_are_opened() {
+        use super::web_address;
+        for ok in [
+            "https://example.org/a?b=c#d",
+            "http://example.org",
+            "HTTPS://Example.org/",
+        ] {
+            assert_eq!(web_address(ok), Some(ok));
+        }
+        for refused in [
+            "",
+            "https://",
+            "example.org",
+            "file:///C:/Windows/System32/calc.exe",
+            "C:\\Windows\\System32\\calc.exe",
+            "javascript:alert(1)",
+            "mailto:someone@example.org",
+            "ftp://example.org/file",
+            " https://example.org",
+            "https://example.org/a b",
+            "https://example.org/\u{7}",
+            "httpsx://example.org",
+        ] {
+            assert_eq!(web_address(refused), None, "{refused:?}");
+        }
+        let long = format!("https://example.org/{}", "a".repeat(3000));
+        assert_eq!(web_address(&long), None);
     }
 
     #[test]

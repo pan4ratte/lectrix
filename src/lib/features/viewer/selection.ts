@@ -2,7 +2,7 @@
 // highlighted rectangles, and the copied text. Coordinates are page points in view
 // space (top-left origin, y down, the document's /Rotate applied).
 
-import type { PageText } from '#lib/ipc/index.ts';
+import type { PageLink, PageText } from '#lib/ipc/index.ts';
 
 export interface Line {
 	/** One string per character (Unicode code point). */
@@ -19,6 +19,8 @@ export interface TextGeometry {
 	page: number;
 	revision: number;
 	lines: Line[];
+	/** The page's links (links.ts), which come with its text. */
+	links: PageLink[];
 }
 
 /** A caret position: before character `offset` of line `line` on page `page`. */
@@ -32,6 +34,7 @@ export function prepareText(text: PageText): TextGeometry {
 	return {
 		page: text.page,
 		revision: text.revision,
+		links: text.links,
 		lines: text.lines.map((l) => {
 			const chars = Array.from(l.text);
 			const boxes = Float32Array.from(l.boxes);

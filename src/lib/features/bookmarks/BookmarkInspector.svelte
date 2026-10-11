@@ -9,6 +9,8 @@
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
+	import { isWebAddress } from '#lib/features/viewer/links.ts';
+
 	import { copyLink, deleteBookmark, goToBookmark, renameBookmark, setDestinationHere } from './actions.ts';
 	import { describeTarget, descendantCount, locate } from './tree.ts';
 
@@ -85,6 +87,11 @@
 			{/if}
 			{#if b.target.kind === 'uri'}
 				{@const uri = b.target.uri}
+				{#if isWebAddress(uri)}
+					<button type="button" class="button gap-1" onclick={() => goToBookmark(tab, b.id)}>
+						<ArrowRight size={14} aria-hidden="true" />Open in browser
+					</button>
+				{/if}
 				<button type="button" class="button gap-1" onclick={() => void copyLink(uri)}>
 					<Copy size={14} aria-hidden="true" />Copy link
 				</button>

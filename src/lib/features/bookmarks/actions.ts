@@ -2,6 +2,7 @@
 // (section 6.2). Each change is one operation in Rust, so it is one undo step.
 
 import { selectedText } from '#lib/features/viewer/actions.ts';
+import { copyLink, follow } from '#lib/features/viewer/links.ts';
 import { logError, setBookmarkOpen, type Bookmark } from '#lib/ipc/index.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -143,54 +144,12 @@ export async function keyboardMoveBookmark(tab: DocTab, id: number, move: Keyboa
 	if (to) await moveBookmark(tab, id, to);
 }
 
-/** Follows a bookmark. Only places in this document are followed; for the rest, the user
- * is told what the bookmark does (Lectrix stays offline and runs no actions). */
+/** Follows a bookmark, as a link in the text is followed: to its place in this document,
+ * or, a web address, in the system's browser. For the rest, the user is told what the
+ * bookmark does (Lectrix opens no files and runs no actions). */
 export function goToBookmark(tab: DocTab, id: number) {
 	const bookmark = locate(tab.outline.items, id)?.bookmark;
-	if (!bookmark) return;
-	const target = bookmark.target;
-	switch (target.kind) {
-		case 'page':
-			tab.viewer?.goToPoint(target.page, target.x, target.y);
-			return;
-		case 'uri':
-			app.notify({
-				kind: 'info',
-				message: `This bookmark is a web link: ${target.uri}`,
-				suggestion: 'Lectrix doesn’t open links. Copy it to open it in your browser.',
-				action: { label: 'Copy link', run: () => void copyLink(target.uri) }
-			});
-			return;
-		case 'broken':
-			app.notify({
-				kind: 'error',
-				message: 'This bookmark’s destination doesn’t exist in this document.',
-				suggestion: 'Use “Set destination to current view” to point it somewhere.'
-			});
-			return;
-		case 'file':
-			app.notify({
-				kind: 'info',
-				message: `This bookmark opens another file${target.file ? `: ${target.file}` : ''}.`,
-				suggestion: 'Lectrix doesn’t follow links to other files.'
-			});
-			return;
-		case 'action':
-			app.notify({
-				kind: 'info',
-				message: `This bookmark runs a ${target.action || 'custom'} action, which Lectrix doesn’t do.`
-			});
-			return;
-		case 'none':
-			return;
-	}
+	if (bookmark) follow(tab, bookmark.target, { kind: 'bookmark', bookmark: id });
 }
 
-export async function copyLink(uri: string) {
-	try {
-		await navigator.clipboard.writeText(uri);
-		app.notify({ kind: 'info', message: 'Link copied.' }, 3000);
-	} catch {
-		app.notify({ kind: 'error', message: 'The link couldn’t be copied to the clipboard.', suggestion: 'Try again.' });
-	}
-}
+export { copyLink };

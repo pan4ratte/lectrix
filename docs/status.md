@@ -80,6 +80,12 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
   next start, and has no command for an empty new window. An update downloaded in one
   window and put off with Later is not known to the others: Check for updates there
   downloads it again.
+- **Links.** A link is followed by its `/Rect`: one that covers several lines by
+  `/QuadPoints` also answers between them, and is tinted as one block. Links are followed
+  with the pointer only (the keyboard does not reach them), so their tooltips need a
+  pointer too. Only http and https addresses open, in the system's browser; mail addresses
+  and the rest are shown for copying. Bookmarks have no tooltip saying where they lead
+  (their inspector says it).
 - **Undo history restarts** after each save (ADR 0003) and after restoring a crash
   recovery copy: MuPDF 1.27.2 cannot load a saved journal (ADR 0001).
 - **Recovery copies of large damaged files** are full copies and take 1.2 to 1.5 s for

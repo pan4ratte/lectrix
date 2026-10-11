@@ -431,6 +431,7 @@ pub fn run() {
             commands::log_metric,
             commands::log_error,
             commands::open_web_page,
+            commands::open_link,
             commands::move_document,
             commands::list_windows,
             commands::close_other_windows,

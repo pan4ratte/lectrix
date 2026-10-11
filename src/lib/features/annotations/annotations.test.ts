@@ -129,7 +129,8 @@ describe('selection to character ranges', () => {
 			lines: [
 				{ text: 'Hello world ', boxes: Array(12 * 4).fill(0), bbox: [0, 0, 1, 1], block: 0, vertical: false },
 				{ text: 'Second line', boxes: Array(11 * 4).fill(0), bbox: [0, 0, 1, 1], block: 0, vertical: false }
-			]
+			],
+			links: []
 		});
 
 	it('covers lines from the start caret to the end caret, without edge spaces', () => {

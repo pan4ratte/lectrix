@@ -79,6 +79,12 @@ If you have PDFs whose annotations display wrongly in Acrobat, open one in Lectr
 annotation list (the Annotations panel, in the right pane at first) marks the ones that need repair. Run Document > Repair annotations,
 save a copy, and check the copy in Acrobat.
 
+- [ ] Open a book with a linked table of contents: the hand shows over its lines, the
+      line is tinted and a tooltip names the page, a click goes to the chapter, and Alt+Left
+      comes back. Its bookmarks read as in Acrobat.
+- [ ] Rest the pointer on a web link in a document: the tooltip shows its address. Click
+      it: it opens in the default browser, and Lectrix names the address it opened. The
+      same for a bookmark that is a web link.
 - [ ] Open a PDF/A file (Word: Save As > PDF > Options > "PDF/A compliant"; LibreOffice:
       Export as PDF > Archive). Lectrix shows the bar "This file claims compliance with the
       PDF/A standard…" with the same level Acrobat names in its Standards panel, and the

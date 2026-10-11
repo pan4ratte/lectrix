@@ -260,6 +260,18 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 				]
 			},
 			{
+				title: 'Links',
+				rows: [
+					toggle('highlightLinks', 'Highlight the link under the pointer', {
+						description: 'A link in the text is tinted while the pointer is on it. Links work either way.'
+					}),
+					toggle('linkPreviews', 'Show where a link leads', {
+						description:
+							'A tooltip on the link under the pointer names the page it goes to, or its web address. It waits as long as a comment’s tooltip (Annotations).'
+					})
+				]
+			},
+			{
 				title: 'Reset',
 				rows: [
 					{
@@ -428,6 +440,8 @@ export function toInput(d: Draft): SettingsInput {
 		rememberAnnotationStyle: d.rememberAnnotationStyle,
 		selectionHandles: d.selectionHandles,
 		pdfaReadOnly: d.pdfaReadOnly,
+		highlightLinks: d.highlightLinks,
+		linkPreviews: d.linkPreviews,
 		colorPanelOnHover: d.colorPanelOnHover,
 		presetColors: { ...d.presetColors },
 		shortcuts: copyShortcuts(d.shortcuts)

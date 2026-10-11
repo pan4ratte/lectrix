@@ -639,7 +639,7 @@ pub struct Bookmark {
     pub children: Vec<Bookmark>,
 }
 
-/// What a bookmark does when clicked.
+/// What a bookmark, or a link on a page, does when clicked.
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(
     tag = "kind",
@@ -678,10 +678,10 @@ impl From<pdf_core::outline::Outline> for Outline {
     }
 }
 
-impl From<pdf_core::outline::Bookmark> for Bookmark {
-    fn from(b: pdf_core::outline::Bookmark) -> Self {
+impl From<pdf_core::outline::Target> for BookmarkTarget {
+    fn from(target: pdf_core::outline::Target) -> Self {
         use pdf_core::outline::Target as T;
-        let target = match b.target {
+        match target {
             T::None => BookmarkTarget::None,
             T::Page { page, x, y, named } => BookmarkTarget::Page {
                 page: u32::try_from(page).unwrap_or(u32::MAX),
@@ -693,7 +693,12 @@ impl From<pdf_core::outline::Bookmark> for Bookmark {
             T::Uri(uri) => BookmarkTarget::Uri { uri },
             T::File(file) => BookmarkTarget::File { file },
             T::Action(action) => BookmarkTarget::Action { action },
-        };
+        }
+    }
+}
+
+impl From<pdf_core::outline::Bookmark> for Bookmark {
+    fn from(b: pdf_core::outline::Bookmark) -> Self {
         let color = b.color.map(|[r, g, b]| {
             let c = |v: f32| (v.clamp(0.0, 1.0) * 255.0).round() as u8;
             format!("#{:02x}{:02x}{:02x}", c(r), c(g), c(b))
@@ -702,7 +707,7 @@ impl From<pdf_core::outline::Bookmark> for Bookmark {
             id: b.id,
             title: b.title,
             open: b.open,
-            target,
+            target: b.target.into(),
             bold: b.bold,
             italic: b.italic,
             color,
@@ -961,13 +966,54 @@ pub struct PageText {
     #[ts(type = "number")]
     pub revision: u64,
     pub lines: Vec<TextLine>,
+    /// The page's links, which the viewer follows when clicked (section 6.1). In the order
+    /// they are drawn: a later one lies over an earlier one.
+    pub links: Vec<PageLink>,
+}
+
+/// Where a web address that the user asked to open is in the document (`open_link`): Rust
+/// opens only an address the document carries there.
+#[derive(Debug, Clone, Copy, Deserialize, TS)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[ts(export)]
+pub enum LinkPlace {
+    /// A link on this page (0-based).
+    Page { page: u32 },
+    /// The bookmark with this id.
+    Bookmark { bookmark: u32 },
+}
+
+/// A link on a page: where it is, and what it does when clicked.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PageLink {
+    /// `[x0, y0, x1, y1]` in page points (view space at zoom 1), as text boxes are.
+    pub rect: [f32; 4],
+    pub target: BookmarkTarget,
 }
 
 impl PageText {
-    pub fn new(page: usize, revision: u64, text: pdf_core::text::PageText) -> Self {
+    pub fn new(
+        page: usize,
+        revision: u64,
+        text: pdf_core::text::PageText,
+        links: Vec<pdf_core::links::PageLink>,
+    ) -> Self {
         PageText {
             page: u32::try_from(page).unwrap_or(u32::MAX),
             revision,
+            links: links
+                .into_iter()
+                .map(|l| PageLink {
+                    rect: l.rect,
+                    target: l.target.into(),
+                })
+                .collect(),
             lines: text
                 .lines
                 .into_iter()
@@ -1253,6 +1299,10 @@ pub struct Settings {
     /// Whether a file that claims PDF/A opens for reading only, until the user enables
     /// editing (section 5.4); otherwise it opens ready to edit, as any file.
     pub pdfa_read_only: bool,
+    /// Whether a link on a page is tinted while the pointer is on it (section 6.1).
+    pub highlight_links: bool,
+    /// Whether a tooltip on the link under the pointer says where it leads (section 6.1).
+    pub link_previews: bool,
     /// Whether a colour button opens its panel when the pointer rests on it (section
     /// 6.5); otherwise only when it is clicked.
     pub color_panel_on_hover: bool,
@@ -1286,6 +1336,8 @@ pub struct SettingsInput {
     pub remember_annotation_style: bool,
     pub selection_handles: bool,
     pub pdfa_read_only: bool,
+    pub highlight_links: bool,
+    pub link_previews: bool,
     pub color_panel_on_hover: bool,
     pub preset_colors: BTreeMap<u8, String>,
     pub shortcuts: BTreeMap<String, Vec<String>>,

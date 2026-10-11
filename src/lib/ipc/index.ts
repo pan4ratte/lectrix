@@ -80,6 +80,9 @@ export type { LabelRule } from './generated/LabelRule';
 export type { LabelStyle } from './generated/LabelStyle';
 export type { Outline } from './generated/Outline';
 import type { ImageFormat } from './generated/ImageFormat';
+export type { LinkPlace } from './generated/LinkPlace';
+import type { LinkPlace } from './generated/LinkPlace';
+export type { PageLink } from './generated/PageLink';
 export type { PageSize } from './generated/PageSize';
 export type { TextLine } from './generated/TextLine';
 export type { ViewDest } from './generated/ViewDest';
@@ -216,6 +219,9 @@ export const resetSettings = () => invoke<Settings>('reset_settings');
 export const appReady = () => invoke<StartupInfo>('app_ready');
 /** Remembers which side panes are open and their widths. */
 export const setPaneLayout = (panes: PaneLayout) => invoke<void>('set_pane_layout', { panes });
+/** Opens the web address of a link on a page of the document, or of a bookmark, in the
+ * default browser. Rust opens only an address (http or https) the document carries there. */
+export const openLink = (id: number, from: LinkPlace, uri: string) => invoke<void>('open_link', { id, from, uri });
 export const logMetric = (name: string, ms: number) => invoke<void>('log_metric', { name, ms });
 export const logError = (message: string) => invoke<void>('log_error', { message });
 /** Opens Lectrix's source code page or its author's profile in the default browser. */

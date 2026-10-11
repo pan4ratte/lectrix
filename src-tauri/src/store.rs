@@ -124,6 +124,12 @@ pub struct StoredSettings {
     /// Whether a file that claims PDF/A opens for reading only until editing is enabled.
     #[serde(default = "yes")]
     pub pdfa_read_only: bool,
+    /// Whether a link on a page is tinted while the pointer is on it.
+    #[serde(default = "yes")]
+    pub highlight_links: bool,
+    /// Whether a tooltip on the link under the pointer says where it leads.
+    #[serde(default = "yes")]
+    pub link_previews: bool,
     /// Whether a colour button opens its panel when the pointer rests on it, without a
     /// click.
     #[serde(default = "yes")]
@@ -180,6 +186,8 @@ impl Default for StoredSettings {
             remember_annotation_style: true,
             selection_handles: false,
             pdfa_read_only: true,
+            highlight_links: true,
+            link_previews: true,
             color_panel_on_hover: true,
             preset_colors: BTreeMap::new(),
             shortcuts: BTreeMap::new(),
@@ -469,6 +477,8 @@ mod tests {
             remember_annotation_style: false,
             selection_handles: true,
             pdfa_read_only: false,
+            highlight_links: false,
+            link_previews: false,
             color_panel_on_hover: false,
             preset_colors: BTreeMap::from([
                 (2, "#12ab34".to_string()),
@@ -507,6 +517,8 @@ mod tests {
         assert!(v1.settings().remember_annotation_style);
         assert!(!v1.settings().selection_handles);
         assert!(v1.settings().pdfa_read_only);
+        assert!(v1.settings().highlight_links);
+        assert!(v1.settings().link_previews);
         assert!(v1.settings().color_panel_on_hover);
         assert!(v1.settings().preset_colors.is_empty());
         assert!(v1.settings().shortcuts.is_empty());

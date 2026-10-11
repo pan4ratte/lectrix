@@ -42,12 +42,13 @@
 	import SelectionBar from '#lib/features/annotations/SelectionBar.svelte';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
 	import { DEFAULT_QUICK_TOOLS, capabilities, isMarkupTool, showsComment } from '#lib/features/annotations/tools.ts';
-	import type { Annotation } from '#lib/ipc/index.ts';
+	import type { Annotation, PageLink } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
 	import { copySelection } from './actions.ts';
 	import type { ViewPosition } from './history.ts';
+	import { follow, linkAt, linkPreview } from './links.ts';
 	import {
 		CSS_PX_PER_PT,
 		computeLayout,
@@ -761,6 +762,18 @@
 
 	const clickCounter = new ClickCounter();
 
+	// ----- links (section 6.1) -----
+
+	/** The link at a point of `page` (page points), once the page's text is in. */
+	function linkUnder(page: number, x: number, y: number): PageLink | null {
+		const text = tab.text(page);
+		return text ? linkAt(text.links, x, y) : null;
+	}
+
+	/** A link the Select tool pressed, and where (client pixels): let go there, it is
+	 * followed; dragged from there, text is selected as anywhere else. */
+	let linkPress: { link: PageLink; page: number; x: number; y: number } | null = null;
+
 	function onPointerDown(event: PointerEvent) {
 		stopScrollGlide();
 		hideTip();
@@ -819,6 +832,8 @@
 				return;
 			}
 			tab.selectedAnnotation = null;
+			const link = clicks === 1 && !event.shiftKey ? linkUnder(page, x, y) : null;
+			linkPress = link ? { link, page, x: event.clientX, y: event.clientY } : null;
 			beginText(event, clicks);
 			return;
 		}
@@ -900,6 +915,15 @@
 	let overText = $state(false);
 	/** What the pointer is over with the Select tool: an annotation that moves, or one that doesn't. */
 	let overAnnotation = $state<'move' | 'select' | null>(null);
+	/** The link the pointer is on, which the Select tool would follow: it shows the hand,
+	 * and (unless Settings say otherwise) the link's area is tinted. */
+	let hoveredLink = $state.raw<{ page: number; rect: PageLink['rect'] } | null>(null);
+	const overLink = $derived(hoveredLink !== null);
+
+	function leavePage() {
+		hoveredLink = null;
+		hideTip();
+	}
 	/** The side of the text selection the pointer is on, or is dragging. */
 	let overEdge = $state<SelectionEdge | null>(null);
 	/** The cursor for it: the arrows along the line as it is on screen. */
@@ -924,7 +948,7 @@
 				overText = false;
 				overAnnotation = null;
 				overEdge = null;
-				hideTip();
+				leavePage();
 				return;
 			}
 			const page = pageUnder(lastPointer.x, lastPointer.y);
@@ -933,32 +957,52 @@
 			overAnnotation = null;
 			const hit = annotationAt(targets(page), x, y, px(4));
 			if (hit && tools.tool === 'select') overAnnotation = capabilities(hit, tab.flags.canAnnotate).move ? 'move' : 'select';
-			hoverTip(hit);
 			const rect = scroller.getBoundingClientRect();
 			tipPointer = { x: lastPointer.x - rect.left + scrollLeft, y: lastPointer.y - rect.top + scrollTop };
 			const text = tab.text(page);
 			overText = !!text && isOverText(text, x, y);
+			// An annotation or a side of the selection comes before a link under it.
+			const link = tools.tool === 'select' && !hit && !overEdge && text ? linkAt(text.links, x, y) : null;
+			// The same link keeps its object, so the page is not drawn again for every move.
+			if (!link) hoveredLink = null;
+			else if (hoveredLink?.page !== page || hoveredLink.rect !== link.rect) hoveredLink = { page, rect: link.rect };
+			hoverTip(hit, link, page);
 		});
 	}
 
-	// ----- the comment of the annotation under the pointer (section 6.5) -----
+	// ----- the tooltip on what is under the pointer: an annotation's comment (section 6.5),
+	// or where a link leads (section 6.1) -----
 
-	/** The annotation whose comment shows. */
-	let tip = $state<{ page: number; id: number } | null>(null);
+	/** What a tooltip is about: the annotation `id`, or a link, on `page`. */
+	type TipSource = { page: number; id: number } | { page: number; link: PageLink };
+
+	/** What the tooltip that shows is about. */
+	let tip = $state.raw<TipSource | null>(null);
 	/** Where the pointer is, in the scrolled content: the tooltip follows it. */
 	let tipPointer = $state({ x: 0, y: 0 });
-	let pendingTip: { page: number; id: number } | null = null;
+	let pendingTip: TipSource | null = null;
 	let tipTimer: ReturnType<typeof setTimeout> | undefined;
+
+	/** Where a link leads, for its tooltip; nothing when Settings turn these off. */
+	function linkTipText(link: PageLink): string {
+		return app.settings?.linkPreviews === false ? '' : linkPreview(link.target, tab.displayLabels);
+	}
 
 	/** The comment a tooltip would show for `a`: none for a text box, whose text is on the page. */
 	function tipText(a: Annotation | null): string {
 		return a && a.kind !== 'freeText' ? a.contents.trim() : '';
 	}
 
-	/** Shows the comment of `hit` after a moment; from one annotation to another, at once. */
-	function hoverTip(hit: Annotation | null) {
-		const next = hit && tipText(hit) ? { page: hit.page, id: hit.id } : null;
-		const same = (a: typeof next) => a !== null && next !== null && a.page === next.page && a.id === next.id;
+	/** Shows the comment of `hit`, or where `link` on `page` leads, after a moment; from one
+	 * annotation or link to another, at once. */
+	function hoverTip(hit: Annotation | null, link: PageLink | null, page: number) {
+		const next: TipSource | null =
+			hit && tipText(hit) ? { page: hit.page, id: hit.id } : link && linkTipText(link) ? { page, link } : null;
+		const same = (a: TipSource | null) =>
+			a !== null &&
+			next !== null &&
+			a.page === next.page &&
+			('id' in a ? 'id' in next && a.id === next.id : 'link' in next && a.link === next.link);
 		if (same(tip) || same(pendingTip)) return;
 		clearTimeout(tipTimer);
 		pendingTip = null;
@@ -967,7 +1011,7 @@
 		} else if (tip) {
 			tip = next;
 		} else {
-			// The pointer rests on the annotation this long first (Settings).
+			// The pointer rests on it this long first (Settings).
 			const delay = app.settings?.tooltipDelayMs ?? DEFAULT_TIP_DELAY_MS;
 			pendingTip = next;
 			tipTimer = setTimeout(() => {
@@ -986,14 +1030,28 @@
 	/** The tooltip's text and where it goes, while nothing is being dragged or typed. */
 	const tipShown = $derived.by(() => {
 		if (!tip || dragging || tab.draft || !isShown(layout, tip.page)) return null;
+		if ('link' in tip) {
+			const leads = linkTipText(tip.link);
+			return leads ? { text: leads } : null;
+		}
 		const a = tab.annotation(tip.page, tip.id);
 		const text = tipText(a);
 		return a && text ? { text } : null;
 	});
 
 	async function onPointerUp(event: PointerEvent) {
+		// A link pressed and let go where it was is followed, once the press is dealt with.
+		const pressed = linkPress;
+		linkPress = null;
+		const followed =
+			pressed && event.type === 'pointerup' && Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y) < 3
+				? pressed
+				: null;
 		const g = gesture;
-		if (!g) return;
+		if (!g) {
+			if (followed) follow(tab, followed.link.target, { kind: 'page', page: followed.page });
+			return;
+		}
 		dragTo(event.clientX, event.clientY);
 		gesture = null;
 		dragging = false;
@@ -1004,7 +1062,7 @@
 			case 'text': {
 				if (g.grabbed) break;
 				const sel = tab.selection;
-				if (sel && compareCarets(sel.anchor, sel.focus) === 0) {
+				if (followed || (sel && compareCarets(sel.anchor, sel.focus) === 0)) {
 					tab.selection = null;
 				} else if (sel) {
 					// The selection bar goes above this point.
@@ -1054,6 +1112,7 @@
 				break;
 			}
 		}
+		if (followed) follow(tab, followed.link.target, { kind: 'page', page: followed.page });
 	}
 
 	function openTextEditor(a: Annotation) {
@@ -1399,10 +1458,10 @@
 					{...props}
 					bind:this={scroller}
 					class="viewer-scroll h-full overflow-auto bg-canvas outline-none"
-					class:cursor-text={overText && !overAnnotation && !edgeCursor && (tools.tool === 'select' || isMarkupTool(tools.tool))}
+					class:cursor-text={overText && !overAnnotation && !overLink && !edgeCursor && (tools.tool === 'select' || isMarkupTool(tools.tool))}
 					class:cursor-crosshair={tools.tool === 'ink' || tools.tool === 'note' || tools.tool === 'freeText'}
 					class:cursor-move={overAnnotation === 'move' && !edgeCursor}
-					class:cursor-pointer={overAnnotation === 'select' && !edgeCursor}
+					class:cursor-pointer={(overAnnotation === 'select' || overLink) && !edgeCursor}
 					class:cursor-ew-resize={edgeCursor === 'ew'}
 					class:cursor-ns-resize={edgeCursor === 'ns'}
 					tabindex="0"
@@ -1414,7 +1473,7 @@
 					onpointermove={chain(props, 'onpointermove', onPointerMove)}
 					onpointerup={chain(props, 'onpointerup', onPointerUp)}
 					onpointercancel={chain(props, 'onpointercancel', onPointerUp)}
-					onpointerleave={chain(props, 'onpointerleave', hideTip)}
+					onpointerleave={chain(props, 'onpointerleave', leavePage)}
 					oncontextmenu={chain(props, 'oncontextmenu', onContextMenu)}
 				>
 					<div class="relative" style:width="{contentW}px" style:height="{layout.totalHeight}px">
@@ -1433,6 +1492,7 @@
 								zooming={heldRenderZoom !== null}
 								rotation={tab.rotation}
 								devicePixelRatio={dpr}
+								linkHover={hoveredLink?.page === index && !dragging ? hoveredLink.rect : null}
 								visibleRect={visibleRect(index)}
 								onscreen={isOnscreen(index)}
 								priority={priority(index)}

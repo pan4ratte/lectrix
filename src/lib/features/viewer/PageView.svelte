@@ -43,6 +43,8 @@
 		zooming: boolean;
 		rotation: Rotation;
 		devicePixelRatio: number;
+		/** The area of the link under the pointer on this page (page points), if any. */
+		linkHover: readonly [number, number, number, number] | null;
 		/** The part of the page box that is on screen (plus a margin), CSS pixels relative
 		 * to the page box; null when the page is off screen. */
 		visibleRect: { x0: number; y0: number; x1: number; y1: number } | null;
@@ -64,6 +66,7 @@
 		zooming,
 		rotation,
 		devicePixelRatio,
+		linkHover,
 		visibleRect,
 		onscreen,
 		priority
@@ -234,6 +237,9 @@
 		return selectionHandles(text, start, end);
 	});
 
+	/** The area of the link under the pointer, tinted unless Settings turn that off. */
+	const linkTint = $derived(app.settings?.highlightLinks === false ? null : linkHover);
+
 	const hits = $derived(tab.search.byPage.get(index) ?? []);
 	const label = $derived(tab.displayLabels?.[index]);
 
@@ -329,7 +335,7 @@
 			/>
 		{/each}
 
-		{#if selection.length || hits.length || showSelected || (draft && draft.kind !== 'text')}
+		{#if selection.length || hits.length || showSelected || linkTint || (draft && draft.kind !== 'text')}
 			<svg
 				class="pointer-events-none absolute inset-0"
 				width={innerW}
@@ -345,6 +351,17 @@
 						/>
 					{/each}
 				{/each}
+				{#if linkTint}
+					<rect
+						x={linkTint[0]}
+						y={linkTint[1]}
+						width={linkTint[2] - linkTint[0]}
+						height={linkTint[3] - linkTint[1]}
+						rx={2 / k}
+						class="fill-link-hover"
+						data-link-hover
+					/>
+				{/if}
 				{#each selection as r, ri (ri)}
 					<rect x={r[0]} y={r[1]} width={r[2]! - r[0]!} height={r[3]! - r[1]!} class="fill-selection" />
 				{/each}

@@ -7,6 +7,7 @@ pub mod ffi;
 pub mod fonts;
 pub mod geometry;
 pub mod labels;
+pub mod links;
 pub mod merge;
 pub mod objects;
 pub mod ops;

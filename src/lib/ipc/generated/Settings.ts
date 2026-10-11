@@ -63,6 +63,14 @@ selectionHandles: boolean,
  */
 pdfaReadOnly: boolean, 
 /**
+ * Whether a link on a page is tinted while the pointer is on it (section 6.1).
+ */
+highlightLinks: boolean, 
+/**
+ * Whether a tooltip on the link under the pointer says where it leads (section 6.1).
+ */
+linkPreviews: boolean, 
+/**
  * Whether a colour button opens its panel when the pointer rests on it (section
  * 6.5); otherwise only when it is clicked.
  */

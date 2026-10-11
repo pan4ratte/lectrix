@@ -257,7 +257,7 @@ fn bookmark(tree: &Tree, index: usize, resolver: &mut Resolver) -> Result<Bookma
     let node = &tree.nodes[index];
     let obj = &node.obj;
     let title = match obj.get_dict("Title")? {
-        Some(t) if t.is_string()? => t.as_string_lossy()?,
+        Some(t) if t.is_string()? => super::read_title(resolver.doc, &t)?,
         _ => String::new(),
     };
     let flags = match obj.get_dict("F")? {
@@ -287,20 +287,26 @@ fn bookmark(tree: &Tree, index: usize, resolver: &mut Resolver) -> Result<Bookma
     })
 }
 
-/// Resolves destinations to pages, caching page numbers and geometry.
-struct Resolver<'a> {
+/// Resolves the destinations and actions of bookmarks and links (`links.rs`) to targets,
+/// caching page numbers and geometry.
+pub(crate) struct Resolver<'a> {
     doc: &'a PdfDocument,
     /// Page object number to page index, built on first use.
     pages: Option<HashMap<i32, usize>>,
+    /// For a handful of destinations: each page is looked up by itself, without listing
+    /// every page of the document first.
+    few: bool,
     geometry: HashMap<usize, PageGeometry>,
     page_count: usize,
 }
 
 impl<'a> Resolver<'a> {
+    /// For a whole outline: thousands of destinations in a large document.
     fn new(doc: &'a PdfDocument) -> Self {
         Resolver {
             doc,
             pages: None,
+            few: false,
             geometry: HashMap::new(),
             page_count: doc
                 .page_count()
@@ -310,7 +316,16 @@ impl<'a> Resolver<'a> {
         }
     }
 
-    fn target(&mut self, item: &PdfObject) -> Result<Target> {
+    /// For the links of one page.
+    pub(crate) fn for_a_few(doc: &'a PdfDocument) -> Self {
+        Resolver {
+            few: true,
+            ..Resolver::new(doc)
+        }
+    }
+
+    /// What an outline item or a link annotation does: its `/Dest`, else its `/A`.
+    pub(crate) fn target(&mut self, item: &PdfObject) -> Result<Target> {
         if let Some(dest) = item.get_dict("Dest")? {
             return self.destination(&dest);
         }
@@ -357,7 +372,7 @@ impl<'a> Resolver<'a> {
 
     fn explicit(&mut self, dest: &PdfObject, named: Option<String>) -> Result<Target> {
         let page = match dest.get_array(0)? {
-            Some(p) if p.is_indirect()? && p.is_dict()? => self.page_index(p.as_indirect()?)?,
+            Some(p) if p.is_indirect()? && p.is_dict()? => self.page_of(&p)?,
             // Some producers write a page number instead of a page reference.
             Some(p) if p.is_int()? => usize::try_from(p.as_int()?)
                 .ok()
@@ -411,6 +426,21 @@ impl<'a> Resolver<'a> {
         } else {
             (top.map(|_| x), left.map(|_| y))
         })
+    }
+
+    /// The index of the page a destination names by reference.
+    fn page_of(&mut self, page: &PdfObject) -> Result<Option<usize>> {
+        if self.few {
+            // An object that is not a page of this document is no page (MuPDF may say so
+            // with an error).
+            return Ok(self
+                .doc
+                .lookup_page_number(page)
+                .ok()
+                .and_then(|n| usize::try_from(n).ok())
+                .filter(|&n| n < self.page_count));
+        }
+        self.page_index(page.as_indirect()?)
     }
 
     fn page_index(&mut self, num: i32) -> Result<Option<usize>> {

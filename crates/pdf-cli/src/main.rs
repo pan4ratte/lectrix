@@ -107,6 +107,13 @@ enum Command {
         #[command(subcommand)]
         action: AnnotAction,
     },
+    /// Print the links on a page: where each is (view space) and what it does.
+    Links {
+        input: PathBuf,
+        /// Page number (1-based).
+        #[arg(long, default_value_t = 1)]
+        page: usize,
+    },
     /// Render one page to PNG.
     Render {
         input: PathBuf,
@@ -591,6 +598,19 @@ fn run(command: Command) -> Result<()> {
             })?;
         }
         Command::Annot { action } => annot_command(action)?,
+        Command::Links { input, page } => {
+            let doc = open(&input)?;
+            let index = page.checked_sub(1).ok_or(Error::PageOutOfRange(0))?;
+            let links = pdf_core::links::page_links(&doc, index)?;
+            for link in &links {
+                let [x0, y0, x1, y1] = link.rect;
+                println!(
+                    "[{x0:.1} {y0:.1} {x1:.1} {y1:.1}] -> {}",
+                    describe_target(&link.target)
+                );
+            }
+            println!("{} links on page {page}", links.len());
+        }
         Command::Render {
             input,
             out,
@@ -669,7 +689,10 @@ fn open(path: &Path) -> Result<PdfDocument> {
     let path_str = path.to_str().ok_or_else(|| {
         Error::InvalidArgument(format!("path is not valid Unicode: {}", path.display()))
     })?;
-    let doc = PdfDocument::open(path_str)?;
+    let mut doc = PdfDocument::open(path_str)?;
+    // As the app opens it: a cross-reference table that leads nowhere is rebuilt. A file
+    // that stays without pages is shown as MuPDF reads it.
+    let _ = pdf_core::session::repair_if_without_pages(&mut doc);
     Ok(doc)
 }
 
@@ -1003,28 +1026,33 @@ fn print_bookmarks(items: &[Bookmark], depth: usize) {
         } else {
             "+"
         };
-        let target = match &b.target {
-            Target::None => "no target".to_owned(),
-            Target::Page { page, x, y, named } => {
-                let at = |v: &Option<f32>| v.map_or("-".to_owned(), |v| format!("{v}"));
-                let name = named
-                    .as_ref()
-                    .map(|n| format!(" (named {n:?})"))
-                    .unwrap_or_default();
-                format!("page {} at {},{}{name}", page + 1, at(x), at(y))
-            }
-            Target::Broken { named } => format!("broken destination {named:?}"),
-            Target::Uri(u) => format!("link {u}"),
-            Target::File(f) => format!("file {f}"),
-            Target::Action(a) => format!("action {a}"),
-        };
         println!(
-            "{}{marker} [{}] {} -> {target}",
+            "{}{marker} [{}] {} -> {}",
             "  ".repeat(depth + 1),
             b.id,
-            b.title
+            b.title,
+            describe_target(&b.target)
         );
         print_bookmarks(&b.children, depth + 1);
+    }
+}
+
+/// What a bookmark or a link does, in a few words.
+fn describe_target(target: &Target) -> String {
+    match target {
+        Target::None => "no target".to_owned(),
+        Target::Page { page, x, y, named } => {
+            let at = |v: &Option<f32>| v.map_or("-".to_owned(), |v| format!("{v}"));
+            let name = named
+                .as_ref()
+                .map(|n| format!(" (named {n:?})"))
+                .unwrap_or_default();
+            format!("page {} at {},{}{name}", page + 1, at(x), at(y))
+        }
+        Target::Broken { named } => format!("broken destination {named:?}"),
+        Target::Uri(u) => format!("link {u}"),
+        Target::File(f) => format!("file {f}"),
+        Target::Action(a) => format!("action {a}"),
     }
 }
 

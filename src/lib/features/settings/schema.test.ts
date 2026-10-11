@@ -22,6 +22,8 @@ const STORED: Settings = {
 	rememberAnnotationStyle: true,
 	selectionHandles: false,
 	pdfaReadOnly: true,
+	highlightLinks: true,
+	linkPreviews: true,
 	colorPanelOnHover: true,
 	presetColors: { 2: '#12ab34' },
 	shortcuts: { save: ['Ctrl+Alt+S'], copy: [] }

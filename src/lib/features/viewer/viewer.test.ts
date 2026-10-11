@@ -309,7 +309,7 @@ function line(text: string, y: number, block: number, x = 0) {
 }
 
 function page(index: number, lines: ReturnType<typeof line>[]): TextGeometry {
-	const text: PageText = { page: index, revision: 0, lines };
+	const text: PageText = { page: index, revision: 0, lines, links: [] };
 	return prepareText(text);
 }
 
@@ -330,7 +330,8 @@ describe('selection', () => {
 		const vertical = prepareText({
 			page: 0,
 			revision: 0,
-			lines: [{ text: 'abc', boxes, bbox: [0, 0, 12, 30], block: 0, vertical: false }]
+			lines: [{ text: 'abc', boxes, bbox: [0, 0, 12, 30], block: 0, vertical: false }],
+			links: []
 		});
 		expect(hitTest(vertical, 6, 16, false)?.offset).toBe(2);
 	});
@@ -382,7 +383,8 @@ describe('selection', () => {
 		const down = prepareText({
 			page: 0,
 			revision: 0,
-			lines: [{ text: 'abc', boxes: [0, 0, 12, 10, 0, 10, 12, 20, 0, 20, 12, 30], bbox: [0, 0, 12, 30], block: 0, vertical: false }]
+			lines: [{ text: 'abc', boxes: [0, 0, 12, 10, 0, 10, 12, 20, 0, 20, 12, 30], bbox: [0, 0, 12, 30], block: 0, vertical: false }],
+			links: []
 		});
 		const from = { page: 0, line: 0, offset: 1 };
 		const to = { page: 0, line: 0, offset: 3 };
@@ -391,7 +393,8 @@ describe('selection', () => {
 		const leftward = prepareText({
 			page: 0,
 			revision: 0,
-			lines: [{ text: 'abc', boxes: [20, 0, 30, 12, 10, 0, 20, 12, 0, 0, 10, 12], bbox: [0, 0, 30, 12], block: 0, vertical: false }]
+			lines: [{ text: 'abc', boxes: [20, 0, 30, 12, 10, 0, 20, 12, 0, 0, 10, 12], bbox: [0, 0, 30, 12], block: 0, vertical: false }],
+			links: []
 		});
 		expect(edgeAt(leftward, from, to, 21, 6, 2)?.side).toBe('start');
 		expect(edgeAt(leftward, from, to, 1, 6, 2)?.side).toBe('end');

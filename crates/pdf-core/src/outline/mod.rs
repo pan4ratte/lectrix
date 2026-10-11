@@ -184,6 +184,47 @@ fn destination(doc: &PdfDocument, target: &OutlineTarget) -> Result<Option<PdfOb
     Ok(Some(dest))
 }
 
+/// A bookmark's title as the panel shows it, read from its `/Title` string. Some producers
+/// pad titles with NUL characters, or end them with a line break: as in Acrobat, a title
+/// ends at its first NUL, other control characters count as spaces, and spaces at its ends
+/// are dropped. Only what is shown changes: the title in the file stays as it is until the
+/// bookmark is renamed.
+pub fn read_title(doc: &PdfDocument, title: &PdfObject) -> Result<String> {
+    let bytes = title.as_bytes()?;
+    // The first NUL character, in the string's encoding: a two-byte unit after the
+    // byte-order mark of UTF-16, else a byte.
+    let nul = if bytes.starts_with(&[0xFE, 0xFF]) || bytes.starts_with(&[0xFF, 0xFE]) {
+        bytes[2..]
+            .as_chunks::<2>()
+            .0
+            .iter()
+            .position(|unit| *unit == [0, 0])
+            .map(|i| 2 + 2 * i)
+    } else {
+        bytes.iter().position(|&b| b == 0)
+    };
+    let text = match nul {
+        None => title.as_string_lossy()?,
+        // MuPDF decodes the part before it, as it decodes any text string (it would show
+        // each NUL as a replacement character).
+        Some(end) => {
+            let hex: String = bytes[..end].iter().map(|b| format!("{b:02X}")).collect();
+            doc.new_object_from_str(&format!("<{hex}>"))?
+                .as_string_lossy()?
+        }
+    };
+    Ok(tidy_title(&text))
+}
+
+/// Control characters as spaces, and none at the ends.
+fn tidy_title(text: &str) -> String {
+    let spaced: String = text
+        .chars()
+        .map(|c| if c.is_control() { ' ' } else { c })
+        .collect();
+    spaced.trim().to_owned()
+}
+
 /// A bookmark as read back from a file: title, open state, and target page if the
 /// destination is an explicit page reference (directly or through a GoTo action).
 #[derive(Debug, Clone, PartialEq)]
@@ -221,7 +262,7 @@ fn read_level(
             break;
         }
         let title = match item.get_dict("Title")? {
-            Some(t) if t.is_string()? => t.as_string_lossy()?,
+            Some(t) if t.is_string()? => read_title(doc, &t)?,
             _ => String::new(),
         };
         let open = match item.get_dict("Count")? {
@@ -298,6 +339,38 @@ mod tests {
             children,
             ..OutlineItem::new(title, 0)
         }
+    }
+
+    #[test]
+    fn titles_are_shown_without_padding_and_control_characters() {
+        let doc = PdfDocument::new();
+        let shown = |literal: &str| {
+            let title = doc.new_object_from_str(literal).unwrap();
+            read_title(&doc, &title).unwrap()
+        };
+        assert_eq!(shown("(Preface)"), "Preface");
+        // Padded with NULs (a fixed-width field written out whole): UTF-16BE, as ABBYY
+        // FineReader writes it, and one byte per character.
+        assert_eq!(
+            shown("<FEFF00500072006500660061006300650000000000000000>"),
+            "Preface"
+        );
+        assert_eq!(shown("<50726566616365000000>"), "Preface");
+        assert_eq!(shown("<5072656661636500 6A756E6B>"), "Preface");
+        // A zero byte inside a UTF-16 character is not a NUL: U+0100, then U+0041.
+        assert_eq!(shown("<FEFF01000041>"), "ĀA");
+        // A line break at the end, or in the middle; spaces at the ends.
+        assert_eq!(shown("<436F7665720A>"), "Cover");
+        assert_eq!(shown("<5061727420490D0A54686520576179>"), "Part I  The Way");
+        assert_eq!(shown("(  Index )"), "Index");
+        // Spaces inside, and other scripts, stay as they are.
+        assert_eq!(shown("(Chapter 1.  The Way)"), "Chapter 1.  The Way");
+        assert_eq!(
+            shown("<FEFF041F04400438043B043E04360435043D04380435>"),
+            "Приложение"
+        );
+        assert_eq!(shown("<FEFF0000>"), "");
+        assert_eq!(shown("()"), "");
     }
 
     #[test]

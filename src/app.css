@@ -98,6 +98,8 @@
 	--lectrix-slider-handle-shadow: rgb(0 0 0 / 0.3);
 	/* On the page, which is white in both themes: the dark theme keeps this. */
 	--lectrix-selection-handle: #2f5daa;
+	/* The link under the pointer. */
+	--lectrix-link-hover: rgb(47 93 170 / 0.16);
 	--lectrix-search-hit: rgb(255 196 0 / 0.38);
 	--lectrix-search-current: rgb(255 120 0 / 0.5);
 	--lectrix-row-selected: color-mix(in srgb, var(--lectrix-accent) 16%, transparent);
@@ -308,6 +310,9 @@ input[type='color'],
 }
 .selection-handle-knob {
 	fill: var(--lectrix-selection-handle);
+}
+.fill-link-hover {
+	fill: var(--lectrix-link-hover);
 }
 .fill-search-hit {
 	fill: var(--lectrix-search-hit);

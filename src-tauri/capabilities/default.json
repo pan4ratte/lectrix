@@ -54,6 +54,7 @@
     "allow-log-metric",
     "allow-log-error",
     "allow-open-web-page",
+    "allow-open-link",
     "allow-move-document",
     "allow-list-windows",
     "allow-close-other-windows",

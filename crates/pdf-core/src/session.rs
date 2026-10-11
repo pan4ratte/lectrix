@@ -42,6 +42,7 @@ use crate::error::{Error, Result};
 use crate::ffi::{Journal, open_pdf_shared, save_snapshot};
 use crate::geometry::{PageGeometry, read_page_boxes};
 use crate::labels::{self, LabelRule};
+use crate::links::{self, PageLink};
 use crate::merge::MergeReport;
 use crate::ops::Operation;
 use crate::outline::{self, Outline};
@@ -196,6 +197,10 @@ enum Command {
     },
     ScanAnnotations {
         reply: Reply<RepairScan>,
+    },
+    Links {
+        page: usize,
+        reply: Reply<(Vec<PageLink>, u64)>,
     },
     Save {
         kind: SaveKind,
@@ -405,6 +410,12 @@ impl Session {
         self.call(|reply| Command::EnableEditing { reply })
     }
 
+    /// The links on `page` and what each does when clicked (`links.rs`), and the revision
+    /// they were read at.
+    pub fn page_links(&self, page: usize) -> Result<(Vec<PageLink>, u64)> {
+        self.call(|reply| Command::Links { page, reply })
+    }
+
     /// Counts annotation problems that "Repair annotations" would fix (section 5.3).
     pub fn scan_annotations(&self) -> Result<RepairScan> {
         self.call(|reply| Command::ScanAnnotations { reply })
@@ -543,6 +554,10 @@ fn actor(origin: Origin, rx: Receiver<Command>, ready: SyncSender<Result<Documen
             Command::ScanAnnotations { reply } => {
                 let _ = reply.send(repair::scan(&actor.doc));
             }
+            Command::Links { page, reply } => {
+                let links = links::page_links(&actor.doc, page);
+                let _ = reply.send(links.map(|links| (links, actor.revision())));
+            }
             Command::Save {
                 kind,
                 target,
@@ -589,7 +604,7 @@ fn load(path: &Path, password: Option<&str>) -> Result<PdfDocument> {
 /// and the document has no pages. Then the table is rebuilt from the objects in the file,
 /// which brings back everything in it; the document counts as repaired, so its next save
 /// is a full one (section 5.4). A file that still has no pages cannot be shown.
-fn repair_if_without_pages(doc: &mut PdfDocument) -> Result<()> {
+pub fn repair_if_without_pages(doc: &mut PdfDocument) -> Result<()> {
     let has_pages = |doc: &PdfDocument| matches!(doc.page_count(), Ok(n) if n > 0);
     if has_pages(doc) {
         return Ok(());

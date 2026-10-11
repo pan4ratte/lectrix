@@ -20,6 +20,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 - A tab you drag along the others follows the pointer while they make way for it, and its right-click menu has **Move left** and **Move right**.
 - The taskbar names each window after the document it shows.
 - **File > Exit** closes every window, after asking about unsaved changes in each.
+- Links in a document work: click one, such as a line of the table of contents, to go where it leads, and press **Alt+Left** to come back. A web link opens in your browser. The link under the pointer is tinted, and a tooltip says where it leads: the page, or the web address.
 - On Linux, pinching on a touchpad zooms the document instead of the whole window, and pages appear sooner while scrolling.
 - A document stays where you were when you switch to another tab and come back, instead of returning to its first page.
 - Drag the start or the end of selected text to select more or less of it.
@@ -40,10 +41,16 @@ the wording, translations): docs/releasing.md, "The changelog".
 - A colour button shows its colours when the pointer rests on it, without a click.
 - The colours sit closer together, the custom colour’s button is beside the opacity slider, and its picker slides open below.
 
+### Bookmarks
+
+- Bookmark titles that the program which made the file padded with invisible characters no longer end in a row of � marks; they show as in Acrobat.
+- A bookmark that is a web link opens in your browser.
+
 ### Settings
 
 - **Preset colours**, under Annotations, shows the 18 colours every tool offers and lets you replace any of them with your own. **Restore colours** puts the original ones back.
 - **Open the colours when the pointer is on their button**, under Annotations, can be turned off to open them with a click.
+- **Highlight the link under the pointer** and **Show where a link leads**, under General, can be turned off.
 - **Show handles on selected text**, under General, puts a handle at the start and at the end of selected text, to drag it by.
 - **Open PDF/A files for reading only**, under General, can be turned off to open such files ready to edit.
 - **Shortcuts** lists every keyboard shortcut, with a search field, and lets you change them: press a shortcut, then the keys it should have. Commands without one can get one, and menus and tooltips show the keys you chose.
