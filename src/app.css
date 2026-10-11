@@ -1804,20 +1804,21 @@ button.shortcut-key:hover,
 	border-top: 1px solid var(--lectrix-line);
 }
 .whats-new-release h3 {
-	font-size: 14px;
+	color: var(--lectrix-fg-strong);
+	font-size: 16px;
 	font-weight: 600;
 }
 .whats-new-intro {
 	margin-top: 6px;
 }
 .whats-new-release h4 {
-	margin-top: 14px;
+	margin-top: 16px;
 	color: var(--lectrix-fg-muted);
-	font-size: 12px;
+	font-size: 15px;
 	font-weight: 600;
 }
 .whats-new-release ul {
-	margin-top: 4px;
+	margin-top: 6px;
 	padding-left: 18px;
 	list-style: disc;
 }

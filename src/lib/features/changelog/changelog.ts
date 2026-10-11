@@ -3,6 +3,8 @@
 // parts of the app they touch, in a fixed order. A translation (CHANGELOG_RU.md…) mirrors
 // it; a version the translation lacks shows in English.
 
+import changelogFiles from 'virtual:changelogs';
+
 /** A run of text, bold or not: the only formatting the changelog uses. */
 export interface Span {
 	text: string;
@@ -142,8 +144,8 @@ export function hasChanges(release: Release): boolean {
 	return release.intro.length > 0 || release.sections.some((s) => s.items.length > 0);
 }
 
-// Bundled with the app, each read the first time it is shown.
-const files = import.meta.glob<string>('/CHANGELOG*.md', { query: '?raw', import: 'default' });
+// Bundled with the app, each read the first time it is shown (`changelogs` in vite.config.ts).
+const files: Record<string, (() => Promise<string>) | undefined> = changelogFiles;
 
 /** CHANGELOG.md as written (the Debug menu rehearses an update with it). */
 export async function changelogMarkdown(): Promise<string> {

@@ -27,7 +27,10 @@
 	$effect(() => {
 		if (!app.whatsNewOpen || incoming || installed) return;
 		loadChangelog(LOCALE)
-			.then((all) => (installed = all.filter(hasChanges)))
+			.then((all) => {
+				installed = all.filter(hasChanges);
+				failed = false;
+			})
 			.catch(() => (failed = true));
 	});
 
@@ -56,9 +59,6 @@
 			<div class="whats-new-title">
 				{#if incoming}
 					<Dialog.Title class="whats-new-heading">What’s new in {APP_NAME} {incoming.version}</Dialog.Title>
-					<Dialog.Description class="mt-1 text-sm text-fg-muted">
-						Changes since your version, {incoming.currentVersion}.
-					</Dialog.Description>
 				{:else}
 					<Dialog.Title class="whats-new-heading">What’s new in {APP_NAME}</Dialog.Title>
 				{/if}

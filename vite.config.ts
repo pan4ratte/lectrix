@@ -39,9 +39,44 @@ function bundledPackages(): Plugin {
 	};
 }
 
+/**
+ * The changelogs at the repository root (CHANGELOG.md and its translations), for What's
+ * new: `virtual:changelogs` gives, for each file ("/CHANGELOG.md"), a function that imports
+ * its text, so each is read the first time it is shown. The files can't be imported where
+ * they are: SvelteKit's dev server serves nothing from the repository root, and Vite
+ * refuses a `?raw` import of a file allowed by name (`server.fs.allow`), which it checks
+ * with its query too.
+ */
+function changelogs(): Plugin {
+	const index = '\0virtual:changelogs';
+	const names = () => readdirSync(import.meta.dirname).filter((name) => /^CHANGELOG.*\.md$/.test(name));
+	return {
+		name: 'lectrix-changelogs',
+		resolveId(id) {
+			if (id === 'virtual:changelogs' || id.startsWith('virtual:changelogs/')) return `\0${id}`;
+		},
+		load(id) {
+			if (id === index) {
+				const entries = names().map(
+					(name) => `${JSON.stringify(`/${name}`)}: () => import(${JSON.stringify(`virtual:changelogs/${name}`)}).then((m) => m.default)`
+				);
+				return `export default { ${entries.join(', ')} };`;
+			}
+			if (!id.startsWith(`${index}/`)) return;
+			// Only the changelogs: the dev server takes the name from a request.
+			const name = id.slice(index.length + 1);
+			if (!names().includes(name)) return;
+			const file = join(import.meta.dirname, name);
+			this.addWatchFile(file);
+			return `export default ${JSON.stringify(readFileSync(file, 'utf8'))};`;
+		}
+	};
+}
+
 export default defineConfig({
 	plugins: [
 		bundledPackages(),
+		changelogs(),
 		tailwindcss(),
 		sveltekit({
 			preprocess: vitePreprocess(),
@@ -63,9 +98,6 @@ export default defineConfig({
 		strictPort: true,
 		host: host || false,
 		hmr: host ? { protocol: 'ws', host, port: 1421 } : undefined,
-		// What's new imports the changelogs from the repository root, which SvelteKit's dev
-		// server would otherwise refuse (builds bundle them either way). Only these files.
-		fs: { allow: readdirSync(import.meta.dirname).filter((name) => /^CHANGELOG.*\.md$/.test(name)) },
 		watch: { ignored: ['**/src-tauri/**', '**/crates/**', '**/target/**', '**/third_party/**'] }
 	},
 	test: {
