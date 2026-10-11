@@ -206,14 +206,14 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 						key: 'author',
 						label: 'Author name',
 						description: (d) =>
-							`Shown on annotations you add. Leave it empty to use your Windows user name (${d.defaultAuthor}).`,
+							`Shown on annotations you add. Leave empty to use your Windows user name (${d.defaultAuthor}).`,
 						placeholder: (d) => d.defaultAuthor,
 						maxLength: 200,
 						read: (d) => d.author,
 						write: (d, value) => (d.author = value)
 					},
 					toggle('checkForUpdates', 'Check for updates automatically', {
-						description: `Once a day, ${APP_NAME} asks its GitHub page for the latest version. Nothing about you or your files is sent.`
+						description: 'Once a day, from GitHub. Nothing about you or your files is sent.'
 					})
 				]
 			},
@@ -232,7 +232,7 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 						] satisfies { value: ScrollMode; label: string }[],
 						{
 							description:
-								'How pages are laid out when a document opens. One that asks for nothing opens as single page, continuous. View > Page display changes it for the open document.'
+								'How pages are laid out when a document opens. View > Page display changes it for the open document.'
 						}
 					)
 				]
@@ -242,7 +242,7 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 				rows: [
 					toggle('selectionHandles', 'Show handles on selected text', {
 						description:
-							'A handle at the start and at the end of the text you select, to drag for selecting more or less. Without them, the two sides can still be dragged.'
+							'Handles to drag at the start and end of a selection. Without them, the ends can still be dragged.'
 					})
 				]
 			},
@@ -253,7 +253,7 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 						kind: 'action',
 						id: RESET_ROW,
 						label: 'Restore default settings',
-						description: `Puts every setting back to how ${APP_NAME} came, the keyboard shortcuts and the author name included. Your documents, recent files and panes are not touched.`,
+						description: 'Shortcuts and author name included. Recent files and panes stay as they are.',
 						button: 'Restore defaults…',
 						danger: true
 					}
@@ -276,19 +276,19 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 							{ value: 'light', label: 'Light', icon: Sun },
 							{ value: 'dark', label: 'Dark', icon: Moon }
 						] satisfies { value: Appearance; label: string; icon: Icon }[],
-						{ description: 'System follows the light or dark mode Windows is in.' }
+						{ description: 'System follows Windows.' }
 					)
 				]
 			},
 			{
 				title: 'Motion',
-				description: 'Turned off whenever Windows is set to show fewer animations.',
+				description: 'Off while animations are turned off in Windows.',
 				rows: [
 					toggle('smoothZoom', 'Smooth zooming', {
-						description: 'Zooming glides to the new size instead of jumping. A touchpad pinch always follows your fingers.'
+						description: 'Zoom glides to the new size. A touchpad pinch always follows your fingers.'
 					}),
 					toggle('smoothAnnotationScroll', 'Smooth scrolling to annotations', {
-						description: 'Picking an annotation in the list glides the page to it instead of jumping.'
+						description: 'The page glides to an annotation picked in the list.'
 					})
 				]
 			}
@@ -302,10 +302,10 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 			{
 				rows: [
 					toggle('openCommentAfterMarkup', 'Add a comment after marking text', {
-						description: 'A new highlight, underline, strikeout or squiggly opens its comment beside it, ready to type.'
+						description: 'A new highlight, underline, strikeout or squiggly opens its comment, ready to type.'
 					}),
 					toggle('rememberAnnotationStyle', 'Use the last colour and opacity for new annotations', {
-						description: `Each type keeps the colour you last gave one, even after ${APP_NAME} restarts. When off, new annotations start from the default colours each time.`
+						description: `Remembered for each type. When off, the defaults return each time ${APP_NAME} starts.`
 					}),
 					{
 						kind: 'range',
@@ -347,14 +347,14 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 					),
 					toggleBetween('toolbarVisibility', 'always', 'onHover', 'Show only when the pointer is near', {
 						description:
-							'The floating toolbar stays hidden until the pointer comes close to its edge. It also shows while it has keyboard focus, and briefly after you pick a tool.',
+							'The toolbar also shows while it has keyboard focus, and briefly after you pick a tool.',
 						disabled: docked
 					})
 				]
 			},
 			{
 				title: 'Quick tools for selected text',
-				description: 'Buttons over text you select with the Select tool. With none chosen, no bar appears.',
+				description: 'Buttons over text you select with the Select tool.',
 				rows: QUICK_TOOLS.map((t) => quickTool(t.id, t.label))
 			}
 		]

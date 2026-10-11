@@ -152,8 +152,7 @@
 		<button type="button" class="button" disabled={!changed} onclick={() => void resetAll()}>Reset all&hellip;</button>
 	</div>
 	<p class="setting-note mt-2 mb-4">
-		Click a shortcut, then press the keys it should have; the plus adds another. Backspace removes the one being
-		pressed, Esc leaves it as it is.
+		Click a shortcut, then press its new keys; the plus adds another. Backspace removes it, Esc keeps it.
 	</p>
 
 	{#each groups as g (g.title)}
