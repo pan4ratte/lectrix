@@ -160,8 +160,10 @@
 
 	// ----- positions -----
 
+	/** Where the view is, from the scroll position last heard of: asked for as the viewer is
+	 * taken down too (the tab keeps its place), when the scroller itself is gone already. */
 	function position(): ViewPosition {
-		if (!scroller || layout.pages.length === 0) return { page: 0, offset: 0 };
+		if (layout.pages.length === 0) return { page: 0, offset: 0 };
 		const page = Math.max(0, pageAtY(layout, scrollTop + 1));
 		const b = layout.pages[page]!;
 		return { page, offset: Math.min(1, Math.max(0, (scrollTop - b.top) / b.height)) };

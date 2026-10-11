@@ -1017,23 +1017,39 @@ input[type='color'],
 /* ----- start screen ----- */
 
 /* The tools (Open, Combine files...): tiles in a grid with room for more, twice a button's
-   height, in the start screen's colour. Their borders, icons and text are cut from one brand gradient laid
-   over the whole grid (StartScreen.svelte measures where each tile sits in it: --tool-x,
-   --tool-y in the tools' --tools-w x --tools-h); under the pointer, a wash of the same
-   gradient fills the tile. */
+   height, in the start screen's colour. At rest a tile is plain: a border in the line's
+   colour, its icon and text in the text's. Under the pointer its border, icon and text are
+   cut from one brand gradient laid over the whole grid (StartScreen.svelte measures where
+   each tile sits in it: --tool-x, --tool-y in the tools' --tools-w x --tools-h), and a wash
+   of the same gradient fills the tile. */
+/* How far a tile has taken the brand gradient, 0 (plain) to 1: a number, so it can glide. */
+@property --tool-accent {
+	syntax: '<number>';
+	inherits: true;
+	initial-value: 0;
+}
 .start-tools {
 	--brand-gradient: linear-gradient(135deg, var(--lectrix-brand-from), var(--lectrix-brand-to));
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
 	gap: 8px;
 }
-/* One element draws it all, from three layers of the gradient's backgrounds: on top, the
-   gradient clipped to the text; under it, the start screen's colour filling the inside;
-   at the bottom, the gradient, which shows only in the border around that. The border is
-   two device pixels wide at any display scale (--tool-border, set from the pixel ratio):
-   a one-pixel line in a strong colour can only be drawn round a corner as faint, partial
-   pixels, so its corners look thinner than its sides; two keep a solid core. */
+/* One element draws it all, from three layers of backgrounds: on top, a gradient clipped
+   to the text; under it, the start screen's colour filling the inside; at the bottom, a
+   gradient which shows only in the border around that. Each gradient's two ends go from
+   the plain colour (the text's, the line's) to the brand gradient's as --tool-accent goes
+   from 0 to 1, so the tile takes the gradient smoothly; the icon's stroke uses the same
+   ends (--tool-ink-from, --tool-ink-to). The border is two device pixels wide at any
+   display scale (--tool-border, set from the pixel ratio): a one-pixel line in a strong
+   colour can only be drawn round a corner as faint, partial pixels, so its corners look
+   thinner than its sides; two keep a solid core. */
 .start-tool {
+	--tool-accent: 0;
+	--tool-accent-part: calc(var(--tool-accent) * 100%);
+	--tool-ink-from: color-mix(in srgb, var(--lectrix-brand-from) var(--tool-accent-part), var(--lectrix-fg));
+	--tool-ink-to: color-mix(in srgb, var(--lectrix-brand-to) var(--tool-accent-part), var(--lectrix-fg));
+	--tool-edge-from: color-mix(in srgb, var(--lectrix-brand-from) var(--tool-accent-part), var(--lectrix-line));
+	--tool-edge-to: color-mix(in srgb, var(--lectrix-brand-to) var(--tool-accent-part), var(--lectrix-line));
 	--tool-border: var(--tools-border, 1px);
 	--tool-gradient-at: calc(-1px * var(--tool-x, 0)) calc(-1px * var(--tool-y, 0));
 	--tool-gradient-size: calc(1px * var(--tools-w, 0)) calc(1px * var(--tools-h, 0));
@@ -1046,8 +1062,9 @@ input[type='color'],
 	border: var(--tool-border) solid transparent;
 	border-radius: var(--radius-panel);
 	background-image:
-		var(--brand-gradient), linear-gradient(var(--lectrix-canvas), var(--lectrix-canvas)),
-		var(--brand-gradient);
+		linear-gradient(135deg, var(--tool-ink-from), var(--tool-ink-to)),
+		linear-gradient(var(--lectrix-canvas), var(--lectrix-canvas)),
+		linear-gradient(135deg, var(--tool-edge-from), var(--tool-edge-to));
 	background-clip: text, padding-box, border-box;
 	background-origin: border-box, padding-box, border-box;
 	background-position: var(--tool-gradient-at), 0 0, var(--tool-gradient-at);
@@ -1058,6 +1075,10 @@ input[type='color'],
 	font-weight: 500;
 	isolation: isolate;
 	text-align: left;
+	transition: --tool-accent 120ms ease-out;
+}
+.start-tool:hover {
+	--tool-accent: 1;
 }
 /* The wash under the pointer, inside the border. */
 .start-tool::after {
@@ -1118,6 +1139,28 @@ input[type='color'],
 :is(.recent-row, .recent-card):hover .recent-remove,
 .recent-remove:focus-visible {
 	opacity: 1;
+}
+
+/* Switching between the table and the grid brings the files in: each rises into place as
+   it fades in, the first few a moment apart (--recent-i, 140 ms in all). Only then: not
+   when the start screen first shows them. */
+@keyframes recent-enter {
+	from {
+		opacity: 0;
+		transform: translateY(6px);
+	}
+}
+@keyframes recent-fade {
+	from {
+		opacity: 0;
+	}
+}
+.recent-enter :is(.recent-row, .recent-card) {
+	animation: recent-enter 100ms ease-out backwards;
+	animation-delay: calc(var(--recent-i, 0) * 5ms);
+}
+.recent-enter thead {
+	animation: recent-fade 100ms ease-out;
 }
 
 /* The table: lines between the rows and small capitals over the columns. */

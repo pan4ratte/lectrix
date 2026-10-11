@@ -175,10 +175,17 @@ class AppStore {
 	insertRequest = $state<InsertRequest | null>(null);
 	/** Where pages go when the insert file is still waiting for its password. */
 	private pendingInsert: { tabId: number; at: number } | null = null;
+	/** The start screen is on screen while documents (or the Combine view) stay open in
+	 * their tabs: shown from the title bar's icon and name, left by picking a tab. */
+	startShown = $state(false);
+	/** The start screen was shown over the Combine view, which going back returns to. */
+	private startOverCombine = false;
 	private exiting = false;
 
-	/** The document on screen; null while the Combine view is. */
-	active = $derived(this.combineActive ? null : (this.tabs.find((t) => t.id === this.activeId) ?? null));
+	/** The document on screen; null while the Combine view or the start screen is. */
+	active = $derived(
+		this.combineActive || this.startShown ? null : (this.tabs.find((t) => t.id === this.activeId) ?? null)
+	);
 
 	// ----- notifications and dialogs -----
 
@@ -448,6 +455,7 @@ class AppStore {
 	// ----- tabs -----
 
 	activate(id: number) {
+		this.startShown = false;
 		if (this.combineActive) this.leaveCombine();
 		if (this.activeId === id) return;
 		const previous = this.active;
@@ -474,6 +482,7 @@ class AppStore {
 				opened: (result) => this.handleOpenResults([result])
 			});
 		}
+		this.startShown = false;
 		this.combineActive = true;
 		void setDropTarget(true).catch(() => {});
 	}
@@ -506,7 +515,35 @@ class AppStore {
 		}
 		this.leaveCombine();
 		this.combine = null;
+		this.endStartIfAlone();
 		await combine.dispose();
+	}
+
+	// ----- the start screen over open documents (section 6.1) -----
+
+	/**
+	 * The title bar's icon and name: shows the start screen while documents (or the Combine
+	 * view) stay open in their tabs, or goes back from it to what was on screen. With
+	 * nothing open the start screen is there already.
+	 */
+	toggleStart() {
+		if (this.startShown) {
+			this.startShown = false;
+			// (Or to the Combine view when the documents were closed meanwhile.)
+			if ((this.startOverCombine || this.tabs.length === 0) && this.combine) this.openCombine();
+			return;
+		}
+		const current = this.active;
+		if (!current && !this.combineActive) return;
+		if (current) this.rememberView(current);
+		this.startOverCombine = this.combineActive;
+		if (this.combineActive) this.leaveCombine();
+		this.startShown = true;
+	}
+
+	/** With the last tab closed, the start screen is simply what shows. */
+	private endStartIfAlone() {
+		if (this.tabs.length === 0 && !this.combine) this.startShown = false;
 	}
 
 	// ----- inserting pages from a file (section 6.4) -----
@@ -612,6 +649,11 @@ class AppStore {
 	}
 
 	cycleTab(direction: 1 | -1) {
+		// From the start screen, back to the document it was shown over.
+		if (this.startShown && this.activeId !== null) {
+			this.activate(this.activeId);
+			return;
+		}
 		if (this.tabs.length < 2 || this.activeId === null) return;
 		const i = this.tabs.findIndex((t) => t.id === this.activeId);
 		const next = this.tabs[(i + direction + this.tabs.length) % this.tabs.length];
@@ -653,9 +695,12 @@ class AppStore {
 	async closeTab(id: number) {
 		const tab = this.tabs.find((t) => t.id === id);
 		if (!tab) return;
-		this.activate(id);
+		// From the start screen, a tab closes without coming on screen, unless it has
+		// changes to ask about.
+		if (!this.startShown) this.activate(id);
 		if (this.insertRequest?.tabId === id) this.cancelInsert();
 		await this.settled();
+		if (tab.state.dirty) this.activate(id);
 		if (!(await this.confirmDiscard(tab))) return;
 		this.rememberView(tab);
 		tab.search.cancel();
@@ -665,8 +710,9 @@ class AppStore {
 			const next = this.tabs[Math.min(index, this.tabs.length - 1)];
 			this.activeId = next?.id ?? null;
 			// The last document closed while the Combine view is open: show it.
-			if (!next && this.combine) this.openCombine();
+			if (!next && this.combine && !this.startShown) this.openCombine();
 		}
+		this.endStartIfAlone();
 		await closeDocument(id).catch(() => {});
 		void this.refreshRecent();
 	}

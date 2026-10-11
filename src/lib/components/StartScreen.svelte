@@ -2,8 +2,10 @@
 	// Shown when no document is open: open a file, or pick a recent one. Recent files show as
 	// a table of their names, when each was last opened and its size, or as a grid of their
 	// first pages with the name, date and size under each (a switch beside the heading,
-	// remembered in app data). A click on a row or card opens the file; the folder is in
-	// the name's tooltip. After an update, a block beside the app's name links to What's new.
+	// remembered in app data; switching brings the files in with a short animation). A click
+	// on a row or card opens the file; the folder is in the name's tooltip. After an update,
+	// a block beside the app's name links to What's new. Also shown over open documents, from
+	// the title bar's icon and name.
 	import { FolderOpen, LayoutGrid, Layers, List, Sparkles, X } from '@lucide/svelte';
 	import type { Component } from 'svelte';
 
@@ -11,6 +13,7 @@
 	import iconUrl from '#lib/assets/lectrix-icon.svg';
 	import { APP_NAME } from '#lib/config.ts';
 	import { openWhatsNew } from '#lib/features/changelog/announce.ts';
+	import { toolMark } from '#lib/features/annotations/toolMark.ts';
 	import { fileSize, fullDate, openedDate } from '#lib/format.ts';
 	import { recentPreviewUrl, removeRecent, type RecentFile } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
@@ -35,7 +38,7 @@
 
 	/**
 	 * Where the tools' one gradient runs, in each icon's own units: the line of a 135deg CSS
-	 * gradient over the whole grid, so the icons share it with the borders.
+	 * gradient over the whole grid, so under the pointer an icon shares it with the border.
 	 */
 	interface Line {
 		x1: number;
@@ -84,6 +87,18 @@
 		const observer = new ResizeObserver(measure);
 		observer.observe(grid);
 		return () => observer.disconnect();
+	}
+
+	/** The table or the grid was picked since the start screen showed: the files come in
+	 * animated (not the first time they show). */
+	let switched = $state(false);
+	/** How many files come in one after another; the rest come with the last of them. */
+	const STAGGERED = 8;
+
+	function showAs(grid: boolean) {
+		if (app.recentFilesGrid === grid) return;
+		switched = true;
+		app.recentFilesGrid = grid;
 	}
 
 	/** The widest a preview shows, CSS pixels; rendered for the screen's pixel ratio. */
@@ -172,7 +187,8 @@
 					style:--tool-y={tileOffsets[tool.id]?.y ?? 0}
 					onclick={tool.run}
 				>
-					<!-- The icon's stroke: the tools' gradient, mapped into the icon's units. -->
+					<!-- The icon's stroke: the tools' gradient, mapped into the icon's units (its
+					     ends are the text's colour until the pointer is on the tile). -->
 					<svg width="0" height="0" class="absolute" aria-hidden="true" data-gradient>
 						<defs>
 							<linearGradient
@@ -183,8 +199,8 @@
 								x2={line?.x2 ?? ICON_UNITS}
 								y2={line?.y2 ?? ICON_UNITS}
 							>
-								<stop offset="0" style:stop-color="var(--lectrix-brand-from)" />
-								<stop offset="1" style:stop-color="var(--lectrix-brand-to)" />
+								<stop offset="0" style:stop-color="var(--tool-ink-from)" />
+								<stop offset="1" style:stop-color="var(--tool-ink-to)" />
 							</linearGradient>
 						</defs>
 					</svg>
@@ -198,14 +214,16 @@
 		{#if app.recent.length}
 			<div class="mt-10 mb-2 flex items-center justify-between gap-4">
 				<h2 id="recent-heading" class="recent-heading">Recent files</h2>
-				<div class="flex gap-1" role="group" aria-label="Show recent files as">
+				<!-- The mark of the view shown glides to the one picked, as the active tool's does. -->
+				<div class="tool-group flex gap-1" role="group" aria-label="Show recent files as" {@attach toolMark}>
+					<span class="tool-mark" aria-hidden="true" hidden></span>
 					<button
 						type="button"
 						class="icon-button tool-button size-8"
 						aria-label="List"
 						title="List"
 						aria-pressed={!app.recentFilesGrid}
-						onclick={() => (app.recentFilesGrid = false)}
+						onclick={() => showAs(false)}
 					>
 						<List size={16} aria-hidden="true" />
 					</button>
@@ -215,7 +233,7 @@
 						aria-label="Grid"
 						title="Grid"
 						aria-pressed={app.recentFilesGrid}
-						onclick={() => (app.recentFilesGrid = true)}
+						onclick={() => showAs(true)}
 					>
 						<LayoutGrid size={16} aria-hidden="true" />
 					</button>
@@ -223,10 +241,10 @@
 			</div>
 
 			{#if app.recentFilesGrid}
-				<ul class="recent-grid" aria-labelledby="recent-heading">
-					{#each app.recent as file (file.index)}
+				<ul class="recent-grid" class:recent-enter={switched} aria-labelledby="recent-heading">
+					{#each app.recent as file, i (file.index)}
 						{@const url = previewUrl(file)}
-						<li class="recent-card" class:recent-missing={!file.exists}>
+						<li class="recent-card" class:recent-missing={!file.exists} style:--recent-i={Math.min(i, STAGGERED)}>
 							<button type="button" class="recent-open" title={folderTip(file)} onclick={() => void app.openRecent(file.index)}>
 								<span class="recent-preview">
 									{#if file.exists && !failed[url]}
@@ -258,7 +276,7 @@
 					{/each}
 				</ul>
 			{:else}
-				<table class="recent-table" aria-labelledby="recent-heading">
+				<table class="recent-table" class:recent-enter={switched} aria-labelledby="recent-heading">
 					<colgroup>
 						<col />
 						<col class="w-[168px]" />
@@ -274,8 +292,8 @@
 						</tr>
 					</thead>
 					<tbody>
-						{#each app.recent as file (file.index)}
-							<tr class="recent-row" class:recent-missing={!file.exists}>
+						{#each app.recent as file, i (file.index)}
+							<tr class="recent-row" class:recent-missing={!file.exists} style:--recent-i={Math.min(i, STAGGERED)}>
 								<td>
 									<button
 										type="button"

@@ -1,6 +1,8 @@
 <script lang="ts">
 	// Document tabs: click to switch, drag (or Ctrl+Shift+Left/Right) to reorder, middle-click
-	// or the close button to close. A dot marks unsaved changes.
+	// or the close button to close. A dot marks unsaved changes. While the start screen shows
+	// over them (the title bar's icon and name), none is selected; the one it was shown over
+	// keeps the strip's place in the Tab order.
 	import { Layers, X } from '@lucide/svelte';
 
 	import { app } from '#lib/stores/app.svelte.ts';
@@ -14,7 +16,16 @@
 		if (event.key === 'Delete') {
 			event.preventDefault();
 			void app.closeCombine();
+		} else if (isPick(event)) {
+			event.preventDefault();
+			app.openCombine();
 		}
+	}
+
+	/** Enter or Space on a tab itself (not its close button): from the start screen, where
+	 * no tab is the one shown, that goes back to it. */
+	function isPick(event: KeyboardEvent) {
+		return (event.key === 'Enter' || event.key === ' ') && event.target === event.currentTarget;
 	}
 
 	function onPointerDown(event: PointerEvent, id: number) {
@@ -65,6 +76,9 @@
 		} else if (event.key === 'Delete') {
 			event.preventDefault();
 			void app.closeTab(id);
+		} else if (isPick(event)) {
+			event.preventDefault();
+			app.activate(id);
 		}
 	}
 </script>
@@ -73,12 +87,13 @@
 
 <div bind:this={strip} class="flex h-full min-w-0 items-center gap-0.5" role="tablist" aria-label="Open documents">
 	{#each app.tabs as tab (tab.id)}
-		{@const active = tab.id === app.activeId && !app.combineActive}
+		{@const active = tab.id === app.activeId && !app.combineActive && !app.startShown}
+		{@const reachable = active || (app.startShown && tab.id === app.activeId)}
 		<div
 			data-tab={tab.id}
 			class="doc-tab group relative flex h-8 max-w-56 min-w-28 shrink items-center gap-1 pr-[4px] pl-3"
 			role="tab"
-			tabindex={active ? 0 : -1}
+			tabindex={reachable ? 0 : -1}
 			aria-selected={active}
 			title={tab.path}
 			onpointerdown={(e) => onPointerDown(e, tab.id)}
@@ -108,7 +123,7 @@
 				class="icon-button tab-close ml-auto shrink-0"
 				aria-label="Close {tab.name}"
 				title="Close (Ctrl+W)"
-				tabindex={active ? 0 : -1}
+				tabindex={reachable ? 0 : -1}
 				onclick={() => void app.closeTab(tab.id)}
 			>
 				<X size={14} aria-hidden="true" />
@@ -117,11 +132,12 @@
 	{/each}
 	{#if app.combine}
 		{@const active = app.combineActive}
+		{@const reachable = active || (app.startShown && app.tabs.length === 0)}
 		<div
 			data-combine-tab
 			class="doc-tab group relative flex h-8 max-w-56 min-w-28 shrink items-center gap-2 pr-[4px] pl-3"
 			role="tab"
-			tabindex={active ? 0 : -1}
+			tabindex={reachable ? 0 : -1}
 			aria-selected={active}
 			title="Combine files"
 			onpointerdown={(e) => {
@@ -142,7 +158,7 @@
 				class="icon-button tab-close ml-auto shrink-0"
 				aria-label="Close Combine files"
 				title="Close (Ctrl+W)"
-				tabindex={active ? 0 : -1}
+				tabindex={reachable ? 0 : -1}
 				onclick={() => void app.closeCombine()}
 			>
 				<X size={14} aria-hidden="true" />

@@ -8,9 +8,16 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ## Unreleased
 
+### Start screen
+
+- Click Lectrix’s icon or name in the title bar to see the start screen without closing your documents. Click it again, or a tab, to go back.
+- The tools are plain until the pointer is on them, and take Lectrix’s colours under it.
+- Switching between the list and the grid of recent files is animated.
+
 ### Viewer and tabs
 
 - On Linux, pinching on a touchpad zooms the document instead of the whole window, and pages appear sooner while scrolling.
+- A document stays where you were when you switch to another tab and come back, instead of returning to its first page.
 
 ### Annotations
 
