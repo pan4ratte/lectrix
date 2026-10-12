@@ -19,6 +19,7 @@ import type {
 	ScrollMode,
 	Settings,
 	SettingsInput,
+	ToolbarDock,
 	ToolbarPosition,
 	ToolbarStyle
 } from '#lib/ipc/index.ts';
@@ -394,19 +395,35 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 						'toolbarStyle',
 						'Placement',
 						[
-							{ value: 'floating', label: 'Floating over the pages' },
-							{ value: 'panel', label: 'In the bar above the pages' }
+							{ value: 'panel', label: 'Docked beside the pages' },
+							{ value: 'floating', label: 'Floating over the pages' }
 						] satisfies { value: ToolbarStyle; label: string }[],
 						{ description: 'In full screen it always floats, with the page and zoom controls.' }
+					),
+					choice(
+						'toolbarDock',
+						'Where it is docked',
+						[
+							{ value: 'top', label: 'Top' },
+							{ value: 'left', label: 'Left' },
+							{ value: 'right', label: 'Right' }
+						] satisfies { value: ToolbarDock; label: string }[],
+						{
+							description:
+								'At the top, in the bar above the pages. At a side, in a bar of its own, with the tools stacked.',
+							disabled: (d) => !docked(d)
+						}
 					),
 					choice(
 						'toolbarPosition',
 						'Where it floats',
 						[
 							{ value: 'bottom', label: 'Bottom' },
-							{ value: 'top', label: 'Top' }
+							{ value: 'top', label: 'Top' },
+							{ value: 'left', label: 'Left' },
+							{ value: 'right', label: 'Right' }
 						] satisfies { value: ToolbarPosition; label: string }[],
-						{ description: (d) => (docked(d) ? IN_FULL_SCREEN : '') }
+						{ description: (d) => `At a side, the tools are stacked.${docked(d) ? ` ${IN_FULL_SCREEN}` : ''}` }
 					),
 					toggleBetween('toolbarVisibility', 'always', 'onHover', 'Show only when the pointer is near', {
 						description: (d) =>
@@ -441,6 +458,7 @@ export function toInput(d: Draft): SettingsInput {
 		appearance: d.appearance,
 		scrollMode: d.scrollMode,
 		toolbarStyle: d.toolbarStyle,
+		toolbarDock: d.toolbarDock,
 		toolbarPosition: d.toolbarPosition,
 		toolbarVisibility: d.toolbarVisibility,
 		quickTools: [...d.quickTools],

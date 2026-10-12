@@ -435,9 +435,21 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 		await browser.keys(['Control', 's']);
 		await browser.waitUntil(async () => (await statusText(browser)).includes('All changes saved'), { timeoutMsg: 'not saved' });
 
-		// Settings: the annotation toolbar moves to the top, shown only near it.
+		// The annotation toolbar starts docked in the bar above the pages, beside the page and
+		// zoom controls. Settings: it floats over the pages instead, at the top, shown only
+		// near it.
+		assert.ok(
+			await browser.execute(() => document.querySelector('[data-view-bar] [role=toolbar][aria-label="Annotation tools"]') !== null),
+			'the toolbar does not start docked in the view bar'
+		);
 		await browser.keys(['Control', ',']);
 		await (await browser.$('button[role="tab"]*=Toolbars')).click();
+		assert.equal(await (await browser.$('#setting-toolbarDock')).getAttribute('data-disabled'), null, 'where it is docked is not offered');
+		await (await browser.$('#setting-toolbarStyle')).click();
+		await (await browser.$('[role="option"]*=Floating over the pages')).click();
+		await browser.waitUntil(async () => (await (await browser.$('#setting-toolbarDock')).getAttribute('data-disabled')) !== null, {
+			timeoutMsg: 'where it is docked stays offered while the toolbar floats'
+		});
 		await (await browser.$('#setting-toolbarPosition')).click();
 		await (await browser.$('[role="option"]*=Top')).click();
 		await (await browser.$('label*=Show only when the pointer is near')).click();
@@ -472,7 +484,7 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 		await browser.keys(['Control', ',']);
 		await (await browser.$('button[role="tab"]*=Toolbars')).click();
 		await (await browser.$('#setting-toolbarStyle')).click();
-		await (await browser.$('[role="option"]*=In the bar above the pages')).click();
+		await (await browser.$('[role="option"]*=Docked beside the pages')).click();
 		assert.equal(await (await browser.$('#setting-toolbarVisibility')).getAttribute('data-disabled'), null);
 		assert.equal(await (await browser.$('#setting-toolbarPosition')).getAttribute('data-disabled'), null);
 		await closeSettings(browser);
@@ -505,6 +517,73 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 		});
 		assert.match(pressed.shadow, /inset 0px 0px 0px 1px$|^rgb\([^)]*\) 0px 0px 0px 1px inset$/, `active tool: ${pressed.shadow}`);
 		assert.ok(pressed.over, 'the mark lies on the active tool');
+
+		// Settings: docked at the left of the pages instead, in a bar of its own from the view
+		// bar down, with the tools stacked. What a tool's controls open goes beside the bar,
+		// over the pages, and the stroke width's button shows the number alone.
+		await browser.keys(['Control', ',']);
+		await (await browser.$('button[role="tab"]*=Toolbars')).click();
+		await (await browser.$('#setting-toolbarDock')).click();
+		await (await browser.$('[role="option"]*=Left')).click();
+		await closeSettings(browser);
+		const stackedBar = () =>
+			browser.execute(() => {
+				const bar = document.querySelector('[role=toolbar][aria-label="Annotation tools"]');
+				const pages = document.querySelector('.viewer-scroll')?.getBoundingClientRect();
+				const viewBar = document.querySelector('[data-view-bar]')?.getBoundingClientRect();
+				if (!bar || !pages || !viewBar) return null;
+				const r = bar.getBoundingClientRect();
+				const tools = [...bar.querySelectorAll('.tool-button')].map((b) => b.getBoundingClientRect());
+				return {
+					inViewBar: bar.closest('[data-view-bar]') !== null,
+					orientation: bar.getAttribute('aria-orientation'),
+					leftOfPages: r.right <= pages.left + 1,
+					belowViewBar: r.top >= viewBar.bottom - 1,
+					stacked: tools.every((t, i) => i === 0 || (t.top >= tools[i - 1].bottom && Math.abs(t.left - tools[0].left) < 1)),
+					right: r.right
+				};
+			});
+		await browser.waitUntil(async () => (await stackedBar())?.leftOfPages === true, { timeoutMsg: 'the toolbar did not dock at the left of the pages' });
+		const atLeft = await stackedBar();
+		assert.deepEqual(
+			{ ...atLeft, right: 0 },
+			{ inViewBar: false, orientation: 'vertical', leftOfPages: true, belowViewBar: true, stacked: true, right: 0 },
+			`docked at the left: ${JSON.stringify(atLeft)}`
+		);
+		await (await browser.$('[role=toolbar][aria-label="Annotation tools"] button[aria-label="Pen"]')).click();
+		const width = await browser.$('[role=toolbar][aria-label="Annotation tools"] button[aria-label="Stroke width"]');
+		await width.waitForDisplayed({ timeoutMsg: 'no stroke width for the Pen tool' });
+		// (Once it has slid open: until then its text is clipped.)
+		await browser.waitUntil(() => browser.execute(() => document.getAnimations().every((a) => a.playState !== 'running')));
+		assert.match(await width.getText(), /^[\d.]+$/, 'the stacked stroke width shows more than its number');
+		await width.click();
+		const widths = await browser.$('.dropdown-list');
+		await widths.waitForDisplayed({ timeoutMsg: 'the stroke widths did not open' });
+		// (Once the list has been placed: it is laid out at the window's corner first.)
+		const listLeft = () => browser.execute(() => document.querySelector('.dropdown-list').getBoundingClientRect().left);
+		await browser
+			.waitUntil(async () => (await listLeft()) >= atLeft.right, { timeout: 3000 })
+			.catch(async () => assert.fail(`the stroke widths opened over the toolbar: ${await listLeft()} < ${atLeft.right}`));
+		assert.match(await widths.getText(), /2 pt/, 'the list names the widths in full');
+		await browser.keys(['Escape']);
+		await widths.waitForExist({ reverse: true });
+		const penColours = await openColours(browser, await browser.$('[role=toolbar][aria-label="Annotation tools"]'));
+		const coloursLeft = () => browser.execute(() => document.querySelector('.color-panel').getBoundingClientRect().left);
+		await browser
+			.waitUntil(async () => (await coloursLeft()) >= atLeft.right, { timeout: 3000 })
+			.catch(async () => assert.fail(`the colours opened over the toolbar: ${await coloursLeft()} < ${atLeft.right}`));
+		await browser.keys(['Escape']);
+		await penColours.waitForExist({ reverse: true });
+		await (await browser.$('[role=toolbar][aria-label="Annotation tools"] button[aria-label="Select"]')).click();
+		// Back above the pages, where the rest of this test expects it.
+		await browser.keys(['Control', ',']);
+		await (await browser.$('button[role="tab"]*=Toolbars')).click();
+		await (await browser.$('#setting-toolbarDock')).click();
+		await (await browser.$('[role="option"]*=Top')).click();
+		await closeSettings(browser);
+		await (await browser.$('[data-view-bar] [role=toolbar][aria-label="Annotation tools"]')).waitForExist({
+			timeoutMsg: 'the toolbar did not go back above the pages'
+		});
 
 		// Settings: new markup opens its comment. With the annotation list showing, a highlight
 		// then has the cursor in its comment there, and no comment panel.
@@ -693,7 +772,8 @@ test('the colour panel opens under the pointer, and Settings changes its presets
 		await button.waitForDisplayed({ timeoutMsg: 'no colour button for the Highlight tool' });
 		const box = await browser.execute((el) => el.getBoundingClientRect().toJSON(), button);
 		const on = { x: Math.round(box.left + box.width / 2), y: Math.round(box.top + box.height / 2) };
-		const away = { x: on.x - 200, y: on.y - 200 };
+		// Away from the button and its panel: over the pages, below the bar the toolbar is in.
+		const away = { x: on.x - 200, y: on.y + 250 };
 		const rest = async () => {
 			await browser.action('pointer').move({ ...away, origin: 'viewport' }).perform();
 			await browser.pause(100);

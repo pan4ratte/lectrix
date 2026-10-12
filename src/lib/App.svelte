@@ -152,6 +152,15 @@
 	const full = $derived(fullscreen.on);
 	const sliding = $derived(fullscreen.stage === 'arriving' || fullscreen.stage === 'returning');
 	const away = $derived(sliding && fullscreen.chromeAway);
+	/** The annotation toolbar floats over the pages: Settings say so, or full screen does. */
+	const floatingTools = $derived(app.settings !== null && (app.settings.toolbarStyle === 'floating' || fullscreen.started));
+	/** The side of the pages the annotation toolbar is docked at, in a bar of its own
+	 * (docked at the top, it is in the view bar). */
+	const toolDockSide = $derived(
+		app.settings?.toolbarStyle === 'panel' && app.settings.toolbarDock !== 'top' && !fullscreen.started
+			? app.settings.toolbarDock
+			: null
+	);
 	let shell: HTMLDivElement | undefined = $state();
 
 	fullscreen.widthOf = (side) => {
@@ -326,6 +335,23 @@
 	{/if}
 {/snippet}
 
+<!-- The annotation toolbar docked at a side of the pages (Settings), from the view bar down.
+     It goes as full screen starts, sliding away with the other bars, and comes back so. -->
+{#snippet toolDock(side: 'left' | 'right')}
+	{#if tab && toolDockSide === side}
+		<div
+			class={[
+				'tool-dock',
+				side === 'left' ? 'tool-dock-left' : 'tool-dock-right',
+				sliding && ['chrome-slide relative z-10', side === 'left' ? 'chrome-left' : 'chrome-right']
+			]}
+			class:chrome-away={away}
+		>
+			<AnnotationToolbar {tab} dock={side} />
+		</div>
+	{/if}
+{/snippet}
+
 <div class="flex h-full flex-col" bind:this={shell}>
 	{#if !full}
 		<div class={['shrink-0', sliding && 'chrome-slide chrome-up relative z-10']} class:chrome-away={away}>
@@ -380,13 +406,17 @@
 						{/if}
 					</div>
 					{#key tab.id}
-						<div class={['flex min-h-0 flex-1 flex-col', sliding ? 'viewer-covers' : 'relative']}>
-							<Viewer {tab} />
-							{#if app.settings?.toolbarStyle !== 'panel' || fullscreen.started}
-								<AnnotationToolbar {tab} />
-							{/if}
-							<AnnotationPropertiesDialog {tab} />
-							<BookmarkInspector {tab} />
+						<div class="flex min-h-0 flex-1">
+							{@render toolDock('left')}
+							<div class={['flex min-h-0 min-w-0 flex-1 flex-col', sliding ? 'viewer-covers' : 'relative']}>
+								<Viewer {tab} />
+								{#if floatingTools}
+									<AnnotationToolbar {tab} />
+								{/if}
+								<AnnotationPropertiesDialog {tab} />
+								<BookmarkInspector {tab} />
+							</div>
+							{@render toolDock('right')}
 						</div>
 					{/key}
 				{:else}

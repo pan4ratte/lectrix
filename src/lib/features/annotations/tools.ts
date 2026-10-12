@@ -148,9 +148,10 @@ export function changedStyles(styles: Readonly<Record<DrawTool, ToolStyle>>): Pa
 export const PEN_WIDTHS: readonly number[] = [0.5, 1, 2, 3, 5, 8];
 export const FONT_SIZES: readonly number[] = [8, 9, 10, 11, 12, 14, 16, 18, 24, 36];
 
-/** Sizes in points as dropdown options, smallest first, each once. */
-export function ptOptions(sizes: readonly number[]): { value: number; label: string }[] {
-	return [...new Set(sizes)].sort((x, y) => x - y).map((value) => ({ value, label: `${value} pt` }));
+/** Sizes in points as dropdown options, smallest first, each once; the number alone where
+ * there is no room for more (a stacked toolbar). */
+export function ptOptions(sizes: readonly number[]): { value: number; label: string; short: string }[] {
+	return [...new Set(sizes)].sort((x, y) => x - y).map((value) => ({ value, label: `${value} pt`, short: String(value) }));
 }
 
 /** The tool that makes annotations of `kind`. */

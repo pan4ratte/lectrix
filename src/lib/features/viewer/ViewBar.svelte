@@ -1,7 +1,8 @@
 <script lang="ts">
 	// The bar at the top of the document, as in Acrobat (section 8), centered: the page and
 	// zoom controls (PageControls.svelte), then the annotation tools when Settings dock them
-	// here. Full screen hides it, and its controls go to the floating toolbar (section 6.1).
+	// here (docked at a side of the pages, they have a bar of their own, App.svelte). Full
+	// screen hides it, and its controls go to the floating toolbar (section 6.1).
 	import AnnotationToolbar from '#lib/features/annotations/AnnotationToolbar.svelte';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -10,7 +11,7 @@
 
 	let { tab }: { tab: DocTab } = $props();
 
-	const docked = $derived(app.settings?.toolbarStyle === 'panel');
+	const docked = $derived(app.settings?.toolbarStyle === 'panel' && app.settings.toolbarDock === 'top');
 </script>
 
 <div
@@ -21,6 +22,6 @@
 
 	{#if docked}
 		<span class="h-6 w-px bg-line" aria-hidden="true"></span>
-		<AnnotationToolbar {tab} docked />
+		<AnnotationToolbar {tab} dock="top" />
 	{/if}
 </div>

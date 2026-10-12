@@ -11,6 +11,7 @@ const STORED: Settings = {
 	appearance: 'system',
 	scrollMode: 'singlePageContinuous',
 	toolbarStyle: 'floating',
+	toolbarDock: 'top',
 	toolbarPosition: 'bottom',
 	toolbarVisibility: 'always',
 	quickTools: ['highlight', 'copy'],
@@ -106,6 +107,21 @@ describe('settings schema', () => {
 			expect(says(id, draft), id).toMatch(/full screen/);
 			expect(says(id, toDraft(STORED)), id).not.toMatch(/full screen/);
 		}
+	});
+
+	it('offers where to dock the toolbar only while it is docked', () => {
+		const dock = row('toolbarDock');
+		if (dock.kind !== 'choice') throw new Error('toolbarDock is not a dropdown');
+		expect(dock.options.map((o) => o.value)).toEqual(['top', 'left', 'right']);
+		expect(dock.disabled?.(toDraft(STORED))).toBe(true);
+		const draft = toDraft({ ...STORED, toolbarStyle: 'panel' });
+		expect(dock.disabled?.(draft)).toBe(false);
+		dock.write(draft, 'right');
+		expect(toInput(draft).toolbarDock).toBe('right');
+		// It floats at any edge of the pages.
+		const position = row('toolbarPosition');
+		if (position.kind !== 'choice') throw new Error('toolbarPosition is not a dropdown');
+		expect(position.options.map((o) => o.value)).toEqual(['bottom', 'top', 'left', 'right']);
 	});
 
 	it('keeps quick tools in the bar’s order whatever order they are switched on', () => {

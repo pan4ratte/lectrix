@@ -62,8 +62,9 @@
 </script>
 
 <div
-	class="absolute right-6 z-10 flex items-center gap-1 rounded-panel border border-line bg-surface-raised p-1 shadow-[0_4px_12px_var(--color-page-shadow)]"
+	class="absolute z-10 flex items-center gap-1 rounded-panel border border-line bg-surface-raised p-1 shadow-[0_4px_12px_var(--color-page-shadow)]"
 	style:top="{app.overlayTop}px"
+	style:right="{app.overlayRight}px"
 	role="search"
 >
 	<input

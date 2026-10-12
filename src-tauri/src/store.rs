@@ -10,7 +10,7 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 use crate::ipc::{
-    Appearance, PaneLayout, QuickTool, ScrollMode, ToolbarPosition, ToolbarStyle,
+    Appearance, PaneLayout, QuickTool, ScrollMode, ToolbarDock, ToolbarPosition, ToolbarStyle,
     ToolbarVisibility, ViewState,
 };
 use crate::placement::WindowPlacement;
@@ -93,6 +93,8 @@ pub struct StoredSettings {
     pub scroll_mode: ScrollMode,
     #[serde(default)]
     pub toolbar_style: ToolbarStyle,
+    #[serde(default)]
+    pub toolbar_dock: ToolbarDock,
     #[serde(default)]
     pub toolbar_position: ToolbarPosition,
     #[serde(default)]
@@ -179,6 +181,7 @@ impl Default for StoredSettings {
             appearance: Appearance::default(),
             scroll_mode: ScrollMode::default(),
             toolbar_style: ToolbarStyle::default(),
+            toolbar_dock: ToolbarDock::default(),
             toolbar_position: ToolbarPosition::default(),
             toolbar_visibility: ToolbarVisibility::default(),
             quick_tools: default_quick_tools(),
@@ -523,8 +526,9 @@ mod tests {
             author: Some("Ada Lovelace".into()),
             appearance: Appearance::Dark,
             scroll_mode: ScrollMode::TwoPage,
-            toolbar_style: ToolbarStyle::Panel,
-            toolbar_position: ToolbarPosition::Top,
+            toolbar_style: ToolbarStyle::Floating,
+            toolbar_dock: ToolbarDock::Right,
+            toolbar_position: ToolbarPosition::Left,
             toolbar_visibility: ToolbarVisibility::OnHover,
             quick_tools: vec![QuickTool::Squiggly, QuickTool::Bookmark],
             check_for_updates: false,
@@ -558,7 +562,8 @@ mod tests {
             *Store::load(Some(file.clone())).settings(),
             StoredSettings::default()
         );
-        // So does one from v1, before the toolbar settings.
+        // So does one from v1, before the toolbar settings: the toolbar is docked above the
+        // pages, as in a new install.
         fs::write(
             &file,
             br#"{"settings":{"author":"Ada","appearance":"light"}}"#,
@@ -567,7 +572,9 @@ mod tests {
         let v1 = Store::load(Some(file.clone()));
         assert_eq!(v1.settings().author.as_deref(), Some("Ada"));
         assert_eq!(v1.settings().quick_tools, QuickTool::DEFAULT.to_vec());
-        assert_eq!(v1.settings().toolbar_style, ToolbarStyle::Floating);
+        assert_eq!(v1.settings().toolbar_style, ToolbarStyle::Panel);
+        assert_eq!(v1.settings().toolbar_dock, ToolbarDock::Top);
+        assert_eq!(v1.settings().toolbar_position, ToolbarPosition::Bottom);
         assert_eq!(v1.settings().scroll_mode, ScrollMode::SinglePageContinuous);
         assert!(v1.settings().check_for_updates);
         assert!(v1.settings().smooth_zoom);

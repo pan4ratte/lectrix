@@ -566,6 +566,7 @@ fn settings_of(stored: &StoredSettings, platform: &dyn Platform) -> Settings {
         appearance: stored.appearance,
         scroll_mode: stored.scroll_mode,
         toolbar_style: stored.toolbar_style,
+        toolbar_dock: stored.toolbar_dock,
         toolbar_position: stored.toolbar_position,
         toolbar_visibility: stored.toolbar_visibility,
         quick_tools: stored.quick_tools.clone(),
@@ -616,6 +617,7 @@ pub fn set_settings(
         appearance: settings.appearance,
         scroll_mode: settings.scroll_mode,
         toolbar_style: settings.toolbar_style,
+        toolbar_dock: settings.toolbar_dock,
         toolbar_position: settings.toolbar_position,
         toolbar_visibility: settings.toolbar_visibility,
         quick_tools: settings

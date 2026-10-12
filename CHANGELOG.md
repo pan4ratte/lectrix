@@ -25,10 +25,12 @@ the wording, translations): docs/releasing.md, "The changelog".
 - Links in a document work: click one, such as a line of the table of contents, to go where it leads, and press **Alt+Left** to come back. A web link opens in your browser. The link under the pointer is tinted, and a tooltip says where it leads: the page, or the web address.
 - On Linux, pinching on a touchpad zooms the document instead of the whole window, and pages appear sooner while scrolling.
 - The **Previous page** and **Next page** buttons glide to the page instead of jumping to it. With one page shown at a time, the page turned to rises into place.
-- The next and the previous page are prepared while you read, so they are there when you scroll or turn to them. In scanned books, each page used to stay blank for a moment first.- A document stays where you were when you switch to another tab and come back, instead of returning to its first page.
+- The next and the previous page are prepared while you read, so they are there when you scroll or turn to them. In scanned books, each page used to stay blank for a moment first.
+- A document stays where you were when you switch to another tab and come back, instead of returning to its first page.
 - Drag the start or the end of selected text to select more or less of it.
 - With text selected, **Shift** and the arrow keys select more or less: a character or a line at a time, and a word or a paragraph with **Ctrl** too.
 - A double-click selects the whole word and a triple-click the whole line, instead of only the part before the pointer.
+- **Esc** in the zoom menu, the page display menu or a list of stroke widths or font sizes closes it only, instead of also clearing the selection or going back to the Select tool.
 - A PDF/A file (the standard for documents kept for the long term) opens for reading only, as in Acrobat, so that it is not changed by accident. A bar above the pages says so, and **Enable editing** lets you change the file.
 - Saving annotations or inserted pages into a PDF/A file removes the file’s claim to be PDF/A, and Lectrix tells you: it can’t guarantee that they follow the standard. Bookmarks, page labels and rotated pages keep the claim.
 
@@ -59,6 +61,8 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ### Settings
 
+- The annotation toolbar can be at the left or the right of the pages, with its tools stacked: docked there in a bar of its own (**Toolbars > Where it is docked**), or floating (**Where it floats**). What a tool’s controls open, such as the colours, appears beside the toolbar.
+- On a new install, the annotation toolbar starts docked in the bar above the pages instead of floating over them. Where Lectrix is installed already, it stays as it was; **Toolbars > Placement** changes it.
 - **Preset colours**, under Annotations, shows the 18 colours every tool offers and lets you replace any of them with your own. **Restore colours** puts the original ones back.
 - **Open the colours when the pointer is on their button**, under Annotations, can be turned off to open them with a click.
 - **Highlight the link under the pointer** and **Show where a link leads**, under General, can be turned off.

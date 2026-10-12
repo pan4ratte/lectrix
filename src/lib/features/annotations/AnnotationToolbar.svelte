@@ -1,9 +1,12 @@
 <script lang="ts">
 	// The annotation toolbar (sections 6.5 and 8): the tools, and the style the active tool
 	// draws with (remembered per tool; the colour button opens the colours and the opacity).
-	// Settings make it float over the page canvas, at the bottom or the top, shown always or only while the pointer is near that edge (or the
-	// toolbar has focus, or a tool was just picked); or dock it in the bar at the top of the
-	// document, beside the page and zoom controls, always shown (ViewBar.svelte places it).
+	// Settings dock it, always shown: in the bar at the top of the document, beside the page
+	// and zoom controls (ViewBar.svelte places it), or in a bar of its own at the left or the
+	// right of the pages (App.svelte); or make it float over the page canvas, at any of its
+	// four edges, shown always or only while the pointer is near that edge (or the toolbar has
+	// focus, or a tool was just picked). At a side, docked or floating, its controls are
+	// stacked, and what they open (the colours, a list of sizes) goes beside it, over the pages.
 	// Full screen (section 6.1) it always floats, with the page and zoom controls before the
 	// tools and a button that leaves full screen after them; Alt held shows it too.
 	import {
@@ -25,18 +28,20 @@
 	import { toggleFullScreen } from '#lib/features/fullscreen/actions.ts';
 	import { fullscreen } from '#lib/features/fullscreen/fullscreen.svelte.ts';
 	import PageControls from '#lib/features/viewer/PageControls.svelte';
+	import type { ToolbarDock, ToolbarPosition } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
 	import { refuseIfLocked } from './actions.ts';
-	import { nearEdge } from './bars.ts';
+	import { isStacked, menuOffset, menuSide, nearEdge } from './bars.ts';
 	import ColorPicker from './ColorPicker.svelte';
 	import { tools } from './state.svelte.ts';
 	import { GLIDE_MS, toolMark } from './toolMark.ts';
 	import { FONT_SIZES, PEN_WIDTHS, TOOLS, ptOptions, type Tool } from './tools.ts';
 
-	/** `docked`: in the bar at the top of the document, rather than floating over the pages. */
-	let { tab, docked = false }: { tab: DocTab; docked?: boolean } = $props();
+	/** `dock`: where it is docked (in the bar at the top of the document, or a bar at a side
+	 * of the pages), rather than floating over the pages. */
+	let { tab, dock = null }: { tab: DocTab; dock?: ToolbarDock | null } = $props();
 
 	const ICONS: Record<Tool, Component<{ size?: number; 'aria-hidden'?: boolean | 'true' }>> = {
 		select: TextCursor,
@@ -54,9 +59,19 @@
 	const style = $derived(drawTool ? tools.style(drawTool) : null);
 	const locked = $derived(!tab.flags.canAnnotate);
 
-	/** The style controls slide open and shut sideways as the tool changes, as the mark
-	 * glides to it (not at all with reduced motion). */
-	const reveal = () => ({ axis: 'x' as const, duration: motionMs(GLIDE_MS) });
+	const panel = $derived(dock !== null);
+	/** Full screen, this is the only bar: the page and zoom controls are in it. */
+	const full = $derived(fullscreen.started && !panel);
+	const position = $derived(app.settings?.toolbarPosition ?? 'bottom');
+	/** The edge of the pages it is at. */
+	const edge: ToolbarPosition = $derived(dock ?? position);
+	/** At a side, its controls are stacked, and what they open goes beside it. */
+	const stacked = $derived(isStacked(edge));
+	const side = $derived(menuSide(edge));
+
+	/** The style controls slide open and shut along the toolbar as the tool changes, as the
+	 * mark glides to it (not at all with reduced motion). */
+	const reveal = () => ({ axis: stacked ? ('y' as const) : ('x' as const), duration: motionMs(GLIDE_MS) });
 
 	function pick(tool: Tool) {
 		if (tool !== 'select' && refuseIfLocked(tab)) return;
@@ -71,10 +86,6 @@
 	/** How long the toolbar stays after the pointer leaves, so it doesn't flicker. */
 	const LINGER_MS = 300;
 
-	const panel = $derived(docked);
-	/** Full screen, this is the only bar: the page and zoom controls are in it. */
-	const full = $derived(fullscreen.started && !docked);
-	const position = $derived(app.settings?.toolbarPosition ?? 'bottom');
 	const onHover = $derived(!panel && app.settings?.toolbarVisibility === 'onHover');
 
 	let bar: HTMLDivElement | undefined = $state();
@@ -132,29 +143,36 @@
 
 <svelte:window onpointermove={onWindowPointerMove} />
 
+{#snippet rule()}
+	<span class={stacked ? 'my-1 h-px w-6 shrink-0 bg-line' : 'mx-1 h-6 w-px shrink-0 bg-line'} aria-hidden="true"></span>
+{/snippet}
+
 <div
 	bind:this={bar}
-	class={panel
-		? 'flex items-center gap-0.5'
-		: 'annotation-toolbar absolute left-1/2 z-20 flex items-center gap-0.5 rounded-panel border border-line bg-surface-raised p-1 shadow-[0_4px_12px_var(--color-page-shadow)]'}
-	class:top-3={!panel && position === 'top'}
-	class:bottom-4={!panel && position === 'bottom'}
-	class:annotation-toolbar-top={!panel && position === 'top'}
+	class={[
+		'flex items-center gap-0.5',
+		stacked && 'flex-col',
+		!panel && [
+			'annotation-toolbar z-20 rounded-panel border border-line bg-surface-raised p-1 shadow-[0_4px_12px_var(--color-page-shadow)]',
+			`annotation-toolbar-${edge}`
+		]
+	]}
 	class:annotation-toolbar-hidden={!shown}
 	role="toolbar"
+	aria-orientation={stacked ? 'vertical' : undefined}
 	aria-label={full ? 'Page, zoom and annotation tools' : 'Annotation tools'}
 	onfocusin={() => (focused = true)}
 	onfocusout={(e) => (focused = bar?.contains(e.relatedTarget as Node | null) ?? false)}
 	transition:fade={{ duration: motionMs(GLIDE_MS) }}
 >
 	{#if full}
-		<span class="flex items-center gap-0.5" transition:slide={reveal()}>
-			<PageControls {tab} nested />
-			<span class="mx-1 h-6 w-px shrink-0 bg-line" aria-hidden="true"></span>
+		<span class={['flex items-center gap-0.5', stacked && 'flex-col']} transition:slide={reveal()}>
+			<PageControls {tab} nested {side} />
+			{@render rule()}
 		</span>
 	{/if}
 
-	<span class="tool-group flex items-center gap-0.5" {@attach toolMark}>
+	<span class={['tool-group flex items-center gap-0.5', stacked && 'flex-col']} {@attach toolMark}>
 		<span class="tool-mark" aria-hidden="true" hidden></span>
 		{#each TOOLS as t (t.id)}
 			{@const Icon = ICONS[t.id]}
@@ -173,23 +191,27 @@
 	</span>
 
 	{#if style && drawTool}
-		<span class="flex items-center gap-0.5" transition:slide={reveal()}>
-			<span class="mx-1 h-6 w-px shrink-0 bg-line" aria-hidden="true"></span>
+		<span class={['flex items-center gap-0.5', stacked && 'flex-col']} transition:slide={reveal()}>
+			{@render rule()}
 			<ColorPicker
 				color={style.color}
 				opacity={style.opacity}
 				label="Colour"
+				{side}
 				oncolor={(color) => tools.setStyle(drawTool, { color })}
 				onopacity={(opacity) => tools.setStyle(drawTool, { opacity })}
 			/>
 			{#if drawTool === 'ink'}
 				<span class="flex" transition:slide={reveal()}>
 					<Dropdown
-						class="toolbar-dropdown"
+						class={stacked ? 'toolbar-dropdown toolbar-dropdown-stacked' : 'toolbar-dropdown'}
 						label="Stroke width"
 						tip="Stroke width"
 						value={style.width}
 						options={ptOptions(PEN_WIDTHS)}
+						{side}
+						sideOffset={menuOffset(side, 4)}
+						compact={stacked}
 						onchange={(width) => tools.setStyle('ink', { width })}
 					/>
 				</span>
@@ -197,11 +219,14 @@
 			{#if drawTool === 'freeText'}
 				<span class="flex" transition:slide={reveal()}>
 					<Dropdown
-						class="toolbar-dropdown"
+						class={stacked ? 'toolbar-dropdown toolbar-dropdown-stacked' : 'toolbar-dropdown'}
 						label="Font size"
 						tip="Font size"
 						value={style.fontSize}
 						options={ptOptions(FONT_SIZES)}
+						{side}
+						sideOffset={menuOffset(side, 4)}
+						compact={stacked}
 						onchange={(fontSize) => tools.setStyle('freeText', { fontSize })}
 					/>
 				</span>
@@ -210,8 +235,8 @@
 	{/if}
 
 	{#if full}
-		<span class="flex items-center gap-0.5" transition:slide={reveal()}>
-			<span class="mx-1 h-6 w-px shrink-0 bg-line" aria-hidden="true"></span>
+		<span class={['flex items-center gap-0.5', stacked && 'flex-col']} transition:slide={reveal()}>
+			{@render rule()}
 			<button
 				type="button"
 				class="icon-button"

@@ -2,6 +2,7 @@
 import type { Appearance } from "./Appearance";
 import type { QuickTool } from "./QuickTool";
 import type { ScrollMode } from "./ScrollMode";
+import type { ToolbarDock } from "./ToolbarDock";
 import type { ToolbarPosition } from "./ToolbarPosition";
 import type { ToolbarStyle } from "./ToolbarStyle";
 import type { ToolbarVisibility } from "./ToolbarVisibility";
@@ -21,7 +22,7 @@ defaultAuthor: string, appearance: Appearance,
 /**
  * How pages are laid out when a document opens.
  */
-scrollMode: ScrollMode, toolbarStyle: ToolbarStyle, toolbarPosition: ToolbarPosition, toolbarVisibility: ToolbarVisibility, 
+scrollMode: ScrollMode, toolbarStyle: ToolbarStyle, toolbarDock: ToolbarDock, toolbarPosition: ToolbarPosition, toolbarVisibility: ToolbarVisibility, 
 /**
  * The buttons of the bar over selected text; empty: no bar.
  */

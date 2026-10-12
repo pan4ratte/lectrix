@@ -20,6 +20,7 @@
 	import Slider from '#lib/components/Slider.svelte';
 	import { app } from '#lib/stores/app.svelte.ts';
 
+	import { menuOffset, type MenuSide } from './bars.ts';
 	import HexPicker from './HexPicker.svelte';
 	import { tools } from './state.svelte.ts';
 	import { PRESET_COLUMNS } from './tools.ts';
@@ -32,9 +33,12 @@
 		label: string;
 		oncolor: (color: string) => void;
 		onopacity: (opacity: number) => void;
+		/** Where the panel opens: below the button, or beside it (a stacked toolbar, where
+		 * the button is the colour alone, as wide as a tool). */
+		side?: MenuSide;
 	}
 
-	let { color, opacity, label, oncolor, onopacity }: Props = $props();
+	let { color, opacity, label, oncolor, onopacity, side = 'bottom' }: Props = $props();
 
 	/** The slider's low end: below it, a mark is hard to find again. */
 	const MIN_OPACITY = 0.1;
@@ -130,7 +134,7 @@
 <Popover.Root bind:open={() => open, setOpen}>
 	<Popover.Trigger
 		bind:ref={trigger}
-		class="color-button"
+		class={['color-button', side !== 'bottom' && 'color-button-stacked']}
 		aria-label="{label}: {name}, opacity {Math.round(opacity * 100)}%"
 		data-tip={open ? undefined : label}
 		data-color-button
@@ -139,13 +143,16 @@
 		closeDelay={HOVER_CLOSE_MS}
 	>
 		<span class="swatch-dot" style:--swatch={color ?? 'transparent'} aria-hidden="true"></span>
-		<ChevronDown size={12} aria-hidden="true" />
+		{#if side === 'bottom'}
+			<ChevronDown size={12} aria-hidden="true" />
+		{/if}
 	</Popover.Trigger>
 	<Popover.Portal>
 		<Popover.Content
 			bind:ref={content}
-			side="bottom"
-			sideOffset={6}
+			{side}
+			align={side === 'bottom' ? 'center' : 'start'}
+			sideOffset={menuOffset(side, 6)}
 			escapeKeydownBehavior="ignore"
 			class="color-panel"
 			aria-label={label}

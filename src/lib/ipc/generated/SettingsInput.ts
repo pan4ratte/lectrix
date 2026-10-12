@@ -2,6 +2,7 @@
 import type { Appearance } from "./Appearance";
 import type { QuickTool } from "./QuickTool";
 import type { ScrollMode } from "./ScrollMode";
+import type { ToolbarDock } from "./ToolbarDock";
 import type { ToolbarPosition } from "./ToolbarPosition";
 import type { ToolbarStyle } from "./ToolbarStyle";
 import type { ToolbarVisibility } from "./ToolbarVisibility";
@@ -10,4 +11,4 @@ export type SettingsInput = {
 /**
  * Empty: use the default (the Windows user name).
  */
-author: string, appearance: Appearance, scrollMode: ScrollMode, toolbarStyle: ToolbarStyle, toolbarPosition: ToolbarPosition, toolbarVisibility: ToolbarVisibility, quickTools: Array<QuickTool>, checkForUpdates: boolean, smoothZoom: boolean, smoothAnnotationScroll: boolean, smoothPageTurn: boolean, smoothBookmarkScroll: boolean, tooltipDelayMs: number, openCommentAfterMarkup: boolean, rememberAnnotationStyle: boolean, selectionHandles: boolean, pdfaReadOnly: boolean, highlightLinks: boolean, linkPreviews: boolean, colorPanelOnHover: boolean, presetColors: { [key in number]: string }, shortcuts: { [key in string]: Array<string> }, };
+author: string, appearance: Appearance, scrollMode: ScrollMode, toolbarStyle: ToolbarStyle, toolbarDock: ToolbarDock, toolbarPosition: ToolbarPosition, toolbarVisibility: ToolbarVisibility, quickTools: Array<QuickTool>, checkForUpdates: boolean, smoothZoom: boolean, smoothAnnotationScroll: boolean, smoothPageTurn: boolean, smoothBookmarkScroll: boolean, tooltipDelayMs: number, openCommentAfterMarkup: boolean, rememberAnnotationStyle: boolean, selectionHandles: boolean, pdfaReadOnly: boolean, highlightLinks: boolean, linkPreviews: boolean, colorPanelOnHover: boolean, presetColors: { [key in number]: string }, shortcuts: { [key in string]: Array<string> }, };

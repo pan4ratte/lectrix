@@ -2,11 +2,14 @@
 	// The page and zoom controls (section 8): previous and next page, the page box (label or
 	// number, then "(4 of 312)" or "of 312"), zoom out, the zoom level and zoom in, the page
 	// display, and the visual adjustments. In the bar at the top of the document; full screen,
-	// in the floating toolbar (section 6.1), as a group of that toolbar.
+	// in the floating toolbar (section 6.1), as a group of that toolbar: stacked when that
+	// toolbar is at a side of the screen, with the position under the page box and the menus
+	// opening beside the toolbar.
 	import { ChevronDown, ChevronUp, Minus, Plus } from '@lucide/svelte';
 	import { DropdownMenu } from 'bits-ui';
 
 	import { commands, setViewMode } from '#lib/commands.ts';
+	import { menuOffset, type MenuSide } from '#lib/features/annotations/bars.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -16,7 +19,23 @@
 	import VisualAdjustments from './VisualAdjustments.svelte';
 	import { ZOOM_PRESETS } from './zoom.ts';
 
-	let { tab, nested = false }: { tab: DocTab; nested?: boolean } = $props();
+	/** `side`: where the menus open; beside the controls when these are stacked. */
+	let { tab, nested = false, side = 'bottom' }: { tab: DocTab; nested?: boolean; side?: MenuSide } = $props();
+
+	const stacked = $derived(side !== 'bottom');
+	const menuAlign = $derived(stacked ? 'start' : 'center');
+
+	let zoomOpen = $state(false);
+	let displayOpen = $state(false);
+
+	/** Esc closes the menu only: it must not also deselect, pick the Select tool or leave
+	 * full screen, where these menus are in the floating toolbar. */
+	function onMenuKey(event: KeyboardEvent, close: () => void) {
+		if (event.key !== 'Escape') return;
+		event.preventDefault();
+		event.stopPropagation();
+		close();
+	}
 
 	let editing = $state(false);
 	let input: HTMLInputElement | undefined = $state();
@@ -65,8 +84,12 @@
 	const modeLabel = $derived(VIEW_MODES.find((m) => m.id === tab.mode)?.label ?? '');
 </script>
 
+{#snippet rule()}
+	<span class={stacked ? 'my-1 h-px w-6 shrink-0 bg-line' : 'mx-1 h-5 w-px bg-line'} aria-hidden="true"></span>
+{/snippet}
+
 <div
-	class="flex items-center gap-1 text-sm whitespace-nowrap text-fg-muted"
+	class={['flex items-center text-sm text-fg-muted', stacked ? 'flex-col gap-0.5' : 'gap-1 whitespace-nowrap']}
 	role={nested ? 'group' : 'toolbar'}
 	aria-label="Page and zoom"
 >
@@ -94,7 +117,7 @@
 	<input
 		bind:this={input}
 		id="page-box"
-		class="field ml-1 h-7 w-14 text-center tabular-nums"
+		class={['field h-7 text-center tabular-nums', stacked ? 'my-0.5 w-[40px] px-0.5 text-xs' : 'ml-1 w-14']}
 		class:border-line={!invalid}
 		class:border-danger={invalid}
 		value={editing ? draft : pageBoxText(tab.currentPage, tab.displayLabels)}
@@ -109,8 +132,9 @@
 		aria-invalid={invalid}
 		data-page-box
 	/>
-	<!-- A minimum width, so the zoom controls don't shift as the text changes. -->
-	<span class="min-w-16 pl-1 whitespace-nowrap">
+	<!-- A minimum width, so the zoom controls don't shift as the text changes. Stacked, the
+	     position is under the box, in the toolbar's width: "(4 of 312)" takes two lines. -->
+	<span class={stacked ? 'max-w-[48px] text-center text-[11px] leading-tight text-balance' : 'min-w-16 pl-1 whitespace-nowrap'}>
 		{#if invalid}
 			<span class="text-danger" role="alert">No such page</span>
 		{:else}
@@ -124,7 +148,7 @@
 		</span>
 	</span>
 
-	<span class="mx-1 h-5 w-px bg-line" aria-hidden="true"></span>
+	{@render rule()}
 
 	<button
 		type="button"
@@ -135,15 +159,25 @@
 	>
 		<Minus size={16} aria-hidden="true" />
 	</button>
-	<DropdownMenu.Root>
+	<DropdownMenu.Root bind:open={zoomOpen}>
 		<DropdownMenu.Trigger
-			class="h-7 min-w-16 rounded-control px-2 text-fg tabular-nums hover:bg-hover aria-expanded:bg-hover"
+			class={[
+				'h-7 rounded-control text-fg tabular-nums hover:bg-hover aria-expanded:bg-hover',
+				stacked ? 'w-[40px] text-xs' : 'min-w-16 px-2'
+			]}
 			aria-label="Zoom level {zoomText}"
 		>
 			{zoomText}
 		</DropdownMenu.Trigger>
 		<DropdownMenu.Portal>
-			<DropdownMenu.Content class="menu-content" side="bottom" align="center">
+			<DropdownMenu.Content
+				class="menu-content"
+				{side}
+				align={menuAlign}
+				sideOffset={menuOffset(side, 0)}
+				escapeKeydownBehavior="ignore"
+				onkeydown={(e) => onMenuKey(e, () => (zoomOpen = false))}
+			>
 				<DropdownMenu.Item class="menu-item" onSelect={() => tab.viewer?.fit('fitWidth')}>
 					Fit width
 					<span class="menu-shortcut">{app.shortcut('fitWidth')}</span>
@@ -170,9 +204,9 @@
 		<Plus size={16} aria-hidden="true" />
 	</button>
 
-	<span class="mx-1 h-5 w-px bg-line" aria-hidden="true"></span>
+	{@render rule()}
 
-	<DropdownMenu.Root>
+	<DropdownMenu.Root bind:open={displayOpen}>
 		<DropdownMenu.Trigger
 			class="icon-button size-7"
 			aria-label="Page display: {modeLabel}"
@@ -182,7 +216,14 @@
 			<PageDisplayIcon mode={tab.mode} />
 		</DropdownMenu.Trigger>
 		<DropdownMenu.Portal>
-			<DropdownMenu.Content class="menu-content" side="bottom" align="center">
+			<DropdownMenu.Content
+				class="menu-content"
+				{side}
+				align={menuAlign}
+				sideOffset={menuOffset(side, 0)}
+				escapeKeydownBehavior="ignore"
+				onkeydown={(e) => onMenuKey(e, () => (displayOpen = false))}
+			>
 				<DropdownMenu.RadioGroup
 					value={tab.mode}
 					onValueChange={(v) => {
@@ -214,5 +255,5 @@
 			</DropdownMenu.Content>
 		</DropdownMenu.Portal>
 	</DropdownMenu.Root>
-	<VisualAdjustments {tab} />
+	<VisualAdjustments {tab} {side} />
 </div>

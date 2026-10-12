@@ -206,8 +206,15 @@ Needs an installed earlier release and a newer one published (ADR 0011,
       pane.
 - [ ] Close Lectrix in full screen (Alt+F4) and start it again: a window as before full
       screen, not one the size of the screen.
-- [ ] With the toolbar docked (Settings > Toolbars): full screen floats it, and leaving
-      docks it again.
+- [ ] With the toolbar docked (as it starts; Settings > Toolbars): full screen floats it,
+      and leaving docks it again. The same with it docked at the left or the right of the
+      pages: the bar there slides away with the others and comes back.
+- [ ] Settings > Toolbars > Where it floats: Left, then full screen. The toolbar is at the
+      left of the screen with everything stacked: the page controls (the position in small
+      text under the page box), the zoom controls, the tools. The zoom level's menu, the
+      page display's and the visual adjustments open to its right, over the pages. The
+      same at the right, where they open to its left and the toolbar keeps clear of the
+      pages' scrollbar.
 
 ## Visual adjustments
 

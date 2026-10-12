@@ -10,6 +10,9 @@ import {
 	barControls,
 	clampPanel,
 	PANEL_MIN,
+	isStacked,
+	menuOffset,
+	menuSide,
 	nearEdge,
 	placeBar,
 	placePanel,
@@ -268,6 +271,25 @@ describe('floating bars', () => {
 		expect(nearEdge(area, 500, 100, 'top')).toBe(true);
 		expect(nearEdge(area, 50, 600, 'bottom')).toBe(false);
 		expect(nearEdge(area, 500, 700, 'bottom')).toBe(false);
+		// At a side: near that side at any height, and not near the other one.
+		expect(nearEdge(area, 150, 350, 'left')).toBe(true);
+		expect(nearEdge(area, 180, 350, 'left')).toBe(false);
+		expect(nearEdge(area, 150, 350, 'right')).toBe(false);
+		expect(nearEdge(area, 850, 60, 'right')).toBe(true);
+		expect(nearEdge(area, 950, 350, 'right')).toBe(false);
+	});
+
+	it('opens a stacked toolbar’s menus beside it, over the pages', () => {
+		expect(isStacked('top')).toBe(false);
+		expect(isStacked('bottom')).toBe(false);
+		expect(isStacked('left')).toBe(true);
+		expect(isStacked('right')).toBe(true);
+		expect(menuSide('top')).toBe('bottom');
+		expect(menuSide('bottom')).toBe('bottom');
+		expect(menuSide('left')).toBe('right');
+		expect(menuSide('right')).toBe('left');
+		expect(menuOffset('bottom', 4)).toBe(4);
+		expect(menuOffset('left', 4)).toBe(8);
 	});
 
 	it('offers what the document and the annotation allow', () => {

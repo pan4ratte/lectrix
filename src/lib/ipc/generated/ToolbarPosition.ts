@@ -2,6 +2,6 @@
 
 /**
  * Which edge of the page canvas the floating annotation toolbar sits on (Settings,
- * section 6.6).
+ * section 6.6). At a side, its tools are stacked.
  */
-export type ToolbarPosition = "bottom" | "top";
+export type ToolbarPosition = "bottom" | "top" | "left" | "right";

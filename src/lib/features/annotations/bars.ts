@@ -254,7 +254,7 @@ export function placeTip(
 /** How close to its edge the pointer reveals a toolbar that shows only then, CSS pixels. */
 export const REVEAL_ZONE = 72;
 
-/** Whether (x, y) is inside `area` and within `zone` of its top or bottom edge. */
+/** Whether (x, y) is inside `area` and within `zone` of that edge of it. */
 export function nearEdge(
 	area: { left: number; top: number; right: number; bottom: number },
 	x: number,
@@ -263,7 +263,38 @@ export function nearEdge(
 	zone = REVEAL_ZONE
 ): boolean {
 	if (x < area.left || x > area.right || y < area.top || y > area.bottom) return false;
-	return edge === 'top' ? y - area.top <= zone : area.bottom - y <= zone;
+	switch (edge) {
+		case 'top':
+			return y - area.top <= zone;
+		case 'bottom':
+			return area.bottom - y <= zone;
+		case 'left':
+			return x - area.left <= zone;
+		case 'right':
+			return area.right - x <= zone;
+	}
+}
+
+/** Where a toolbar's control opens its menu or panel: below it, or beside it. */
+export type MenuSide = 'bottom' | 'left' | 'right';
+
+/** A toolbar at a side of the pages stacks its controls (sections 6.6 and 8). */
+export function isStacked(edge: ToolbarPosition): boolean {
+	return edge === 'left' || edge === 'right';
+}
+
+/** What a control of a toolbar at that edge opens goes below it, or, from a stacked
+ * toolbar, beside it and over the pages: a list below would lie over the tools under it. */
+export function menuSide(edge: ToolbarPosition): MenuSide {
+	if (edge === 'left') return 'right';
+	if (edge === 'right') return 'left';
+	return 'bottom';
+}
+
+/** How far from its control such a menu or panel opens, CSS pixels: beside a stacked
+ * toolbar, clear of the toolbar's own edge. */
+export function menuOffset(side: MenuSide, below: number): number {
+	return side === 'bottom' ? below : 8;
 }
 
 /** Whether a quick tool can act in this document. */

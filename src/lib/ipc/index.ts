@@ -103,6 +103,7 @@ export type { ScrollMode } from './generated/ScrollMode';
 export type { Settings } from './generated/Settings';
 export type { SettingsInput } from './generated/SettingsInput';
 export type { QuickTool } from './generated/QuickTool';
+export type { ToolbarDock } from './generated/ToolbarDock';
 export type { ToolbarPosition } from './generated/ToolbarPosition';
 export type { ToolbarStyle } from './generated/ToolbarStyle';
 export type { ToolbarVisibility } from './generated/ToolbarVisibility';

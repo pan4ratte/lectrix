@@ -1250,19 +1250,19 @@ pub enum ScrollMode {
     TwoPageContinuous,
 }
 
-/// How the annotation toolbar looks (Settings, section 6.6): floating over the page
-/// canvas, or a panel docked above it.
+/// How the annotation toolbar looks (Settings, section 6.6): a panel docked beside the
+/// page canvas (the default), or floating over it.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum ToolbarStyle {
-    #[default]
     Floating,
+    #[default]
     Panel,
 }
 
 /// Which edge of the page canvas the floating annotation toolbar sits on (Settings,
-/// section 6.6).
+/// section 6.6). At a side, its tools are stacked.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -1270,6 +1270,20 @@ pub enum ToolbarPosition {
     #[default]
     Bottom,
     Top,
+    Left,
+    Right,
+}
+
+/// Where the docked annotation toolbar is (Settings, section 6.6): in the bar above the
+/// pages, or a bar of its own at a side of them, its tools stacked.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum ToolbarDock {
+    #[default]
+    Top,
+    Left,
+    Right,
 }
 
 /// When the annotation toolbar is shown: always, or while the pointer is near its edge.
@@ -1321,6 +1335,7 @@ pub struct Settings {
     /// How pages are laid out when a document opens.
     pub scroll_mode: ScrollMode,
     pub toolbar_style: ToolbarStyle,
+    pub toolbar_dock: ToolbarDock,
     pub toolbar_position: ToolbarPosition,
     pub toolbar_visibility: ToolbarVisibility,
     /// The buttons of the bar over selected text; empty: no bar.
@@ -1376,6 +1391,7 @@ pub struct SettingsInput {
     pub appearance: Appearance,
     pub scroll_mode: ScrollMode,
     pub toolbar_style: ToolbarStyle,
+    pub toolbar_dock: ToolbarDock,
     pub toolbar_position: ToolbarPosition,
     pub toolbar_visibility: ToolbarVisibility,
     pub quick_tools: Vec<QuickTool>,

@@ -165,21 +165,73 @@ test('full screen shows the pages alone; the sides of the screen and Alt bring t
 		const back = await until(browser, 'Esc did not leave full screen', (s) => windowed(s) && s.left && !s.fillsScreen);
 		assert.deepEqual(back.size, before.size, 'the window has its size back');
 
-		// Docked in the view bar (Settings), the toolbar floats all the same in full screen,
-		// and its own button leaves.
+		// Docked in the view bar (as it starts), the toolbar floated all the same in full
+		// screen, where Settings' edge for the floating toolbar is used. At the left, its
+		// controls are stacked, the page and zoom controls first; their menus open beside it,
+		// over the pages; and its own button leaves.
 		await browser.keys(['Control', ',']);
 		await (await browser.$('button[role="tab"]*=Toolbars')).click();
 		await (await browser.$('label*=Show only when the pointer is near')).click();
-		await (await browser.$('#setting-toolbarStyle')).click();
-		await (await browser.$('[role="option"]*=In the bar above the pages')).click();
 		assert.equal(await (await browser.$('#setting-toolbarPosition')).getAttribute('data-disabled'), null, 'the floating options stay, for full screen');
+		await (await browser.$('#setting-toolbarPosition')).click();
+		await (await browser.$('[role="option"]*=Left')).click();
 		await closeSettings(browser);
-		await (await browser.$(`[data-view-bar] ${TOOLS}`)).waitForExist({ timeoutMsg: 'the toolbar did not dock' });
+		await (await browser.$(`[data-view-bar] ${TOOLS}`)).waitForExist({ timeoutMsg: 'the toolbar is not docked in the view bar' });
 		await browser.keys(['F11']);
 		await until(browser, 'F11 did not float the docked toolbar', full);
+		const stacked = await browser.execute((sel) => {
+			const el = document.querySelector(sel);
+			const r = el.getBoundingClientRect();
+			const box = el.querySelector('[data-page-box]').getBoundingClientRect();
+			const tool = el.querySelector('button[aria-label="Highlight"]').getBoundingClientRect();
+			const leave = el.querySelector('button[aria-label="Leave full screen"]').getBoundingClientRect();
+			return {
+				orientation: el.getAttribute('aria-orientation'),
+				atLeft: r.left < 40,
+				tall: r.height > r.width * 3,
+				inScreen: r.top >= 0 && r.bottom <= innerHeight,
+				centred: Math.abs(r.top + r.height / 2 - innerHeight / 2) < 2,
+				inOrder: box.bottom <= tool.top && tool.bottom <= leave.top,
+				right: r.right
+			};
+		}, FLOATING);
+		assert.deepEqual(
+			{ ...stacked, right: 0 },
+			{ orientation: 'vertical', atLeft: true, tall: true, inScreen: true, centred: true, inOrder: true, right: 0 },
+			`the toolbar at the left of the screen: ${JSON.stringify(stacked)}`
+		);
+		await (await browser.$(`${FLOATING} button[aria-label^="Zoom level"]`)).click();
+		const zoomMenu = await browser.$('[role=menu]');
+		await zoomMenu.waitForDisplayed({ timeoutMsg: 'the zoom level opened no menu' });
+		await browser.waitUntil(() => browser.execute(() => document.getAnimations().every((a) => a.playState !== 'running')));
+		const menuLeft = await browser.execute(() => document.querySelector('[role=menu]').getBoundingClientRect().left);
+		assert.ok(menuLeft >= stacked.right, `the zoom menu opened over the toolbar: ${menuLeft} < ${stacked.right}`);
+		await browser.keys(['Escape']);
+		await zoomMenu.waitForExist({ reverse: true });
 		await (await browser.$(`${FLOATING} button[aria-label="Leave full screen"]`)).click();
 		await until(browser, 'the button did not leave full screen', (s) => windowed(s) && !s.fillsScreen);
 		await (await browser.$(`[data-view-bar] ${TOOLS}`)).waitForExist({ timeoutMsg: 'the toolbar did not dock again' });
+
+		// Docked at the right of the pages (Settings), it has a bar of its own there, which
+		// goes in full screen and comes back after it.
+		await browser.keys(['Control', ',']);
+		await (await browser.$('button[role="tab"]*=Toolbars')).click();
+		await (await browser.$('#setting-toolbarDock')).click();
+		await (await browser.$('[role="option"]*=Right')).click();
+		await closeSettings(browser);
+		const dockedRight = () =>
+			browser.execute((sel) => {
+				const bar = document.querySelector(sel);
+				const pages = document.querySelector('.viewer-scroll')?.getBoundingClientRect();
+				return bar !== null && pages !== undefined && bar.closest('[data-view-bar]') === null && bar.getBoundingClientRect().left >= pages.right - 1;
+			}, TOOLS);
+		await browser.waitUntil(dockedRight, { timeoutMsg: 'the toolbar did not dock at the right of the pages' });
+		await browser.keys(['F11']);
+		const again = await until(browser, 'F11 did not float the toolbar docked at the right', full);
+		assert.deepEqual(again.pages, again.size, 'the pages fill the screen, with no bar beside them');
+		await browser.keys(['F11']);
+		await until(browser, 'F11 did not leave full screen', (s) => windowed(s) && !s.fillsScreen);
+		await browser.waitUntil(dockedRight, { timeoutMsg: 'the toolbar did not dock at the right again' });
 	} finally {
 		await stop();
 	}

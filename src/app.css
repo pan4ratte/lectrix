@@ -444,21 +444,76 @@ input[type='color'],
 
 /* ----- annotation tools ----- */
 
-/* The annotation toolbar, centred; when shown only near its edge, it slides out of the way
-   but stays focusable, so the keyboard can still reach it (and focusing it shows it). */
+/* The floating annotation toolbar, centred along its edge of the page canvas; when shown
+   only near that edge, it slides out of the way toward it but stays focusable, so the
+   keyboard can still reach it (and focusing it shows it). */
 .annotation-toolbar {
-	transform: translateX(-50%);
+	position: absolute;
 	transition:
 		opacity 140ms ease-out,
 		transform 140ms ease-out;
 }
+.annotation-toolbar-top,
+.annotation-toolbar-bottom {
+	left: 50%;
+	transform: translateX(-50%);
+}
+.annotation-toolbar-top {
+	top: 0.75rem;
+}
+.annotation-toolbar-bottom {
+	bottom: 1rem;
+}
+/* At a side its controls are stacked. Where the pages have less height than they need, it
+   scrolls, with no scrollbar of its own. */
+.annotation-toolbar-left,
+.annotation-toolbar-right {
+	top: 50%;
+	max-height: calc(100% - 1.5rem);
+	overflow-y: auto;
+	scrollbar-width: none;
+	transform: translateY(-50%);
+}
+.annotation-toolbar-left {
+	left: 0.75rem;
+}
+/* Clear of the pages' scrollbar. */
+.annotation-toolbar-right {
+	right: 1.75rem;
+}
 .annotation-toolbar-hidden {
 	opacity: 0;
 	pointer-events: none;
+}
+.annotation-toolbar-bottom.annotation-toolbar-hidden {
 	transform: translate(-50%, 12px);
 }
 .annotation-toolbar-top.annotation-toolbar-hidden {
 	transform: translate(-50%, -12px);
+}
+.annotation-toolbar-left.annotation-toolbar-hidden {
+	transform: translate(-12px, -50%);
+}
+.annotation-toolbar-right.annotation-toolbar-hidden {
+	transform: translate(12px, -50%);
+}
+/* The toolbar docked at a side of the pages (Settings): a bar of its own in the view bar's
+   colour, its tools stacked, with a line between it and the pages. */
+.tool-dock {
+	display: flex;
+	flex-shrink: 0;
+	flex-direction: column;
+	align-items: center;
+	padding: 4px;
+	overflow-y: auto;
+	background: var(--lectrix-chrome);
+	scrollbar-width: none;
+}
+.tool-dock-left {
+	border-right: 1px solid var(--lectrix-line);
+}
+.tool-dock-right {
+	border-left: 1px solid var(--lectrix-line);
 }
 /* The active tool: an accent icon and an accent border all round, over a tint of the accent. */
 .tool-button:is([aria-pressed='true'], [aria-selected='true']) {
@@ -871,6 +926,12 @@ button.shortcut-key:hover,
 .color-button[data-state='open'] {
 	background: var(--lectrix-hover);
 }
+/* In a stacked toolbar: the colour alone, as wide as a tool. */
+.color-button-stacked {
+	width: 32px;
+	justify-content: center;
+	padding: 0;
+}
 .color-button:focus-visible {
 	outline: 2px solid var(--lectrix-focus);
 	outline-offset: 1px;
@@ -939,6 +1000,12 @@ button.shortcut-key:hover,
 	height: 28px;
 	margin-left: 4px;
 	font-size: 12px;
+}
+/* In a stacked toolbar: the number alone (Dropdown's compact button), as wide as a tool. */
+.toolbar-dropdown-stacked {
+	width: 32px;
+	margin: 2px 0 0;
+	padding: 0 2px;
 }
 .annotation-dot {
 	width: 10px;

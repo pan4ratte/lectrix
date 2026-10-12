@@ -8,11 +8,13 @@
 
 	import Slider from '#lib/components/Slider.svelte';
 	import Switch from '#lib/components/Switch.svelte';
+	import { menuOffset, type MenuSide } from '#lib/features/annotations/bars.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
 	import { ADJUST_MAX, ADJUST_MIN, ADJUST_STEP, NO_ADJUSTMENTS, isAdjusted } from './adjustments.ts';
 
-	let { tab }: { tab: DocTab } = $props();
+	/** `side`: where the panel opens, beside the button in a stacked toolbar. */
+	let { tab, side = 'bottom' }: { tab: DocTab; side?: MenuSide } = $props();
 
 	const LABEL = 'Visual adjustments';
 	const uid = $props.id();
@@ -58,9 +60,9 @@
 	<Popover.Portal>
 		<Popover.Content
 			class="adjust-panel"
-			side="bottom"
-			align="center"
-			sideOffset={6}
+			{side}
+			align={side === 'bottom' ? 'center' : 'start'}
+			sideOffset={menuOffset(side, 6)}
 			escapeKeydownBehavior="ignore"
 			role="dialog"
 			aria-label={LABEL}

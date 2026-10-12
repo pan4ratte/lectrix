@@ -7,7 +7,8 @@
 
 	interface Props {
 		value: T;
-		options: readonly { value: T; label: string }[];
+		/** `short` is what a compact button shows of the choice. */
+		options: readonly { value: T; label: string; short?: string }[];
 		/** Called when the user picks another option (not when `value` changes from outside). */
 		onchange?: (value: T) => void;
 		/** The accessible name, when no <label> around the dropdown gives one. */
@@ -20,6 +21,12 @@
 		disabled?: boolean;
 		/** Size classes for the button (height, text size, width). */
 		class?: string;
+		/** Where the list opens: below the button, or beside it (a stacked toolbar). */
+		side?: 'bottom' | 'left' | 'right';
+		/** How far from the button, CSS pixels. */
+		sideOffset?: number;
+		/** A button as narrow as a tool: the choice's short form, centred, and no arrow. */
+		compact?: boolean;
 	}
 
 	let {
@@ -31,7 +38,10 @@
 		describedby,
 		tip,
 		disabled = false,
-		class: className = ''
+		class: className = '',
+		side = 'bottom',
+		sideOffset = 4,
+		compact = false
 	}: Props = $props();
 
 	let open = $state(false);
@@ -45,9 +55,10 @@
 		onchange?.(option.value);
 	}
 
-	/** Esc closes the list only: it must not also pick the Select tool or close a panel. */
+	/** Esc closes the list only: it must not also pick the Select tool or close a panel. The
+	 * focus stays on the button while the list is open, so the key is the button's too. */
 	function onContentKey(event: KeyboardEvent) {
-		if (event.key !== 'Escape') return;
+		if (event.key !== 'Escape' || !open) return;
 		event.preventDefault();
 		event.stopPropagation();
 		open = false;
@@ -55,16 +66,27 @@
 </script>
 
 <Select.Root type="single" bind:open value={String(value)} onValueChange={pick} {items} {disabled}>
-	<Select.Trigger class="dropdown {className}" {id} aria-label={label} aria-describedby={describedby} data-tip={tip}>
-		<span class="min-w-0 flex-1 truncate text-left">{current?.label ?? ''}</span>
-		<ChevronDown size={14} aria-hidden="true" class="shrink-0 text-fg-muted" />
+	<Select.Trigger
+		class="dropdown {className}"
+		{id}
+		aria-label={label}
+		aria-describedby={describedby}
+		data-tip={tip}
+		onkeydown={onContentKey}
+	>
+		{#if compact}
+			<span class="min-w-0 flex-1 truncate text-center">{current?.short ?? current?.label ?? ''}</span>
+		{:else}
+			<span class="min-w-0 flex-1 truncate text-left">{current?.label ?? ''}</span>
+			<ChevronDown size={14} aria-hidden="true" class="shrink-0 text-fg-muted" />
+		{/if}
 	</Select.Trigger>
 	<Select.Portal>
 		<Select.Content
 			class="menu-content dropdown-list"
-			side="bottom"
+			{side}
 			align="start"
-			sideOffset={4}
+			{sideOffset}
 			escapeKeydownBehavior="ignore"
 			onkeydown={onContentKey}
 		>

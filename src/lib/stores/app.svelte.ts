@@ -183,16 +183,22 @@ class AppStore {
 		return keys ? `${label} (${keys})` : label;
 	}
 
-	/** Where the search bar and inspectors start, CSS pixels from the top of the page
-	 * canvas: below the floating annotation toolbar when it stays at the top. (Docked, it
-	 * is in the bar above the canvas; full screen, it floats whatever Settings say.) */
-	overlayTop = $derived(
-		(fullscreen.started || this.settings?.toolbarStyle !== 'panel') &&
-			this.settings?.toolbarPosition === 'top' &&
+	/** The edge of the page canvas the floating annotation toolbar stays at, or null: it is
+	 * docked beside the canvas (unless full screen, where it floats whatever Settings say),
+	 * or shows only while the pointer is near. */
+	private floatingToolbarEdge = $derived(
+		this.settings !== null &&
+			(fullscreen.started || this.settings.toolbarStyle === 'floating') &&
 			this.settings.toolbarVisibility === 'always'
-			? 64
-			: 12
+			? this.settings.toolbarPosition
+			: null
 	);
+	/** Where the search bar and inspectors start, CSS pixels from the top of the page
+	 * canvas: below the floating annotation toolbar when it stays at the top. */
+	overlayTop = $derived(this.floatingToolbarEdge === 'top' ? 64 : 12);
+	/** And from the right of the page canvas: beside that toolbar when it stays at the right
+	 * (stacked, 24.5 px from the edge and up to 51 px wide). */
+	overlayRight = $derived(this.floatingToolbarEdge === 'right' ? 84 : 21);
 	/** The About dialog is open. */
 	aboutOpen = $state(false);
 	/** What's new (the changelog, section 6.6) is open. */
