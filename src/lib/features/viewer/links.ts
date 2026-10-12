@@ -7,6 +7,8 @@ import { openLink, toAppError, type BookmarkTarget, type LinkPlace, type PageLin
 import { app } from '#lib/stores/app.svelte.ts';
 import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
+import { pageName } from './pagebox.ts';
+
 /** The link at a point of its page (page points); of links that overlap, the one on top. */
 export function linkAt(links: readonly PageLink[], x: number, y: number): PageLink | null {
 	for (let i = links.length - 1; i >= 0; i--) {
@@ -108,14 +110,14 @@ async function openInBrowser(tab: DocTab, from: LinkPlace, uri: string) {
 const PREVIEW_ADDRESS = 160;
 
 /**
- * Where a link leads, for the tooltip on it (section 6.1): the page as the page box names
- * it (its label, `labels`, else its number), a web or other address, or what else it does.
+ * Where a link leads, for the tooltip on it (section 6.1): the page by its label
+ * (`labels`), else by its number, a web or other address, or what else it does.
  * Empty for a link that does nothing.
  */
 export function linkPreview(target: BookmarkTarget, labels: readonly string[] | null): string {
 	switch (target.kind) {
 		case 'page':
-			return `Page ${labels?.[target.page] || target.page + 1}`;
+			return `Page ${pageName(target.page, labels)}`;
 		case 'uri':
 			return target.uri.length > PREVIEW_ADDRESS ? `${target.uri.slice(0, PREVIEW_ADDRESS)}…` : target.uri;
 		case 'file':

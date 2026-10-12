@@ -48,6 +48,10 @@ the wording, translations): docs/releasing.md, "The changelog".
 - Bookmark titles that the program which made the file padded with invisible characters no longer end in a row of � marks; they show as in Acrobat.
 - A bookmark that is a web link opens in your browser.
 
+### Page labels
+
+- A page in a range without labels (the style **None** and no prefix) no longer shows its page number as if that were its label: the page box is empty there and its thumbnail has no caption. The position beside the page box still says which page it is.
+
 ### Settings
 
 - **Preset colours**, under Annotations, shows the 18 colours every tool offers and lets you replace any of them with your own. **Restore colours** puts the original ones back.

@@ -3,6 +3,7 @@
 
 import { selectedText } from '#lib/features/viewer/actions.ts';
 import { copyLink, follow } from '#lib/features/viewer/links.ts';
+import { pageName } from '#lib/features/viewer/pagebox.ts';
 import { logError, setBookmarkOpen, type Bookmark } from '#lib/ipc/index.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -68,7 +69,7 @@ export async function addBookmark(tab: DocTab) {
 	const at = tab.viewer.topLeft();
 	// The copy permission also covers taking text out of the document this way.
 	const text = tab.flags.canCopy && tab.selection ? titleFromText(await selectedText(tab)) : '';
-	const label = tab.labels?.[at.page] ?? String(at.page + 1);
+	const label = pageName(at.page, tab.labels);
 	const position = insertionPoint(tab.outline.items, tab.selectedBookmark, at);
 	if (position.parent !== null) revealBookmark(tab, position.parent);
 	showBookmarks();

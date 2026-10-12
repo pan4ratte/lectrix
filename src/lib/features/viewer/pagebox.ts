@@ -1,6 +1,6 @@
 // The page box: shows the current page and accepts a page number or a page label.
 
-/** "iv (4 of 312)" with labels, "4 of 312" without (view bar, section 8). */
+/** "iv (4 of 312)" with labels, "4 of 312" without or where the label is empty (view bar, section 8). */
 export function pagePosition(index: number, count: number, labels: readonly string[] | null) {
 	const physical = `${index + 1} of ${count}`;
 	const label = labels?.[index];
@@ -12,20 +12,29 @@ export function pagePosition(index: number, count: number, labels: readonly stri
 
 /**
  * What the view bar shows after the page box, as Acrobat does: "(4 of 312)" when the box
- * shows a label other than the page number, "of 312" otherwise.
+ * shows something other than the page number (a label, or nothing for a page whose label
+ * is empty), "of 312" otherwise.
  */
 export function pageOf(index: number, count: number, labels: readonly string[] | null) {
 	const label = labels?.[index];
-	if (label !== undefined && label !== '' && label !== String(index + 1)) {
+	if (label !== undefined && label !== String(index + 1)) {
 		return `(${index + 1} of ${count})`;
 	}
 	return `of ${count}`;
 }
 
-/** What the page box shows while not being edited: the label, or the page number. */
+/**
+ * What the page box shows while not being edited, and a thumbnail's caption: the page's
+ * label, which is empty for a page in a range without labels (style "None", no prefix);
+ * the page number in a document without labels.
+ */
 export function pageBoxText(index: number, labels: readonly string[] | null): string {
-	const label = labels?.[index];
-	return label !== undefined && label !== '' ? label : String(index + 1);
+	return labels?.[index] ?? String(index + 1);
+}
+
+/** The page as a sentence names it ("Page iv"): its label, or its number where that is empty. */
+export function pageName(index: number, labels: readonly string[] | null): string {
+	return labels?.[index] || String(index + 1);
 }
 
 /**

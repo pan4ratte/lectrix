@@ -16,7 +16,7 @@
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
-	import { pageBoxText } from './pagebox.ts';
+	import { pageBoxText, pageName } from './pagebox.ts';
 	import RenderedImage from './RenderedImage.svelte';
 	import { BACKGROUND_PRIORITY } from './scheduler.ts';
 	import { layoutThumbs, renderWidth, shownWidth, stepWidth } from './thumbs.ts';
@@ -270,6 +270,7 @@
 						{#each range as index (index)}
 							{@const item = items[index]!}
 							{@const current = index === tab.currentPage}
+							{@const caption = pageBoxText(index, tab.displayLabels)}
 							<button
 								type="button"
 								data-thumb={index}
@@ -279,7 +280,7 @@
 								style:left="{item.left}px"
 								role="option"
 								aria-selected={current}
-								aria-label="Page {pageBoxText(index, tab.displayLabels)}"
+								aria-label="Page {pageName(index, tab.displayLabels)}"
 								tabindex={index === focused ? 0 : -1}
 								onclick={() => {
 									focused = index;
@@ -306,7 +307,10 @@
 										/>
 									</span>
 								</span>
-								<span class="text-xs text-fg-muted tabular-nums">{pageBoxText(index, tab.displayLabels)}</span>
+								<!-- A page without a label keeps the caption's line, empty. -->
+								<span class="text-xs text-fg-muted tabular-nums">
+									{#if caption}{caption}{:else}&nbsp;{/if}
+								</span>
 							</button>
 						{/each}
 					</div>

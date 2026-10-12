@@ -21,7 +21,7 @@ import {
 	rowOf,
 	rowStart
 } from './layout.ts';
-import { pageBoxText, pageOf, pagePosition, resolvePageInput } from './pagebox.ts';
+import { pageBoxText, pageName, pageOf, pagePosition, resolvePageInput } from './pagebox.ts';
 import {
 	edgeAt,
 	hitTest,
@@ -292,6 +292,20 @@ describe('navigation history', () => {
 		h.goBack({ page: 20, offset: 0 });
 		h.push({ page: 10, offset: 0.5 });
 		expect(h.canGoForward).toBe(false);
+	});
+
+	it('is empty on a page without a label, and still says where the page is', () => {
+		// Pages 3 and 4 are in a range of style "None" without a prefix.
+		const some = ['i', 'ii', '', '', '1'];
+		expect(pageBoxText(2, some)).toBe('');
+		expect(pageOf(2, 5, some)).toBe('(3 of 5)');
+		expect(pagePosition(2, 5, some)).toBe('3 of 5');
+		// A sentence names such a page by its number.
+		expect(pageName(2, some)).toBe('3');
+		expect(pageName(1, some)).toBe('ii');
+		expect(pageName(2, null)).toBe('3');
+		// Its number still reaches it from the page box.
+		expect(resolvePageInput('3', some, 5)).toBe(2);
 	});
 });
 

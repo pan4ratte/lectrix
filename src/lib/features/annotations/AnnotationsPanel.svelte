@@ -26,6 +26,7 @@
 	import { chain } from '#lib/components/chain.ts';
 	import { motionMs } from '#lib/components/panes.ts';
 	import type { Annotation } from '#lib/ipc/index.ts';
+	import { pageName } from '#lib/features/viewer/pagebox.ts';
 	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import { app, type AnnotationRows } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -209,7 +210,7 @@
 		groupAnnotations(
 			sortAnnotations(shown, sort, order),
 			sort,
-			(page) => `Page ${tab.displayLabels?.[page] ?? page + 1}`,
+			(page) => `Page ${pageName(page, tab.displayLabels)}`,
 			(ms) => new Date(ms).toLocaleDateString(undefined, { dateStyle: 'medium' })
 		)
 	);
