@@ -7,6 +7,7 @@
 use mupdf::text_page::TextBlockType;
 use mupdf::{DisplayList, Quad, TextPage, TextPageFlags};
 
+use crate::annot::quads::Quad as MarkupQuad;
 use crate::error::Result;
 use crate::geometry::{Point, Rect};
 
@@ -70,45 +71,132 @@ pub struct TextRange {
     pub end: usize,
 }
 
-/// One quad per range, in the text's own direction (view space): the first character's
-/// left edge and the last character's right edge, from MuPDF's character quads. Ranges
-/// outside the page's text are an error.
-pub fn range_quads(
-    list: &DisplayList,
-    ranges: &[TextRange],
-) -> Result<Vec<crate::annot::quads::Quad>> {
+/// The quads of each range, in the text's own orientation (view space), from MuPDF's
+/// character quads: see [`run_quads`]. Left-to-right text gives one quad per range.
+/// Ranges outside the page's text are an error.
+pub fn range_quads(list: &DisplayList, ranges: &[TextRange]) -> Result<Vec<MarkupQuad>> {
     let page = list.to_text_page(flags())?;
-    let mut lines: Vec<Vec<Quad>> = Vec::new();
+    let point = |p: mupdf::Point| Point::new(f64::from(p.x), f64::from(p.y));
+    let mut lines: Vec<Vec<MarkupQuad>> = Vec::new();
     for block in page.blocks() {
         if block.r#type() != TextBlockType::Text {
             continue;
         }
         for line in block.lines() {
-            let quads: Vec<Quad> = line.chars().map(|ch| ch.quad()).collect();
+            let quads: Vec<MarkupQuad> = line
+                .chars()
+                .map(|ch| {
+                    let q = ch.quad();
+                    MarkupQuad {
+                        ul: point(q.ul),
+                        ur: point(q.ur),
+                        ll: point(q.ll),
+                        lr: point(q.lr),
+                    }
+                })
+                .collect();
             if !quads.is_empty() {
                 lines.push(quads);
             }
         }
     }
-    let point = |p: mupdf::Point| Point::new(f64::from(p.x), f64::from(p.y));
-    ranges
+    let mut out = Vec::with_capacity(ranges.len());
+    for r in ranges {
+        let chars = lines
+            .get(r.line)
+            .filter(|l| r.start < r.end && r.end <= l.len())
+            .ok_or_else(|| {
+                crate::Error::InvalidArgument("the selected text is not on the page".into())
+            })?;
+        out.extend(run_quads(chars, r.start, r.end));
+    }
+    Ok(out)
+}
+
+/// One quad for each run of the characters `start..end` of a line that lie side by side
+/// on the page: from the edge its first character on the page starts at to the edge its
+/// last one ends at, so every corner keeps its name (upper and lower as the glyphs stand,
+/// left to right as they advance).
+///
+/// MuPDF lists a line's characters in reading order, each with an upright quad of its
+/// own. In left-to-right text the range is one run from its first character to its last.
+/// In right-to-left text the characters run leftwards, so the run goes from the range's
+/// last character to its first: taking the first character's left edge and the last one's
+/// right edge there, as for left-to-right text, gave a mirrored quad that fell short by
+/// a character at each end. A range that crosses from one direction into the other (a
+/// Latin word in a Hebrew line) is several runs, with the characters between them left
+/// out.
+fn run_quads(chars: &[MarkupQuad], start: usize, end: usize) -> Vec<MarkupQuad> {
+    // The direction glyphs advance in: every character of a line has the same one.
+    let (dx, dy) = chars
         .iter()
-        .map(|r| {
-            let chars = lines
-                .get(r.line)
-                .filter(|l| r.start < r.end && r.end <= l.len())
-                .ok_or_else(|| {
-                    crate::Error::InvalidArgument("the selected text is not on the page".into())
-                })?;
-            let (first, last) = (&chars[r.start], &chars[r.end - 1]);
-            Ok(crate::annot::quads::Quad {
-                ul: point(first.ul),
-                ll: point(first.ll),
-                ur: point(last.ur),
-                lr: point(last.lr),
-            })
+        .map(|q| (q.lr.x - q.ll.x, q.lr.y - q.ll.y))
+        .find(|(x, y)| x.hypot(*y) > 1e-6)
+        .map_or((1.0, 0.0), |(x, y)| (x / x.hypot(y), y / x.hypot(y)));
+    let along = |p: Point| p.x * dx + p.y * dy;
+    let span = |q: &MarkupQuad| {
+        let (a, b) = (along(q.ll), along(q.lr));
+        (a.min(b), a.max(b))
+    };
+    let mut by_place: Vec<usize> = (0..chars.len()).collect();
+    by_place.sort_by(|a, b| span(&chars[*a]).0.total_cmp(&span(&chars[*b]).0));
+
+    let whole = |members: &[usize]| -> Option<MarkupQuad> {
+        let first = *members
+            .iter()
+            .min_by(|a, b| span(&chars[**a]).0.total_cmp(&span(&chars[**b]).0))?;
+        let last = *members
+            .iter()
+            .max_by(|a, b| span(&chars[**a]).1.total_cmp(&span(&chars[**b]).1))?;
+        let (first, last) = (&chars[first], &chars[last]);
+        // A glyph with a negative advance starts at its right edge.
+        let (ul, ll) = if along(first.ll) <= along(first.lr) {
+            (first.ul, first.ll)
+        } else {
+            (first.ur, first.lr)
+        };
+        let (ur, lr) = if along(last.lr) >= along(last.ll) {
+            (last.ur, last.lr)
+        } else {
+            (last.ul, last.ll)
+        };
+        Some(MarkupQuad { ul, ur, ll, lr })
+    };
+
+    // A character outside the range ends a run only if it stands between two of the
+    // range's: an accent set over a letter before the range does not.
+    let outside_between = |a: f64, b: f64| {
+        chars.iter().enumerate().any(|(i, q)| {
+            let (from, to) = span(q);
+            let middle = (from + to) / 2.0;
+            !(start..end).contains(&i) && to - from > 1e-6 && middle > a && middle < b
         })
-        .collect()
+    };
+    let mut runs: Vec<Vec<usize>> = Vec::new();
+    let mut reach = f64::NEG_INFINITY;
+    for i in by_place {
+        if !(start..end).contains(&i) {
+            continue;
+        }
+        let (from, to) = span(&chars[i]);
+        match runs.last_mut() {
+            Some(run) if !outside_between(reach, from) => run.push(i),
+            _ => runs.push(vec![i]),
+        }
+        reach = reach.max(to);
+    }
+    let quads: Vec<MarkupQuad> = runs
+        .iter()
+        .filter_map(|run| whole(run))
+        .filter(MarkupQuad::is_valid)
+        .collect();
+    if quads.is_empty() {
+        // Nothing with any width (a space alone): the range as it is, for the caller to
+        // refuse.
+        let all: Vec<usize> = (start..end).collect();
+        return whole(&all).into_iter().collect();
+    }
+    quads
 }
 
 fn collect(page: &TextPage) -> PageText {
@@ -228,6 +316,58 @@ mod tests {
         assert!(first[0] < last[0]);
         assert!(first[0] >= marker.bbox[0] - 0.01 && last[2] <= marker.bbox[2] + 0.01);
         assert!(text.plain_text().contains(MARKER));
+    }
+
+    /// An upright character box on a horizontal line (view space, y down).
+    fn glyph(x0: f64, x1: f64) -> MarkupQuad {
+        MarkupQuad {
+            ul: Point::new(x0, 10.0),
+            ur: Point::new(x1, 10.0),
+            ll: Point::new(x0, 20.0),
+            lr: Point::new(x1, 20.0),
+        }
+    }
+
+    #[test]
+    fn a_range_runs_from_its_first_edge_on_the_page_to_its_last() {
+        let ltr = [
+            glyph(0.0, 5.0),
+            glyph(5.0, 10.0),
+            glyph(10.0, 15.0),
+            glyph(15.0, 20.0),
+        ];
+        assert_eq!(run_quads(&ltr, 1, 3), [glyph(5.0, 15.0)]);
+        // Right-to-left text: reading order runs leftwards, each character upright. The
+        // quad still names its corners as the glyphs stand, and covers every character.
+        let rtl = [
+            glyph(15.0, 20.0),
+            glyph(10.0, 15.0),
+            glyph(5.0, 10.0),
+            glyph(0.0, 5.0),
+        ];
+        assert_eq!(run_quads(&rtl, 0, 3), [glyph(5.0, 20.0)]);
+        assert_eq!(run_quads(&rtl, 0, 4), [glyph(0.0, 20.0)]);
+        // A Latin word in a Hebrew line: two Hebrew letters, then "abc" to their left.
+        // The second letter and "a" are apart on the page, with "bc" between them.
+        let mixed = [
+            glyph(30.0, 35.0),
+            glyph(25.0, 30.0),
+            glyph(5.0, 10.0),
+            glyph(10.0, 15.0),
+            glyph(15.0, 20.0),
+        ];
+        assert_eq!(
+            run_quads(&mixed, 1, 3),
+            [glyph(5.0, 10.0), glyph(25.0, 30.0)]
+        );
+        assert_eq!(run_quads(&mixed, 0, 5), [glyph(5.0, 35.0)]);
+        // An accent set over the letter before the range stands between none of its
+        // characters; a space of no width has nothing to mark.
+        let accent = [glyph(0.0, 5.0), glyph(5.0, 10.0), glyph(1.0, 4.0)];
+        assert_eq!(run_quads(&accent, 0, 2), [glyph(0.0, 10.0)]);
+        let space = [glyph(0.0, 5.0), glyph(5.0, 5.0), glyph(5.0, 10.0)];
+        assert_eq!(run_quads(&space, 0, 3), [glyph(0.0, 10.0)]);
+        assert!(!run_quads(&space, 1, 2)[0].is_valid());
     }
 
     #[test]

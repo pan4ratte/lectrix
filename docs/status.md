@@ -132,6 +132,19 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
 - **Replies in Acrobat and Foxit** have not been checked by a person yet (ADR 0012): they
   are meant to show in the parent's thread there, which no engine the harness runs can
   confirm. The manual checklist covers it.
+- **Repair and PDFgear** (ADR 0017). A user reported that PDFgear stopped showing a
+  file's annotations, or showed only some, after Lectrix repaired them. Repair no longer
+  rewrites the mirrored corners PDFKit apps write, the one change it made to data such an
+  app reads back, but this has not been tried in PDFgear: it is not installed here, and
+  the report came from macOS. If PDFgear trips on `/NM` or `/P` instead, the report
+  stands. Annotations that keep mirrored corners are drawn from them if later edited in
+  Acrobat (an underline then runs along the upper edge); an edit in Lectrix orders them.
+- **Marks Lectrix 1.0 made on right-to-left text** fall short by a character at each
+  end, and keep mirrored corners. Repair does not move corners, so they stay as they are;
+  marking the text again covers all of it.
+- **Text marked across both directions** (a Latin word in a Hebrew line) is marked as the
+  characters lie on the page, in several quads; selecting such text in the viewer has
+  not been checked by a person.
 - **Accessibility.** Creating, moving and resizing annotations needs a pointer, and so
   does starting a text selection, which brings up the quick tools (once text is selected,
   Shift and the arrow keys extend and reduce it). So do moving and resizing an

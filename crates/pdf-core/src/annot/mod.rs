@@ -750,6 +750,12 @@ pub fn edit(doc: &mut PdfDocument, page: usize, id: u32, edit: &AnnotationEdit) 
     annot
         .object()
         .dict_put("M", PdfObject::new_string(&meta::pdf_date_now())?)?;
+    // Rule 3 for what Lectrix draws: MuPDF takes the corners in Acrobat's order, so
+    // another app's quads are put in it first (an underline drawn from mirrored ones
+    // would run above its line).
+    if kind.is_some_and(Kind::is_text_markup) {
+        repair::fix_quad_order(doc, &mut obj, &geometry, repair::Corners::OutOfOrder)?;
+    }
     write::synthesize(doc, &mut annot)
 }
 

@@ -7,7 +7,7 @@
 
 use mupdf::pdf::{PdfDocument, PdfObject};
 
-use super::quads::{Quad, is_acrobat_order, quads_from_array};
+use super::quads::{Quad, crossed, quads_from_array};
 use super::{Kind, Rgb, SYNTHESIZED, meta};
 use crate::error::Result;
 use crate::geometry::{PageGeometry, Point, Rect, read_page_boxes};
@@ -18,7 +18,8 @@ use crate::objects;
 pub enum Problem {
     /// No normal appearance stream: some readers show nothing.
     MissingAppearance,
-    /// QuadPoints not in Acrobat's order: some readers draw a wrong shape.
+    /// QuadPoints with crossed corners (neither Acrobat's order nor its mirror image):
+    /// readers that draw from them draw a bow-tie.
     QuadOrder,
     /// `/Rect` does not contain the content: readers may cut it off.
     RectTooSmall,
@@ -218,13 +219,18 @@ fn read_one(
         hidden: flags.is_some_and(|f| f & (2 | 32) != 0),
         width: (subtype == "Ink").then(|| border_width(obj)).transpose()?,
         font_size,
-        problems: problems(obj, &subtype, flags)?,
+        problems: problems(obj, &subtype, flags, geometry)?,
         subtype,
     }))
 }
 
 /// Everything the write profile requires that `obj` lacks, sorted.
-pub(crate) fn problems(obj: &PdfObject, subtype: &str, flags: Option<i32>) -> Result<Vec<Problem>> {
+pub(crate) fn problems(
+    obj: &PdfObject,
+    subtype: &str,
+    flags: Option<i32>,
+    geometry: &PageGeometry,
+) -> Result<Vec<Problem>> {
     let mut out = Vec::new();
     let markup = matches!(
         subtype,
@@ -244,7 +250,7 @@ pub(crate) fn problems(obj: &PdfObject, subtype: &str, flags: Option<i32>) -> Re
             None => out.push(Problem::MalformedQuads),
 
             Some(qs) => {
-                if qs.iter().any(|q| q.is_valid() && !is_acrobat_order(q)) {
+                if qs.iter().any(|q| crossed(q, geometry).is_some()) {
                     out.push(Problem::QuadOrder);
                 }
             }

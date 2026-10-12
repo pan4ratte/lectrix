@@ -144,19 +144,20 @@ Every annotation this app writes must display, print and be editable in Acrobat 
 
 1. **Standard subtypes only:** Highlight, Underline, StrikeOut, Squiggly, Text (sticky note), Ink, FreeText. No custom subtypes and no private keys.
 2. **Appearance stream always.** Every annotation gets a normal appearance (`/AP /N`), regenerated after every edit, using MuPDF's appearance synthesis with the corrections in ADR 0006. If MuPDF's appearance for a type fails the interop tests (section 9), write a custom appearance stream for that type in `annot/` and document why in an ADR.
-3. **QuadPoints in Acrobat order.** For text-markup types, each quad is written as upper-left, upper-right, lower-left, lower-right, in PDF user space. This is the de facto order Acrobat uses, not the counter-clockwise order the spec text describes. One function writes quads, with unit tests.
+3. **QuadPoints in Acrobat order.** For text-markup types, each quad is written as upper-left, upper-right, lower-left, lower-right, in PDF user space. This is the de facto order Acrobat uses, not the counter-clockwise order the spec text describes. One function writes quads, with unit tests. Upper and lower, left and right are as the glyphs stand, in right-to-left text too (ADR 0017).
 4. **Rect contains everything.** `/Rect` is the union of all quads, ink paths, or the text box, plus the stroke width and a 1 pt margin.
 5. **Highlights blend.** Highlight appearance streams use an ExtGState with Multiply blend mode so text stays readable. Store opacity in `/CA` on the annotation as well as in the appearance.
 6. **Complete metadata:** `/NM` (a UUID), `/T` (author, from settings, defaulting to the Windows user name), `/CreationDate` and `/M` (PDF date strings with time zone), `/F 4` (Print flag), `/C` (color, as the type defines it: for FreeText `/C` is the background, so text boxes get `/C []` and their text color in `/DA`), `/P` (page reference). Sticky notes and markup with a note get a linked `/Popup` annotation with the `/Parent` back-reference.
 7. **Plain FreeText.** Use the base-14 Helvetica font through `/DA`, one font size and one color per box, plain-text `/Contents`, and an appearance stream. Do not write `/RC` rich text.
 8. **Correct coordinates.** All conversions between screen and PDF user space go through `geometry.rs`, which handles `/Rotate` (0, 90, 180, 270), a CropBox whose origin is not (0, 0), and `/UserUnit`. Test each case with fixtures.
 9. **Lean ink.** Simplify freehand strokes (Ramer–Douglas–Peucker, about 0.5 pt tolerance) before writing.
-10. **Leave others' work alone.** Never rewrite, reorder or drop annotations the user did not touch. When the user edits an annotation made by another app, change only the edited keys plus its appearance, and keep unknown keys.
+10. **Leave others' work alone.** Never rewrite, reorder or drop annotations the user did not touch. When the user edits an annotation made by another app, change only the edited keys plus its appearance, and keep unknown keys. Text markup whose QuadPoints are not in Acrobat order gets them put in it by that edit (the same corners), since the new appearance is drawn from them.
 
 ### 5.2 Reading other apps' annotations
 
 - Display every standard annotation type MuPDF supports, including ones this app cannot create (shapes, stamps, links, file attachments).
 - If an annotation lacks an appearance stream or has malformed quads, draw it for display from its properties, but write nothing. Mark it in the annotation list with a "needs repair" badge.
+- QuadPoints out of Acrobat order need repair only when their corners are crossed (the spec's counter-clockwise order, a clockwise one), which readers that draw from them show as a bow-tie. Mirrored ones (the bottom edge first, as apps built on Apple's PDFKit write, or each edge from right to left) are the same shape read either way: with an appearance, the annotation shows correctly everywhere and nothing is reported (ADR 0017).
 - Show replies (`/IRT`) in their parent's thread in the list. Replies Lectrix writes are notes linked by `/IRT` that nothing draws on the page: an empty appearance, a `/Rect` of no area at the parent's corner, no `/Popup` (ADR 0012; `docs/interop-profile.md`, "Replies"). Only their text and author change.
 
 ### 5.3 Repair annotations command
@@ -164,7 +165,7 @@ Every annotation this app writes must display, print and be editable in Acrobat 
 A command that scans the document, shows a summary of problems found (counts per problem type), and on confirmation fixes them in one undoable operation:
 
 - generate missing appearance streams;
-- reorder QuadPoints into Acrobat order;
+- reorder crossed QuadPoints into Acrobat order; mirrored ones stay as their app wrote them while the annotation keeps its appearance, and are put in order only where repair has to draw the annotation (ADR 0017);
 - recompute `/Rect` where it does not contain the content;
 - add missing `/NM`, `/F 4`, `/M`, and `/P`.
 

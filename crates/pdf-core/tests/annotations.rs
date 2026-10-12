@@ -823,10 +823,22 @@ fn text_markup_changes_type_and_keeps_everything_else() {
     }
 
     // Another app's highlight: only /Subtype, /M and the appearance (with the /Rect it
-    // needs) change; its unknown look is replaced.
+    // needs) change; its unknown look is replaced. Its corners, written in the spec's
+    // order, go into Acrobat's, which the new appearance is drawn from: the same corners.
     let src = other_app_file(&dir);
     let mut doc = open(&src);
     let before = doc.new_indirect(6, 0).unwrap();
+    let corners = |obj: &PdfObject| {
+        let mut v: Vec<(i64, i64)> = objects::numbers(&get(obj, "QuadPoints"))
+            .unwrap()
+            .unwrap()
+            .chunks(2)
+            .map(|c| (c[0] as i64, c[1] as i64))
+            .collect();
+        v.sort_unstable();
+        v
+    };
+    let corners_before = corners(&before);
     let before: Vec<(String, Option<String>)> = keys(&before)
         .into_iter()
         .map(|k| (k.clone(), raw(&before, &k)))
@@ -843,7 +855,18 @@ fn text_markup_changes_type_and_keeps_everything_else() {
     .unwrap();
     let underline = doc.new_indirect(6, 0).unwrap();
     assert_eq!(get(&underline, "Subtype").as_name().unwrap(), b"Underline");
-    let allowed: BTreeSet<&str> = ["Subtype", "M", "AP", "Rect"].into();
+    let allowed: BTreeSet<&str> = ["Subtype", "M", "AP", "Rect", "QuadPoints"].into();
+    assert_eq!(corners(&underline), corners_before);
+    assert!(
+        quads_from_array(
+            &objects::numbers(&get(&underline, "QuadPoints"))
+                .unwrap()
+                .unwrap()
+        )
+        .unwrap()
+        .iter()
+        .all(is_acrobat_order)
+    );
     for (key, value) in &before {
         if !allowed.contains(key.as_str()) {
             assert_eq!(&raw(&underline, key), value, "/{key} changed");
@@ -1319,6 +1342,253 @@ fn selected_text_becomes_quads_in_the_text_direction() {
         );
         assert!(bad.is_err(), "{case}");
     }
+}
+
+/// Text markup as an app built on Apple's PDFKit writes it (read from a file PDFgear for
+/// Mac made): each quad with its bottom edge first (LL, LR, UL, UR), an appearance of its
+/// own, and neither `/NM` nor `/P`. Object 4 is a highlight of two lines and 6 an
+/// underline, each with an appearance; 7 is a highlight that has none.
+fn pdfkit_file(dir: &Path) -> PathBuf {
+    let ap = "q 0.95 0.96 0.73 rg 0 0 128 24 re f Q";
+    let objects = vec![
+        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> \
+         /Annots [4 0 R 6 0 R 7 0 R] >>"
+            .to_owned(),
+        "<< /Type /Annot /Subtype /Highlight /Rect [72 668 200 692] /Border [0 0 0] \
+         /BS << /W 0 >> /C [0.95 0.96 0.73] /Contents (Theirs) /DA (/Helvetica 12 Tf 0 g) \
+         /F 4 /M (D:20261006192215Z00'00') /T (someone) /AP << /N 5 0 R >> \
+         /QuadPoints [72 680 200 680 72 692 200 692 72 668 150 668 72 680 150 680] >>"
+            .to_owned(),
+        format!(
+            "<< /Type /XObject /Subtype /Form /BBox [0 0 128 24] /Length {} >>\nstream\n{ap}\nendstream",
+            ap.len()
+        ),
+        "<< /Type /Annot /Subtype /Underline /Rect [72 600 200 612] /C [1 0 0] /F 4 \
+         /M (D:20261006192215Z00'00') /T (someone) /AP << /N 5 0 R >> \
+         /QuadPoints [72 600 200 600 72 612 200 612] >>"
+            .to_owned(),
+        "<< /Type /Annot /Subtype /Highlight /Rect [72 500 200 512] /C [1 1 0] /F 4 \
+         /M (D:20261006192215Z00'00') /T (someone) \
+         /QuadPoints [72 500 200 500 72 512 200 512] >>"
+            .to_owned(),
+    ];
+    let path = dir.join("pdfkit.pdf");
+    std::fs::write(&path, assemble(&objects)).unwrap();
+    path
+}
+
+#[test]
+fn mirrored_corners_stay_as_written_while_the_annotation_keeps_its_appearance() {
+    let dir = out_dir("annotations-mirrored-corners");
+    let src = pdfkit_file(&dir);
+    let mut doc = open(&src);
+    let quad_points =
+        |doc: &PdfDocument, n: i32| raw(&doc.new_indirect(n, 0).unwrap(), "QuadPoints");
+    let ordered = |doc: &PdfDocument, n: i32| {
+        let o = doc.new_indirect(n, 0).unwrap();
+        quads_from_array(&objects::numbers(&get(&o, "QuadPoints")).unwrap().unwrap())
+            .unwrap()
+            .iter()
+            .all(is_acrobat_order)
+    };
+
+    // Nothing is wrong with the corners: only the keys PDFKit leaves out, and the
+    // appearance one of them lacks.
+    let found = scan(&doc).unwrap();
+    let count = |p| found.counts.get(&p).copied().unwrap_or(0);
+    assert_eq!(count(Problem::QuadOrder), 0, "{found:?}");
+    assert_eq!(count(Problem::MissingName), 3);
+    assert_eq!(count(Problem::MissingPage), 3);
+    assert_eq!(count(Problem::MissingAppearance), 1);
+    assert_eq!((found.fixable, found.unfixable), (3, 0));
+
+    let before = [quad_points(&doc, 4), quad_points(&doc, 6)];
+    let changes = repair(&mut doc).unwrap();
+    // The two that have an appearance keep their corners as written, and that appearance.
+    assert_eq!([quad_points(&doc, 4), quad_points(&doc, 6)], before);
+    for n in [4, 6] {
+        let o = doc.new_indirect(n, 0).unwrap();
+        assert_eq!(raw(&o, "AP").as_deref(), Some("<</N 5 0 R>>"), "{n}");
+        assert!(raw(&o, "NM").is_some() && raw(&o, "P").is_some(), "{n}");
+        assert!(
+            changes
+                .iter()
+                .all(|c| c.id != n as u32 || c.fixed != Problem::QuadOrder),
+            "{n}"
+        );
+    }
+    assert!(!ordered(&doc, 4) && !ordered(&doc, 6));
+    // The one Lectrix had to draw is drawn from corners in Acrobat's order, and that is
+    // logged with the rest.
+    assert!(ordered(&doc, 7));
+    assert!(
+        changes
+            .iter()
+            .any(|c| c.id == 7 && c.fixed == Problem::QuadOrder)
+    );
+    assert!(
+        changes
+            .iter()
+            .any(|c| c.id == 7 && c.fixed == Problem::MissingAppearance)
+    );
+
+    // Repair leaves nothing for a second one to do.
+    assert!(scan(&doc).unwrap().is_clean());
+    assert!(repair(&mut doc).unwrap().is_empty());
+
+    // An edit has Lectrix draw the annotation, so its corners go into Acrobat's order
+    // first: the same corners, and the underline under its text.
+    let corners = |doc: &PdfDocument| {
+        let o = doc.new_indirect(6, 0).unwrap();
+        let mut v: Vec<(i64, i64)> = objects::numbers(&get(&o, "QuadPoints"))
+            .unwrap()
+            .unwrap()
+            .chunks(2)
+            .map(|c| (c[0] as i64, c[1] as i64))
+            .collect();
+        v.sort_unstable();
+        v
+    };
+    let corners_before = corners(&doc);
+    annot::edit(
+        &mut doc,
+        0,
+        6,
+        &AnnotationEdit {
+            color: Some(BLUE),
+            ..AnnotationEdit::default()
+        },
+    )
+    .unwrap();
+    assert!(ordered(&doc, 6));
+    assert_eq!(corners(&doc), corners_before);
+    let underline = doc.new_indirect(6, 0).unwrap();
+    let drawn = String::from_utf8_lossy(&get(&get(&underline, "AP"), "N").read_stream().unwrap())
+        .into_owned();
+    let line_y: f64 = drawn
+        .lines()
+        .find_map(|l| l.strip_suffix(" m"))
+        .and_then(|l| l.split_whitespace().nth(1))
+        .and_then(|y| y.parse().ok())
+        .unwrap();
+    assert!(line_y < 606.0, "the line is in the lower half: {drawn}");
+    assert!(scan(&doc).unwrap().is_clean());
+
+    let out = dir.join("repaired.pdf");
+    let reopened = save_and_reopen(&doc, &src, &out);
+    assert!(scan(&reopened).unwrap().is_clean());
+    qpdf_check(&out);
+}
+
+/// One page with a line of Latin text and a line of right-to-left text: Helvetica whose
+/// `/ToUnicode` maps a to z onto the Hebrew letters, drawn from left to right (visual
+/// order, as most producers write it). MuPDF lists such a line in reading order, its
+/// characters running leftwards.
+fn right_to_left_file(dir: &Path) -> PathBuf {
+    let cmap = "/CIDInit /ProcSet findresource begin 12 dict begin begincmap \
+                /CMapName /Lectrix-Test-UCS def /CMapType 2 def \
+                1 begincodespacerange <00> <FF> endcodespacerange \
+                1 beginbfrange <61> <7A> <05D0> endbfrange \
+                endcmap CMapName currentdict /CMap defineresource pop end end";
+    let content = "BT /F1 12 Tf 72 700 Td (Left to right) Tj ET\n\
+                   BT /F2 12 Tf 72 660 Td (abcdef ghij klm) Tj ET";
+    let objects = vec![
+        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 7 0 R \
+         /Resources << /Font << /F1 4 0 R /F2 5 0 R >> >> >>"
+            .to_owned(),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>"
+            .to_owned(),
+        "<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding \
+         /ToUnicode 6 0 R >>"
+            .to_owned(),
+        format!("<< /Length {} >>\nstream\n{cmap}\nendstream", cmap.len()),
+        format!(
+            "<< /Length {} >>\nstream\n{content}\nendstream",
+            content.len()
+        ),
+    ];
+    let path = dir.join("right-to-left.pdf");
+    std::fs::write(&path, assemble(&objects)).unwrap();
+    path
+}
+
+#[test]
+fn right_to_left_text_is_marked_whole_and_needs_no_repair() {
+    use pdf_core::text::{TextRange, page_text};
+    let dir = out_dir("annotations-right-to-left");
+    let src = right_to_left_file(&dir);
+    let mut doc = open(&src);
+    let text = page_text(&pdf_core::render::display_list(&doc, 0).unwrap()).unwrap();
+    let (line, hebrew) = text
+        .lines
+        .iter()
+        .enumerate()
+        .find(|(_, l)| l.text.contains('\u{5D0}'))
+        .unwrap();
+    let count = hebrew.boxes.len();
+    assert!(
+        hebrew.boxes[0][0] > hebrew.boxes[count - 1][0],
+        "reading order runs leftwards: {:?}",
+        hebrew.text
+    );
+    let g = PageGeometry::new(&read_page_boxes(&doc.find_page(0).unwrap()).unwrap());
+    for (kind, start, end) in [
+        (MarkupKind::Highlight, 0, count),
+        (MarkupKind::Underline, 2, 9),
+        (MarkupKind::Squiggly, count - 1, count),
+    ] {
+        let created = annot::create(
+            &mut doc,
+            &NewAnnotation {
+                page: 0,
+                body: Body::TextMarkup {
+                    kind,
+                    ranges: vec![TextRange { line, start, end }],
+                    note: None,
+                },
+                color: BLUE,
+                opacity: 1.0,
+                author: "Tëster".into(),
+            },
+        )
+        .unwrap();
+        let obj = doc.new_indirect(created.xref, 0).unwrap();
+        let qp = objects::numbers(&get(&obj, "QuadPoints")).unwrap().unwrap();
+        let written = quads_from_array(&qp).unwrap();
+        assert_eq!(written.len(), 1, "{kind:?}");
+        assert!(is_acrobat_order(&written[0]), "{kind:?}: {written:?}");
+        // Every selected character is covered, the ones at both ends too.
+        let selected = hebrew.boxes[start..end]
+            .iter()
+            .map(|b| {
+                Rect::new(
+                    f64::from(b[0]),
+                    f64::from(b[1]),
+                    f64::from(b[2]),
+                    f64::from(b[3]),
+                )
+            })
+            .reduce(|a, b| a.union(&b))
+            .unwrap();
+        let marked = g.user_rect_to_view(written[0].bounds());
+        for (a, b) in [
+            (marked.x0, selected.x0),
+            (marked.y0, selected.y0),
+            (marked.x1, selected.x1),
+            (marked.y1, selected.y1),
+        ] {
+            assert!((a - b).abs() < 0.05, "{kind:?}: {marked:?} {selected:?}");
+        }
+    }
+    // Lectrix reports nothing in what it wrote itself.
+    for a in read_page(&doc, 0).unwrap() {
+        assert!(a.problems.is_empty(), "{}: {:?}", a.id, a.problems);
+    }
+    assert!(scan(&doc).unwrap().is_clean());
 }
 
 #[test]

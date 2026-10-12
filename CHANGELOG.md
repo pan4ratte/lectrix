@@ -43,6 +43,9 @@ the wording, translations): docs/releasing.md, "The changelog".
 - A comment in the annotation list stays where it is when you select its row, instead of shifting, and the type, author and date above it line up with it.
 - A colour button shows its colours when the pointer rests on it, without a click.
 - The colours sit closer together, the custom colour’s button is beside the opacity slider, and its picker slides open below.
+- Marking right-to-left text, such as Hebrew or Arabic, covers all of it, and Lectrix no longer says that such a mark needs repair.
+- **Repair annotations** leaves text marks made in Mac apps such as PDFgear as those apps wrote them, and adds only the details they leave out. Lectrix no longer reports the order of their corners as a problem.
+- An underline or squiggle from another app stays under its text when you change its colour or type.
 
 ### Bookmarks
 

@@ -11,14 +11,14 @@ these rules to make a test pass: report the conflict instead.
 | --- | --- | --- | --- |
 | 1 | Standard subtypes only (Highlight, Underline, StrikeOut, Squiggly, Text, Ink, FreeText); no custom subtypes or private keys | `annot::Kind` (closed enum), `annot::create` | type system; `annotations::every_type_has_every_profile_key_on_every_page_geometry` |
 | 2 | Normal appearance `/AP /N` on every annotation, regenerated after every edit, by MuPDF synthesis; the corrections Lectrix applies are in ADR 0006 | `annot::write::synthesize` (every create, edit and repair ends there; it fails if MuPDF draws nothing) | round trip, interop harness `phase5` |
-| 3 | QuadPoints in Acrobat order (UL, UR, LL, LR) in PDF user space, written by one function. Selected text becomes quads in Rust, from MuPDF's character quads, so they follow the text's direction | `annot::quads::quad_points_array`; `text::range_quads` | `quads` unit tests, `annotations::selected_text_becomes_quads_in_the_text_direction` |
+| 3 | QuadPoints in Acrobat order (UL, UR, LL, LR) in PDF user space, written by one function. Selected text becomes quads in Rust, from MuPDF's character quads, so they follow the text's direction: one quad for each run of selected characters that lie side by side on the page, from the start edge of the first one there to the end edge of the last, its corners named as the glyphs stand. Right-to-left text, whose characters MuPDF lists running leftwards, so gets a quad in Acrobat order that covers all of it; a range that crosses between the two directions gets several (ADR 0017) | `annot::quads::quad_points_array`; `text::range_quads` | `quads` unit tests, `text::tests::a_range_runs_from_its_first_edge_on_the_page_to_its_last`, `annotations::selected_text_becomes_quads_in_the_text_direction`, `annotations::right_to_left_text_is_marked_whole_and_needs_no_repair` |
 | 4 | `/Rect` = union of content + stroke width + 1 pt margin, grown together with the appearance `/BBox` when MuPDF's bounds are tighter. Text boxes keep the margin in `/RD [1 1 1 1]` | `annot::write::finalize_rect`, `synthesize` | round trip (every type, every page geometry) |
 | 5 | Highlights blend with Multiply; opacity in `/CA` on the annotation (also at 1) and in the appearance | MuPDF `pdf_write_highlight_appearance`; `annot::write::set_opacity` | round trip checks the ExtGState of every markup type |
 | 6 | `/NM` (UUID), `/T`, `/CreationDate`, `/M` (with time zone), `/F 4`, `/C`, `/P`; notes and markup with a note get a `/Popup` with `/Parent` (the popup also gets `/P` and `/F 28`, as Acrobat writes). **Text boxes:** `/C` is the background fill for FreeText (PDF 32000-1 12.5.6.6), so Lectrix writes `/C []` (no background) and the text colour in `/DA` (decided by the user on 2026-10-04: `/C` as the type defines it) | `annot::write::write_metadata`, `set_color`, `ensure_popup` | round trip |
 | 7 | FreeText: Helvetica via `/DA` (`/Helv`), one size and colour, plain `/Contents`, no `/RC`, no `/CL`; the box grows to fit its text, measured with MuPDF's Helvetica widths and line breaks | `annot::create`, `annot::text_box` | round trip; `text_box` unit tests |
 | 8 | All screen/PDF coordinate conversions through `geometry.rs` (Rotate, offset CropBox, UserUnit) | `geometry::PageGeometry` (annotation keys are written in user space, never through MuPDF's page transform) | unit tests + `roundtrip::geometry_matches_mupdf_page_transform`; every annotation test runs on 7 page geometries |
 | 9 | Ink simplified with Ramer–Douglas–Peucker, 0.5 pt (in view space, so in points whatever the UserUnit) | `annot::ink::simplify` | `ink` unit tests; round trip checks every input point is within 0.5 pt |
-| 10 | Never rewrite, reorder or drop annotations the user did not touch; edits change only edited keys plus `/M` and the appearance (and the geometry keys synthesis draws from: `/Rect`, `/RD`, `/BS`). Editing a note's text removes `/RC` (rich text), which readers would otherwise show instead. Turning text markup into another text-markup type (Highlight, Underline, StrikeOut, Squiggly) rewrites `/Subtype` and replaces the whole `/AP`, so no rollover or down appearance of the old type remains; quads, colour, opacity, note, author and names stay | `annot::edit`; incremental saves | `annotations::editing_another_apps_annotation_changes_only_the_edited_keys` (unknown keys kept; other annotations keep their bytes), `annotations::text_markup_changes_type_and_keeps_everything_else` (every type into every other, on every page geometry), interop harness `phase5` (`edited.pdf`) |
+| 10 | Never rewrite, reorder or drop annotations the user did not touch; edits change only edited keys plus `/M` and the appearance (and the geometry keys synthesis draws from: `/Rect`, `/RD`, `/BS`). Editing a note's text removes `/RC` (rich text), which readers would otherwise show instead. Turning text markup into another text-markup type (Highlight, Underline, StrikeOut, Squiggly) rewrites `/Subtype` and replaces the whole `/AP`, so no rollover or down appearance of the old type remains; quads, colour, opacity, note, author and names stay. An edit of text markup whose QuadPoints are not in Acrobat order (crossed or mirrored) puts them in it, the same corners, before the appearance is drawn from them (ADR 0017) | `annot::edit`; incremental saves | `annotations::editing_another_apps_annotation_changes_only_the_edited_keys` (unknown keys kept; other annotations keep their bytes), `annotations::text_markup_changes_type_and_keeps_everything_else` (every type into every other, on every page geometry), interop harness `phase5` (`edited.pdf`) |
 
 Dates are written in UTC as `D:YYYYMMDDHHmmSS+00'00'`.
 
@@ -44,6 +44,9 @@ Only a reply's text and author can change (plus `/M`); emptying it deletes it in
   (1,316 notes in 29 ms). Popups, links and form widgets are not listed.
 - Missing appearance or unreadable quads: MuPDF draws them from their properties for
   display only (a local appearance, never saved); the list shows a "needs repair" badge.
+- QuadPoints out of Acrobat order get the badge only when their corners are crossed.
+  Mirrored ones are read as they are (hit-testing, the list's order and the marked text
+  use each quad's corners whatever their order) and reported as nothing (ADR 0017).
 - Replies (`/IRT`) appear in their parent's thread in the list, where they can be edited and
   deleted, and new ones written (see "Replies"). The viewer does not hit-test them. Deleting
   an annotation deletes its replies (after asking) and its popup.
@@ -56,17 +59,26 @@ Scan, summarize problems, and on confirmation fix them in one undoable operation
 - missing appearances (for the types MuPDF can draw), generated by MuPDF synthesis
   written into the document (`ffi::request_appearance`; without it MuPDF only draws a
   display-only appearance);
-- QuadPoints into Acrobat order: other apps' orders are tried first (the spec's
-  counter-clockwise order, clockwise from the upper left, bottom edge first), then the
-  corners as they appear on screen;
+- crossed QuadPoints into Acrobat order (`annot::quads::crossed`, quad by quad): the
+  spec's counter-clockwise order, a clockwise one, a scramble, which readers that draw
+  from the corners fill as a bow-tie. Other apps' orders are tried first, then the corners
+  as they appear on screen, and text that would come out on its head on the page as shown
+  is taken to be upright. Mirrored QuadPoints (the bottom edge first, as apps built on
+  Apple's PDFKit write, or each edge from right to left) are the same shape read either
+  way: while the annotation has an appearance they are not reported and stay as their app
+  wrote them, and they are put in order only where repair has to draw the annotation (no
+  appearance, or a new one for a bigger `/Rect`). ADR 0017;
 - `/Rect` grown where the content lies more than the 1 pt margin outside it (Acrobat's own
   highlights miss skewed quads by a fraction of a point, harmlessly); the appearance
   `/BBox` grows with it, or a new appearance is drawn when its `/Matrix` makes that
   impossible;
 - missing `/NM`, `/F 4` (only when `/F` is absent), `/M`, `/P`.
 
-Unreadable QuadPoints are reported and left alone. Content, colour, author and position
-never change; every change is written to the app log with the object number.
+Unreadable QuadPoints are reported and left alone; a quad whose corners lie in one line has
+no order and is neither reported nor rewritten. Content, colour, author and position never
+change; every change is written to the app log with the object number. What a scan
+reports as fixable is what repair fixes, so a second repair finds nothing to do
+(`annotations::mirrored_corners_stay_as_written_while_the_annotation_keeps_its_appearance`).
 
 ## Saving
 
