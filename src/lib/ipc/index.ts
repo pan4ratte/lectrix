@@ -83,6 +83,7 @@ import type { ImageFormat } from './generated/ImageFormat';
 export type { LinkPlace } from './generated/LinkPlace';
 import type { LinkPlace } from './generated/LinkPlace';
 export type { PageLink } from './generated/PageLink';
+export type { PageAdjustments } from './generated/PageAdjustments';
 export type { PageSize } from './generated/PageSize';
 export type { TextLine } from './generated/TextLine';
 export type { ViewDest } from './generated/ViewDest';

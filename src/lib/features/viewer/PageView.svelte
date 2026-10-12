@@ -1,7 +1,10 @@
 <script lang="ts">
 	// One page: its rendered pixels (whole, or tiles at high zoom), and overlays for the
 	// text selection and search hits. Inside, everything is laid out unrotated in page
-	// points scaled to CSS pixels; a CSS transform applies the view rotation.
+	// points scaled to CSS pixels; a CSS transform applies the view rotation. The document's
+	// visual adjustments (section 6.1) are a CSS filter on all of that, pixels and overlays
+	// alike, so what shows on the page stays as visible as it was; the page's shadow is
+	// outside it.
 	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 
@@ -289,8 +292,11 @@
 	}
 </script>
 
+<!-- White until its pixels come: with adjustments, that white is the filtered layer's, so an
+     inverted page waits dark, and no white shows at its edges. -->
 <div
-	class="page absolute overflow-hidden bg-white shadow-[0_1px_3px_var(--color-page-shadow)]"
+	class="page absolute overflow-hidden shadow-[0_1px_3px_var(--color-page-shadow)]"
+	class:bg-white={!tab.pageFilter}
 	style:left="{left}px"
 	style:top="{top}px"
 	style:width="{width}px"
@@ -301,9 +307,12 @@
 >
 	<div
 		class="absolute top-0 left-0 origin-top-left"
+		class:bg-white={tab.pageFilter}
 		style:width="{innerW}px"
 		style:height="{innerH}px"
 		style:transform
+		style:filter={tab.pageFilter}
+		data-page-layer
 	>
 		<!-- The whole page, or the low-resolution underlay beneath tiles: one canvas either
 		     way, so crossing the tile threshold keeps the pixels already there. -->

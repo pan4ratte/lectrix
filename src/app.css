@@ -889,6 +889,48 @@ button.shortcut-key:hover,
 	background: var(--lectrix-menu);
 	outline: none;
 }
+/* Visual adjustments (section 6.1): the panel of the button among the page controls, flat
+   as the colours' panel; each slider under its name and value, each switch beside its name. */
+.adjust-panel {
+	z-index: 50;
+	display: flex;
+	width: 220px;
+	flex-direction: column;
+	padding: 10px 12px 12px;
+	border: 1px solid var(--lectrix-menu-line);
+	border-radius: var(--radius-panel);
+	background: var(--lectrix-menu);
+	font-size: 13px;
+	outline: none;
+}
+.adjust-row {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 8px;
+}
+.adjust-value {
+	color: var(--lectrix-fg-muted);
+	font-size: 12px;
+}
+.adjust-panel .slider {
+	flex: none;
+	margin-bottom: 4px;
+}
+.adjust-switch {
+	height: 32px;
+}
+.adjust-note {
+	margin: 6px 0 10px;
+	color: var(--lectrix-fg-muted);
+	font-size: 12px;
+	line-height: 1.35;
+}
+/* Something is adjusted (on the button, which is smaller than the list's Filter button). */
+.adjust-dot {
+	top: 2px;
+	right: 2px;
+}
 .toolbar-dropdown {
 	width: 72px;
 	height: 28px;

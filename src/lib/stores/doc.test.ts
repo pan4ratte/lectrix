@@ -95,3 +95,42 @@ describe('any other file', () => {
 		expect(tab.flags).toMatchObject({ canAnnotate: true, canAssemble: true });
 	});
 });
+
+describe('visual adjustments', () => {
+	const view = { page: 0, offset: 0, zoom: 1, zoomMode: 'custom' as const, rotation: 0 };
+
+	it('start with none, and with the ones remembered for the file', () => {
+		const fresh = new DocTab(info(null));
+		expect(fresh.pageFilter).toBeNull();
+		expect(fresh.viewState().adjustments).toEqual({ brightness: 100, contrast: 100, invert: false, grayscale: false });
+
+		const adjustments = { brightness: 80, contrast: 100, invert: true, grayscale: false };
+		const tab = new DocTab({ ...info(null), view: { ...view, adjustments } });
+		expect(tab.adjustments).toEqual(adjustments);
+		expect(tab.pageFilter).toBe('invert(1) hue-rotate(180deg) brightness(0.8)');
+	});
+
+	it('go back to Rust with the view, for the next time the file opens', () => {
+		const tab = new DocTab(info(null));
+		tab.adjustments.grayscale = true;
+		tab.adjustments.contrast = 120;
+		expect(tab.pageFilter).toBe('grayscale(1) contrast(1.2)');
+		const remembered = tab.viewState().adjustments;
+		expect(remembered).toEqual({ brightness: 100, contrast: 120, invert: false, grayscale: true });
+		// A copy: what the tab changes later is not what was sent.
+		tab.adjustments.grayscale = false;
+		expect(remembered.grayscale).toBe(true);
+	});
+
+	it('are none for a view remembered before there were any', () => {
+		const old = { ...view } as DocumentInfo['view'];
+		expect(new DocTab({ ...info(null), view: old }).adjustments).toEqual({ brightness: 100, contrast: 100, invert: false, grayscale: false });
+	});
+
+	it('have nothing to do with a file open for reading only', () => {
+		const tab = new DocTab(info(PDFA_1B));
+		tab.adjustments.invert = true;
+		expect(tab.pageFilter).toBe('invert(1) hue-rotate(180deg)');
+		expect(tab.readOnly).toBe(true);
+	});
+});

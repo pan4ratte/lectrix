@@ -199,6 +199,17 @@ Needs an installed earlier release and a newer one published (ADR 0011,
 - [ ] With the toolbar docked (Settings > Toolbars): full screen floats it, and leaving
       docks it again.
 
+## Visual adjustments
+
+- [ ] In a document with photographs and highlights, open Visual adjustments (the button
+      after the page display) and turn on Invert colours: the pages and their thumbnails
+      turn dark with light text, highlights keep their colour, and the rest of the window
+      is as it was. Select text, search, and type a text box: all show on the dark page.
+- [ ] Move Brightness and Contrast, turn on Greyscale: the pages follow at once. The tab
+      shows no unsaved changes, and the file opens unchanged in Acrobat.
+- [ ] Scroll a long document quickly with adjustments on: as smooth as without.
+- [ ] Close Lectrix and open the file again: adjusted as it was; another file is not.
+
 ## Tabs and windows
 
 - [ ] With three documents open, drag a tab along the others: it follows the pointer, the

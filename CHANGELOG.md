@@ -17,6 +17,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 ### Viewer and tabs
 
 - **View > Full screen** (**F11**) fills the screen with the pages alone. The toolbar floats over them with the page and zoom controls. Move the pointer to the left or right side of the screen for that side’s pane, or hold **Alt** to see both panes and the toolbar. **F11** or **Esc** leaves.
+- **Visual adjustments**, a new button beside the page display, changes how a document’s pages look: brightness, contrast, inverted colours (dark pages with light text) and greyscale. The file itself is not changed, and Lectrix remembers the adjustments for each document.
 - A document can have a window of its own: drag its tab away from the others and let go, or right-click the tab and pick **Move to new window**. Drop a tab on another Lectrix window to move it there. Unsaved changes, and where you were in the document, go with it.
 - A tab you drag along the others follows the pointer while they make way for it, and its right-click menu has **Move left** and **Move right**.
 - The taskbar names each window after the document it shows.

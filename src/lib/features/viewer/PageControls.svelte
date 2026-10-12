@@ -1,8 +1,8 @@
 <script lang="ts">
 	// The page and zoom controls (section 8): previous and next page, the page box (label or
-	// number, then "(4 of 312)" or "of 312"), zoom out, the zoom level and zoom in, and the
-	// page display. In the bar at the top of the document; full screen, in the floating
-	// toolbar (section 6.1), as a group of that toolbar.
+	// number, then "(4 of 312)" or "of 312"), zoom out, the zoom level and zoom in, the page
+	// display, and the visual adjustments. In the bar at the top of the document; full screen,
+	// in the floating toolbar (section 6.1), as a group of that toolbar.
 	import { ChevronDown, ChevronUp, Minus, Plus } from '@lucide/svelte';
 	import { DropdownMenu } from 'bits-ui';
 
@@ -13,6 +13,7 @@
 	import { VIEW_MODES, rowCount, rowOf } from './layout.ts';
 	import { pageBoxText, pageOf, pagePosition, resolvePageInput } from './pagebox.ts';
 	import PageDisplayIcon from './PageDisplayIcon.svelte';
+	import VisualAdjustments from './VisualAdjustments.svelte';
 	import { ZOOM_PRESETS } from './zoom.ts';
 
 	let { tab, nested = false }: { tab: DocTab; nested?: boolean } = $props();
@@ -213,4 +214,5 @@
 			</DropdownMenu.Content>
 		</DropdownMenu.Portal>
 	</DropdownMenu.Root>
+	<VisualAdjustments {tab} />
 </div>

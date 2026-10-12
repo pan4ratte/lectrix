@@ -218,6 +218,7 @@
 		void current.currentPage;
 		void current.zoom;
 		void current.rotation;
+		void current.pageFilter;
 		clearTimeout(rememberTimer);
 		rememberTimer = setTimeout(() => app.rememberView(current), 1500);
 	});

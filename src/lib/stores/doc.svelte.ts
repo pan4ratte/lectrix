@@ -12,6 +12,7 @@ import {
 	type DocumentState,
 	type LabelRule,
 	type Outline,
+	type PageAdjustments,
 	type PageAnnotations,
 	type PageSize,
 	type SaveResult,
@@ -21,6 +22,7 @@ import {
 } from '#lib/ipc/index.ts';
 import type { Box } from '#lib/features/annotations/geometry.ts';
 import { lineBreaks } from '#lib/features/annotations/tools.ts';
+import { NO_ADJUSTMENTS, normalizeAdjustments, pageFilter as filterOf } from '#lib/features/viewer/adjustments.ts';
 import { NavHistory, type ViewPosition } from '#lib/features/viewer/history.ts';
 import {
 	columnsOf,
@@ -247,6 +249,11 @@ export class DocTab {
 	zoom = $state(1);
 	zoomMode = $state<ZoomMode>('fitWidth');
 	rotation = $state<Rotation>(0);
+	/** How the pages are shown (section 6.1, visual adjustments): on screen only, never in
+	 * the file; remembered per file with the rest of the view. */
+	adjustments = $state<PageAdjustments>({ ...NO_ADJUSTMENTS });
+	/** The CSS filter that shows a page so, or null for the pages as they are. */
+	pageFilter = $derived(filterOf(this.adjustments));
 	/** How the pages are laid out (section 6.1, scroll modes); not stored in the file. */
 	mode = $state<ViewMode>('singlePageContinuous');
 	/** In the two-page modes, the first page has a row of its own (a book's cover). */
@@ -292,6 +299,7 @@ export class DocTab {
 			this.zoom = clampZoom(view.zoom);
 			this.zoomMode = view.zoomMode;
 			this.rotation = normalizeRotation(view.rotation);
+			this.adjustments = normalizeAdjustments(view.adjustments);
 			const page = Math.min(view.page, Math.max(0, info.pages.length - 1));
 			this.currentPage = page;
 			this.pendingPosition = { page, offset: view.offset };
@@ -477,7 +485,8 @@ export class DocTab {
 			offset: position.offset,
 			zoom: this.zoom,
 			zoomMode: this.zoomMode,
-			rotation: this.rotation
+			rotation: this.rotation,
+			adjustments: { ...this.adjustments }
 		};
 	}
 }

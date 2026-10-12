@@ -288,20 +288,23 @@
 								oncontextmenu={() => (contextPage = index)}
 							>
 								<span
-									class="relative block bg-white shadow-[0_1px_2px_var(--color-page-shadow)]"
+									class="relative block shadow-[0_1px_2px_var(--color-page-shadow)]"
 									style:width="{thumbW}px"
 									style:height="{item.imageH}px"
 								>
-									<RenderedImage
-										imageKey="{tab.id}:{index}:{tab.state.revision}:{scale(index)}"
-										url={pageUrl(tab.id, index, scale(index), tab.state.revision)}
-										priority={BACKGROUND_PRIORITY + Math.abs(index - tab.currentPage)}
-										x={0}
-										y={0}
-										width={thumbW}
-										height={item.imageH}
-										rotation={tab.pages[index]?.rotation ?? 0}
-									/>
+									<!-- The document's visual adjustments (section 6.1), as on its pages. -->
+									<span class="absolute inset-0 bg-white" style:filter={tab.pageFilter}>
+										<RenderedImage
+											imageKey="{tab.id}:{index}:{tab.state.revision}:{scale(index)}"
+											url={pageUrl(tab.id, index, scale(index), tab.state.revision)}
+											priority={BACKGROUND_PRIORITY + Math.abs(index - tab.currentPage)}
+											x={0}
+											y={0}
+											width={thumbW}
+											height={item.imageH}
+											rotation={tab.pages[index]?.rotation ?? 0}
+										/>
+									</span>
 								</span>
 								<span class="text-xs text-fg-muted tabular-nums">{pageBoxText(index, tab.displayLabels)}</span>
 							</button>

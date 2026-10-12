@@ -989,9 +989,14 @@ pub fn reload_document(state: State<'_, AppState>, id: u32) -> Result<DocumentIn
     state.documents.reload(id, state.platform, &state.store)
 }
 
-/// Remembers where the user is in a document, for the next time the file is opened.
+/// Remembers where the user is in a document and how its pages are shown, for the next
+/// time the file is opened.
 #[tauri::command]
 pub fn remember_view(state: State<'_, AppState>, id: u32, view: ViewState) -> Result<(), AppError> {
+    let view = ViewState {
+        adjustments: view.adjustments.clamped(),
+        ..view
+    };
     let path = state.documents.path(id)?;
     let key = state.platform.file_key(&path);
     state

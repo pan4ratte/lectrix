@@ -145,7 +145,50 @@ impl From<pdf_core::docinfo::PageLayout> for PageLayout {
     }
 }
 
-/// Where the user was in a document; remembered per file in app data.
+/// How a document's pages are shown (AGENTS.md section 6.1, visual adjustments): on screen
+/// only, never written to the file. Remembered per file with the rest of its view.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase", default)]
+#[ts(export)]
+pub struct PageAdjustments {
+    /// Percent, 100 as the pages are.
+    pub brightness: u16,
+    /// Percent, 100 as the pages are.
+    pub contrast: u16,
+    /// Dark pages with light text.
+    pub invert: bool,
+    pub grayscale: bool,
+}
+
+impl PageAdjustments {
+    /// The least and the most brightness and contrast, percent (mirrored by
+    /// `ADJUST_MIN` and `ADJUST_MAX` in src/lib/features/viewer/adjustments.ts).
+    pub const MIN: u16 = 50;
+    pub const MAX: u16 = 150;
+
+    /// With brightness and contrast inside their range.
+    pub fn clamped(self) -> Self {
+        Self {
+            brightness: self.brightness.clamp(Self::MIN, Self::MAX),
+            contrast: self.contrast.clamp(Self::MIN, Self::MAX),
+            ..self
+        }
+    }
+}
+
+impl Default for PageAdjustments {
+    fn default() -> Self {
+        Self {
+            brightness: 100,
+            contrast: 100,
+            invert: false,
+            grayscale: false,
+        }
+    }
+}
+
+/// Where the user was in a document, and how its pages were shown; remembered per file in
+/// app data.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -159,6 +202,9 @@ pub struct ViewState {
     pub zoom_mode: ZoomMode,
     /// View rotation in degrees (0, 90, 180, 270). Does not change the document.
     pub rotation: u16,
+    /// Views stored before there were adjustments have none.
+    #[serde(default)]
+    pub adjustments: PageAdjustments,
 }
 
 #[derive(Debug, Clone, Serialize, TS)]

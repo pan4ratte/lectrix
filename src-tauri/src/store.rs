@@ -403,7 +403,7 @@ mod tests {
             assert_eq!(preset_color(bad), None, "{bad}");
         }
     }
-    use crate::ipc::{PanelId, ZoomMode};
+    use crate::ipc::{PageAdjustments, PanelId, ZoomMode};
 
     fn temp_store(name: &str) -> PathBuf {
         let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../target/test-output/store");
@@ -420,7 +420,59 @@ mod tests {
             zoom: 1.5,
             zoom_mode: ZoomMode::Custom,
             rotation: 90,
+            adjustments: PageAdjustments {
+                brightness: 85,
+                contrast: 120,
+                invert: true,
+                grayscale: false,
+            },
         }
+    }
+
+    #[test]
+    fn a_view_stored_before_adjustments_has_none() {
+        let file = temp_store("view-without-adjustments.json");
+        fs::write(
+            &file,
+            r#"{"views":{"c:/docs/a.pdf":{"view":{"page":3,"offset":0.5,"zoom":1.25,"zoomMode":"custom","rotation":0},"saved_at":1}}}"#,
+        )
+        .unwrap();
+        let store = Store::load(Some(file));
+        let stored = store.view("c:/docs/a.pdf").expect("the view was read");
+        assert_eq!(stored.page, 3);
+        assert_eq!(stored.adjustments, PageAdjustments::default());
+        // One with some of them (a later version may add more) keeps what it has.
+        let partial: PageAdjustments = serde_json::from_str(r#"{"invert":true}"#).unwrap();
+        assert_eq!(
+            partial,
+            PageAdjustments {
+                invert: true,
+                ..PageAdjustments::default()
+            }
+        );
+    }
+
+    #[test]
+    fn adjustments_stay_within_their_range() {
+        let wild = PageAdjustments {
+            brightness: 0,
+            contrast: 900,
+            invert: true,
+            grayscale: true,
+        };
+        assert_eq!(
+            wild.clamped(),
+            PageAdjustments {
+                brightness: PageAdjustments::MIN,
+                contrast: PageAdjustments::MAX,
+                invert: true,
+                grayscale: true,
+            }
+        );
+        assert_eq!(
+            PageAdjustments::default().clamped(),
+            PageAdjustments::default()
+        );
     }
 
     #[test]

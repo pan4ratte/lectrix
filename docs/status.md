@@ -28,7 +28,9 @@ used as each release's description. Update checks once a day. Files that claim P
 open for reading only until Enable editing, with a Settings switch, and lose the claim
 when a save may have broken it. Several windows: a tab moves into a window of its own or
 into another window, with its document as it is. Full screen (F11): the pages alone, with
-the toolbar floating and the side panes brought by the pointer or by Alt held.
+the toolbar floating and the side panes brought by the pointer or by Alt held. Visual
+adjustments (brightness, contrast, inverted colours, greyscale) for a document's pages,
+on screen only and remembered per file.
 
 ## Performance
 
@@ -89,6 +91,13 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
   brings the right pane over it. The end-to-end test presses F11 and Alt through
   WebDriver, inside the webview: that a real Alt key opens no system menu, and that
   Alt+F4 and Alt+Tab still do what they do, is in the manual checklist, not yet done.
+- **Visual adjustments.** Invert colours keeps hues by CSS's `hue-rotate`, which is an
+  approximation: saturated colours come out darker or lighter than they were, and
+  photographs look odd, as inverted ones do. No command (so no shortcut) turns an
+  adjustment on or off; the panel does. The start screen's previews and the Combine view
+  show pages as they are. Scrolling with adjustments on has not been measured
+  (`tests/perf/measure.ps1` runs without them); the filter is applied by the compositor,
+  and the pages are rendered and cached as before.
 - **Links.** A link is followed by its `/Rect`: one that covers several lines by
   `/QuadPoints` also answers between them, and is tinted as one block. Links are followed
   with the pointer only (the keyboard does not reach them), so their tooltips need a
