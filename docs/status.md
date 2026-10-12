@@ -233,9 +233,10 @@ Nothing has been run interactively there.
     Papers, Fedora's PDF reader, is a GTK 4 app on Vulkan. `GDK_GL=disable` lifts the cap
     but copies WebKit's frames through the CPU: scrolling falls to about 10 fps. No
     public GTK 3 call restores the frame callbacks, so Lectrix cannot work around it.
-    Reports drafted for the user to file: `docs/upstream/gtk3-wayland-gl-frame-clock.md`
-    (GTK; no existing issue found) and `docs/upstream/webkitgtk-60fps-comment.md` (for
-    WebKit bug 199376).
+    Reported 2026-10-12: GTK issue 8461
+    (https://gitlab.gnome.org/GNOME/gtk/-/work_items/8461, text in
+    `docs/upstream/gtk3-wayland-gl-frame-clock.md`) and a comment on WebKit bug 199376
+    (https://bugs.webkit.org/show_bug.cgi?id=199376, `docs/upstream/webkitgtk-60fps-comment.md`).
   - What is left: WebKit's web-process main thread is now the busiest (about 60% of a
     core while scrolling). About a fifth of it decodes page PNGs (`createImageBitmap`
     decodes on that thread in WebKit), a quarter updates rendering and compositing layers.
@@ -298,10 +299,12 @@ Nothing has been run interactively there.
   save that fails"). And a snapshot of a document with a cross-reference stream leaves a
   "Save document" step in the journal, although a snapshot is meant to leave the document
   as it was. Lectrix works around both in the shim; both could be reported.
-- `docs/upstream/gtk3-wayland-gl-frame-clock.md`: GTK 3 windows drawn with GL on Wayland
-  update at 60 fps on faster displays, which holds WebKitGTK (and Lectrix's scrolling on
-  Linux) to 60. Drafted 2026-10-12 for the user to file; then
-  `docs/upstream/webkitgtk-60fps-comment.md` for WebKit bug 199376, with the GTK link.
+- GTK 3 windows drawn with GL on Wayland update at 60 fps on faster displays, which holds
+  WebKitGTK (and Lectrix's scrolling on Linux) to 60. Reported by the user on 2026-10-12:
+  GTK issue 8461 (https://gitlab.gnome.org/GNOME/gtk/-/work_items/8461), and a comment on
+  WebKit bug 199376 (https://bugs.webkit.org/show_bug.cgi?id=199376). Texts in
+  `docs/upstream/`. When GTK fixes it, measure again with `tests/perf/wheel-linux.py` on a
+  120 Hz screen.
 - The vendored `mupdf` crate's patches (`third_party/mupdf-rs/LECTRIX_PATCHES.md`) could be
   offered to mupdf-rs as a pull request, if the user wants.
 
