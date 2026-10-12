@@ -4,13 +4,13 @@
 // pages, and Alt held brings both, with a toolbar that shows only on demand.
 
 import assert from 'node:assert/strict';
-import { readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
 import { Key } from 'webdriverio';
 
-import { OUT, launch, waitForDocument } from '../lib/app.mjs';
+import { OUT, ROOT, launch, waitForDocument } from '../lib/app.mjs';
 import { sample } from '../lib/pdfcli.mjs';
 
 const FLOATING = '[role=toolbar][aria-label="Page, zoom and annotation tools"]';
@@ -63,10 +63,18 @@ async function closeSettings(browser) {
 }
 
 test('full screen shows the pages alone; the sides of the screen and Alt bring the rest', async () => {
-	const { browser, stop } = await launch([sample('fullscreen.pdf', 6)]);
+	// A window smaller than the screen, CI's 1024 x 768 one too: leaving full screen is told
+	// by the window no longer filling it. (With the version that last started, so nothing
+	// says Lectrix was updated.)
+	const state = join(OUT, 'fullscreen-window.json');
+	mkdirSync(OUT, { recursive: true });
+	rmSync(state, { force: true });
+	const { version } = JSON.parse(readFileSync(join(ROOT, 'package.json'), 'utf8'));
+	writeFileSync(state, JSON.stringify({ last_version: version, window: { bounds: { x: 60, y: 40, width: 900, height: 700 }, maximized: false } }));
+	const { browser, stop } = await launch([sample('fullscreen.pdf', 6)], { env: { LECTRIX_STATE_FILE: state } });
 	try {
 		await waitForDocument(browser);
-		const before = await until(browser, 'the window as it starts', (s) => windowed(s) && s.left);
+		const before = await until(browser, 'the window as it starts', (s) => windowed(s) && s.left && !s.fillsScreen);
 		assert.equal(before.right, false, 'the right pane starts closed');
 
 		// F11: the window's own parts go, and the pages have the whole screen.

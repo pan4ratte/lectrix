@@ -110,6 +110,14 @@ test('the page buttons and bookmarks glide to their page, unless Settings turn t
 		glide = await watch(browser, async () => (await button(browser, 'Next page')).click());
 		await waitForPageBox(browser, '4', 'Next page without gliding');
 		assert.deepEqual(glide.between, [], 'Next page still glides with the setting off');
+		// Pressed twice at once, they go two pages without a glide too (as with the system's
+		// reduced motion, which CI's runners have).
+		await browser.execute(() => {
+			const next = document.querySelector('button[aria-label="Next page"]');
+			next.click();
+			next.click();
+		});
+		await waitForPageBox(browser, '6', 'Next page twice without gliding');
 
 		// Bookmarks at pages 1 and 7. Following one glides, the last screen of a long way.
 		await (await button(browser, 'Bookmarks')).click();

@@ -231,7 +231,7 @@
 		return showRow(shownRow + direction, direction > 0 ? 'top' : 'bottom');
 	}
 
-	/** The row a turn is gliding to: a turn pressed meanwhile goes on from there. */
+	/** The row a turn is on its way to: a turn pressed meanwhile goes on from there. */
 	let turningTo: number | null = null;
 
 	/**
@@ -250,11 +250,19 @@
 			turningTo = row;
 			return;
 		}
-		stopScrollGlide();
 		const single = !tab.continuous;
-		void scrollToPosition({ page, offset: 0 }).then(() => {
-			if (single) enterRow(direction, duration);
-		});
+		const arrived = scrollToPosition({ page, offset: 0 });
+		// Until the current page has followed the scroll, a turn pressed again goes on from
+		// this row, as during a glide.
+		turningTo = row;
+		void arrived
+			.then(() => {
+				if (single) enterRow(direction, duration);
+				return tick();
+			})
+			.then(() => {
+				if (turningTo === row) turningTo = null;
+			});
 	}
 
 	/** How far from its place a row starts when it comes in, in CSS pixels. */
