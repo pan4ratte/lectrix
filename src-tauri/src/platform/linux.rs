@@ -1,11 +1,13 @@
 //! Linux: WebKitGTK in a GTK 3 window.
 
 use std::cell::Cell;
+use std::ffi::{CStr, c_char, c_void};
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use gtk::gdk;
 use gtk::glib;
+use gtk::glib::translate::ToGlibPtr;
 use gtk::prelude::*;
 use tauri::Emitter;
 use webkit2gtk::{LoadEvent, WebViewExt};
@@ -76,6 +78,7 @@ impl Platform for Linux {
     fn skip_covered_window_background(&self, window: &tauri::WebviewWindow) {
         let hooked = window.with_webview(|webview| {
             let webview = webview.inner();
+            render_at_display_rate(&webview);
             let Some(gtk_window) = webview.toplevel().and_downcast::<gtk::Window>() else {
                 return;
             };
@@ -112,5 +115,105 @@ impl Platform for Linux {
                 "the window paints its background on each frame: {e}"
             ));
         }
+    }
+}
+
+/// WebKit holds page updates near 60 fps on faster displays
+/// (`PreferPageRenderingUpdatesNear60FPS`, on by default), which kept scrolling at 60 fps
+/// on a 120 Hz screen (docs/status.md). Turning it off lets frames follow the display.
+///
+/// The feature API arrived in WebKitGTK 2.42, after the `webkit2gtk` crate's bindings, so
+/// its functions are looked up at run time; with an older WebKitGTK nothing changes.
+fn render_at_display_rate(webview: &webkit2gtk::WebView) {
+    const FEATURE: &CStr = c"PreferPageRenderingUpdatesNear60FPS";
+    let Some(api) = FeatureApi::load() else {
+        crate::applog::info("WebKitGTK has no feature API: pages update near 60 fps");
+        return;
+    };
+    let Some(settings) = WebViewExt::settings(webview) else {
+        return;
+    };
+    let settings: *mut webkit2gtk::ffi::WebKitSettings = settings.to_glib_none().0;
+    // SAFETY: the functions have the signatures declared in `FeatureApi` (webkit/WebKitFeature.h,
+    // webkit/WebKitSettings.h). The list is owned here and unreffed once; the features it
+    // holds and their identifiers stay valid while it lives, and `settings` is a live
+    // WebKitSettings borrowed from the webview for the duration of the call.
+    unsafe {
+        let list = (api.get_all_features)();
+        if list.is_null() {
+            return;
+        }
+        for i in 0..(api.list_get_length)(list) {
+            let feature = (api.list_get)(list, i);
+            if feature.is_null() {
+                continue;
+            }
+            let id = (api.get_identifier)(feature);
+            if !id.is_null() && CStr::from_ptr(id) == FEATURE {
+                (api.set_feature_enabled)(settings.cast(), feature, glib::ffi::GFALSE);
+            }
+        }
+        (api.list_unref)(list);
+    }
+}
+
+type GetAllFeatures = unsafe extern "C" fn() -> *mut c_void;
+type ListGetLength = unsafe extern "C" fn(*mut c_void) -> usize;
+type ListGet = unsafe extern "C" fn(*mut c_void, usize) -> *mut c_void;
+type ListUnref = unsafe extern "C" fn(*mut c_void);
+type GetIdentifier = unsafe extern "C" fn(*mut c_void) -> *const c_char;
+type SetFeatureEnabled = unsafe extern "C" fn(*mut c_void, *mut c_void, glib::ffi::gboolean);
+
+/// WebKitGTK 2.42's feature functions, found in the loaded library.
+struct FeatureApi {
+    get_all_features: GetAllFeatures,
+    list_get_length: ListGetLength,
+    list_get: ListGet,
+    list_unref: ListUnref,
+    get_identifier: GetIdentifier,
+    set_feature_enabled: SetFeatureEnabled,
+}
+
+impl FeatureApi {
+    fn load() -> Option<Self> {
+        fn symbol(name: &CStr) -> Option<*mut c_void> {
+            // SAFETY: dlsym with RTLD_DEFAULT only looks a name up in the libraries already
+            // loaded (WebKitGTK is, through wry); `name` is NUL-terminated.
+            let ptr = unsafe { libc::dlsym(libc::RTLD_DEFAULT, name.as_ptr()) };
+            (!ptr.is_null()).then_some(ptr)
+        }
+        use std::mem::transmute;
+        // SAFETY: each pointer is the named WebKitGTK function, whose C signature the
+        // type it is transmuted to declares (webkit/WebKitFeature.h, WebKitSettings.h).
+        unsafe {
+            Some(Self {
+                get_all_features: transmute::<*mut c_void, GetAllFeatures>(symbol(
+                    c"webkit_settings_get_all_features",
+                )?),
+                list_get_length: transmute::<*mut c_void, ListGetLength>(symbol(
+                    c"webkit_feature_list_get_length",
+                )?),
+                list_get: transmute::<*mut c_void, ListGet>(symbol(c"webkit_feature_list_get")?),
+                list_unref: transmute::<*mut c_void, ListUnref>(symbol(
+                    c"webkit_feature_list_unref",
+                )?),
+                get_identifier: transmute::<*mut c_void, GetIdentifier>(symbol(
+                    c"webkit_feature_get_identifier",
+                )?),
+                set_feature_enabled: transmute::<*mut c_void, SetFeatureEnabled>(symbol(
+                    c"webkit_settings_set_feature_enabled",
+                )?),
+            })
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn webkit_feature_api_is_found() {
+        // The test binary links WebKitGTK through wry, as the app does.
+        let _ = <webkit2gtk::WebView as gtk::glib::StaticType>::static_type;
+        assert!(super::FeatureApi::load().is_some());
     }
 }

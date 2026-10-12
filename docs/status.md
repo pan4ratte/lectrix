@@ -216,21 +216,26 @@ Nothing has been run interactively there.
     `WEBKIT_DISABLE_DMABUF_RENDERER=1`, `WEBKIT_SKIA_ENABLE_CPU_RENDERING=1`.
   - **Cap 1, WebKit:** `PreferPageRenderingUpdatesNear60FPS` (a WebKitGTK feature,
     on by default) holds page updates near 60 fps although WebKit's `VBlankMonitor`
-    follows the display at 120 Hz through DRM. Turned off (an experiment through
-    `webkit_settings_set_feature_enabled`, WebKitGTK 2.42+; the `webkit2gtk` crate has
-    no binding): 14.1 ms on average, but uneven: 24% of frames one refresh apart, the
-    rest two (p50 16 ms). Not adopted; whether it looks smoother than a steady 60 is for
-    the user to judge by eye.
-  - **Cap 2, OpenGL presentation on GNOME 50 with Mesa (AMD):** a window that presents
-    through OpenGL misses every other vblank: a GTK 3 `GtkGLArea` runs at 59 fps (its
-    paint takes 2 ms, then the frame callback comes 15 ms later, against 7.4 ms for a
-    window drawn with cairo), GTK 4 at 58 (GLArea) and 87 (`GSK_RENDERER=ngl`), while
-    GTK 4 on Vulkan and GTK 3 with cairo reach 115-119. WebKitGTK's GTK 3 window
-    presents its frames through OpenGL. A bare WebKitGTK page reaches 112 fps only with
-    both caps lifted (`GDK_GL=disable` and the feature off); in Lectrix `GDK_GL=disable`
-    copies each frame through the CPU and scrolling falls to about 10 fps. Not
-    something Lectrix can change; worth a report to Mutter or Mesa with the GLArea
-    numbers.
+    follows the display at 120 Hz through DRM. Turned off since 2026-10-12
+    (`render_at_display_rate` in `platform/linux.rs`; WebKitGTK 2.42+, looked up at run
+    time, since the `webkit2gtk` crate has no binding): 14.1-14.3 ms on average, 24-29% of
+    frames one refresh apart (p50 16 ms). The user judged it better by eye. These are
+    animation-frame times; the screen still gets at most 60 new frames a second (cap 2),
+    so the gain is likely fresher frames rather than more of them.
+  - **Cap 2, GTK 3:** a GTK 3 window drawn with GL never requests Wayland frame
+    callbacks: `gdk_window_impl_wayland_end_paint` drops `pending_commit` when the paint
+    used GL (`eglSwapBuffers` commits), so `on_frame_clock_after_paint` requests none,
+    and `GdkFrameClockIdle` falls back to `FRAME_INTERVAL` (16667 µs). A bare
+    `GtkGLArea` runs at 59-60 fps, the same window drawn with cairo at 113-119;
+    `WAYLAND_DEBUG` shows no `wl_surface.frame` from the GL window. WebKitGTK's GTK 3
+    window paints its frames through GL in that frame clock. GTK 4 is not affected the
+    same way (Vulkan 119 fps; its GL paths measured 58-87 here, not investigated), and
+    Papers, Fedora's PDF reader, is a GTK 4 app on Vulkan. `GDK_GL=disable` lifts the cap
+    but copies WebKit's frames through the CPU: scrolling falls to about 10 fps. No
+    public GTK 3 call restores the frame callbacks, so Lectrix cannot work around it.
+    Reports drafted for the user to file: `docs/upstream/gtk3-wayland-gl-frame-clock.md`
+    (GTK; no existing issue found) and `docs/upstream/webkitgtk-60fps-comment.md` (for
+    WebKit bug 199376).
   - What is left: WebKit's web-process main thread is now the busiest (about 60% of a
     core while scrolling). About a fifth of it decodes page PNGs (`createImageBitmap`
     decodes on that thread in WebKit), a quarter updates rendering and compositing layers.
@@ -293,6 +298,10 @@ Nothing has been run interactively there.
   save that fails"). And a snapshot of a document with a cross-reference stream leaves a
   "Save document" step in the journal, although a snapshot is meant to leave the document
   as it was. Lectrix works around both in the shim; both could be reported.
+- `docs/upstream/gtk3-wayland-gl-frame-clock.md`: GTK 3 windows drawn with GL on Wayland
+  update at 60 fps on faster displays, which holds WebKitGTK (and Lectrix's scrolling on
+  Linux) to 60. Drafted 2026-10-12 for the user to file; then
+  `docs/upstream/webkitgtk-60fps-comment.md` for WebKit bug 199376, with the GTK link.
 - The vendored `mupdf` crate's patches (`third_party/mupdf-rs/LECTRIX_PATCHES.md`) could be
   offered to mupdf-rs as a pull request, if the user wants.
 

@@ -40,3 +40,6 @@ gtk = "=0.18.2"
 # The webview's load events, to know when its page covers the window. Already in the
 # tree through wry (MIT).
 webkit2gtk = "=2.0.2"
+# dlsym, for WebKitGTK functions newer than the crate's bindings. Already in the tree
+# (MIT or Apache-2.0).
+libc = "=0.2.190"

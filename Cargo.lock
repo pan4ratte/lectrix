@@ -2118,6 +2118,7 @@ name = "lectrix"
 version = "0.1.0"
 dependencies = [
  "gtk",
+ "libc",
  "mupdf",
  "pdf-core",
  "semver",
