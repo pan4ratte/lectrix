@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Lectrix's AppStream metainfo, installed by the deb and the rpm to /usr/share/metainfo
+  (tauri.linux.conf.json). Software stores (GNOME Software, KDE Discover) list an installed
+  app from this file: without it they show the bare package, with no icon. The icon is the
+  one the packages install in the hicolor theme, named as the desktop file names it.
+-->
+<component type="desktop-application">
+  <id>org.lectrix.pdf</id>
+  <name>Lectrix</name>
+  <summary>View, annotate and combine PDF files</summary>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>AGPL-3.0-or-later</project_license>
+  <developer id="io.github.pan4ratte">
+    <name>Mark Ingrem</name>
+  </developer>
+  <description>
+    <p>
+      Lectrix is a lightweight PDF editor. What it writes (annotations, bookmarks and page
+      labels) opens correctly in Acrobat and in every other mainstream PDF reader.
+    </p>
+    <ul>
+      <li>Read with continuous scrolling, thumbnails, text search and tabs</li>
+      <li>Highlight, underline, strike out, add notes, draw and type on the page</li>
+      <li>Create and arrange bookmarks</li>
+      <li>Number pages as the book does: roman front matter, then arabic</li>
+      <li>Combine several PDF files into one, page by page</li>
+      <li>Repair annotations from other apps so they display everywhere</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">Lectrix.desktop</launchable>
+  <icon type="stock">lectrix</icon>
+  <categories>
+    <category>Office</category>
+    <category>Viewer</category>
+  </categories>
+  <url type="homepage">https://github.com/pan4ratte/lectrix</url>
+  <url type="bugtracker">https://github.com/pan4ratte/lectrix/issues</url>
+  <url type="vcs-browser">https://github.com/pan4ratte/lectrix</url>
+  <provides>
+    <binary>lectrix</binary>
+  </provides>
+  <content_rating type="oars-1.1" />
+</component>

@@ -1,6 +1,18 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
   "bundle": {
-    "targets": ["appimage", "deb"]
+    "targets": ["appimage", "deb"],
+    "linux": {
+      "deb": {
+        "files": {
+          "/usr/share/metainfo/org.lectrix.pdf.metainfo.xml": "linux/org.lectrix.pdf.metainfo.xml"
+        }
+      },
+      "rpm": {
+        "files": {
+          "/usr/share/metainfo/org.lectrix.pdf.metainfo.xml": "linux/org.lectrix.pdf.metainfo.xml"
+        }
+      }
+    }
   }
 }

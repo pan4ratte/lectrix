@@ -210,9 +210,19 @@ Nothing has been run interactively there.
   has no equivalent.
 - **Packages** for macOS (dmg, ad-hoc signed, not notarized) and Linux (AppImage and deb,
   plus rpm for final versions; built on Ubuntu 24.04, so glibc 2.39 or later) are built and released (ADR 0011)
-  but have never been installed or run. No PDF file association is configured for them.
+  but have not been checked as the Windows installers are (the manual checklist covers
+  only the Windows ones). No PDF file association is configured for them.
   Crash recovery, the single-instance hand-off and the in-app updater are
   platform-neutral but untested there.
+- **Linux software stores** (2026-10-12, not yet seen in a store): the 1.0.0 rpm, installed
+  on Fedora, showed no icon in GNOME Software. The package had the desktop file and the
+  icons (32, 128 and 256@2 px in hicolor) but no AppStream metainfo, and GNOME Software
+  lists installed apps from metainfo alone (`component/description/..` in its
+  `gs_appstream_add_installed`), so it showed the bare package. The deb and the rpm now
+  install `org.lectrix.pdf.metainfo.xml` (`appstreamcli validate-tree` passes on the
+  1.0.0 deb's files with it added; its only remark, a pedantic one, is the missing
+  `<releases>`). The first release that carries it is the first real test. It has no
+  screenshots, so a store's page shows none. The AppImage does not carry it.
 - **License notices:** `THIRD_PARTY_LICENSES.md` lists the crates of the Windows build
   only; the macOS and Linux builds include more (GTK and WebKitGTK bindings, objc2 and
   others), which it does not name.
@@ -227,8 +237,6 @@ Nothing has been run interactively there.
   Stop, Don't ask again and rejecting a badly signed download were tried against a local
   test server; installing and restarting need a release signed with the real key. The
   first real release is the first full test.
-- **The rpm has never been built:** betas leave it out, so the first one comes with
-  1.0.0. If that build fails, the 1.0.0 release stops until it is fixed.
 - **No code signing** (Authenticode, Apple notarization): SmartScreen and Gatekeeper warn
   on the first manual install (ADR 0011).
 - **Administrators answer a UAC prompt on every Windows update**, per-user installs

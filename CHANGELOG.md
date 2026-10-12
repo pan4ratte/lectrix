@@ -76,6 +76,8 @@ the wording, translations): docs/releasing.md, "The changelog".
 - Lectrix checks for updates once a day instead of at every start. The setting is now **Check for updates automatically**.
 - Before you update, **See what’s new** in the update notice shows what the new version brings.
 - The update notice’s buttons are on one row, and the download’s progress bar moves smoothly instead of in steps.
+- On Windows, the setup program and the uninstaller have Lectrix’s icon.
+- On Linux, app stores such as GNOME Software show Lectrix with its icon and a description once it is installed from the deb or the rpm, and menus list it under Office.
 
 ### General
 

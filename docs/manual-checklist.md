@@ -104,6 +104,9 @@ does afterwards.
 
 ## Installers
 
+- [ ] In Explorer, `Lectrix_<version>_x64-setup.exe` shows Lectrix's icon (the `.msi` shows
+      Windows' own installer icon, which a file of that type can't change). After
+      installing, so does `uninstall.exe` in the install folder.
 - [ ] `Lectrix_<version>_x64-setup.exe` from an administrator account: a UAC prompt comes
       first, then a "Choose Users" page with "Install for anyone using this computer"
       preselected. Pick "Install just for me": the folder page shows
@@ -128,6 +131,10 @@ does afterwards.
       `C:\Program Files\Lectrix` and not offered for PDFs. Uninstall.
 - [ ] `Lectrix_<version>_x64_en-US.msi`: the same two runs (the page comes after the folder
       page; it needs administrator rights).
+- [ ] Fedora (GNOME Software), final versions only (a beta has no rpm): install the `.rpm`, then
+      close Software and open it again. Under Installed, Lectrix has its icon, and its page
+      shows the icon, "View, annotate and combine PDF files" and the description. The app
+      grid shows the icon too.
 
 ## Updates (from the second release on)
 

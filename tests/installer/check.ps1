@@ -61,6 +61,19 @@ function Run([string]$file, [string[]]$arguments) {
     if ($p.ExitCode -ne 0) { throw "$file $($arguments -join ' ') exited with $($p.ExitCode)" }
 }
 
+# The icon Explorer shows for a program, as its pixels. The setup program and the
+# uninstaller take theirs from the icon lectrix.exe has (installerIcon and uninstallerIcon
+# in tauri.conf.json); without those they would have NSIS's own.
+Add-Type -AssemblyName System.Drawing
+function Get-IconPixels([string]$file) {
+    $bitmap = [System.Drawing.Icon]::ExtractAssociatedIcon($file).ToBitmap()
+    $pixels = for ($y = 0; $y -lt $bitmap.Height; $y++) { for ($x = 0; $x -lt $bitmap.Width; $x++) { $bitmap.GetPixel($x, $y).ToArgb() } }
+    $bitmap.Dispose()
+    $pixels -join ','
+}
+$appIcon = Get-IconPixels (Join-Path $root 'target\release\lectrix.exe')
+Check ((Get-IconPixels $nsis.FullName) -eq $appIcon) "$($nsis.Name) has Lectrix's icon"
+
 # Lectrix must never take over the user's default PDF app (ADR 0007).
 $pdfDefaultBefore = @(
     (Get-Value 'HKCU:\Software\Classes\.pdf' '(default)'),
@@ -85,6 +98,7 @@ function Check-Nsis([hashtable]$case, [string]$when) {
     Check (Test-Path $exe) "lectrix.exe installed in $($case.Dir)$when"
     Check (-not (Test-Path (Join-Path $other 'lectrix.exe'))) "no copy in $other"
     Check (Test-Path (Join-Path $case.Dir 'THIRD_PARTY_LICENSES.md')) 'license notices installed'
+    Check ((Get-IconPixels (Join-Path $case.Dir 'uninstall.exe')) -eq $appIcon) "uninstall.exe has Lectrix's icon"
     Check-Registration $case.Hive $case.Registered $exe
 }
 
