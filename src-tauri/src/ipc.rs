@@ -1331,6 +1331,11 @@ pub struct Settings {
     pub smooth_zoom: bool,
     /// Whether picking an annotation in the list scrolls to it smoothly (section 6.5).
     pub smooth_annotation_scroll: bool,
+    /// Whether the Previous page and Next page buttons glide to the page (section 6.1).
+    pub smooth_page_turn: bool,
+    /// Whether following a bookmark or a link in the text glides to its place (sections
+    /// 6.1 and 6.2).
+    pub smooth_bookmark_scroll: bool,
     /// How long the pointer rests on an annotation before its comment shows, in ms.
     pub tooltip_delay_ms: u32,
     /// Whether marking text up selects the new annotation and opens the inspector on its
@@ -1377,6 +1382,8 @@ pub struct SettingsInput {
     pub check_for_updates: bool,
     pub smooth_zoom: bool,
     pub smooth_annotation_scroll: bool,
+    pub smooth_page_turn: bool,
+    pub smooth_bookmark_scroll: bool,
     pub tooltip_delay_ms: u32,
     pub open_comment_after_markup: bool,
     pub remember_annotation_style: bool,

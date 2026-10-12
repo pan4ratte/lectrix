@@ -197,6 +197,8 @@
 	}
 
 	async function scrollToPosition(p: ViewPosition) {
+		// A glide under way would go on to its own place over this one.
+		stopScrollGlide();
 		const showing = showRowOf(p.page);
 		if (showing) await showing;
 		if (!scroller) return;
@@ -229,11 +231,51 @@
 		return showRow(shownRow + direction, direction > 0 ? 'top' : 'bottom');
 	}
 
-	/** Goes to the top of the page (or two-page row) before or after the current one. */
+	/** The row a turn is gliding to: a turn pressed meanwhile goes on from there. */
+	let turningTo: number | null = null;
+
+	/**
+	 * Goes to the top of the page (or two-page row) before or after the current one: gliding
+	 * there, or, with one row shown at a time, with that row coming in from the side it is
+	 * on. At once if Settings or the system's reduced motion say so.
+	 */
 	function turn(direction: 1 | -1) {
-		const row = rowOf(tab.currentPage, tab.columns, tab.cover) + direction;
+		const row = (turningTo ?? rowOf(tab.currentPage, tab.columns, tab.cover)) + direction;
 		if (row < 0 || row >= rowCount(tab.pages.length, tab.columns, tab.cover)) return;
-		goTo({ page: rowStart(row, tab.columns, tab.cover), offset: 0 }, { recordHistory: false });
+		const page = rowStart(row, tab.columns, tab.cover);
+		const duration = app.settings?.smoothPageTurn === false ? 0 : motionMs(SCROLL_GLIDE_MS);
+		const box = layout.pages[page];
+		if (tab.continuous && duration > 0 && box) {
+			glideScroll(box.top - 8, null, duration);
+			turningTo = row;
+			return;
+		}
+		stopScrollGlide();
+		const single = !tab.continuous;
+		void scrollToPosition({ page, offset: 0 }).then(() => {
+			if (single) enterRow(direction, duration);
+		});
+	}
+
+	/** How far from its place a row starts when it comes in, in CSS pixels. */
+	const ROW_ENTER_PX = 24;
+	/** The pages' layer inside the scroller. */
+	let content: HTMLDivElement | undefined = $state();
+
+	/**
+	 * In the single page and two-page modes, has the row just shown come in: rising into
+	 * place as it fades in for a row after the one it replaces (`direction` 1), coming down
+	 * for one before it. Transform and opacity alone, which lay nothing out.
+	 */
+	function enterRow(direction: 1 | -1, duration: number) {
+		if (duration === 0) return;
+		content?.animate(
+			[
+				{ opacity: 0, transform: `translateY(${direction * ROW_ENTER_PX}px)` },
+				{ opacity: 1, transform: 'none' }
+			],
+			{ duration, easing: 'ease-out' }
+		);
 	}
 
 	/** Lays the pages out another way, keeping the current page (the one the page box shows)
@@ -324,11 +366,13 @@
 		};
 	}
 
-	async function goToPoint(index: number, x: number | null, y: number | null) {
+	async function goToPoint(index: number, x: number | null, y: number | null, options: { smooth?: boolean } = {}) {
 		if (!scroller) return;
 		const page = Math.min(Math.max(0, index), layout.pages.length - 1);
 		if (!layout.pages[page]) return;
 		tab.history.push(position());
+		const duration = options.smooth ? motionMs(SCROLL_GLIDE_MS) : 0;
+		const fromRow = shownRow;
 		const showing = showRowOf(page);
 		if (showing) await showing;
 		if (!scroller) return;
@@ -355,9 +399,18 @@
 				top = y === null ? b.top - 8 : b.top + by;
 				left = x === null ? null : b.left + bx;
 		}
-		scroller.scrollTop = top;
-		if (left !== null) scroller.scrollLeft = left;
-		onScroll();
+		if (showing) {
+			// Another row, with one shown at a time: there is no way to glide; it comes in.
+			stopScrollGlide();
+			scroller.scrollTop = top;
+			if (left !== null) scroller.scrollLeft = left;
+			onScroll();
+			enterRow(shownRow > fromRow ? 1 : -1, duration);
+			return;
+		}
+		// A long way starts one screen from the place, where its page is in view from the
+		// first frame: from further off, pages passed on the way would be rendered first.
+		glideScroll(top, left, duration, viewportH);
 	}
 
 	async function reveal(index: number, rect: [number, number, number, number], options: { smooth?: boolean } = {}) {
@@ -376,16 +429,18 @@
 		glideScroll(toTop, toLeft, options.smooth ? motionMs(SCROLL_GLIDE_MS) : 0);
 	}
 
-	// ----- gliding scroll (section 6.5: going to an annotation picked in the list) -----
+	// ----- gliding scroll (to an annotation picked in the list, section 6.5; to the next or
+	// previous page and to a bookmark's place, section 6.1) -----
 
 	const SCROLL_GLIDE_MS = 140;
 	let scrollFrame = 0;
 
 	/**
 	 * Scrolls to `top` and `left` (null leaves that axis), over `duration` ms. A long way
-	 * starts two screens from the target, so the pages in between are not all rendered.
+	 * starts `near` from the target (two screens, unless given), so the pages in between
+	 * are not all rendered.
 	 */
-	function glideScroll(top: number | null, left: number | null, duration: number) {
+	function glideScroll(top: number | null, left: number | null, duration: number, near = 2 * viewportH) {
 		if (!scroller) return;
 		stopScrollGlide();
 		const maxTop = scroller.scrollHeight - scroller.clientHeight;
@@ -399,7 +454,6 @@
 			onScroll();
 			return;
 		}
-		const near = 2 * viewportH;
 		let fromTop = scroller.scrollTop;
 		if (toTop !== null && Math.abs(toTop - fromTop) > near) fromTop = toTop - Math.sign(toTop - fromTop) * near;
 		const fromLeft = scroller.scrollLeft;
@@ -411,6 +465,7 @@
 			if (toLeft !== null) scroller.scrollLeft = fromLeft + (toLeft - fromLeft) * e;
 			onScroll();
 			scrollFrame = e < 1 ? requestAnimationFrame(frame) : 0;
+			if (e >= 1) turningTo = null;
 		};
 		scrollFrame = requestAnimationFrame(frame);
 	}
@@ -418,6 +473,7 @@
 	function stopScrollGlide() {
 		cancelAnimationFrame(scrollFrame);
 		scrollFrame = 0;
+		turningTo = null;
 	}
 
 	// ----- zoom -----
@@ -1515,7 +1571,7 @@
 					onpointerleave={chain(props, 'onpointerleave', leavePage)}
 					oncontextmenu={chain(props, 'oncontextmenu', onContextMenu)}
 				>
-					<div class="relative" style:width="{contentW}px" style:height="{layout.totalHeight}px">
+					<div bind:this={content} class="relative" style:width="{contentW}px" style:height="{layout.totalHeight}px">
 						{#each mountedPages as index (index)}
 							{@const b = pageBox(index)}
 							<PageView

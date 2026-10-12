@@ -3,7 +3,11 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { BookmarkTarget, LinkPlace, PageLink } from '#lib/ipc/index.ts';
 import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
-const store = vi.hoisted(() => ({ notify: vi.fn(), showError: vi.fn() }));
+const store = vi.hoisted(() => ({
+	notify: vi.fn(),
+	showError: vi.fn(),
+	settings: null as { smoothBookmarkScroll: boolean } | null
+}));
 const ipc = vi.hoisted(() => ({ openLink: vi.fn<(id: number, from: LinkPlace, uri: string) => Promise<void>>(async () => {}) }));
 vi.mock('#lib/stores/app.svelte.ts', () => ({ app: store }));
 vi.mock('#lib/ipc/index.ts', () => ({ ...ipc, toAppError: (e: unknown) => e }));
@@ -41,11 +45,27 @@ describe('following a link or a bookmark', () => {
 
 	it('goes to a place in this document, and says nothing', () => {
 		follow(tab, { kind: 'page', page: 14, x: 0, y: 0.12, named: null }, ON_PAGE);
-		expect(goToPoint).toHaveBeenCalledWith(14, 0, 0.12);
+		expect(goToPoint).toHaveBeenCalledWith(14, 0, 0.12, { smooth: true });
 		expect(store.notify).not.toHaveBeenCalled();
 		expect(ipc.openLink).not.toHaveBeenCalled();
 		expect(targetNotice(page(3), 'link')).toBeNull();
 		expect(targetNotice({ kind: 'none' }, 'link')).toBeNull();
+	});
+
+	it('glides to the place of a bookmark or a link, unless Settings turn that off', () => {
+		follow(tab, page(30), BOOKMARK);
+		expect(goToPoint).toHaveBeenLastCalledWith(30, null, null, { smooth: true });
+		store.settings = { smoothBookmarkScroll: false };
+		follow(tab, page(30), BOOKMARK);
+		expect(goToPoint).toHaveBeenLastCalledWith(30, null, null, { smooth: false });
+		follow(tab, page(31), ON_PAGE);
+		expect(goToPoint).toHaveBeenLastCalledWith(31, null, null, { smooth: false });
+		store.settings = { smoothBookmarkScroll: true };
+		follow(tab, page(30), BOOKMARK);
+		expect(goToPoint).toHaveBeenLastCalledWith(30, null, null, { smooth: true });
+		follow(tab, page(31), ON_PAGE);
+		expect(goToPoint).toHaveBeenLastCalledWith(31, null, null, { smooth: true });
+		store.settings = null;
 	});
 
 	it('opens a web address in the browser, naming where the document has it, and says which', async () => {

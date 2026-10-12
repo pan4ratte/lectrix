@@ -39,6 +39,15 @@ smoothZoom: boolean,
  */
 smoothAnnotationScroll: boolean, 
 /**
+ * Whether the Previous page and Next page buttons glide to the page (section 6.1).
+ */
+smoothPageTurn: boolean, 
+/**
+ * Whether following a bookmark or a link in the text glides to its place (sections
+ * 6.1 and 6.2).
+ */
+smoothBookmarkScroll: boolean, 
+/**
  * How long the pointer rests on an annotation before its comment shows, in ms.
  */
 tooltipDelayMs: number, 

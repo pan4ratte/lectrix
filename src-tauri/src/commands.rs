@@ -572,6 +572,8 @@ fn settings_of(stored: &StoredSettings, platform: &dyn Platform) -> Settings {
         check_for_updates: stored.check_for_updates,
         smooth_zoom: stored.smooth_zoom,
         smooth_annotation_scroll: stored.smooth_annotation_scroll,
+        smooth_page_turn: stored.smooth_page_turn,
+        smooth_bookmark_scroll: stored.smooth_bookmark_scroll,
         tooltip_delay_ms: stored.tooltip_delay_ms,
         open_comment_after_markup: stored.open_comment_after_markup,
         remember_annotation_style: stored.remember_annotation_style,
@@ -626,6 +628,8 @@ pub fn set_settings(
         check_for_updates: settings.check_for_updates,
         smooth_zoom: settings.smooth_zoom,
         smooth_annotation_scroll: settings.smooth_annotation_scroll,
+        smooth_page_turn: settings.smooth_page_turn,
+        smooth_bookmark_scroll: settings.smooth_bookmark_scroll,
         tooltip_delay_ms: settings
             .tooltip_delay_ms
             .min(crate::store::MAX_TOOLTIP_DELAY_MS),

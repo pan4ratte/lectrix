@@ -24,6 +24,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 - **File > Exit** closes every window, after asking about unsaved changes in each.
 - Links in a document work: click one, such as a line of the table of contents, to go where it leads, and press **Alt+Left** to come back. A web link opens in your browser. The link under the pointer is tinted, and a tooltip says where it leads: the page, or the web address.
 - On Linux, pinching on a touchpad zooms the document instead of the whole window, and pages appear sooner while scrolling.
+- The **Previous page** and **Next page** buttons glide to the page instead of jumping to it. With one page shown at a time, the page turned to rises into place.
 - The next and the previous page are prepared while you read, so they are there when you scroll or turn to them. In scanned books, each page used to stay blank for a moment first.- A document stays where you were when you switch to another tab and come back, instead of returning to its first page.
 - Drag the start or the end of selected text to select more or less of it.
 - With text selected, **Shift** and the arrow keys select more or less: a character or a line at a time, and a word or a paragraph with **Ctrl** too.
@@ -47,6 +48,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 - Bookmark titles that the program which made the file padded with invisible characters no longer end in a row of � marks; they show as in Acrobat.
 - A bookmark that is a web link opens in your browser.
+- Clicking a bookmark glides to its place instead of jumping there, and so does clicking a link in the text.
 
 ### Page labels
 
@@ -63,6 +65,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 - **Shortcuts** lists every keyboard shortcut, with a search field, and lets you change them: press a shortcut, then the keys it should have. Commands without one can get one, and menus and tooltips show the keys you chose.
 - **Restore defaults…**, under General, puts every setting back to how Lectrix came, after asking.
 - The theme is chosen with a three-way switch (System, Light, Dark) instead of a list.
+- **Smooth scrolling to the next and previous page** and **Smooth scrolling to bookmarks and links**, under Appearance, turn those two animations off, each by itself.
 - Sliders have a cleaner look, like the switches: no outline, a round handle that stands out from the filled part of the track, and a glide from step to step.
 
 ### Installation and updates

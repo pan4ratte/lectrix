@@ -73,13 +73,15 @@ export function isWebAddress(uri: string): boolean {
 
 /**
  * Follows the target of a bookmark or a link that was clicked: goes to a place in this
- * document (recorded in back/forward history), opens a web address in the system's
- * browser, saying which address that was, and says what anything else is. `from` is where
- * the document has the target: Rust opens only an address it finds there.
+ * document (recorded in back/forward history, and glided to unless Settings say
+ * otherwise), opens a web address in the system's browser, saying which
+ * address that was, and says what anything else is. `from` is where the document has the
+ * target: Rust opens only an address it finds there.
  */
 export function follow(tab: DocTab, target: BookmarkTarget, from: LinkPlace) {
 	if (target.kind === 'page') {
-		tab.viewer?.goToPoint(target.page, target.x, target.y);
+		const smooth = app.settings?.smoothBookmarkScroll !== false;
+		tab.viewer?.goToPoint(target.page, target.x, target.y, { smooth });
 		return;
 	}
 	if (target.kind === 'uri' && isWebAddress(target.uri)) {

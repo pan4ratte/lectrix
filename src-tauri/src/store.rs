@@ -108,6 +108,10 @@ pub struct StoredSettings {
     pub smooth_zoom: bool,
     #[serde(default = "yes")]
     pub smooth_annotation_scroll: bool,
+    #[serde(default = "yes")]
+    pub smooth_page_turn: bool,
+    #[serde(default = "yes")]
+    pub smooth_bookmark_scroll: bool,
     /// How long the pointer rests on an annotation before its comment shows.
     #[serde(default = "default_tooltip_delay")]
     pub tooltip_delay_ms: u32,
@@ -181,6 +185,8 @@ impl Default for StoredSettings {
             check_for_updates: true,
             smooth_zoom: true,
             smooth_annotation_scroll: true,
+            smooth_page_turn: true,
+            smooth_bookmark_scroll: true,
             tooltip_delay_ms: DEFAULT_TOOLTIP_DELAY_MS,
             open_comment_after_markup: false,
             remember_annotation_style: true,
@@ -524,6 +530,8 @@ mod tests {
             check_for_updates: false,
             smooth_zoom: false,
             smooth_annotation_scroll: false,
+            smooth_page_turn: false,
+            smooth_bookmark_scroll: false,
             tooltip_delay_ms: 800,
             open_comment_after_markup: true,
             remember_annotation_style: false,
@@ -564,6 +572,8 @@ mod tests {
         assert!(v1.settings().check_for_updates);
         assert!(v1.settings().smooth_zoom);
         assert!(v1.settings().smooth_annotation_scroll);
+        assert!(v1.settings().smooth_page_turn);
+        assert!(v1.settings().smooth_bookmark_scroll);
         assert_eq!(v1.settings().tooltip_delay_ms, DEFAULT_TOOLTIP_DELAY_MS);
         assert!(!v1.settings().open_comment_after_markup);
         assert!(v1.settings().remember_annotation_style);

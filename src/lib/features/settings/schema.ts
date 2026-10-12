@@ -316,6 +316,12 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 					}),
 					toggle('smoothAnnotationScroll', 'Smooth scrolling to annotations', {
 						description: 'The page glides to an annotation picked in the list.'
+					}),
+					toggle('smoothPageTurn', 'Smooth scrolling to the next and previous page', {
+						description: 'The view glides there when you press the Previous page or Next page button.'
+					}),
+					toggle('smoothBookmarkScroll', 'Smooth scrolling to bookmarks and links', {
+						description: 'The view glides to the place a bookmark or a link in the text leads to.'
 					})
 				]
 			}
@@ -441,6 +447,8 @@ export function toInput(d: Draft): SettingsInput {
 		checkForUpdates: d.checkForUpdates,
 		smoothZoom: d.smoothZoom,
 		smoothAnnotationScroll: d.smoothAnnotationScroll,
+		smoothPageTurn: d.smoothPageTurn,
+		smoothBookmarkScroll: d.smoothBookmarkScroll,
 		tooltipDelayMs: Number(d.tooltipDelayMs),
 		openCommentAfterMarkup: d.openCommentAfterMarkup,
 		rememberAnnotationStyle: d.rememberAnnotationStyle,

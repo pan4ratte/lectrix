@@ -50,9 +50,10 @@ export interface ViewerApi {
 	/**
 	 * Scrolls so that a point of a page (page points; null keeps the current position on
 	 * that axis, or the page's top edge) is at the top-left of the view. Recorded in
-	 * back/forward history.
+	 * back/forward history. With `smooth`, the view glides there (unless the system asks
+	 * for reduced motion).
 	 */
-	goToPoint(page: number, x: number | null, y: number | null): void;
+	goToPoint(page: number, x: number | null, y: number | null, options?: { smooth?: boolean }): void;
 	// Zooming glides there unless Settings or the system's reduced motion say otherwise.
 	/** Zooms keeping the point at the center of the viewport in place. */
 	setZoom(zoom: number, mode: ZoomMode): void;
@@ -61,7 +62,8 @@ export interface ViewerApi {
 	fit(mode: 'fitWidth' | 'fitPage'): void;
 	/** Lays the pages out another way (section 6.1), keeping the current place. */
 	setMode(mode: ViewMode, cover: boolean): void;
-	/** Goes to the top of the previous or next page, or two pages in a two-page mode. */
+	/** Goes to the top of the previous or next page, or two pages in a two-page mode,
+	 * gliding there unless Settings or the system's reduced motion say otherwise. */
 	turn(direction: 1 | -1): void;
 	focus(): void;
 }

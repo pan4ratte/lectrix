@@ -135,9 +135,29 @@ test('links in the text are followed, and bookmark titles show as in Acrobat', a
 		await browser.waitUntil(async () => (await leads()) === null, { timeoutMsg: 'the tooltip stayed after the pointer left the link' });
 		assert.equal(await pageBox(browser), '1');
 
-		// A click follows it; Alt+Left goes back to the contents page.
+		// A click follows it, gliding there as to a bookmark's place (the positions seen frame
+		// by frame pass between the two pages); Alt+Left goes back to the contents page.
+		await browser.execute(() => {
+			const scroller = document.querySelector('.viewer-scroll');
+			const seen = [scroller.scrollTop];
+			window.__glide = { seen, done: false };
+			const start = performance.now();
+			const step = () => {
+				seen.push(scroller.scrollTop);
+				if (performance.now() - start < 1500) requestAnimationFrame(step);
+				else window.__glide.done = true;
+			};
+			requestAnimationFrame(step);
+		});
 		await click(browser, first);
 		await browser.waitUntil(async () => (await pageBox(browser)) === '2', { timeoutMsg: 'the link did not lead to page 2' });
+		await browser.waitUntil(() => browser.execute(() => window.__glide.done), { timeoutMsg: 'the view was not watched to the end' });
+		const glide = await browser.execute(() => ({
+			seen: window.__glide.seen,
+			reduced: matchMedia('(prefers-reduced-motion: reduce)').matches
+		}));
+		const passed = glide.seen.filter((top) => top !== glide.seen[0] && top !== glide.seen.at(-1));
+		if (!glide.reduced) assert.ok(passed.length > 0, 'the link was jumped to instead of glided to');
 		assert.equal(await browser.execute(() => getSelection()?.toString() ?? ''), '', 'following a link selected text');
 		await browser.keys(['Alt', 'ArrowLeft']);
 		await browser.waitUntil(async () => (await pageBox(browser)) === '1', { timeoutMsg: 'Back did not return to the contents page' });

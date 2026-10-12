@@ -17,6 +17,8 @@ const STORED: Settings = {
 	checkForUpdates: true,
 	smoothZoom: true,
 	smoothAnnotationScroll: true,
+	smoothPageTurn: true,
+	smoothBookmarkScroll: true,
 	tooltipDelayMs: 300,
 	openCommentAfterMarkup: false,
 	rememberAnnotationStyle: true,
