@@ -250,6 +250,14 @@ Nothing has been run interactively there.
   only the Windows ones). No PDF file association is configured for them.
   Crash recovery, the single-instance hand-off and the in-app updater are
   platform-neutral but untested there.
+- **macOS versions** (read from the 1.0.0 bundles, 2026-10-12): both declare macOS 10.13
+  as their minimum (`LSMinimumSystemVersion`, Tauri's default; the Apple Silicon binary
+  itself asks for 11.0), which nothing backs. The Apple Silicon build is made on macOS 26
+  (`macos-latest`), where CI also runs the tests; the Intel build is made on macOS 15
+  (`macos-15-intel`) and no test runs on Intel. The app has not been started by hand on
+  either, and no older macOS has been tried: the README names 26 and 15. Tailwind 4's CSS
+  needs Safari 16.4's WebKit, which macOS has from 13.3, so the interface is unlikely to
+  draw properly before that; `bundle.macOS.minimumSystemVersion` is not set to say so.
 - **Linux software stores** (2026-10-12, not yet seen in a store): the 1.0.0 rpm, installed
   on Fedora, showed no icon in GNOME Software. The package had the desktop file and the
   icons (32, 128 and 256@2 px in hicolor) but no AppStream metainfo, and GNOME Software
@@ -275,6 +283,20 @@ Nothing has been run interactively there.
   first real release is the first full test.
 - **No code signing** (Authenticode, Apple notarization): SmartScreen and Gatekeeper warn
   on the first manual install (ADR 0011).
+  - **Plan for Windows** (decided 2026-10-12, not started): sign through SignPath
+    Foundation, which signs open-source projects for free with its own certificate, so
+    the publisher shown is "SignPath Foundation". Before applying: ask them whether the
+    app icon and the PDF file icon, which are all rights reserved
+    (`THIRD_PARTY_NOTICES.md`), break their rule against proprietary components, and
+    publish the code signing policy they require. Then the Release workflow signs the app
+    and both installers. A signature names the publisher; SmartScreen's warning still
+    fades only as downloads build reputation. Not chosen: Certum's open-source
+    certificate (from 25 EUR, in the author's name, its key on a card or in their cloud)
+    and Azure Artifact Signing (individuals in the USA and Canada only).
+  - **macOS: nothing decided.** The only route is the Apple Developer Program (99 USD a
+    year) for a Developer ID certificate and notarization.
+  - The README's "Download and install" says the builds are not signed; change it when
+    either is done.
 - **Administrators answer a UAC prompt on every Windows update**, per-user installs
   included: the NSIS installer offers "just me" or "everyone" and asks for the highest
   rights when it starts (ADR 0015). Only users without administrator rights update with
