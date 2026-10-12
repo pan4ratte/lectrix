@@ -137,7 +137,7 @@
 	</button>
 	<DropdownMenu.Root>
 		<DropdownMenu.Trigger
-			class="h-7 min-w-16 rounded-control px-2 text-fg tabular-nums hover:bg-hover"
+			class="h-7 min-w-16 rounded-control px-2 text-fg tabular-nums hover:bg-hover aria-expanded:bg-hover"
 			aria-label="Zoom level {zoomText}"
 		>
 			{zoomText}

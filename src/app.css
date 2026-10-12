@@ -369,7 +369,10 @@ input[type='color'],
 	border-radius: var(--radius-control);
 	background: transparent;
 }
-.icon-button:hover:not(:disabled) {
+/* A button keeps the tint while the menu or panel it opened is open, with the pointer gone
+   into it. */
+.icon-button:hover:not(:disabled),
+.icon-button[aria-expanded='true'] {
 	background: var(--lectrix-hover);
 }
 .icon-button:active:not(:disabled) {
@@ -1278,7 +1281,9 @@ button.shortcut-key:hover,
 	border-radius: 4px;
 	outline: none;
 }
-.menu-item[data-highlighted] {
+/* An item keeps the tint while its submenu is open, with the pointer or the focus in it. */
+.menu-item[data-highlighted],
+.menu-item[aria-expanded='true'] {
 	background: var(--lectrix-hover);
 }
 /* Reached with the keyboard: the hover tint alone is too faint to show focus. */

@@ -87,6 +87,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 - Saving again after a save failed (for example because the file was open in another program) no longer damages the file. A file damaged this way opened as a blank document with no pages; Lectrix now repairs it when you open it, with everything in it, and **Save As** writes it sound again.
 - After a **Save As (optimized)** that failed, the next save no longer loses changes.
 - In many documents, **Undo** did nothing the first time after Lectrix had written a crash recovery copy. It undoes your last change again.
+- A menu item stays highlighted while its submenu is open, and so does a toolbar button while its menu or panel is open.
 
 ## 1.0.0
 
