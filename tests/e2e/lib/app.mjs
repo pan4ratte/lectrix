@@ -182,6 +182,12 @@ async function ensureAppPage(browser) {
 	const onApp = async () => (await browser.execute(() => location.href)).startsWith(APP_URL);
 	const loaded = await browser.waitUntil(onApp, { timeout: 3000, interval: 100 }).catch(() => false);
 	if (!loaded) await browser.url(APP_URL);
+	// The page is there before the app in it is: until its title bar shows, nothing hears a
+	// key, and a test that starts with a shortcut (Ctrl+, on the start screen) would lose it
+	// on a slow runner. Not an error here: a test's own checks say what is missing.
+	await browser
+		.waitUntil(() => browser.execute(() => document.querySelector('header') !== null), { timeout: 15_000, interval: 100 })
+		.catch(() => {});
 }
 
 /** Waits until the first page of the active document has an image, and the layout has
