@@ -26,6 +26,8 @@ from gi.repository import Gio, GLib
 
 BUS_NAME = "org.gnome.Mutter.RemoteDesktop"
 SESSION = "org.gnome.Mutter.RemoteDesktop.Session"
+SCREEN_CAST = "org.gnome.Mutter.ScreenCast"
+DISPLAY_CONFIG = "org.gnome.Mutter.DisplayConfig"
 # Mutter's MetaRemoteDesktopNotifyAxisFlags.
 AXIS_FINISH = 1 << 0
 AXIS_SOURCE_FINGER = 1 << 2
@@ -38,6 +40,23 @@ class Pointer:
             BUS_NAME, "/org/gnome/Mutter/RemoteDesktop", BUS_NAME, "CreateSession",
             None, GLib.VariantType("(o)"), 0, -1, None)
         self.path = reply.unpack()[0]
+        # Absolute pointer motion needs a screen cast stream of the monitor to be relative
+        # to; relative motion is accelerated on a real session, so it can't place the pointer.
+        session_id = Gio.DBusProxy.new_sync(
+            self.bus, 0, None, BUS_NAME, self.path, SESSION, None
+        ).get_cached_property("SessionId").unpack()
+        state = self.bus.call_sync(
+            DISPLAY_CONFIG, "/org/gnome/Mutter/DisplayConfig", DISPLAY_CONFIG,
+            "GetCurrentState", None, None, 0, -1, None).unpack()
+        connector = state[1][0][0][0]
+        cast = self.bus.call_sync(
+            SCREEN_CAST, "/org/gnome/Mutter/ScreenCast", SCREEN_CAST, "CreateSession",
+            GLib.Variant("(a{sv})", ({"remote-desktop-session-id": GLib.Variant("s", session_id)},)),
+            GLib.VariantType("(o)"), 0, -1, None).unpack()[0]
+        self.stream = self.bus.call_sync(
+            SCREEN_CAST, cast, SCREEN_CAST + ".Session", "RecordMonitor",
+            GLib.Variant("(sa{sv})", (connector, {})), GLib.VariantType("(o)"),
+            0, -1, None).unpack()[0]
         self.call("Start")
 
     def call(self, method, args=None):
@@ -45,6 +64,10 @@ class Pointer:
 
     def move(self, dx, dy):
         self.call("NotifyPointerMotionRelative", GLib.Variant("(dd)", (dx, dy)))
+
+    def move_to(self, x, y):
+        """Moves the pointer to (x, y) in the monitor's logical pixels."""
+        self.call("NotifyPointerMotionAbsolute", GLib.Variant("(sdd)", (self.stream, x, y)))
 
     def scroll(self, dy, finish=False):
         flags = AXIS_SOURCE_FINGER | (AXIS_FINISH if finish else 0)
@@ -102,8 +125,7 @@ def main():
         pointer = Pointer()
         try:
             width, height = (int(v) for v in args.screen.split("x"))
-            pointer.move(-10 * width, -10 * height)
-            pointer.move(width / 2, height / 2)
+            pointer.move_to(width / 2, height / 2)
             time.sleep(0.3)
             for direction in (1, -1, 1):
                 # A window mapped under a pointer that has not moved since may not have

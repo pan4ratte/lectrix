@@ -187,14 +187,17 @@ Nothing has been run interactively there.
   webview widget's `event` signal (before WebKit's bubble-phase zoom gesture) and emits
   `touchpad-pinch`; `viewer/pinch.ts` hands it to the page as Ctrl+wheel. macOS still
   unhandled.
-- **Scrolling on Linux at a fractional display scale** (fixed 2026-10-12, measured in a
-  headless Mutter, not yet on a real screen). Reproduced with `tests/perf/wheel-linux.py`
-  (real two-finger scroll through Mutter's remote desktop API, `LECTRIX_PERF=watch`)
-  inside a headless `mutter --virtual-monitor 3840x2400` at scale 1.333, as on the user's
-  laptop (dpr 2, maximized, 2340x1725 CSS px of pages): frames averaged 49-60 ms (about
-  18 fps), 112-127 frames over 50 ms per run. Now 19 ms on average (p95 32 ms), 0 to 4
-  frames over 50 ms; at scale 1 unchanged (16.5 ms).
-  - Cause: GTK 3 paints each frame of the window into a new window-sized image in memory
+- **Scrolling on Linux at a fractional display scale** (2026-10-12). The user's laptop:
+  2560x1600 at 120 Hz, scale 1.333 (1920x1200 logical; GTK draws the window at 200%,
+  3840x2400). Measured on that screen with `tests/perf/wheel-linux.py` (real two-finger
+  scroll through Mutter's remote desktop API, `LECTRIX_PERF=watch`), maximized, the
+  user's own state: frames 22.0 ms on average (45 fps) before the fix below, 16.8-17.1 ms
+  after (a steady 60 fps, p95 20-22 ms, none over 50 ms). Smooth on a 120 Hz screen needs
+  8.3 ms; two caps outside Lectrix hold it at 60 (below). An earlier headless Mutter at
+  3840x2400 and 60 Hz (not the laptop's screen, as first thought) gave 49-60 ms before,
+  19 ms after; headless Mutter cannot show more than 60 fps (no CRTC, so WebKit's vblank
+  timer falls back to a fixed 60 Hz).
+  - Fixed, the cause: GTK 3 paints each frame of the window into a new window-sized image in memory
     (5760x3600 there, 83 MB) and fills the window's background colour into it before
     WebKit draws its frame over it through GL. Filling fresh memory every frame kept the
     UI main thread at 16% user and 60% system time (page faults). `perf` (user time only,
@@ -211,6 +214,23 @@ Nothing has been run interactively there.
     345 -> 150 ms. No effect: passive wheel listeners, `will-change: transform`, skipping
     text geometry, `img.decode()`, `GDK_GL=always`. Worse:
     `WEBKIT_DISABLE_DMABUF_RENDERER=1`, `WEBKIT_SKIA_ENABLE_CPU_RENDERING=1`.
+  - **Cap 1, WebKit:** `PreferPageRenderingUpdatesNear60FPS` (a WebKitGTK feature,
+    on by default) holds page updates near 60 fps although WebKit's `VBlankMonitor`
+    follows the display at 120 Hz through DRM. Turned off (an experiment through
+    `webkit_settings_set_feature_enabled`, WebKitGTK 2.42+; the `webkit2gtk` crate has
+    no binding): 14.1 ms on average, but uneven: 24% of frames one refresh apart, the
+    rest two (p50 16 ms). Not adopted; whether it looks smoother than a steady 60 is for
+    the user to judge by eye.
+  - **Cap 2, OpenGL presentation on GNOME 50 with Mesa (AMD):** a window that presents
+    through OpenGL misses every other vblank: a GTK 3 `GtkGLArea` runs at 59 fps (its
+    paint takes 2 ms, then the frame callback comes 15 ms later, against 7.4 ms for a
+    window drawn with cairo), GTK 4 at 58 (GLArea) and 87 (`GSK_RENDERER=ngl`), while
+    GTK 4 on Vulkan and GTK 3 with cairo reach 115-119. WebKitGTK's GTK 3 window
+    presents its frames through OpenGL. A bare WebKitGTK page reaches 112 fps only with
+    both caps lifted (`GDK_GL=disable` and the feature off); in Lectrix `GDK_GL=disable`
+    copies each frame through the CPU and scrolling falls to about 10 fps. Not
+    something Lectrix can change; worth a report to Mutter or Mesa with the GLArea
+    numbers.
   - What is left: WebKit's web-process main thread is now the busiest (about 60% of a
     core while scrolling). About a fifth of it decodes page PNGs (`createImageBitmap`
     decodes on that thread in WebKit), a quarter updates rendering and compositing layers.

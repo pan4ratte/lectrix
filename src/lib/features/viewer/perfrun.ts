@@ -103,6 +103,9 @@ async function report(name: string, extra: Record<string, number>, frames: numbe
 		// display's refresh interval; a long one is a visible stutter.
 		const sorted = [...frames].sort((a, b) => a - b);
 		await logMetric(`${name}_frame_mean_ms`, mean(frames));
+		await logMetric(`${name}_frame_p50_ms`, sorted[Math.floor(0.5 * (sorted.length - 1))]!);
+		// At 120 Hz, the share of frames that came one refresh after the last.
+		await logMetric(`${name}_frames_under_12ms_pct`, (100 * frames.filter((f) => f < 12).length) / frames.length);
 		await logMetric(`${name}_frame_p95_ms`, sorted[Math.floor(0.95 * (sorted.length - 1))]!);
 		await logMetric(`${name}_frame_max_ms`, sorted[sorted.length - 1]!);
 		await logMetric(`${name}_frames_over_50ms`, frames.filter((f) => f > 50).length);
