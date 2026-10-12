@@ -224,6 +224,7 @@ pub fn create(app: &AppHandle, label: &str, place: Place) -> tauri::Result<Webvi
     }
     let window = builder.build()?;
     platform.route_touchpad_pinch(&window);
+    platform.skip_covered_window_background(&window);
     let appearance = state
         .store
         .lock()

@@ -187,23 +187,33 @@ Nothing has been run interactively there.
   webview widget's `event` signal (before WebKit's bubble-phase zoom gesture) and emits
   `touchpad-pinch`; `viewer/pinch.ts` hands it to the page as Ctrl+wheel. macOS still
   unhandled.
-- **Scrolling on Linux is slow (in progress, 2026-10-08).** Reproduced with
-  `tests/perf/wheel-linux.py` (real two-finger scroll through Mutter's remote desktop
-  API, `LECTRIX_PERF=watch`) inside a headless `mutter --virtual-monitor 3840x2400` at
-  scale 1.333, as on the user's laptop (dpr 2, maximized, 2340x1725 CSS px of pages):
-  frames average 50-55 ms (about 18 fps), 120+ frames over 50 ms per run. At scale 1 the
-  same scroll runs at 17 ms. Findings so far:
-  - Done: WebKit gets an accelerated canvas (`willReadFrequently` only on Windows,
+- **Scrolling on Linux at a fractional display scale** (fixed 2026-10-12, measured in a
+  headless Mutter, not yet on a real screen). Reproduced with `tests/perf/wheel-linux.py`
+  (real two-finger scroll through Mutter's remote desktop API, `LECTRIX_PERF=watch`)
+  inside a headless `mutter --virtual-monitor 3840x2400` at scale 1.333, as on the user's
+  laptop (dpr 2, maximized, 2340x1725 CSS px of pages): frames averaged 49-60 ms (about
+  18 fps), 112-127 frames over 50 ms per run. Now 19 ms on average (p95 32 ms), 0 to 4
+  frames over 50 ms; at scale 1 unchanged (16.5 ms).
+  - Cause: GTK 3 paints each frame of the window into a new window-sized image in memory
+    (5760x3600 there, 83 MB) and fills the window's background colour into it before
+    WebKit draws its frame over it through GL. Filling fresh memory every frame kept the
+    UI main thread at 16% user and 60% system time (page faults). `perf` (user time only,
+    `cpu-clock:u`; it works inside the toolbox on processes it starts, not attached to
+    host ones) showed `gtk_window_draw` -> `pixman_fill`; per-thread `/proc` times showed
+    the system share.
+  - Fix: `platform/linux.rs` (`skip_covered_window_background`) draws the window's
+    children itself and skips GTK's background, except until the page has loaded and for
+    0.5 s after a size change, when WebKit's frame may not cover the window. GTK still
+    sets the opaque region from the colour. Startup and a live resize (Alt+F8), recorded
+    through Mutter's screen cast, look as before.
+  - Earlier: WebKit gets an accelerated canvas (`willReadFrequently` only on Windows,
     `RenderedImage.svelte`): blank pages worst 397 ms -> about 90 ms, first page
-    345 -> 150 ms. Frame times unchanged.
-  - No effect: passive wheel listeners, `will-change: transform` on the content, skipping
-    text geometry, decoding PNGs through `img.decode()`, `GDK_GL=always`.
-    Worse: `WEBKIT_DISABLE_DMABUF_RENDERER=1`, `WEBKIT_SKIA_ENABLE_CPU_RENDERING=1`.
-  - While scrolling, the app's UI (GTK) main thread and WebKit's web-process main thread
-    each use about 75-85% of a core; the compositor under 10%. Next step: profile both
-    with `perf` (needs `perf_event_paranoid` <= 1, or run perf as root) to see what the
-    UI thread does per frame (suspect: GTK 3 presenting WebKit's 5760x3600 frame through
-    cairo, or page images re-sent through the custom protocol on each remount).
+    345 -> 150 ms. No effect: passive wheel listeners, `will-change: transform`, skipping
+    text geometry, `img.decode()`, `GDK_GL=always`. Worse:
+    `WEBKIT_DISABLE_DMABUF_RENDERER=1`, `WEBKIT_SKIA_ENABLE_CPU_RENDERING=1`.
+  - What is left: WebKit's web-process main thread is now the busiest (about 60% of a
+    core while scrolling). About a fifth of it decodes page PNGs (`createImageBitmap`
+    decodes on that thread in WebKit), a quarter updates rendering and compositing layers.
   - Build environment used: toolbox `lectrix-dev` (Rust 1.99.0, WebKitGTK/GTK 3 devel,
     clang, perf), with `RUSTUP_HOME`/`CARGO_HOME` in `~/.cache/lectrix-toolbox`.
 - **Platform services:** the default author comes from `USER`. WebView2's memory target

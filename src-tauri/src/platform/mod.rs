@@ -49,6 +49,11 @@ pub trait Platform: Send + Sync {
     /// otherwise magnify the whole app with them. Called once a window is made.
     fn route_touchpad_pinch(&self, _window: &tauri::WebviewWindow) {}
 
+    /// Keeps the window from painting its background under the webview on every frame
+    /// where the toolkit would otherwise do so although the webview covers it. Called once
+    /// a window is made.
+    fn skip_covered_window_background(&self, _window: &tauri::WebviewWindow) {}
+
     /// The Lectrix window the cursor is over, for a tab dropped outside its own window.
     /// Here, without knowing which window is on top: one whose frame the cursor is in, the
     /// focused one first.

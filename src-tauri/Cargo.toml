@@ -37,3 +37,6 @@ windows-core = "=0.62.2"
 # The window's GTK events, to take touchpad pinches from WebKitGTK. Already in the tree
 # through Tauri (MIT).
 gtk = "=0.18.2"
+# The webview's load events, to know when its page covers the window. Already in the
+# tree through wry (MIT).
+webkit2gtk = "=2.0.2"
