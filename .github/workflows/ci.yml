@@ -1,16 +1,21 @@
 name: CI
 
 # Pushes that only touch documentation do not run CI. THIRD_PARTY_*.md are not in the list:
-# the installers ship them and the license check reads them.
+# the installers ship them and the license check reads them. Nor is CHANGELOG.md, which the
+# app shows and the tests check.
 on:
   push:
     paths-ignore:
       - 'docs/**'
       - 'AGENTS.md'
+      - 'README.md'
+      - 'CONTRIBUTING.md'
   pull_request:
     paths-ignore:
       - 'docs/**'
       - 'AGENTS.md'
+      - 'README.md'
+      - 'CONTRIBUTING.md'
 
 env:
   CARGO_TERM_COLOR: always
