@@ -24,7 +24,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 - **File > Exit** closes every window, after asking about unsaved changes in each.
 - Links in a document work: click one, such as a line of the table of contents, to go where it leads, and press **Alt+Left** to come back. A web link opens in your browser. The link under the pointer is tinted, and a tooltip says where it leads: the page, or the web address.
 - On Linux, pinching on a touchpad zooms the document instead of the whole window, and pages appear sooner while scrolling.
-- A document stays where you were when you switch to another tab and come back, instead of returning to its first page.
+- The next and the previous page are prepared while you read, so they are there when you scroll or turn to them. In scanned books, each page used to stay blank for a moment first.- A document stays where you were when you switch to another tab and come back, instead of returning to its first page.
 - Drag the start or the end of selected text to select more or less of it.
 - With text selected, **Shift** and the arrow keys select more or less: a character or a line at a time, and a word or a paragraph with **Ctrl** too.
 - A double-click selects the whole word and a triple-click the whole line, instead of only the part before the pointer.

@@ -12,6 +12,7 @@
 		create,
 		createMarkup,
 		hiddenByList,
+		hiddenOnPage,
 		listShowsSelected,
 		markSelection,
 		openComment,
@@ -42,7 +43,7 @@
 	import SelectionBar from '#lib/features/annotations/SelectionBar.svelte';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
 	import { DEFAULT_QUICK_TOOLS, capabilities, isMarkupTool, showsComment } from '#lib/features/annotations/tools.ts';
-	import type { Annotation, PageLink } from '#lib/ipc/index.ts';
+	import { pageUrl, type Annotation, type PageLink } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -58,6 +59,7 @@
 		pageAt,
 		pageAtY,
 		pageLeft,
+		pagesBeside,
 		pagesInRange,
 		rowAtY,
 		rowCount,
@@ -67,6 +69,7 @@
 		type ViewMode
 	} from './layout.ts';
 	import PageView from './PageView.svelte';
+	import { AHEAD_PRIORITY, scheduler, type Ticket } from './scheduler.ts';
 	import SearchBar from './SearchBar.svelte';
 	import {
 		caretBox,
@@ -92,8 +95,10 @@
 		fitPageZoom,
 		fitWidthZoom,
 		isWheelNotch,
+		renderScale,
 		stepZoom,
 		wheelZoomFactor,
+		wholePageScale,
 		zoomBetween,
 		type ZoomMode
 	} from './zoom.ts';
@@ -117,8 +122,8 @@
 	const layout = $derived(computeLayout(tab.pages, tab.zoom, tab.rotation, arrangement));
 	const contentW = $derived(contentWidth(layout, viewportW));
 	/** Pages mounted: the viewport plus a quarter screen above and below. Each mounted page
-	 * holds its pixels in the webview, and rendering is fast enough that a wider margin
-	 * only cost memory (ADR 0002). */
+	 * holds its pixels in the webview, and a wider margin only cost memory (ADR 0002); the
+	 * rows next to these are rendered ahead in Rust instead (below). */
 	const mounted = $derived(pagesInRange(layout, scrollTop - viewportH * 0.25, scrollTop + viewportH * 1.25));
 	const mountedPages = $derived.by(() => {
 		// None before the viewport is measured: they would ask for images at the default zoom.
@@ -558,6 +563,40 @@
 	/** The zoom pages are rendered for: `tab.zoom`, or where a glide or pinch started. */
 	const renderZoom = $derived(heldRenderZoom ?? tab.zoom);
 	let settleTimer: ReturnType<typeof setTimeout> | undefined;
+
+	// Rendering ahead: once the view has rested a moment, Rust renders the row after the
+	// mounted pages and the row before them, and keeps the images (its image cache), so
+	// they are there when scrolled or turned to. A scanned page takes a quarter of a second
+	// to render, and came blank that long with every page read. The pages are not mounted:
+	// the webview holds no pixels of them (ADR 0002). These requests wait for the pages on
+	// screen, as thumbnails do, and are not made while the view moves from place to place
+	// (a scrollbar drag), where each would be for a page already left.
+	const AHEAD_DWELL_MS = 120;
+	const aheadUrls = $derived.by(() => {
+		if (viewportW === 0) return '';
+		const scale = renderScale(renderZoom, dpr);
+		return pagesBeside(layout, mounted[0], mounted[1])
+			.map((index) => {
+				const whole = wholePageScale(tab.pages[index]!, scale);
+				return pageUrl(tab.id, index, whole, tab.state.revision, undefined, undefined, hiddenOnPage(tab, index));
+			})
+			.join(' ');
+	});
+	$effect(() => {
+		if (!aheadUrls) return;
+		const urls = aheadUrls.split(' ');
+		let tickets: Ticket<void>[] = [];
+		const timer = setTimeout(() => {
+			tickets = urls.map((url, i) => scheduler.warm(url, AHEAD_PRIORITY + i));
+			// A page that could not be rendered ahead says so when it is shown.
+			for (const ticket of tickets) ticket.promise.catch(() => {});
+		}, AHEAD_DWELL_MS);
+		return () => {
+			clearTimeout(timer);
+			for (const ticket of tickets) ticket.cancel();
+		};
+	});
+
 	let wheelFactor = 1;
 	let wheelAnchor = { x: 0, y: 0 };
 	let wheelFrame = 0;

@@ -5,16 +5,17 @@
 // run at once, the rest wait in a queue ordered by priority (lower first), and a request
 // cancelled before it starts is never sent.
 
-import { fetchPageImage, type PageImage } from '#lib/ipc/index.ts';
+import { fetchPageImage, warmPageImage, type PageImage } from '#lib/ipc/index.ts';
 
-interface Job {
+interface Job<T = unknown> {
 	key: string;
-	url: string;
+	/** Sends the request. */
+	start: () => Promise<T>;
 	priority: number;
 	seq: number;
 	waiters: number;
-	promise: Promise<PageImage>;
-	resolve: (image: PageImage) => void;
+	promise: Promise<T>;
+	resolve: (result: T) => void;
 	reject: (error: unknown) => void;
 	started: boolean;
 }
@@ -22,14 +23,21 @@ interface Job {
 /** Priorities from here on are background work (thumbnails), behind every page on screen. */
 export const BACKGROUND_PRIORITY = 1_000_000;
 
+/**
+ * Pages rendered ahead are background work too, taken with the thumbnails nearest the
+ * current page (a thumbnail's priority is this plus its distance from that page): behind
+ * a panel's worth of thumbnails, the next page would often not be ready in time.
+ */
+export const AHEAD_PRIORITY = BACKGROUND_PRIORITY;
+
 export class CancelledError extends Error {
 	constructor() {
 		super('cancelled');
 	}
 }
 
-export interface Ticket {
-	promise: Promise<PageImage>;
+export interface Ticket<T = PageImage> {
+	promise: Promise<T>;
 	/** Lowers interest in the image; the request is dropped if nobody else wants it. */
 	cancel(): void;
 	/** Re-prioritizes the request (if it has not started yet). */
@@ -45,17 +53,29 @@ export class RenderScheduler {
 	constructor(private readonly maxInFlight = 3) {}
 
 	request(key: string, url: string, priority: number): Ticket {
-		let job = this.queue.get(key);
+		return this.enqueue(key, priority, () => fetchPageImage(url));
+	}
+
+	/**
+	 * Has the image at `url` rendered and kept in Rust, without fetching it: a page rendered
+	 * ahead. The page's own request, once it is shown, is then answered from that.
+	 */
+	warm(url: string, priority: number): Ticket<void> {
+		return this.enqueue(`warm ${url}`, priority, () => warmPageImage(url));
+	}
+
+	private enqueue<T>(key: string, priority: number, start: () => Promise<T>): Ticket<T> {
+		let job = this.queue.get(key) as Job<T> | undefined;
 		if (!job) {
-			let resolve!: (image: PageImage) => void;
+			let resolve!: (result: T) => void;
 			let reject!: (error: unknown) => void;
-			const promise = new Promise<PageImage>((res, rej) => {
+			const promise = new Promise<T>((res, rej) => {
 				resolve = res;
 				reject = rej;
 			});
 			job = {
 				key,
-				url,
+				start,
 				priority,
 				seq: this.seq++,
 				waiters: 0,
@@ -64,7 +84,7 @@ export class RenderScheduler {
 				reject,
 				started: false
 			};
-			this.queue.set(key, job);
+			this.queue.set(key, job as Job);
 		} else {
 			job.priority = Math.min(job.priority, priority);
 		}
@@ -111,17 +131,17 @@ export class RenderScheduler {
 		while (this.inFlight < this.maxInFlight) {
 			const job = this.next();
 			if (!job) return;
-			// Thumbnails wait while pages on screen render, and leave a slot free for them:
-			// MuPDF decodes one JPEG 2000 image at a time across the whole app, and a page
-			// holding a large scan takes about a second, so a thumbnail decoding first would
-			// keep the page waiting that long.
+			// Thumbnails and pages rendered ahead wait while pages on screen render, and leave
+			// a slot free for them: MuPDF decodes one JPEG 2000 image at a time across the
+			// whole app, and a page holding a large scan takes about a second, so a thumbnail
+			// decoding first would keep the page waiting that long.
 			const background = job.priority >= BACKGROUND_PRIORITY;
 			const foregroundInFlight = this.inFlight - this.backgroundInFlight;
 			if (background && (foregroundInFlight > 0 || this.backgroundInFlight >= this.maxInFlight - 1)) return;
 			job.started = true;
 			this.inFlight++;
 			if (background) this.backgroundInFlight++;
-			fetchPageImage(job.url)
+			job.start()
 				.then(job.resolve, job.reject)
 				.finally(() => {
 					this.inFlight--;

@@ -21,14 +21,7 @@
 	import { markPageDrawn } from './perfrun.ts';
 	import RenderedImage from './RenderedImage.svelte';
 	import { ordered, selectionHandles, selectionRects } from './selection.ts';
-	import {
-		TILE_SIZE,
-		TILE_THRESHOLD_PIXELS,
-		UNDERLAY_PIXELS,
-		pixelSize,
-		renderScale,
-		scaleForPixels
-	} from './zoom.ts';
+	import { TILE_SIZE, isTiled, pixelSize, renderScale, wholePageScale } from './zoom.ts';
 
 	interface Props {
 		tab: DocTab;
@@ -92,11 +85,8 @@
 	const revision = $derived(tab.state.revision);
 	const scale = $derived(renderScale(renderZoom, devicePixelRatio));
 	const pixels = $derived(pixelSize(size, scale));
-	const tiled = $derived(pixels.width * pixels.height > TILE_THRESHOLD_PIXELS);
-	const underlayScale = $derived(
-		Math.min(scale, Math.round(scaleForPixels(size, UNDERLAY_PIXELS) * 1000) / 1000)
-	);
-	const baseScale = $derived(tiled ? underlayScale : scale);
+	const tiled = $derived(isTiled(size, scale));
+	const baseScale = $derived(wholePageScale(size, scale));
 	/** The annotations the annotation list filters out, which the page is drawn without. */
 	const hidden = $derived(hiddenOnPage(tab, index));
 	const hiddenKey = $derived(hidden.join(','));

@@ -16,6 +16,7 @@ import {
 	pageAt,
 	pageAtY,
 	pageLeft,
+	pagesBeside,
 	pagesInRange,
 	rowCount,
 	rowOf,
@@ -42,11 +43,13 @@ import {
 	MIN_ZOOM,
 	fitPageZoom,
 	fitWidthZoom,
+	isTiled,
 	pixelSize,
 	renderScale,
 	stepZoom,
 	isWheelNotch,
 	wheelZoomFactor,
+	wholePageScale,
 	zoomBetween
 } from './zoom.ts';
 import { pinchDeltas } from './pinch.ts';
@@ -155,6 +158,24 @@ describe('layout', () => {
 		expect(pagesInRange(single, 0, 1e6)).toEqual([2, 2]);
 	});
 
+	it('names the rows next to the mounted pages, the one after them first', () => {
+		const pages = Array(7).fill(letter);
+		const column = computeLayout(pages, 1, 0);
+		expect(pagesBeside(column, 2, 3)).toEqual([4, 1]);
+		expect(pagesBeside(column, 0, 0)).toEqual([1]);
+		expect(pagesBeside(column, 5, 6)).toEqual([4]);
+		// Two pages to a row, the first one alone: rows 0 | 1 2 | 3 4 | 5 6.
+		const book = computeLayout(pages, 1, 0, { columns: 2, cover: true, row: null });
+		expect(pagesBeside(book, 1, 2)).toEqual([3, 4, 0]);
+		expect(pagesBeside(book, 3, 4)).toEqual([5, 6, 1, 2]);
+		// One row at a time: the rows a turn shows.
+		const single = computeLayout(pages, 1, 0, { columns: 1, cover: false, row: 3 });
+		expect(pagesBeside(single, ...pagesInRange(single, 0, 1e6))).toEqual([4, 2]);
+		// Nothing mounted, or no pages.
+		expect(pagesBeside(column, 0, -1)).toEqual([]);
+		expect(pagesBeside(computeLayout([], 1, 0), 0, 0)).toEqual([]);
+	});
+
 	it("reads the document's own page layout", () => {
 		expect(documentMode('SinglePage')).toEqual({ mode: 'singlePage', cover: false });
 		expect(documentMode('OneColumn')).toEqual({ mode: 'singlePageContinuous', cover: false });
@@ -253,6 +274,17 @@ describe('zoom', () => {
 		expect(pixelSize(letter, 1)).toEqual({ width: 612, height: 792 });
 		expect(pixelSize({ width: 100.4, height: 10 }, 1)).toEqual({ width: 101, height: 10 });
 	});
+
+	it('draws a large page from tiles over a smaller image of the whole page', () => {
+		// 612 x 792 pt: 1.9 megapixels at 2 px per point, 31 at 8.
+		expect(isTiled(letter, 2)).toBe(false);
+		expect(wholePageScale(letter, 2)).toBe(2);
+		expect(isTiled(letter, 8)).toBe(true);
+		const underlay = wholePageScale(letter, 8);
+		expect(underlay).toBe(1.759);
+		const { width, height } = pixelSize(letter, underlay);
+		expect(width * height).toBeLessThan(1_510_000);
+	});
 });
 
 describe('page box', () => {
@@ -280,19 +312,6 @@ describe('page box', () => {
 		expect(pageBoxText(0, labels)).toBe('i');
 		expect(pageBoxText(0, null)).toBe('1');
 	});
-});
-
-describe('navigation history', () => {
-	it('goes back and forward, and a new jump clears forward', () => {
-		const h = new NavHistory();
-		h.push({ page: 0, offset: 0 });
-		h.push({ page: 10, offset: 0.5 });
-		expect(h.goBack({ page: 20, offset: 0 })).toEqual({ page: 10, offset: 0.5 });
-		expect(h.goForward({ page: 10, offset: 0.5 })).toEqual({ page: 20, offset: 0 });
-		h.goBack({ page: 20, offset: 0 });
-		h.push({ page: 10, offset: 0.5 });
-		expect(h.canGoForward).toBe(false);
-	});
 
 	it('is empty on a page without a label, and still says where the page is', () => {
 		// Pages 3 and 4 are in a range of style "None" without a prefix.
@@ -306,6 +325,19 @@ describe('navigation history', () => {
 		expect(pageName(2, null)).toBe('3');
 		// Its number still reaches it from the page box.
 		expect(resolvePageInput('3', some, 5)).toBe(2);
+	});
+});
+
+describe('navigation history', () => {
+	it('goes back and forward, and a new jump clears forward', () => {
+		const h = new NavHistory();
+		h.push({ page: 0, offset: 0 });
+		h.push({ page: 10, offset: 0.5 });
+		expect(h.goBack({ page: 20, offset: 0 })).toEqual({ page: 10, offset: 0.5 });
+		expect(h.goForward({ page: 10, offset: 0.5 })).toEqual({ page: 20, offset: 0 });
+		h.goBack({ page: 20, offset: 0 });
+		h.push({ page: 10, offset: 0.5 });
+		expect(h.canGoForward).toBe(false);
 	});
 });
 

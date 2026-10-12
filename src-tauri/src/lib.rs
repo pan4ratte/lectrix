@@ -62,6 +62,7 @@ pub struct AppState {
     store: Mutex<Store>,
     image_cache: ImageCache,
     render_gate: RenderGate,
+    renders: protocol::Renders,
     /// First-page previews of recent files, for the start screen's grid.
     previews: protocol::PreviewCache,
     /// PDFs passed on the command line, opened once the frontend is ready.
@@ -313,6 +314,7 @@ pub fn run() {
                     env_mb("LECTRIX_IMAGE_CACHE_MB", IMAGE_CACHE_MB) << 20,
                 ),
                 render_gate: RenderGate::new(),
+                renders: protocol::Renders::default(),
                 previews: protocol::PreviewCache::default(),
                 startup_paths: Mutex::new(startup_paths.clone()),
                 platform: platform::current(),

@@ -30,7 +30,8 @@ when a save may have broken it. Several windows: a tab moves into a window of it
 into another window, with its document as it is. Full screen (F11): the pages alone, with
 the toolbar floating and the side panes brought by the pointer or by Alt held. Visual
 adjustments (brightness, contrast, inverted colours, greyscale) for a document's pages,
-on screen only and remembered per file.
+on screen only and remembered per file. The pages next to those on screen are rendered
+ahead, so that pages slow to render (scans) are there when scrolled to.
 
 ## Performance
 
@@ -48,12 +49,21 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
 
 ## Known gaps
 
-- **Scrolling JPEG 2000 scans.** Books scanned as JPEG 2000 (archive.org style) show blank
-  pages while scrolling: up to about 0.4 s at speed, and up to 1 s for the first pages.
-  These numbers were measured before the reduced-resolution patch (ADR 0008), which makes
-  thumbnails cheaper; scrolling was not re-measured. Each page takes 0.2 to 0.4 s to
-  decode, and MuPDF decodes one JPEG 2000 image at a time, on one thread, under a global
-  lock (`fz_opj_lock`). Lifting that is left to upstream MuPDF.
+- **JPEG 2000 scans.** A page of a book scanned as JPEG 2000 (archive.org style) takes
+  about a quarter of a second to render. Measured 2026-10-12 on a 602-page Internet
+  Archive book (each page a 1920 × 3032 image with a JBIG2 mask, drawn 1,300 px wide):
+  230 ms, of which about 115 ms decodes the JPEG 2000 image, 35 ms its mask and
+  background, and 77 ms draws them. Pages are rendered ahead (AGENTS.md section 3), so
+  read page by page or scrolled steadily (2,000 px/s) they are there when they come into
+  view: 3 of 43 pages came blank, against all 43 before, each for 0.3 to 0.5 s. Scrolled
+  fast (6,000 px/s) every page still comes blank, for about 0.26 s, and so does a page
+  jumped to, for 0.3 to 0.4 s: one page's render is the wait, and it is not ahead of
+  anything there. MuPDF also decodes one JPEG 2000 image at a time, on one thread, under
+  a global lock (`fz_opj_lock`). Lifting the lock and giving OpenJPEG threads were both
+  tried in a local build of the fork and not adopted, since neither shortens that wait by
+  more than a tenth (ADR 0008, "Tried and not adopted"). With such a book open,
+  `lectrix.exe` idles at 150 MB (97 MB before pages were rendered ahead: the next page's
+  image, and its decoded images in MuPDF's store).
 - **Scroll modes** are not remembered per file: a document reopens in the Settings
   choice. Right-to-left documents (`/ViewerPreferences /Direction /R2L`) still put their
   first page on the left in the two-page modes. In single page and two pages, a text

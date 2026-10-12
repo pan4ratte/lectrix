@@ -221,6 +221,32 @@ export function pagesInRange(layout: Layout, top: number, bottom: number): [numb
 	return [layout.rows[first]!.first, layout.rows[last]!.last];
 }
 
+/** The row holding page `page` in `layout`. */
+function rowHolding(layout: Layout, page: number): number {
+	let lo = 0;
+	let hi = layout.rows.length - 1;
+	while (lo < hi) {
+		const mid = (lo + hi + 1) >> 1;
+		if (layout.rows[mid]!.first <= page) lo = mid;
+		else hi = mid - 1;
+	}
+	return lo;
+}
+
+/**
+ * The pages next to the mounted ones (`first` to `last`): those of the row after them,
+ * then those of the row before them. With one row shown at a time, the rows a turn shows.
+ */
+export function pagesBeside(layout: Layout, first: number, last: number): number[] {
+	const out: number[] = [];
+	if (last < first || layout.rows.length === 0) return out;
+	for (const r of [rowHolding(layout, last) + 1, rowHolding(layout, first) - 1]) {
+		const row = layout.rows[r];
+		if (row) for (let i = row.first; i <= row.last; i++) out.push(i);
+	}
+	return out;
+}
+
 /** The page that counts as "current": the first in the row under a line 30% down the viewport. */
 export function currentPage(layout: Layout, scrollTop: number, viewportHeight: number): number {
 	return Math.max(0, pageAtY(layout, scrollTop + viewportHeight * 0.3));

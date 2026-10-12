@@ -1,5 +1,5 @@
 //! The page-image protocol:
-//! `lectrix://page/{docId}/{pageIndex}?scale={s}&rev={r}[&tile={x},{y},{w},{h}][&hide={n},{n}...][&fmt=png]`,
+//! `lectrix://page/{docId}/{pageIndex}?scale={s}&rev={r}[&tile={x},{y},{w},{h}][&hide={n},{n}...][&fmt=png][&warm=1]`,
 //! and previews of recent files: `lectrix://recent/{index}?w={px}&opened={ms}`.
 //!
 //! On Windows (WebView2) the same URL is served as `http://lectrix.localhost/page/...`. The
@@ -11,9 +11,13 @@
 //! size in the `X-Lectrix-Width` and `X-Lectrix-Height` headers). `fmt=png` returns the same
 //! cached pixels as PNG, which the app uses by default because it reaches the screen about
 //! three times faster through WebView2 (ADR 0004).
+//!
+//! `warm=1` renders the image into the cache and answers 204 with no body: the frontend
+//! has the pages next to those on screen rendered ahead this way, so that they are there
+//! when they are scrolled to (a scanned page takes a quarter of a second to render).
 
 use std::borrow::Cow;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::path::PathBuf;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Instant, SystemTime};
@@ -42,6 +46,8 @@ struct PageRequest {
     /// Object numbers of the annotations to leave out, sorted, without repeats.
     hidden: Vec<u32>,
     format: Format,
+    /// Render the image and keep it, and send nothing: a page rendered ahead.
+    warm: bool,
 }
 
 /// The most annotations one request may hide. The frontend asks for a page with more of
@@ -70,6 +76,7 @@ fn parse(path: &str, query: Option<&str>) -> Result<PageRequest, Failure> {
         tile: None,
         hidden: Vec::new(),
         format: Format::Rgba,
+        warm: false,
     };
     for pair in query.unwrap_or("").split('&') {
         let (key, value) = pair.split_once('=').unwrap_or((pair, ""));
@@ -127,10 +134,120 @@ fn parse(path: &str, query: Option<&str>) -> Result<PageRequest, Failure> {
                     _ => return Err((StatusCode::BAD_REQUEST, "bad format")),
                 };
             }
+            "warm" => request.warm = value == "1",
             _ => {}
         }
     }
     Ok(request)
+}
+
+/// How many pages (at a scale) [`Renders`] remembers as rendered lately.
+const DECODED_PAGES: usize = 64;
+
+/// Keeps an image from being rendered twice at once, and a page's images from being
+/// decoded twice at once.
+///
+/// - A request for an image that is being rendered waits for that render and takes its
+///   result from the cache: a page that is shown while it is rendered ahead (`warm=1`).
+/// - The first tile of a page at a scale renders alone. It decodes the page's images,
+///   which MuPDF then keeps, and the page's other tiles draw from those. Tiles started
+///   together each decoded them: three tiles of a scanned page took 380 ms, against
+///   180 ms this way.
+#[derive(Default)]
+pub struct Renders {
+    state: Mutex<RendersState>,
+    changed: Condvar,
+}
+
+#[derive(Default)]
+struct RendersState {
+    /// Images being rendered.
+    images: HashSet<ImageKey>,
+    /// Pages whose first tile is being rendered, by the key of their whole image.
+    first_tiles: HashSet<ImageKey>,
+    /// Pages rendered lately, whole or a tile, by the key of their whole image; oldest
+    /// first. MuPDF may have dropped a page's decoded images since: its tiles then decode
+    /// them again, as they did before.
+    decoded: VecDeque<ImageKey>,
+}
+
+enum Begin<'a, T> {
+    /// The image was there already, or another request rendered it meanwhile.
+    Cached(T),
+    Render(Turn<'a>),
+}
+
+/// The turn to render one image, which ends when this is dropped.
+struct Turn<'a> {
+    renders: &'a Renders,
+    key: ImageKey,
+    first_tile: bool,
+    rendered: bool,
+}
+
+impl Renders {
+    fn lock(&self) -> std::sync::MutexGuard<'_, RendersState> {
+        // The sets are consistent before anything here can panic.
+        self.state.lock().unwrap_or_else(|e| e.into_inner())
+    }
+
+    /// Waits for the turn to render `key`. `cached` is asked first and after every wait:
+    /// once it has the image, there is nothing to render.
+    fn begin<T>(&self, key: ImageKey, cached: impl Fn() -> Option<T>) -> Begin<'_, T> {
+        let page = ImageKey { tile: None, ..key };
+        let mut state = self.lock();
+        loop {
+            if let Some(found) = cached() {
+                return Begin::Cached(found);
+            }
+            let waits = state.images.contains(&key)
+                || (key.tile.is_some() && state.first_tiles.contains(&page));
+            if !waits {
+                break;
+            }
+            state = self.changed.wait(state).unwrap_or_else(|e| e.into_inner());
+        }
+        state.images.insert(key);
+        let first_tile = key.tile.is_some() && !state.decoded.contains(&page);
+        if first_tile {
+            state.first_tiles.insert(page);
+        }
+        Begin::Render(Turn {
+            renders: self,
+            key,
+            first_tile,
+            rendered: false,
+        })
+    }
+}
+
+impl Turn<'_> {
+    /// The image was rendered (and is in the cache, for those waiting for it).
+    fn rendered(&mut self) {
+        self.rendered = true;
+    }
+}
+
+impl Drop for Turn<'_> {
+    fn drop(&mut self) {
+        let page = ImageKey {
+            tile: None,
+            ..self.key
+        };
+        let mut state = self.renders.lock();
+        state.images.remove(&self.key);
+        if self.first_tile {
+            state.first_tiles.remove(&page);
+        }
+        if self.rendered && !state.decoded.contains(&page) {
+            if state.decoded.len() >= DECODED_PAGES {
+                state.decoded.pop_front();
+            }
+            state.decoded.push_back(page);
+        }
+        drop(state);
+        self.renders.changed.notify_all();
+    }
 }
 
 /// Limits how many pages render at once. Rendering is CPU-bound; more parallel renders
@@ -191,9 +308,9 @@ fn serve(state: &AppState, request: &Request<Vec<u8>>) -> Result<Response<Body>,
         tile: req.tile,
         hidden: ImageKey::hidden(&req.hidden),
     };
-    let (image, cached) = match state.image_cache.get(&key) {
-        Some(image) => (image, true),
-        None => {
+    let (image, cached) = match state.renders.begin(key, || state.image_cache.get(&key)) {
+        Begin::Cached(image) => (image, true),
+        Begin::Render(mut turn) => {
             let (image, revision) = state
                 .render_gate
                 .run(|| session.render_rgba(req.page, req.scale, req.tile, &req.hidden))
@@ -202,10 +319,23 @@ fn serve(state: &AppState, request: &Request<Vec<u8>>) -> Result<Response<Body>,
             // Key by the revision actually rendered: if the document changed after the
             // request was made, these pixels belong to the newer revision.
             insert(&state.image_cache, ImageKey { revision, ..key }, &image);
+            turn.rendered();
             (image, false)
         }
     };
     let render_ms = t0.elapsed().as_secs_f64() * 1000.0;
+    if req.warm {
+        let timing = format!("render={render_ms:.2};cached={}", u8::from(cached));
+        return headers(
+            StatusCode::NO_CONTENT,
+            image.width,
+            image.height,
+            req.revision,
+            &timing,
+        )
+        .body(Cow::Borrowed(&[][..]))
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "response failed"));
+    }
     let (content_type, body, encode_ms) = match req.format {
         Format::Rgba => ("application/octet-stream", image.data.clone(), 0.0),
         Format::Png => {
@@ -376,9 +506,22 @@ fn respond(
     timing: &str,
     body: Vec<u8>,
 ) -> Result<Response<Body>, Failure> {
-    Response::builder()
-        .status(StatusCode::OK)
+    headers(StatusCode::OK, width, height, revision, timing)
         .header(header::CONTENT_TYPE, content_type)
+        .body(Cow::Owned(body))
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "response failed"))
+}
+
+/// A response's status and the headers every image response has.
+fn headers(
+    status: StatusCode,
+    width: u32,
+    height: u32,
+    revision: u64,
+    timing: &str,
+) -> tauri::http::response::Builder {
+    Response::builder()
+        .status(status)
         // Rendered pixels are cached in Rust (`ImageCache`) and drawn into canvases; a
         // browser cache would only hold a second copy of every image.
         .header(header::CACHE_CONTROL, "no-store")
@@ -392,8 +535,6 @@ fn respond(
         .header("X-Lectrix-Height", height)
         .header("X-Lectrix-Revision", revision)
         .header("X-Lectrix-Timing", timing)
-        .body(Cow::Owned(body))
-        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "response failed"))
 }
 
 fn error_response(status: StatusCode, message: &'static str) -> Response<Body> {
@@ -434,6 +575,134 @@ mod tests {
         );
         assert_eq!(r.format, Format::Png);
         assert!(r.hidden.is_empty());
+        assert!(!r.warm);
+        assert!(
+            parse("/page/1/0", Some("scale=2&rev=0&fmt=png&warm=1"))
+                .unwrap()
+                .warm
+        );
+    }
+
+    fn image_key(page: usize, tile: Option<u32>) -> ImageKey {
+        ImageKey {
+            doc: 1,
+            page,
+            revision: 0,
+            scale_milli: 8000,
+            tile: tile.map(|x| PixelRect {
+                x,
+                y: 0,
+                width: TILE_SIZE,
+                height: TILE_SIZE,
+            }),
+            hidden: 0,
+        }
+    }
+
+    /// Asks for the turn to render `key` on another thread, and says through `started`
+    /// when it has it; the turn ends when `finish` is sent to (and counts as a render).
+    fn take_turn(
+        renders: &Arc<Renders>,
+        cache: &Arc<Mutex<HashSet<ImageKey>>>,
+        key: ImageKey,
+    ) -> (
+        std::sync::mpsc::Receiver<bool>,
+        std::sync::mpsc::Sender<()>,
+        std::thread::JoinHandle<()>,
+    ) {
+        let (started_tx, started) = std::sync::mpsc::channel();
+        let (finish, finish_rx) = std::sync::mpsc::channel::<()>();
+        let (renders, cache) = (renders.clone(), cache.clone());
+        let thread = std::thread::spawn(move || {
+            let found = || cache.lock().unwrap().contains(&key).then_some(());
+            match renders.begin(key, found) {
+                Begin::Cached(()) => started_tx.send(false).unwrap(),
+                Begin::Render(mut turn) => {
+                    started_tx.send(true).unwrap();
+                    finish_rx.recv().unwrap();
+                    cache.lock().unwrap().insert(key);
+                    turn.rendered();
+                }
+            }
+        });
+        (started, finish, thread)
+    }
+
+    const SOON: std::time::Duration = std::time::Duration::from_millis(100);
+
+    #[test]
+    fn an_image_being_rendered_is_waited_for_not_rendered_again() {
+        let renders = Arc::new(Renders::default());
+        let cache = Arc::new(Mutex::new(HashSet::new()));
+        let page = image_key(3, None);
+        let (first, finish, a) = take_turn(&renders, &cache, page);
+        assert!(first.recv().unwrap(), "the first request renders");
+        let (second, _unused, b) = take_turn(&renders, &cache, page);
+        assert!(second.recv_timeout(SOON).is_err(), "the second waits");
+        // Another page is not held up.
+        let (other, finish_other, c) = take_turn(&renders, &cache, image_key(4, None));
+        assert!(other.recv().unwrap());
+        finish_other.send(()).unwrap();
+        finish.send(()).unwrap();
+        assert!(
+            !second.recv().unwrap(),
+            "the second takes the first one's image"
+        );
+        for thread in [a, b, c] {
+            thread.join().unwrap();
+        }
+    }
+
+    #[test]
+    fn a_failed_render_leaves_the_image_to_the_next_request() {
+        let renders = Renders::default();
+        let key = image_key(0, Some(0));
+        match renders.begin(key, || None::<()>) {
+            Begin::Render(turn) => drop(turn),
+            Begin::Cached(()) => panic!("nothing is cached"),
+        }
+        // Not rendered: the page's next tile is its first again.
+        match renders.begin(image_key(0, Some(512)), || None::<()>) {
+            Begin::Render(turn) => assert!(turn.first_tile),
+            Begin::Cached(()) => panic!("nothing is cached"),
+        }
+    }
+
+    #[test]
+    fn the_first_tile_of_a_page_renders_alone_and_the_rest_together() {
+        let renders = Arc::new(Renders::default());
+        let cache = Arc::new(Mutex::new(HashSet::new()));
+        let (first, finish_first, a) = take_turn(&renders, &cache, image_key(7, Some(0)));
+        assert!(first.recv().unwrap());
+        let (second, finish_second, b) = take_turn(&renders, &cache, image_key(7, Some(512)));
+        let (third, finish_third, c) = take_turn(&renders, &cache, image_key(7, Some(1024)));
+        assert!(
+            second.recv_timeout(SOON).is_err(),
+            "tiles wait for the first"
+        );
+        // The page's whole image at another scale (the underlay) does not wait.
+        let underlay = ImageKey {
+            scale_milli: 2000,
+            ..image_key(7, None)
+        };
+        let (whole, finish_whole, d) = take_turn(&renders, &cache, underlay);
+        assert!(whole.recv().unwrap());
+        finish_whole.send(()).unwrap();
+
+        finish_first.send(()).unwrap();
+        // Both go on, at the same time.
+        assert!(second.recv().unwrap());
+        assert!(third.recv().unwrap());
+        finish_second.send(()).unwrap();
+        finish_third.send(()).unwrap();
+        for thread in [a, b, c, d] {
+            thread.join().unwrap();
+        }
+        // A later tile of the page starts at once.
+        match renders.begin(image_key(7, Some(2048)), || None::<()>) {
+            Begin::Render(turn) => assert!(!turn.first_tile),
+            Begin::Cached(()) => panic!("nothing is cached"),
+        }
     }
 
     #[test]

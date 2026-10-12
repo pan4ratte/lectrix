@@ -379,3 +379,12 @@ export async function fetchPageImage(url: string, signal?: AbortSignal): Promise
 		}
 	};
 }
+
+/**
+ * Has Rust render the page image at `url` and keep it, without sending it (`warm=1`): a
+ * page rendered ahead, which is then there when it is shown.
+ */
+export async function warmPageImage(url: string): Promise<void> {
+	const response = await fetch(`${url}&warm=1`);
+	if (!response.ok) throw new Error(`${response.status} ${await response.text()}`);
+}

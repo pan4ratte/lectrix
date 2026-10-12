@@ -137,3 +137,18 @@ export const UNDERLAY_PIXELS = 1_500_000;
 export function scaleForPixels(size: Size, pixels: number): number {
 	return Math.sqrt(pixels / (size.width * size.height));
 }
+
+/** Whether a page rendered at `scale` is drawn from tiles over a low-resolution underlay. */
+export function isTiled(size: Size, scale: number): boolean {
+	const { width, height } = pixelSize(size, scale);
+	return width * height > TILE_THRESHOLD_PIXELS;
+}
+
+/**
+ * The scale of the one image of the whole page, for a page rendered at `scale`: that scale,
+ * or the underlay's when the page is drawn from tiles.
+ */
+export function wholePageScale(size: Size, scale: number): number {
+	if (!isTiled(size, scale)) return scale;
+	return Math.min(scale, Math.round(scaleForPixels(size, UNDERLAY_PIXELS) * 1000) / 1000);
+}

@@ -65,6 +65,38 @@ reduction instead of MuPDF's subsampling) and look the same; thumbnails are smoo
 `crates/pdf-core/tests/jpx.rs` checks that small renders match the full decode scaled
 down; the pdf-core tests and the local corpus pass with the fork.
 
+## Tried and not adopted (2026-10-12)
+
+Two further patches were built into a local copy of the fork and measured on a 602-page
+Internet Archive book (each page a 1920 × 3032 JPEG 2000 image with a JBIG2 mask, drawn
+1,300 px wide; one cold page takes 230 to 280 ms to render, about half of it this decode).
+All figures are from one session, each pair from the same build.
+
+- **Decoding several images at once.** MuPDF's lock exists because OpenJPEG's allocator
+  hooks reach MuPDF's allocator through one global context, set for the decode under way.
+  Giving those hooks a context of their own (a clone made once and kept for the life of the
+  process; every context of a family shares the allocator and its locks) makes the lock
+  unnecessary. OpenJPEG 2.5.4 itself keeps no state between decodes but a warn-once flag
+  (`ht_dec.c`). Result: four cold pages rendered at once took 366 to 428 ms instead of
+  733 ms, and two took 330 ms instead of 445 ms, with the same pixels. In the app, in one
+  column: a page jumped to came after 360 to 376 ms instead of 405 ms; fast scrolling
+  (6,000 px/s) and steady scrolling did not change. Two-page view was not measured.
+- **OpenJPEG's worker threads** (`opj_codec_set_threads`, with OpenJPEG built with
+  `MUTEX_win32`, which MuPDF's project files leave out): one cold page took 255 ms with
+  four threads and 245 ms with eight, instead of 277 ms.
+
+Neither was worth a second patch to keep in step with MuPDF: reading is served by
+rendering pages ahead (AGENTS.md section 3), and what remains is one page's own render
+time, which these change by a tenth at most. The first would matter again if several
+pages often rendered at once (two-page view of scanned books, or a low-resolution image
+drawn first while the full one decodes).
+
+To try a patch locally without copying MuPDF's sources (a gigabyte, which took over
+20 minutes to copy here): a folder with the fork's `Cargo.toml` and `mupdf-sys/*.rs`,
+directory junctions to everything else in cargo's checkout
+(`~/.cargo/git/checkouts/mupdf-rs-*/<rev>`), and `mupdf-sys = { path = … }` in the
+workspace's `[patch]`. MuPDF then rebuilds in about three and a half minutes.
+
 ## Consequences
 
 - MuPDF is now built from a fork: updating MuPDF means rebasing the fork's two files onto
