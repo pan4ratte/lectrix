@@ -4,7 +4,6 @@
 	import { getCurrentWebview } from '@tauri-apps/api/webview';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { onMount } from 'svelte';
-	import { slide } from 'svelte/transition';
 
 	import { commands } from '#lib/commands.ts';
 	import { isContextMenuKey, openContextMenu } from '#lib/components/contextmenu.ts';
@@ -18,7 +17,7 @@
 	import PanelDragGhost from '#lib/components/PanelDragGhost.svelte';
 	import PanelPane from '#lib/components/PanelPane.svelte';
 	import { draggedPanel, dropSlot } from '#lib/components/panels.svelte.ts';
-	import { LEFT_LIMITS, PANE_MOTION_MS, RIGHT_LIMITS, motionMs, shownWidth, type PaneSide } from '#lib/components/panes.ts';
+	import { LEFT_LIMITS, RIGHT_LIMITS, shownWidth, type PaneSide } from '#lib/components/panes.ts';
 	import SidePane from '#lib/components/SidePane.svelte';
 	import StartScreen from '#lib/components/StartScreen.svelte';
 	import TitleBar from '#lib/components/TitleBar.svelte';
@@ -29,6 +28,7 @@
 	import { announceUpdate } from '#lib/features/changelog/announce.ts';
 	import { APP_NAME } from '#lib/config.ts';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
+	import { toggleFullScreen } from '#lib/features/fullscreen/actions.ts';
 	import { fullscreen } from '#lib/features/fullscreen/fullscreen.svelte.ts';
 	import { applySettings } from '#lib/features/settings/apply.ts';
 	import CombineView from '#lib/features/merge/CombineView.svelte';
@@ -133,7 +133,7 @@
 			else if (tab.search.open) {
 				tab.search.open = false;
 				tab.search.clear();
-			} else if (fullscreen.on) void fullscreen.leave().catch(() => {});
+			} else if (fullscreen.on) void toggleFullScreen();
 		}
 	}
 
@@ -142,9 +142,17 @@
 	// The window fills the screen and shows the pages alone: the title bar and the view bar
 	// slide away, the side panes lie over the pages when something brings them (the pointer
 	// at a side of the screen, a command, Alt held), and the toolbar floats.
+	//
+	// It comes and goes the same way (`Stage` in fullscreen.svelte.ts): the bars and the
+	// panes slide, laid out as in a window, over pages that have the whole window or screen
+	// meanwhile (`viewer-covers`), so no gap opens where a bar was and the pages never wait
+	// for the slide; then the window is switched, and only then is everything laid out for
+	// its new size, once. They slide by transforms alone (`chrome-slide`, `chrome-away` in
+	// app.css), which lays nothing out.
 	const full = $derived(fullscreen.on);
+	const sliding = $derived(fullscreen.stage === 'arriving' || fullscreen.stage === 'returning');
+	const away = $derived(sliding && fullscreen.chromeAway);
 	let shell: HTMLDivElement | undefined = $state();
-	const chromeSlide = () => ({ duration: motionMs(PANE_MOTION_MS) });
 
 	fullscreen.widthOf = (side) => {
 		if (app.panels[side].length === 0) return null;
@@ -309,7 +317,10 @@
      screen, a pane lies over the pages and has its button only while it shows. -->
 {#snippet paneButton(side: PaneSide)}
 	{#if tab && app.panels[side].length > 0 && (!full || app.isOpen(side))}
-		<div class={['absolute top-[4px]', full ? 'z-30' : 'z-20', side === 'left' ? 'left-[4px]' : 'right-[4px]']}>
+		<div
+			class={['absolute top-[4px]', full ? 'z-30' : 'z-20', side === 'left' ? 'left-[4px]' : 'right-[4px]', sliding && 'chrome-slide']}
+			class:chrome-away={away}
+		>
 			<PaneToggle {side} />
 		</div>
 	{/if}
@@ -317,7 +328,7 @@
 
 <div class="flex h-full flex-col" bind:this={shell}>
 	{#if !full}
-		<div class="shrink-0" transition:slide={chromeSlide()}>
+		<div class={['shrink-0', sliding && 'chrome-slide chrome-up relative z-10']} class:chrome-away={away}>
 			<TitleBar />
 		</div>
 	{/if}
@@ -334,9 +345,11 @@
 					label="Left pane"
 					open={app.isOpen('left')}
 					overlay={full}
+					{sliding}
+					{away}
 					bind:width={app.leftWidth}
 					limits={LEFT_LIMITS}
-					animate={app.panesRestored}
+					animate={app.panesRestored && !fullscreen.switching}
 				>
 					<PanelPane side="left" {tab} />
 				</SidePane>
@@ -344,7 +357,10 @@
 			<main class="flex min-w-0 flex-1 flex-col bg-canvas">
 				{#if tab}
 					{#if !full}
-						<div class="flex shrink-0 items-stretch" transition:slide={chromeSlide()}>
+						<div
+							class={['flex shrink-0 items-stretch', sliding && 'chrome-slide chrome-up-two relative z-10']}
+							class:chrome-away={away}
+						>
 							{@render paneEnd('left')}
 							<div class="min-w-0 flex-1">
 								{#key tab.id}
@@ -354,16 +370,19 @@
 							{@render paneEnd('right')}
 						</div>
 					{/if}
-					<FileBanner {tab} />
-					<!-- Full screen, a file open for reading only says so when something tries to
-					     change it (app.refuseReadOnly), not in a bar across the pages. -->
-					{#if !full}
-						<PdfaBanner {tab} />
-					{/if}
+					<!-- (Over the pages while the bars slide, as they are.) -->
+					<div class={['shrink-0', sliding && 'relative z-10']}>
+						<FileBanner {tab} />
+						<!-- Full screen, a file open for reading only says so when something tries to
+						     change it (app.refuseReadOnly), not in a bar across the pages. -->
+						{#if !full}
+							<PdfaBanner {tab} />
+						{/if}
+					</div>
 					{#key tab.id}
-						<div class="relative flex min-h-0 flex-1 flex-col">
+						<div class={['flex min-h-0 flex-1 flex-col', sliding ? 'viewer-covers' : 'relative']}>
 							<Viewer {tab} />
-							{#if app.settings?.toolbarStyle !== 'panel' || full}
+							{#if app.settings?.toolbarStyle !== 'panel' || fullscreen.started}
 								<AnnotationToolbar {tab} />
 							{/if}
 							<AnnotationPropertiesDialog {tab} />
@@ -380,9 +399,11 @@
 					label="Right pane"
 					open={app.isOpen('right')}
 					overlay={full}
+					{sliding}
+					{away}
 					bind:width={app.rightWidth}
 					limits={RIGHT_LIMITS}
-					animate={app.panesRestored}
+					animate={app.panesRestored && !fullscreen.switching}
 				>
 					<PanelPane side="right" {tab} />
 				</SidePane>

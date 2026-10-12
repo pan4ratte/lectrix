@@ -17,6 +17,17 @@ export const PANE_LINGER_MS = 300;
 export const PEEK_AFTER_MS = 150;
 /** How long the toolbar shows after full screen starts, when it shows only on demand. */
 export const ENTER_FLASH_MS = 1500;
+/** How long the window is given to take its new size as full screen starts or ends: one
+ * that had that size already is not resized. */
+export const SWITCH_WAIT_MS = 300;
+/** How long before the bars and panes have slid away the window is asked to switch: it
+ * takes 25 to 60 ms to do so, and then switches as the last of them goes. Back to a
+ * window it takes 10 to 25 ms. */
+export const SWITCH_LEAD_MS = 50;
+export const SWITCH_BACK_LEAD_MS = 20;
+/** How long after full screen has started its notification comes, so that it does not
+ * appear while the toolbar changes. */
+export const HINT_AFTER_MS = 300;
 /** A pane's resize edge reaches this far out of it. */
 const RESIZE_GRIP = 4;
 

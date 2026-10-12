@@ -73,7 +73,7 @@
 
 	const panel = $derived(docked);
 	/** Full screen, this is the only bar: the page and zoom controls are in it. */
-	const full = $derived(fullscreen.on && !docked);
+	const full = $derived(fullscreen.started && !docked);
 	const position = $derived(app.settings?.toolbarPosition ?? 'bottom');
 	const onHover = $derived(!panel && app.settings?.toolbarVisibility === 'onHover');
 

@@ -5,17 +5,22 @@ import { isTextInput } from '#lib/shortcuts.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 
 import { fullscreen } from './fullscreen.svelte.ts';
+import { HINT_AFTER_MS } from './reveal.ts';
 
 let hinted = false;
+
+const hint = () => {
+	const keys = app.shortcut('fullScreen');
+	return `Press ${keys ? `${keys} or Esc` : 'Esc'} to leave full screen.`;
+};
 
 /** How to leave full screen and reach the panes, said the first time it starts while
  * Lectrix runs (and by the Debug menu). */
 export function hintFullScreen() {
-	const keys = app.shortcut('fullScreen');
 	app.notify(
 		{
 			kind: 'info',
-			message: `Press ${keys ? `${keys} or Esc` : 'Esc'} to leave full screen.`,
+			message: hint(),
 			suggestion: 'Hold Alt to see the side panes and the toolbar, or move the pointer to a side of the screen.'
 		},
 		8000
@@ -36,8 +41,12 @@ export async function toggleFullScreen() {
 	}
 	if (fullscreen.on && !hinted) {
 		hinted = true;
-		hintFullScreen();
+		setTimeout(() => {
+			if (fullscreen.on) hintFullScreen();
+		}, HINT_AFTER_MS);
 	}
+	// Left: how to leave is no longer news.
+	if (!fullscreen.on) for (const toast of app.toasts) if (toast.message === hint()) app.dismissToast(toast.id);
 	// What had the focus (a menu, the toolbar's button) may be gone: the keys go to the pages.
 	app.active?.viewer?.focus();
 }

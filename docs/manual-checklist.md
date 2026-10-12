@@ -177,11 +177,14 @@ Needs an installed earlier release and a newer one published (ADR 0011,
 
 ## Full screen
 
-- [ ] With a document open, press F11: the title bar and the view bar slide away, the
-      side panes slide shut, and the pages fill the screen, taskbar included. The toolbar
-      floats with the page and zoom controls in it, and a notification says how to leave
-      (the first time only). F11 again: all back, the window where it was. The same from a
-      maximized window, which is maximized again afterwards.
+- [ ] With a document open, press F11: the title bar, the view bar and the side panes slide
+      out of the window at once, smoothly also the first time after starting Lectrix, with
+      the pages under them and no gap where a bar was; the window then fills the screen,
+      taskbar included. The toolbar floats with the page and zoom controls in it, and a
+      notification says how to leave (the first time only). F11 again: the bars and panes
+      slide back in over the pages, smoothly, the window returns to where it was, and that
+      notification is gone. The same from a maximized window, which is maximized again
+      afterwards.
 - [ ] Rest the pointer at the left edge of the screen, then at the right: that side's pane
       slides over the pages, which do not move, and goes a moment after the pointer has
       left it. Drag the pages' scrollbar up and down: the right pane does not come during

@@ -1905,6 +1905,38 @@ button.shortcut-key:hover,
 	background: var(--lectrix-line);
 	pointer-events: none;
 }
+/* Full screen starting or ending (section 6.1): the title bar, the view bar and the side
+   panes slide out of sight and back by a transform, and fade, which the compositor does
+   without laying anything out. (Where the classes come together, the transition is the one
+   of the style they bring.) The pages have the whole window or screen meanwhile, under
+   them: no gap opens where a bar was. */
+.viewer-covers {
+	position: fixed;
+	inset: 0;
+	z-index: 0;
+}
+.chrome-slide {
+	transition:
+		transform 140ms ease-out,
+		opacity 140ms ease-out;
+}
+.chrome-slide.chrome-away {
+	opacity: 0;
+	pointer-events: none;
+}
+.chrome-up.chrome-away {
+	transform: translateY(-100%);
+}
+/* The view bar's row, under the title bar (35 px): past it too. */
+.chrome-up-two.chrome-away {
+	transform: translateY(calc(-100% - 35px));
+}
+.chrome-left.chrome-away {
+	transform: translateX(-100%);
+}
+.chrome-right.chrome-away {
+	transform: translateX(100%);
+}
 /* Full screen (section 6.1), a side pane lies over the pages: its line runs down its whole
    inner edge, and a soft shadow parts it from them. Above the floating toolbar and the
    comment panels (20), below the pane's own button (30). */

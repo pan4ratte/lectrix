@@ -1,18 +1,70 @@
 // Full screen (section 6.1): the window fills the screen and shows only the pages. This holds
-// whether it is on, and what brings the side panes and the toolbar back meanwhile: the
-// pointer at a side of the screen, a pane a command asked for, and Alt held down.
+// whether it is on and how it comes and goes, and what brings the side panes and the toolbar
+// back meanwhile: the pointer at a side of the screen, a pane a command asked for, and Alt
+// held down.
 
 import { getCurrentWindow } from '@tauri-apps/api/window';
 
-import type { PaneSide } from '#lib/components/panes.ts';
+import { PANE_MOTION_MS, motionMs, type PaneSide } from '#lib/components/panes.ts';
 import { isTextInput } from '#lib/shortcuts.ts';
 
-import { EDGE_DWELL_MS, ENTER_FLASH_MS, PANE_LINGER_MS, PEEK_AFTER_MS, atPane } from './reveal.ts';
+import { EDGE_DWELL_MS, ENTER_FLASH_MS, PANE_LINGER_MS, PEEK_AFTER_MS, SWITCH_BACK_LEAD_MS, SWITCH_LEAD_MS, SWITCH_WAIT_MS, atPane } from './reveal.ts';
 
 const SIDES: readonly PaneSide[] = ['left', 'right'];
 
 type Timer = ReturnType<typeof setTimeout> | undefined;
 type KeyPress = Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'shiftKey' | 'metaKey' | 'repeat'>;
+
+/**
+ * Where full screen is on its way (the bars are the title bar and the view bar):
+ * - `off`: a window like any other.
+ * - `arriving`: still that window, with its bars and panes where they were, sliding out of
+ *   it; the pages have the whole window already, under them.
+ * - `full`: the window fills the screen and shows the pages alone; the panes come over the
+ *   pages when something brings them.
+ * - `returning`: still the whole screen, with the pages as they were; the bars and panes
+ *   are back, laid out as in a window, and slide in over the pages.
+ *
+ * In `arriving` and `returning` the window is switched as the slide ends.
+ */
+export type Stage = 'off' | 'arriving' | 'full' | 'returning';
+
+const inBrowser = typeof window !== 'undefined';
+const nextFrame = () => (inBrowser ? new Promise<number>((done) => requestAnimationFrame(done)) : Promise.resolve(0));
+const pause = (ms: number) => (inBrowser && ms > 0 ? new Promise<void>((done) => setTimeout(done, ms)) : Promise.resolve());
+
+/**
+ * Watches the window take its new size: `resized` runs as it does, in the frame that lays
+ * the page out at that size, so that what it changes is laid out with it and not a second
+ * time; or after `SWITCH_WAIT_MS`, for a window that was that size already. The promise
+ * resolves then too.
+ */
+function windowSwitched(resized: () => void): { done: Promise<void>; cancel: () => void } {
+	if (!inBrowser) {
+		resized();
+		return { done: Promise.resolve(), cancel: () => {} };
+	}
+	let cancelled = false;
+	let finish = () => {};
+	const done = new Promise<void>((resolve) => {
+		const timer = setTimeout(() => finish(), SWITCH_WAIT_MS);
+		finish = () => {
+			clearTimeout(timer);
+			window.removeEventListener('resize', finish);
+			if (!cancelled) resized();
+			cancelled = true;
+			resolve();
+		};
+		window.addEventListener('resize', finish);
+	});
+	return {
+		done,
+		cancel: () => {
+			cancelled = true;
+			finish();
+		}
+	};
+}
 
 /** A comment, a name or a number is being typed in the pane of `side`. */
 function typingIn(side: PaneSide): boolean {
@@ -22,7 +74,18 @@ function typingIn(side: PaneSide): boolean {
 }
 
 class FullScreen {
-	on = $state(false);
+	stage = $state<Stage>('off');
+	/** The pages alone: the bars are gone, and the panes come over the pages on demand. */
+	on = $derived(this.stage === 'full');
+	/** Full screen is what shows, from the moment the bars start to go until they start to
+	 * come back: the toolbar floats, with the page controls in it. */
+	started = $derived(this.stage === 'arriving' || this.stage === 'full');
+	/** While the bars and panes slide (`arriving`, `returning`): they are out of sight, or
+	 * on their way there. */
+	chromeAway = $state(false);
+	/** The window is on its way into full screen or out of it: what appears or goes with
+	 * that does so at once, not with a motion of its own. */
+	switching = $state(false);
 	/** Alt is held: both panes show, and a toolbar that shows only on demand. */
 	peek = $state(false);
 	/** Full screen has just started: a toolbar that shows only on demand shows for a moment,
@@ -55,26 +118,78 @@ class FullScreen {
 		await (this.on ? this.leave() : this.enter());
 	}
 
+	/** How long before the window is asked to switch: the slide, less the time the window
+	 * takes to answer (`lead`). */
+	#slide(lead: number): Promise<void> {
+		return pause((inBrowser ? motionMs(PANE_MOTION_MS) : 0) - lead);
+	}
+
+	/**
+	 * Into full screen. The pages take the whole window at once, under the bars and panes,
+	 * which slide out of it by transforms alone (the compositor moves them without laying
+	 * anything out); the window is switched as they go, and in the frame that brings its new
+	 * size everything is laid out for full screen.
+	 *
+	 * In that order because switching a window to full screen makes the webview lay out and
+	 * draw everything again at the new size, which holds its frames up for 40 to 100 ms
+	 * (longest the first time). A slide started with the switch was lost in that; one that
+	 * waits for it to pass starts 150 ms after the key. Before the switch, nothing is in its
+	 * way, and it answers the key at once.
+	 */
 	async enter() {
-		if (this.on) return;
+		if (this.stage !== 'off' || this.switching) return;
+		this.switching = true;
 		this.#reset();
-		this.on = true;
+		this.chromeAway = true;
+		this.stage = 'arriving';
 		this.justEntered = true;
 		this.#enterTimer = setTimeout(() => (this.justEntered = false), ENTER_FLASH_MS);
+		await this.#slide(SWITCH_LEAD_MS);
+		const switched = windowSwitched(() => (this.stage = 'full'));
 		try {
 			await getCurrentWindow().setFullscreen(true);
+			await switched.done;
 		} catch (e) {
-			this.on = false;
+			switched.cancel();
+			this.stage = 'off';
+			this.chromeAway = false;
 			this.#reset();
 			throw e;
+		} finally {
+			this.switching = false;
 		}
 	}
 
+	/**
+	 * Out of full screen, the same way round: the bars and panes come back, laid out as in a
+	 * window but over the pages, which stay as they are, and slide in; the window is switched
+	 * as they arrive, and in the frame that brings its size the pages get their place in it.
+	 */
 	async leave() {
-		if (!this.on) return;
-		this.on = false;
+		if (this.stage !== 'full' || this.switching) return;
+		this.switching = true;
 		this.#reset();
-		await getCurrentWindow().setFullscreen(false);
+		this.chromeAway = true;
+		this.stage = 'returning';
+		// Drawn once out of sight: from there they slide.
+		await nextFrame();
+		await nextFrame();
+		this.chromeAway = false;
+		await this.#slide(SWITCH_BACK_LEAD_MS);
+		const back = () => {
+			this.stage = 'off';
+			this.chromeAway = false;
+		};
+		const switched = windowSwitched(back);
+		try {
+			await getCurrentWindow().setFullscreen(false);
+			await switched.done;
+		} finally {
+			// Whatever the window did, Lectrix is laid out as a window again.
+			switched.cancel();
+			if ((this.stage as Stage) !== 'off') back();
+			this.switching = false;
+		}
 	}
 
 	#reset() {

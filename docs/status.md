@@ -83,7 +83,13 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
   next start, and has no command for an empty new window. An update downloaded in one
   window and put off with Later is not known to the others: Check for updates there
   downloads it again.
-- **Full screen** is not remembered between runs, and each window has its own. The pane
+- **Full screen.** The bars and panes slide from the first frames after the key, both
+  ways, and the window has its new size about 150 ms after it (measured 2026-10-12 with a
+  120 Hz display). The switch itself holds the webview's frames up for 40 to 100 ms,
+  with nothing moving meanwhile. Sliding back in, the page's frames show one gap of about
+  40 ms mid-slide while the main thread is idle (the compositor's, as the bars and panes,
+  just built, are first drawn); whether it shows has not been judged by eye. Full screen
+  is not remembered between runs, and each window has its own. The pane
   of a side comes only for a pointer resting at the outermost 4 px of the screen there:
   with another monitor beside that side the pointer passes on to it, and the strip is hard
   to stop in (Alt held, or the panel commands, bring the panes all the same). At the right

@@ -187,7 +187,7 @@ class AppStore {
 	 * canvas: below the floating annotation toolbar when it stays at the top. (Docked, it
 	 * is in the bar above the canvas; full screen, it floats whatever Settings say.) */
 	overlayTop = $derived(
-		(fullscreen.on || this.settings?.toolbarStyle !== 'panel') &&
+		(fullscreen.started || this.settings?.toolbarStyle !== 'panel') &&
 			this.settings?.toolbarPosition === 'top' &&
 			this.settings.toolbarVisibility === 'always'
 			? 64

@@ -4,7 +4,10 @@
 	// The content keeps its width while the pane slides, clipped, so it does not reflow on
 	// every frame. A line on its inner edge parts it from the page, below the top row: that
 	// row and the view bar beside it read as one bar. Full screen (section 6.1) it lies over
-	// the pages instead of beside them (`overlay`), so they keep their size as it comes and goes.
+	// the pages instead of beside them (`overlay`), so they keep their size as it comes and
+	// goes, and it slides by a transform. As full screen starts or ends, a pane in its place
+	// beside the pages slides out of sight or back by a transform too (`sliding`, `away`),
+	// which lays nothing out.
 	import type { Snippet } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 
@@ -15,6 +18,10 @@
 		open: boolean;
 		/** Over the pages, at its side of them, rather than beside them. */
 		overlay?: boolean;
+		/** Full screen is starting or ending: the pane moves by `away`, not by opening and closing. */
+		sliding?: boolean;
+		/** Slid out of sight, to its side. */
+		away?: boolean;
 		width: number;
 		limits: PaneLimits;
 		/** The pane's accessible name. */
@@ -24,7 +31,7 @@
 		children: Snippet;
 	}
 
-	let { side, open, overlay = false, width = $bindable(), limits, label, animate, children }: Props = $props();
+	let { side, open, overlay = false, sliding = false, away = false, width = $bindable(), limits, label, animate, children }: Props = $props();
 
 	let windowWidth = $state(typeof window === 'undefined' ? 0 : window.innerWidth);
 	const shown = $derived(shownWidth(width, limits, windowWidth));
@@ -32,12 +39,15 @@
 	let drag: { pointer: number; x: number; width: number } | null = $state(null);
 
 	function slide(node: HTMLElement) {
+		// As full screen starts or ends the pane is, or has just been, slid away already.
+		const still = !animate || sliding || node.classList.contains('chrome-away');
+		const duration = still ? 0 : motionMs(PANE_MOTION_MS);
+		if (overlay) {
+			const to = side === 'left' ? -100 : 100;
+			return { duration, easing: cubicOut, css: (t: number) => `transform: translateX(${(1 - t) * to}%); opacity: ${t};` };
+		}
 		const w = node.getBoundingClientRect().width;
-		return {
-			duration: animate ? motionMs(PANE_MOTION_MS) : 0,
-			easing: cubicOut,
-			css: (t: number) => `width: ${t * w}px; opacity: ${t};`
-		};
+		return { duration, easing: cubicOut, css: (t: number) => `width: ${t * w}px; opacity: ${t};` };
 	}
 
 	function onPointerDown(event: PointerEvent) {
@@ -69,7 +79,13 @@
 
 {#if open}
 	<aside
-		class={['flex shrink-0 bg-chrome', overlay ? 'pane-overlay' : 'relative', overlay && (side === 'left' ? 'left-0' : 'right-0')]}
+		class={[
+			'flex shrink-0 bg-chrome',
+			overlay ? 'pane-overlay' : 'relative',
+			overlay && (side === 'left' ? 'left-0' : 'right-0'),
+			sliding && ['chrome-slide z-10', side === 'left' ? 'chrome-left' : 'chrome-right']
+		]}
+		class:chrome-away={away}
 		class:pr-px={side === 'left'}
 		class:pl-px={side === 'right'}
 		style:width="{shown}px"
