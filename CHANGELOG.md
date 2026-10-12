@@ -16,6 +16,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ### Viewer and tabs
 
+- **View > Full screen** (**F11**) fills the screen with the pages alone. The toolbar floats over them with the page and zoom controls. Move the pointer to the left or right side of the screen for that side’s pane, or hold **Alt** to see both panes and the toolbar. **F11** or **Esc** leaves.
 - A document can have a window of its own: drag its tab away from the others and let go, or right-click the tab and pick **Move to new window**. Drop a tab on another Lectrix window to move it there. Unsaved changes, and where you were in the document, go with it.
 - A tab you drag along the others follows the pointer while they make way for it, and its right-click menu has **Move left** and **Move right**.
 - The taskbar names each window after the document it shows.
@@ -53,6 +54,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 - **Highlight the link under the pointer** and **Show where a link leads**, under General, can be turned off.
 - **Show handles on selected text**, under General, puts a handle at the start and at the end of selected text, to drag it by.
 - **Open PDF/A files for reading only**, under General, can be turned off to open such files ready to edit.
+- The floating toolbar’s edge and **Show only when the pointer is near**, under Toolbars, can be changed while the toolbar is in the bar above the pages too: they are used in full screen, where the toolbar always floats.
 - **Shortcuts** lists every keyboard shortcut, with a search field, and lets you change them: press a shortcut, then the keys it should have. Commands without one can get one, and menus and tooltips show the keys you chose.
 - **Restore defaults…**, under General, puts every setting back to how Lectrix came, after asking.
 - The theme is chosen with a three-way switch (System, Light, Dark) instead of a list.

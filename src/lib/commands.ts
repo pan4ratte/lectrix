@@ -5,6 +5,7 @@ import { tools } from '#lib/features/annotations/state.svelte.ts';
 import type { Tool } from '#lib/features/annotations/tools.ts';
 import { addBookmark } from '#lib/features/bookmarks/actions.ts';
 import { openWhatsNew } from '#lib/features/changelog/announce.ts';
+import { toggleFullScreen } from '#lib/features/fullscreen/actions.ts';
 import { showLabels, startRangeAt } from '#lib/features/labels/actions.ts';
 import { update } from '#lib/features/update/update.svelte.ts';
 import { copySelection } from '#lib/features/viewer/actions.ts';
@@ -101,6 +102,8 @@ export const commands = {
 	}),
 	/** In the two-page modes, gives the first page a row of its own, or not. */
 	toggleCoverPage: withTab((t) => layOut(t, t.mode, !t.cover)),
+	/** The pages alone, on the whole screen (section 6.1), and back. */
+	fullScreen: () => void toggleFullScreen(),
 	toggleLeftPane: () => app.togglePane('left'),
 	toggleRightPane: () => app.togglePane('right'),
 	goToPage: () => {

@@ -12,6 +12,7 @@
 		clearRehearsals,
 		rehearseBanner,
 		rehearseError,
+		rehearseFullScreen,
 		rehearseInfo,
 		rehearsePdfa,
 		rehearsePdfaRemoved,
@@ -82,6 +83,7 @@
 					<Menubar.Item class="menu-item" onSelect={() => rehearseError(false)}>Error</Menubar.Item>
 					<Menubar.Item class="menu-item" onSelect={() => rehearseError(true)}>Error with a button</Menubar.Item>
 					<Menubar.Item class="menu-item" onSelect={rehearsePdfaRemoved}>PDF/A claim removed</Menubar.Item>
+					<Menubar.Item class="menu-item" onSelect={rehearseFullScreen}>Full screen started</Menubar.Item>
 				</Menubar.SubContent>
 			</Menubar.Sub>
 			<Menubar.Sub>

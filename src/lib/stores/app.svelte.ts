@@ -61,6 +61,7 @@ import {
 	type PaneSide,
 	type PanelArrangement
 } from '#lib/components/panes.ts';
+import { fullscreen } from '#lib/features/fullscreen/fullscreen.svelte.ts';
 import { CombineState } from '#lib/features/merge/combine.svelte.ts';
 import { reportDetail, signedWarning } from '#lib/features/merge/pages.ts';
 import { clampThumbWidth, DEFAULT_THUMB_WIDTH } from '#lib/features/viewer/thumbs.ts';
@@ -184,9 +185,9 @@ class AppStore {
 
 	/** Where the search bar and inspectors start, CSS pixels from the top of the page
 	 * canvas: below the floating annotation toolbar when it stays at the top. (Docked, it
-	 * is in the bar above the canvas.) */
+	 * is in the bar above the canvas; full screen, it floats whatever Settings say.) */
 	overlayTop = $derived(
-		this.settings?.toolbarStyle !== 'panel' &&
+		(fullscreen.on || this.settings?.toolbarStyle !== 'panel') &&
 			this.settings?.toolbarPosition === 'top' &&
 			this.settings.toolbarVisibility === 'always'
 			? 64
@@ -293,12 +294,16 @@ class AppStore {
 		};
 	}
 
+	/** Whether a pane shows. Full screen (section 6.1), that is over the pages and for a
+	 * while: `leftOpen` and `rightOpen` keep what the window goes back to. */
 	isOpen(side: PaneSide): boolean {
+		if (fullscreen.on) return this.panels[side].length > 0 && fullscreen.shows(side);
 		return side === 'left' ? this.leftOpen : this.rightOpen;
 	}
 
 	setOpen(side: PaneSide, open: boolean) {
-		if (side === 'left') this.leftOpen = open;
+		if (fullscreen.on) fullscreen.pin(side, open);
+		else if (side === 'left') this.leftOpen = open;
 		else this.rightOpen = open;
 	}
 
@@ -340,7 +345,12 @@ class AppStore {
 		const from = paneOf(this.panels, panel);
 		this.panels = movePanel(this.panels, panel, side, index);
 		if (from === side) return;
-		if (this.panels[from].length === 0) this.setOpen(from, false);
+		if (this.panels[from].length === 0) {
+			this.setOpen(from, false);
+			// Full screen, that hid it for now only.
+			if (from === 'left') this.leftOpen = false;
+			else this.rightOpen = false;
+		}
 		this.setActivePanel(side, panel);
 		this.setOpen(side, true);
 	}

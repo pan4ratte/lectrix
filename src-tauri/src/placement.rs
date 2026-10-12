@@ -6,8 +6,9 @@
 //!
 //! The normal bounds are kept while the window is maximized, so restoring it after a
 //! restart goes back to the size the user gave it. A window closed while minimized comes
-//! back as it was before (normal or maximized). Bounds that no longer fit on any monitor
-//! (one was unplugged, the resolution changed) are dropped and Windows places the window.
+//! back as it was before (normal or maximized), and so does one closed in full screen,
+//! which is not remembered. Bounds that no longer fit on any monitor (one was unplugged, the
+//! resolution changed) are dropped and Windows places the window.
 
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Window};
@@ -192,8 +193,9 @@ pub fn monitors(app: &AppHandle) -> Vec<Monitor> {
 /// place of the window used last: with several open, the one closed last. Getting the
 /// focus (`write` false) writes nothing by itself.
 pub fn remember(window: &Window, store: &mut Store, write: bool) {
-    // Minimized: its place is the one before.
-    if window.is_minimized().unwrap_or(true) {
+    // Minimized, or full screen (which fills the monitor without being maximized): its
+    // place is the one before.
+    if window.is_minimized().unwrap_or(true) || window.is_fullscreen().unwrap_or(true) {
         return;
     }
     let maximized = window.is_maximized().unwrap_or(false);

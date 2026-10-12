@@ -92,11 +92,18 @@ describe('settings schema', () => {
 		expect(draft.toolbarVisibility).toBe('always');
 	});
 
-	it('disables the floating options while the toolbar is docked', () => {
+	it('keeps the floating options while the toolbar is docked, and says what they are for', () => {
+		// Full screen floats the toolbar whatever its placement (section 6.1).
 		const draft = toDraft({ ...STORED, toolbarStyle: 'panel' });
-		expect(row('toolbarPosition').disabled?.(draft)).toBe(true);
-		expect(row('toolbarVisibility').disabled?.(draft)).toBe(true);
-		expect(row('toolbarPosition').disabled?.(toDraft(STORED))).toBe(false);
+		const says = (id: string, d: typeof draft) => {
+			const { description } = row(id);
+			return typeof description === 'function' ? description(d) : (description ?? '');
+		};
+		for (const id of ['toolbarPosition', 'toolbarVisibility']) {
+			expect(row(id).disabled?.(draft) ?? false, id).toBe(false);
+			expect(says(id, draft), id).toMatch(/full screen/);
+			expect(says(id, toDraft(STORED)), id).not.toMatch(/full screen/);
+		}
 	});
 
 	it('keeps quick tools in the bar’s order whatever order they are switched on', () => {

@@ -122,7 +122,7 @@
 				<Menubar.CheckboxItem
 					class="menu-item"
 					disabled={!hasDoc || app.panels.left.length === 0}
-					checked={app.leftOpen}
+					checked={app.isOpen('left')}
 					onCheckedChange={commands.toggleLeftPane}
 				>
 					{#snippet children({ checked })}
@@ -132,7 +132,7 @@
 				<Menubar.CheckboxItem
 					class="menu-item"
 					disabled={!hasDoc || app.panels.right.length === 0}
-					checked={app.rightOpen}
+					checked={app.isOpen('right')}
 					onCheckedChange={commands.toggleRightPane}
 				>
 					{#snippet children({ checked })}
@@ -200,6 +200,9 @@
 				</Menubar.Item>
 				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.rotateViewCounterClockwise}>
 					Rotate view counter-clockwise{@render keys('rotateViewCounterClockwise')}
+				</Menubar.Item>
+				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.fullScreen}>
+					Full screen{@render keys('fullScreen')}
 				</Menubar.Item>
 				<Menubar.Separator class="menu-separator" />
 				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.goToPage}>

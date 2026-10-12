@@ -195,6 +195,8 @@ function quickTool(tool: QuickTool, label: string): SettingRow {
 }
 
 const docked = (d: Draft) => d.toolbarStyle === 'panel';
+/** Said of the floating toolbar's options while it is docked: full screen still floats it. */
+const IN_FULL_SCREEN = 'Used in full screen, where the toolbar floats.';
 
 /** The id of the row that restores the defaults. */
 export const RESET_ROW = 'resetSettings';
@@ -382,10 +384,15 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 			{
 				title: 'Annotation toolbar',
 				rows: [
-					choice('toolbarStyle', 'Placement', [
-						{ value: 'floating', label: 'Floating over the pages' },
-						{ value: 'panel', label: 'In the bar above the pages' }
-					] satisfies { value: ToolbarStyle; label: string }[]),
+					choice(
+						'toolbarStyle',
+						'Placement',
+						[
+							{ value: 'floating', label: 'Floating over the pages' },
+							{ value: 'panel', label: 'In the bar above the pages' }
+						] satisfies { value: ToolbarStyle; label: string }[],
+						{ description: 'In full screen it always floats, with the page and zoom controls.' }
+					),
 					choice(
 						'toolbarPosition',
 						'Where it floats',
@@ -393,12 +400,11 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 							{ value: 'bottom', label: 'Bottom' },
 							{ value: 'top', label: 'Top' }
 						] satisfies { value: ToolbarPosition; label: string }[],
-						{ disabled: docked }
+						{ description: (d) => (docked(d) ? IN_FULL_SCREEN : '') }
 					),
 					toggleBetween('toolbarVisibility', 'always', 'onHover', 'Show only when the pointer is near', {
-						description:
-							'The toolbar also shows while it has keyboard focus, and briefly after you pick a tool.',
-						disabled: docked
+						description: (d) =>
+							`The toolbar also shows while it has keyboard focus, and briefly after you pick a tool.${docked(d) ? ` ${IN_FULL_SCREEN}` : ''}`
 					})
 				]
 			},

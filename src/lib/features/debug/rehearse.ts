@@ -6,6 +6,7 @@ import { getVersion } from '@tauri-apps/api/app';
 
 import { showUpdated } from '#lib/features/changelog/announce.ts';
 import { changelogMarkdown, hasChanges, parseChangelog } from '#lib/features/changelog/changelog.ts';
+import { hintFullScreen } from '#lib/features/fullscreen/actions.ts';
 import { recoveryQuestion } from '#lib/features/recovery/recovery.ts';
 import { notifyUpToDate, update } from '#lib/features/update/update.svelte.ts';
 import type { PdfaLevel, RecoveredDocument, UpdateInfo } from '#lib/ipc/index.ts';
@@ -88,6 +89,11 @@ export async function rehearseUpdated(where: 'start screen' | 'notification') {
 
 export function rehearseInfo() {
 	app.notify({ kind: 'info', message: 'Lectrix is combining files.', suggestion: 'Stop it first, or wait for it to finish.' });
+}
+
+/** What full screen says the first time it starts. */
+export function rehearseFullScreen() {
+	hintFullScreen();
 }
 
 /** A save refused because another program holds the file (ipc.rs, TargetLocked). */

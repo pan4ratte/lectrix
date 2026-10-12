@@ -175,6 +175,30 @@ Needs an installed earlier release and a newer one published (ADR 0011,
 - [ ] With a second monitor: leave the window on it, close, unplug the monitor, start:
       the window is on the remaining monitor, its title bar reachable.
 
+## Full screen
+
+- [ ] With a document open, press F11: the title bar and the view bar slide away, the
+      side panes slide shut, and the pages fill the screen, taskbar included. The toolbar
+      floats with the page and zoom controls in it, and a notification says how to leave
+      (the first time only). F11 again: all back, the window where it was. The same from a
+      maximized window, which is maximized again afterwards.
+- [ ] Rest the pointer at the left edge of the screen, then at the right: that side's pane
+      slides over the pages, which do not move, and goes a moment after the pointer has
+      left it. Drag the pages' scrollbar up and down: the right pane does not come during
+      the drag.
+- [ ] Hold Alt: both panes show, and the toolbar when Settings show it only near its edge.
+      Let go: they go. No system menu opens, and the next key pressed does what it does.
+      Alt+Left still goes back, Alt+Tab switches away and coming back shows no pane left
+      behind, and Alt+F4 closes Lectrix.
+- [ ] With the Highlight tool, hold Alt and drag on the page: an area highlight is drawn,
+      and panes that had come go as the drag starts.
+- [ ] With a second monitor beside the screen: moving the pointer across to it brings no
+      pane.
+- [ ] Close Lectrix in full screen (Alt+F4) and start it again: a window as before full
+      screen, not one the size of the screen.
+- [ ] With the toolbar docked (Settings > Toolbars): full screen floats it, and leaving
+      docks it again.
+
 ## Tabs and windows
 
 - [ ] With three documents open, drag a tab along the others: it follows the pointer, the

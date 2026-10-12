@@ -468,13 +468,13 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 		});
 
 		// Settings: docked in the bar above the pages instead, beside the page and zoom
-		// controls, always shown; the floating options don't apply to it.
+		// controls, always shown. The floating options stay: full screen floats it.
 		await browser.keys(['Control', ',']);
 		await (await browser.$('button[role="tab"]*=Toolbars')).click();
 		await (await browser.$('#setting-toolbarStyle')).click();
 		await (await browser.$('[role="option"]*=In the bar above the pages')).click();
-		assert.equal(await (await browser.$('#setting-toolbarVisibility')).getAttribute('data-disabled'), '');
-		assert.equal(await (await browser.$('#setting-toolbarPosition')).getAttribute('data-disabled'), '');
+		assert.equal(await (await browser.$('#setting-toolbarVisibility')).getAttribute('data-disabled'), null);
+		assert.equal(await (await browser.$('#setting-toolbarPosition')).getAttribute('data-disabled'), null);
 		await closeSettings(browser);
 		await browser.waitUntil(
 			() =>

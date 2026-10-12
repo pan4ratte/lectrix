@@ -27,7 +27,8 @@ changelog (`CHANGELOG.md`), shown by Help > What's new, before and after an upda
 used as each release's description. Update checks once a day. Files that claim PDF/A
 open for reading only until Enable editing, with a Settings switch, and lose the claim
 when a save may have broken it. Several windows: a tab moves into a window of its own or
-into another window, with its document as it is.
+into another window, with its document as it is. Full screen (F11): the pages alone, with
+the toolbar floating and the side panes brought by the pointer or by Alt held.
 
 ## Performance
 
@@ -80,6 +81,14 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
   next start, and has no command for an empty new window. An update downloaded in one
   window and put off with Later is not known to the others: Check for updates there
   downloads it again.
+- **Full screen** is not remembered between runs, and each window has its own. The pane
+  of a side comes only for a pointer resting at the outermost 4 px of the screen there:
+  with another monitor beside that side the pointer passes on to it, and the strip is hard
+  to stop in (Alt held, or the panel commands, bring the panes all the same). At the right
+  side that strip is part of the pages' scrollbar, 10 px wide: resting on its outer part
+  brings the right pane over it. The end-to-end test presses F11 and Alt through
+  WebDriver, inside the webview: that a real Alt key opens no system menu, and that
+  Alt+F4 and Alt+Tab still do what they do, is in the manual checklist, not yet done.
 - **Links.** A link is followed by its `/Rect`: one that covers several lines by
   `/QuadPoints` also answers between them, and is tinted as one block. Links are followed
   with the pointer only (the keyboard does not reach them), so their tooltips need a
@@ -133,7 +142,8 @@ Nothing has been run interactively there.
 - **Window:** the title bar's window buttons follow Windows (macOS puts them on the
   left). A tab dropped where two Lectrix windows overlap goes by the windows' frames, not
   by which one is on top (only the Windows build asks the system for the window under the
-  cursor), and moving tabs between windows has not been run there.
+  cursor), and moving tabs between windows has not been run there. Nor has full screen
+  (on macOS the system's own, with its animation and its menu bar at the top edge).
 - **Touchpad pinch on Linux** (2026-10-08, built, not yet tried with a real touchpad):
   WebKitGTK magnified the whole app. `platform/linux.rs` now stops the pinch on the
   webview widget's `event` signal (before WebKit's bubble-phase zoom gesture) and emits

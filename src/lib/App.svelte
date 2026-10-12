@@ -4,6 +4,7 @@
 	import { getCurrentWebview } from '@tauri-apps/api/webview';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { onMount } from 'svelte';
+	import { slide } from 'svelte/transition';
 
 	import { commands } from '#lib/commands.ts';
 	import { isContextMenuKey, openContextMenu } from '#lib/components/contextmenu.ts';
@@ -17,7 +18,7 @@
 	import PanelDragGhost from '#lib/components/PanelDragGhost.svelte';
 	import PanelPane from '#lib/components/PanelPane.svelte';
 	import { draggedPanel, dropSlot } from '#lib/components/panels.svelte.ts';
-	import { LEFT_LIMITS, RIGHT_LIMITS, type PaneSide } from '#lib/components/panes.ts';
+	import { LEFT_LIMITS, PANE_MOTION_MS, RIGHT_LIMITS, motionMs, shownWidth, type PaneSide } from '#lib/components/panes.ts';
 	import SidePane from '#lib/components/SidePane.svelte';
 	import StartScreen from '#lib/components/StartScreen.svelte';
 	import TitleBar from '#lib/components/TitleBar.svelte';
@@ -28,6 +29,7 @@
 	import { announceUpdate } from '#lib/features/changelog/announce.ts';
 	import { APP_NAME } from '#lib/config.ts';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
+	import { fullscreen } from '#lib/features/fullscreen/fullscreen.svelte.ts';
 	import { applySettings } from '#lib/features/settings/apply.ts';
 	import CombineView from '#lib/features/merge/CombineView.svelte';
 	import InsertPagesDialog from '#lib/features/merge/InsertPagesDialog.svelte';
@@ -131,8 +133,48 @@
 			else if (tab.search.open) {
 				tab.search.open = false;
 				tab.search.clear();
-			}
+			} else if (fullscreen.on) void fullscreen.leave().catch(() => {});
 		}
+	}
+
+	// ----- full screen (section 6.1) -----
+
+	// The window fills the screen and shows the pages alone: the title bar and the view bar
+	// slide away, the side panes lie over the pages when something brings them (the pointer
+	// at a side of the screen, a command, Alt held), and the toolbar floats.
+	const full = $derived(fullscreen.on);
+	let shell: HTMLDivElement | undefined = $state();
+	const chromeSlide = () => ({ duration: motionMs(PANE_MOTION_MS) });
+
+	fullscreen.widthOf = (side) => {
+		if (app.panels[side].length === 0) return null;
+		return side === 'left'
+			? shownWidth(app.leftWidth, LEFT_LIMITS, window.innerWidth)
+			: shownWidth(app.rightWidth, RIGHT_LIMITS, window.innerWidth);
+	};
+
+	// Only a document is shown full screen: with the last one closed, or the Combine view up,
+	// the window goes back to what it was.
+	$effect(() => {
+		if (fullscreen.on && !tab) void fullscreen.leave().catch(() => {});
+	});
+
+	function onPointerMove(event: PointerEvent) {
+		// Over a menu or a dialog, which are outside the shell, the panes stay as they are.
+		if (!fullscreen.on || !(event.target instanceof Node) || !shell?.contains(event.target)) return;
+		fullscreen.pointerMoved(event.clientX, event.buttons, window.innerWidth);
+	}
+
+	function onPointerDown(event: PointerEvent) {
+		if (fullscreen.on && event.target instanceof Element && event.target.closest('.viewer-scroll')) fullscreen.pagePressed();
+	}
+
+	// Alt held shows the panes and the toolbar. Capturing, so that fields which keep their
+	// keys from the window don't keep this one; Alt by itself must not reach the system, which
+	// would open the window's menu.
+	function watchAlt(event: KeyboardEvent) {
+		const held = event.type === 'keydown' ? fullscreen.keyDown(event) : fullscreen.keyUp(event);
+		if (held) event.preventDefault();
 	}
 
 	function onContextMenu(event: MouseEvent) {
@@ -183,6 +225,10 @@
 	onMount(() => {
 		window.addEventListener('keydown', blockPageZoomKey, { capture: true });
 		window.addEventListener('wheel', blockPageZoomWheel, { capture: true, passive: false });
+		window.addEventListener('keydown', watchAlt, { capture: true });
+		window.addEventListener('keyup', watchAlt, { capture: true });
+		const pointerLeft = () => fullscreen.pointerLeft();
+		document.documentElement.addEventListener('mouseleave', pointerLeft);
 		void startup();
 		const unlisteners = [
 			onDocumentsOpened((results) => app.handleOpenResults(results)),
@@ -217,6 +263,9 @@
 		return () => {
 			window.removeEventListener('keydown', blockPageZoomKey, { capture: true });
 			window.removeEventListener('wheel', blockPageZoomWheel, { capture: true });
+			window.removeEventListener('keydown', watchAlt, { capture: true });
+			window.removeEventListener('keyup', watchAlt, { capture: true });
+			document.documentElement.removeEventListener('mouseleave', pointerLeft);
 			clearTimeout(rememberTimer);
 			clearTimeout(panesTimer);
 			for (const u of unlisteners) void u.then((f) => f());
@@ -224,7 +273,13 @@
 	});
 </script>
 
-<svelte:window onkeydown={onKeyDown} oncontextmenu={onContextMenu} />
+<svelte:window
+	onkeydown={onKeyDown}
+	oncontextmenu={onContextMenu}
+	onpointermove={onPointerMove}
+	onpointerdown={onPointerDown}
+	onblur={() => fullscreen.blurred()}
+/>
 
 <!-- Room in the view bar's row for a closed pane's button, which floats at the window's edge
      (paneButton). A pane without panels has none; while a panel is dragged, a place to drop
@@ -249,17 +304,22 @@
 <!-- A pane's button, at the window's edge in the row of the pane's tabs, which leaves room
      for it, and in the same place while the pane is closed (as in Obsidian). It floats over
      both, so it stays still while the pane slides open or closed. Pixel sizes, not spacing
-     units (a rem is 14 px here): the pane rows and the view bar are all 40 px tall. -->
+     units (a rem is 14 px here): the pane rows and the view bar are all 40 px tall. Full
+     screen, a pane lies over the pages and has its button only while it shows. -->
 {#snippet paneButton(side: PaneSide)}
-	{#if tab && app.panels[side].length > 0}
-		<div class={['absolute top-[4px] z-20', side === 'left' ? 'left-[4px]' : 'right-[4px]']}>
+	{#if tab && app.panels[side].length > 0 && (!full || app.isOpen(side))}
+		<div class={['absolute top-[4px]', full ? 'z-30' : 'z-20', side === 'left' ? 'left-[4px]' : 'right-[4px]']}>
 			<PaneToggle {side} />
 		</div>
 	{/if}
 {/snippet}
 
-<div class="flex h-full flex-col">
-	<TitleBar />
+<div class="flex h-full flex-col" bind:this={shell}>
+	{#if !full}
+		<div class="shrink-0" transition:slide={chromeSlide()}>
+			<TitleBar />
+		</div>
+	{/if}
 	<div class="relative flex min-h-0 flex-1">
 		{#if app.combineActive && app.combine}
 			<main class="flex min-w-0 flex-1 flex-col bg-canvas">
@@ -271,7 +331,8 @@
 				<SidePane
 					side="left"
 					label="Left pane"
-					open={app.leftOpen}
+					open={app.isOpen('left')}
+					overlay={full}
 					bind:width={app.leftWidth}
 					limits={LEFT_LIMITS}
 					animate={app.panesRestored}
@@ -281,21 +342,27 @@
 			{/if}
 			<main class="flex min-w-0 flex-1 flex-col bg-canvas">
 				{#if tab}
-					<div class="flex shrink-0 items-stretch">
-						{@render paneEnd('left')}
-						<div class="min-w-0 flex-1">
-							{#key tab.id}
-								<ViewBar {tab} />
-							{/key}
+					{#if !full}
+						<div class="flex shrink-0 items-stretch" transition:slide={chromeSlide()}>
+							{@render paneEnd('left')}
+							<div class="min-w-0 flex-1">
+								{#key tab.id}
+									<ViewBar {tab} />
+								{/key}
+							</div>
+							{@render paneEnd('right')}
 						</div>
-						{@render paneEnd('right')}
-					</div>
+					{/if}
 					<FileBanner {tab} />
-					<PdfaBanner {tab} />
+					<!-- Full screen, a file open for reading only says so when something tries to
+					     change it (app.refuseReadOnly), not in a bar across the pages. -->
+					{#if !full}
+						<PdfaBanner {tab} />
+					{/if}
 					{#key tab.id}
 						<div class="relative flex min-h-0 flex-1 flex-col">
 							<Viewer {tab} />
-							{#if app.settings?.toolbarStyle !== 'panel'}
+							{#if app.settings?.toolbarStyle !== 'panel' || full}
 								<AnnotationToolbar {tab} />
 							{/if}
 							<AnnotationPropertiesDialog {tab} />
@@ -310,7 +377,8 @@
 				<SidePane
 					side="right"
 					label="Right pane"
-					open={app.rightOpen}
+					open={app.isOpen('right')}
+					overlay={full}
 					bind:width={app.rightWidth}
 					limits={RIGHT_LIMITS}
 					animate={app.panesRestored}

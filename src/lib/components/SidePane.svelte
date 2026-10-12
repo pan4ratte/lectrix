@@ -3,7 +3,8 @@
 	// the pointer or the keyboard (a window splitter: arrows, Home, End; double-click resets).
 	// The content keeps its width while the pane slides, clipped, so it does not reflow on
 	// every frame. A line on its inner edge parts it from the page, below the top row: that
-	// row and the view bar beside it read as one bar.
+	// row and the view bar beside it read as one bar. Full screen (section 6.1) it lies over
+	// the pages instead of beside them (`overlay`), so they keep their size as it comes and goes.
 	import type { Snippet } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 
@@ -12,6 +13,8 @@
 	interface Props {
 		side: PaneSide;
 		open: boolean;
+		/** Over the pages, at its side of them, rather than beside them. */
+		overlay?: boolean;
 		width: number;
 		limits: PaneLimits;
 		/** The pane's accessible name. */
@@ -21,7 +24,7 @@
 		children: Snippet;
 	}
 
-	let { side, open, width = $bindable(), limits, label, animate, children }: Props = $props();
+	let { side, open, overlay = false, width = $bindable(), limits, label, animate, children }: Props = $props();
 
 	let windowWidth = $state(typeof window === 'undefined' ? 0 : window.innerWidth);
 	const shown = $derived(shownWidth(width, limits, windowWidth));
@@ -66,11 +69,12 @@
 
 {#if open}
 	<aside
-		class="relative flex shrink-0 bg-chrome"
+		class={['flex shrink-0 bg-chrome', overlay ? 'pane-overlay' : 'relative', overlay && (side === 'left' ? 'left-0' : 'right-0')]}
 		class:pr-px={side === 'left'}
 		class:pl-px={side === 'right'}
 		style:width="{shown}px"
 		aria-label={label}
+		data-pane={side}
 		transition:slide
 	>
 		<div class="flex min-w-0 flex-1 flex-col overflow-hidden">

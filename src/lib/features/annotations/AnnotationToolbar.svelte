@@ -4,8 +4,11 @@
 	// Settings make it float over the page canvas, at the bottom or the top, shown always or only while the pointer is near that edge (or the
 	// toolbar has focus, or a tool was just picked); or dock it in the bar at the top of the
 	// document, beside the page and zoom controls, always shown (ViewBar.svelte places it).
+	// Full screen (section 6.1) it always floats, with the page and zoom controls before the
+	// tools and a button that leaves full screen after them; Alt held shows it too.
 	import {
 		Highlighter,
+		Minimize,
 		PenLine,
 		StickyNote,
 		Strikethrough,
@@ -15,10 +18,13 @@
 		ZodiacAquarius
 	} from '@lucide/svelte';
 	import { onMount, type Component } from 'svelte';
-	import { slide } from 'svelte/transition';
+	import { fade, slide } from 'svelte/transition';
 
 	import Dropdown from '#lib/components/Dropdown.svelte';
 	import { motionMs } from '#lib/components/panes.ts';
+	import { toggleFullScreen } from '#lib/features/fullscreen/actions.ts';
+	import { fullscreen } from '#lib/features/fullscreen/fullscreen.svelte.ts';
+	import PageControls from '#lib/features/viewer/PageControls.svelte';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -29,7 +35,8 @@
 	import { GLIDE_MS, toolMark } from './toolMark.ts';
 	import { FONT_SIZES, PEN_WIDTHS, TOOLS, ptOptions, type Tool } from './tools.ts';
 
-	let { tab }: { tab: DocTab } = $props();
+	/** `docked`: in the bar at the top of the document, rather than floating over the pages. */
+	let { tab, docked = false }: { tab: DocTab; docked?: boolean } = $props();
 
 	const ICONS: Record<Tool, Component<{ size?: number; 'aria-hidden'?: boolean | 'true' }>> = {
 		select: TextCursor,
@@ -64,7 +71,9 @@
 	/** How long the toolbar stays after the pointer leaves, so it doesn't flicker. */
 	const LINGER_MS = 300;
 
-	const panel = $derived(app.settings?.toolbarStyle === 'panel');
+	const panel = $derived(docked);
+	/** Full screen, this is the only bar: the page and zoom controls are in it. */
+	const full = $derived(fullscreen.on && !docked);
 	const position = $derived(app.settings?.toolbarPosition ?? 'bottom');
 	const onHover = $derived(!panel && app.settings?.toolbarVisibility === 'onHover');
 
@@ -73,7 +82,7 @@
 	let focused = $state(false);
 	let flash = $state(false);
 	let shown = $state(true);
-	const wanted = $derived(!onHover || near || focused || flash);
+	const wanted = $derived(!onHover || near || focused || flash || fullscreen.peek || fullscreen.justEntered);
 
 	let lingerTimer: ReturnType<typeof setTimeout> | undefined;
 	$effect(() => {
@@ -133,10 +142,18 @@
 	class:annotation-toolbar-top={!panel && position === 'top'}
 	class:annotation-toolbar-hidden={!shown}
 	role="toolbar"
-	aria-label="Annotation tools"
+	aria-label={full ? 'Page, zoom and annotation tools' : 'Annotation tools'}
 	onfocusin={() => (focused = true)}
 	onfocusout={(e) => (focused = bar?.contains(e.relatedTarget as Node | null) ?? false)}
+	transition:fade={{ duration: motionMs(GLIDE_MS) }}
 >
+	{#if full}
+		<span class="flex items-center gap-0.5" transition:slide={reveal()}>
+			<PageControls {tab} nested />
+			<span class="mx-1 h-6 w-px shrink-0 bg-line" aria-hidden="true"></span>
+		</span>
+	{/if}
+
 	<span class="tool-group flex items-center gap-0.5" {@attach toolMark}>
 		<span class="tool-mark" aria-hidden="true" hidden></span>
 		{#each TOOLS as t (t.id)}
@@ -189,6 +206,21 @@
 					/>
 				</span>
 			{/if}
+		</span>
+	{/if}
+
+	{#if full}
+		<span class="flex items-center gap-0.5" transition:slide={reveal()}>
+			<span class="mx-1 h-6 w-px shrink-0 bg-line" aria-hidden="true"></span>
+			<button
+				type="button"
+				class="icon-button"
+				aria-label="Leave full screen"
+				data-tip={app.hint('Leave full screen', 'fullScreen')}
+				onclick={() => void toggleFullScreen()}
+			>
+				<Minimize size={18} aria-hidden="true" />
+			</button>
 		</span>
 	{/if}
 </div>

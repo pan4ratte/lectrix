@@ -1863,6 +1863,19 @@ button.shortcut-key:hover,
 	background: var(--lectrix-line);
 	pointer-events: none;
 }
+/* Full screen (section 6.1), a side pane lies over the pages: its line runs down its whole
+   inner edge, and a soft shadow parts it from them. Above the floating toolbar and the
+   comment panels (20), below the pane's own button (30). */
+.pane-overlay {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	z-index: 25;
+	box-shadow: 0 0 12px var(--color-page-shadow);
+}
+.pane-overlay .pane-edge {
+	top: 0;
+}
 .pane-resizer {
 	position: absolute;
 	top: 0;

@@ -60,6 +60,7 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 			{ command: 'rotateViewClockwise', label: 'Rotate view clockwise', keys: [], inInputs: true },
 			{ command: 'rotateViewCounterClockwise', label: 'Rotate view counter-clockwise', keys: [], inInputs: true },
 			{ command: 'toggleCoverPage', label: 'Cover page alone', keys: [], inInputs: true },
+			{ command: 'fullScreen', label: 'Full screen', keys: ['F11'], inInputs: true },
 			{ command: 'toggleLeftPane', label: 'Show or hide the left pane', keys: [], inInputs: true },
 			{ command: 'toggleRightPane', label: 'Show or hide the right pane', keys: [], inInputs: true },
 			{ command: 'showPages', label: 'Show the Pages panel', keys: [], inInputs: true },
@@ -116,7 +117,7 @@ const BY_NAME = new Map(COMMANDS.map((c) => [c.command, c]));
 
 /** Keys that work where the focus is and can't be changed, listed in Settings with the rest. */
 export const FIXED_KEYS: readonly { keys: string; label: string }[] = [
-	{ keys: 'Esc', label: 'Back a step: what is being drawn, the selection, the tool, the search' },
+	{ keys: 'Esc', label: 'Back a step: what is being drawn, the selection, the tool, the search, full screen' },
 	{ keys: 'Del', label: 'Delete the selected annotation, bookmark or pages' },
 	{ keys: 'F2', label: 'Rename the selected bookmark' },
 	{ keys: 'Shift+F10', label: 'Open the context menu' },
@@ -124,7 +125,8 @@ export const FIXED_KEYS: readonly { keys: string; label: string }[] = [
 	{ keys: 'Ctrl+Shift+Arrows', label: 'Select more or less text, by a word or a paragraph' },
 	{ keys: 'Ctrl+Shift+Left, Right', label: 'Move the focused tab or panel along its row' },
 	{ keys: 'Alt+Shift+Arrows', label: 'Move the selected bookmark, or the selected pages in Combine' },
-	{ keys: 'Ctrl+Enter', label: 'Finish a comment, a reply or a text box' }
+	{ keys: 'Ctrl+Enter', label: 'Finish a comment, a reply or a text box' },
+	{ keys: 'Alt (held)', label: 'In full screen, show the side panes and the toolbar' }
 ];
 
 /** The most shortcuts one command can have. */
