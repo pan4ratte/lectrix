@@ -82,6 +82,8 @@ A Cargo workspace plus a SvelteKit app at the root. Keep this structure unless a
 ```
 lectrix/
 ├─ AGENTS.md                 # this document
+├─ README.md                 # the project's page on GitHub, for the people who use Lectrix
+├─ CONTRIBUTING.md           # building, testing and the rules in short, for contributors
 ├─ CHANGELOG.md              # what changed in each version, for users (docs/releasing.md)
 ├─ LICENSE                   # AGPL-3.0-or-later
 ├─ .github/                  # CI and release workflows (ADR 0011)
