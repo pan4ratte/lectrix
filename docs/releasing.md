@@ -86,7 +86,7 @@ Under each version, the sections with changes, in this order (`SECTIONS` in
 | Viewer and tabs | pages, zoom, scrolling, search, text, tabs, thumbnails, the side panes |
 | Annotations | the tools, the annotation list, comments and replies, repair |
 | Bookmarks | the Bookmarks panel and its inspector |
-| Page labels | the Page labels panel |
+| Page labels | the Page labels dialog |
 | Combining files | the Combine view, Insert pages from file |
 | Organizing pages | the grid of a document's pages: moving, rotating, deleting, extracting |
 | Settings | the Settings dialog |

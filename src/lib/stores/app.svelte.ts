@@ -110,6 +110,12 @@ export interface InsertRequest {
 	back?: () => void;
 }
 
+/** The Page labels dialog, open for a document whose pages are being organized (section
+ * 6.3). */
+export interface LabelsRequest {
+	tabId: number;
+}
+
 export interface Toast {
 	id: number;
 	kind: 'error' | 'info';
@@ -220,9 +226,8 @@ class AppStore {
 	dropTarget = $state(false);
 	/** The tabs Rust has for this window are being taken in (`adoptTabs`). */
 	private adopting: Promise<void> = Promise.resolve();
-	/** The page labels show beside the grid of pages being organized (section 6.7). Kept
-	 * while the app runs, for every document. */
-	labelsShown = $state(false);
+	/** The Page labels dialog is open, over the grid of a document's pages (section 6.3). */
+	labelsRequest = $state<LabelsRequest | null>(null);
 	/** The Combine view, while it is open (shown as a tab of its own). */
 	combine = $state<CombineState | null>(null);
 	/** The Combine view is the tab on screen. */
@@ -396,7 +401,9 @@ class AppStore {
 		}
 	}
 
-	handleOpenResults(results: OpenResult[]) {
+	/** Takes in what opening files gave: tabs, password prompts, errors. Returns the id of
+	 * the tab it shows, if it shows one. */
+	handleOpenResults(results: OpenResult[]): number | null {
 		let activate: number | null = null;
 		for (const result of results) {
 			switch (result.kind) {
@@ -430,13 +437,17 @@ class AppStore {
 		}
 		if (activate !== null) this.activate(activate);
 		void this.refreshRecent();
+		return activate;
 	}
 
-	async open() {
+	/** Asks for files and opens them. Returns the tab shown for them, if one is. */
+	async open(): Promise<DocTab | null> {
 		try {
-			this.handleOpenResults(await openWithDialog());
+			const shown = this.handleOpenResults(await openWithDialog());
+			return this.tabs.find((t) => t.id === shown) ?? null;
 		} catch (e) {
 			this.showError(toAppError(e));
+			return null;
 		}
 	}
 
@@ -999,9 +1010,11 @@ class AppStore {
 	private async confirmDiscard(tab: DocTab): Promise<boolean> {
 		if (!tab.state.dirty) return true;
 		const choice = await this.ask({
-			title: 'Save changes?',
-			message: `Do you want to save the changes to ${tab.name}?`,
-			detail: 'If you don’t save, your changes will be lost.',
+			title: tab.untitled ? 'Save this document?' : 'Save changes?',
+			message: tab.untitled
+				? `${tab.name} has not been saved yet. Do you want to save it?`
+				: `Do you want to save the changes to ${tab.name}?`,
+			detail: tab.untitled ? 'If you don’t save, the document will be lost.' : 'If you don’t save, your changes will be lost.',
 			buttons: [
 				{ id: 'save', label: 'Save', primary: true },
 				{ id: 'discard', label: 'Don’t save' },
@@ -1021,6 +1034,7 @@ class AppStore {
 		// changes to ask about.
 		if (!this.startShown) this.activate(id);
 		if (this.insertRequest?.tabId === id) this.cancelInsert();
+		if (this.labelsRequest?.tabId === id) this.labelsRequest = null;
 		await this.settled();
 		if (tab.state.dirty) this.activate(id);
 		if (!(await this.confirmDiscard(tab))) return;
@@ -1227,6 +1241,8 @@ class AppStore {
 		tab.applySaved(result);
 		tab.name = result.name;
 		tab.path = result.path;
+		// Saved, a document is its file's from then on.
+		tab.untitled = false;
 		tab.banner = null;
 		if (result.pdfaRemoved) this.notifyPdfaRemoved(tab.name, result.pdfaRemoved);
 		if (result.fellBackToFull && tab.fileFlags.repaired) {
@@ -1242,8 +1258,10 @@ class AppStore {
 		}
 	}
 
-	/** Saves in place. Returns null if the save failed or was cancelled. */
+	/** Saves in place; a document not saved under a name yet asks where to save, as Save As
+	 * does. Returns null if the save failed or was cancelled. */
 	async save(tab: DocTab): Promise<SaveResult | null> {
+		if (tab.untitled) return this.saveAs(tab);
 		if (tab.saving) return null;
 		tab.saving = true;
 		await this.settled();
@@ -1298,6 +1316,8 @@ class AppStore {
 	}
 
 	async reload(tab: DocTab) {
+		// A document not saved under a name yet has no file to read again.
+		if (tab.untitled) return;
 		try {
 			const info = await reloadDocument(tab.id);
 			const position = tab.viewer?.position();

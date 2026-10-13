@@ -3,19 +3,20 @@ import { describe, expect, it } from 'vitest';
 import type { LabelRule } from '#lib/ipc/index.ts';
 
 import {
+	MAX_FIRST_NUMBER,
 	MAX_LABEL_CHARS,
+	assignLabels,
 	defaultRule,
 	editableRules,
 	formatNumber,
 	labelsForPages,
+	numberingProblem,
 	pagesText,
-	rangeEnds,
-	rangeText,
-	replaceRule,
-	romanThenArabic,
-	ruleProblem,
+	previewText,
+	ruleFrom,
+	runsOf,
 	sameRules,
-	withRuleAt
+	type Numbering
 } from './rules.ts';
 
 const rule = (startPage: number, style: LabelRule['style'], prefix = '', firstNumber = 1): LabelRule => ({
@@ -88,41 +89,121 @@ describe('editing', () => {
 		expect(editableRules([], 5).rules).toEqual([defaultRule()]);
 	});
 
-	it('finds problems with a rule', () => {
-		const rules = [defaultRule(), rule(4, 'decimal')];
-		expect(ruleProblem(rule(0, 'none', 'x'), rules, 0, 10)).toBeNull();
-		expect(ruleProblem(rule(1, 'decimal'), rules, 0, 10)).toMatch(/first rule/);
-		expect(ruleProblem(rule(0, 'decimal'), rules, 1, 10)).toMatch(/Page 1 already/);
-		expect(ruleProblem(rule(10, 'decimal'), rules, 1, 10)).toMatch(/between 1 and 10/);
-		expect(ruleProblem(rule(4, 'decimal'), [...rules, rule(7, 'decimal')], 2, 10)).toMatch(/page 5/);
-		expect(ruleProblem(rule(4, 'decimal', '', 0), rules, 1, 10)).toMatch(/1 or higher/);
-		expect(ruleProblem(rule(4, 'decimal', '', 2 ** 31), rules, 1, 10)).toMatch(/too large/);
-		expect(ruleProblem(rule(4.5, 'decimal'), rules, 1, 10)).not.toBeNull();
-	});
-
-	it('replaces and adds rules in page order', () => {
+	it('compares rules', () => {
 		const rules = [defaultRule(), rule(4, 'decimal'), rule(8, 'upperLetters')];
-		expect(replaceRule(rules, 2, rule(2, 'upperLetters')).map((r) => r.startPage)).toEqual([0, 2, 4]);
-		const added = withRuleAt(rules, 6);
-		expect(added.map((r) => r.startPage)).toEqual([0, 4, 6, 8]);
-		expect(added[2]).toEqual(defaultRule(6));
-		expect(withRuleAt(rules, 4)).toEqual(rules);
 		expect(sameRules(rules, [...rules])).toBe(true);
-		expect(sameRules(rules, added)).toBe(false);
+		expect(sameRules(rules, rules.slice(0, 2))).toBe(false);
+		expect(sameRules(rules, [defaultRule(), rule(4, 'decimal', 'A-'), rule(8, 'upperLetters')])).toBe(false);
 	});
 
-	it('builds the roman front matter preset', () => {
-		expect(labelsForPages(romanThenArabic(3), 6)).toEqual(['i', 'ii', 'iii', '1', '2', '3']);
+	it('knows what a page has', () => {
+		const rules = [rule(0, 'lowerRoman'), rule(4, 'decimal', 'A-', 3)];
+		expect(ruleFrom(rules, 2)).toEqual(rule(2, 'lowerRoman', '', 3));
+		expect(ruleFrom(rules, 6)).toEqual(rule(6, 'decimal', 'A-', 5));
+		// Before the first rule of a damaged file, pages have their numbers.
+		expect(ruleFrom([rule(2, 'upperRoman')], 1)).toEqual(rule(1, 'decimal', '', 2));
+	});
+});
+
+describe('numbering the pages picked in the dialog', () => {
+	const fresh = (style: LabelRule['style'], prefix = '', firstNumber = 1): Numbering => ({
+		kind: 'new',
+		style,
+		prefix,
+		firstNumber
+	});
+	const range = (from: number, to: number) => Array.from({ length: to - from + 1 }, (_, i) => from + i);
+	const plain = [defaultRule()];
+	const labels = (rules: LabelRule[], count = 8) => labelsForPages(rules, count);
+
+	it('numbers a run of pages, and the pages after it keep their labels', () => {
+		const rules = assignLabels(plain, 8, range(0, 2), fresh('lowerRoman'));
+		expect(rules).toEqual([rule(0, 'lowerRoman'), rule(3, 'decimal', '', 4)]);
+		expect(labels(rules)).toEqual(['i', 'ii', 'iii', '4', '5', '6', '7', '8']);
+		// In the middle: the pages before keep theirs too.
+		expect(labels(assignLabels(plain, 8, range(3, 4), fresh('upperLetters', 'App-')))).toEqual([
+			'1',
+			'2',
+			'3',
+			'App-A',
+			'App-B',
+			'6',
+			'7',
+			'8'
+		]);
+		// To the last page: nothing follows.
+		expect(assignLabels(plain, 8, range(6, 7), fresh('decimal', '', 10))).toEqual([defaultRule(), rule(6, 'decimal', '', 10)]);
 	});
 
-	it('describes ranges', () => {
-		const labels = ['i', 'ii', 'iii', '1', ''];
-		const ends = rangeEnds([defaultRule(), rule(3, 'decimal'), rule(4, 'none')], 5);
-		expect(ends).toEqual([3, 4, 5]);
-		expect(rangeText(labels, 0, 3)).toBe('i – iii');
-		expect(rangeText(labels, 3, 4)).toBe('1');
-		expect(rangeText(labels, 4, 5)).toBe('(no label)');
-		expect(pagesText(0, 3)).toBe('1–3');
-		expect(pagesText(3, 4)).toBe('4');
+	it('numbers through pages that are apart, leaving the ones between alone', () => {
+		const rules = assignLabels(plain, 8, [1, 2, 6], fresh('lowerRoman'));
+		expect(labels(rules)).toEqual(['1', 'i', 'ii', '4', '5', '6', 'iii', '8']);
+		expect(rules.map((r) => r.startPage)).toEqual([0, 1, 3, 6, 7]);
+	});
+
+	it('replaces the rules inside the pages, and the page after still has its label', () => {
+		const stored = [rule(0, 'lowerRoman'), rule(2, 'decimal'), rule(5, 'upperLetters')];
+		// Pages 2 to 6 swallow the rule at page 3 and the one at page 6.
+		const rules = assignLabels(stored, 8, range(1, 5), fresh('decimal', 'X', 1));
+		expect(rules).toEqual([rule(0, 'lowerRoman'), rule(1, 'decimal', 'X', 1), rule(6, 'upperLetters', '', 2)]);
+		expect(labels(rules)).toEqual(['i', 'X1', 'X2', 'X3', 'X4', 'X5', 'B', 'C']);
+		// A rule that starts right after the pages stays as stored.
+		expect(assignLabels(stored, 8, range(2, 4), fresh('none', 'Plate'))).toEqual([
+			rule(0, 'lowerRoman'),
+			rule(2, 'none', 'Plate'),
+			rule(5, 'upperLetters')
+		]);
+	});
+
+	it('carries on the numbering of the page before', () => {
+		const stored = [rule(0, 'lowerRoman'), rule(3, 'decimal'), rule(6, 'upperLetters')];
+		// Pages 4 and 5 join the roman pages; page 6 keeps "3".
+		const rules = assignLabels(stored, 8, range(3, 4), { kind: 'continue' });
+		expect(rules).toEqual([rule(0, 'lowerRoman'), rule(5, 'decimal', '', 3), rule(6, 'upperLetters')]);
+		expect(labels(rules)).toEqual(['i', 'ii', 'iii', 'iv', 'v', '3', 'A', 'B']);
+		// A whole range carried on is a range taken away.
+		expect(assignLabels(stored, 8, range(3, 5), { kind: 'continue' })).toEqual([rule(0, 'lowerRoman'), rule(6, 'upperLetters')]);
+		// The first page has no page before it: 1, 2, 3.
+		expect(labels(assignLabels(stored, 8, range(0, 1), { kind: 'continue' }))).toEqual(['1', '2', 'iii', '1', '2', '3', 'A', 'B']);
+	});
+
+	it('adds no rule that only repeats the one before it', () => {
+		// Every page numbered 1, 2, 3 is the plain document again.
+		expect(assignLabels([rule(0, 'lowerRoman'), rule(3, 'decimal')], 8, range(0, 7), fresh('decimal'))).toEqual(plain);
+		// Pages given the numbers they have: nothing changes.
+		expect(assignLabels(plain, 8, range(2, 4), fresh('decimal', '', 3))).toEqual(plain);
+		// A stored rule that repeats the one before it is not this change's to remove.
+		const stored = [defaultRule(), rule(4, 'decimal', '', 5)];
+		expect(assignLabels(stored, 8, [0], fresh('upperRoman'))).toEqual([
+			rule(0, 'upperRoman'),
+			rule(1, 'decimal', '', 2),
+			rule(4, 'decimal', '', 5)
+		]);
+	});
+
+	it('finds problems with a first number', () => {
+		expect(numberingProblem(fresh('decimal', '', 1), 5)).toBeNull();
+		expect(numberingProblem(fresh('decimal', '', 0), 5)).toMatch(/1 or higher/);
+		expect(numberingProblem(fresh('decimal', '', Number.NaN), 5)).toMatch(/1 or higher/);
+		expect(numberingProblem(fresh('decimal', '', 2.5), 5)).not.toBeNull();
+		expect(numberingProblem(fresh('decimal', '', MAX_FIRST_NUMBER), 2)).toMatch(/too large/);
+		expect(numberingProblem(fresh('decimal', '', MAX_FIRST_NUMBER), 1)).toBeNull();
+		// A style without numbers has none to be wrong, nor has carrying on.
+		expect(numberingProblem(fresh('none', 'Cover', Number.NaN), 5)).toBeNull();
+		expect(numberingProblem({ kind: 'continue' }, 5)).toBeNull();
+	});
+
+	it('names the pages and previews their labels', () => {
+		expect(runsOf([1, 2, 6])).toEqual([
+			{ start: 1, end: 3 },
+			{ start: 6, end: 7 }
+		]);
+		expect(pagesText([1, 2, 6])).toBe('2–3, 7');
+		expect(pagesText([4])).toBe('5');
+		expect(pagesText([0, 2, 4, 6, 8])).toBe('1, 3, 5, …');
+		const shown = ['i', 'ii', 'iii', 'iv', 'v', '', '7'];
+		expect(previewText(shown, [0, 1, 2])).toBe('i, ii, iii');
+		expect(previewText(shown, [0, 1, 2, 3, 4, 6])).toBe('i, ii, iii … 7');
+		expect(previewText(shown, [5])).toBe('(no label)');
 	});
 });

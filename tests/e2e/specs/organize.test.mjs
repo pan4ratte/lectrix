@@ -2,15 +2,16 @@
 // viewer, without the side panes; a page moved, turned and deleted there, each at once and
 // undoable; the question before deleting and what is said after; the bar under the pointer
 // with the page's label and buttons; larger and smaller pictures from the bar, the wheel
-// and a pinch; back to reading, and the saved file. Then pages from a file, put where the
-// menu says, and pages into a new file.
+// and a pinch, up to one page filling the view; back to reading, and the saved file. Then
+// pages from a file, put where the menu says, and pages into a new document, which is not
+// a file until it is saved.
 
 import assert from 'node:assert/strict';
-import { rmSync } from 'node:fs';
+import { existsSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { OUT, atRest, launch, statusText, waitForDocument } from '../lib/app.mjs';
+import { OUT, atRest, launch, organizePages, statusText, waitForDocument } from '../lib/app.mjs';
 import { cli, outlineLines, sample } from '../lib/pdfcli.mjs';
 
 /** The pages of the grid in order, by their keys (a page keeps its key wherever it goes). */
@@ -75,9 +76,28 @@ async function waitForWidth(browser, test, message) {
 }
 
 async function startOrganizing(browser) {
-	await (await browser.$('[aria-label="Organize pages"]')).click();
-	await browser.waitUntil(() => organizing(browser), { timeoutMsg: 'the grid did not show' });
+	// The view bar has no button for it: the Document menu has the command.
+	assert.equal(await (await browser.$('[data-view-bar] [aria-label="Organize pages"]')).isExisting(), false);
+	await organizePages(browser);
 }
+
+/** Where the grid's cells are in its view: the room left and right of the first row, how
+ * many cells that row has, and whether a cell fits the view's height. */
+const layout = (browser) =>
+	browser.execute(() => {
+		const grid = document.querySelector('[data-organize-view] [role=listbox]').getBoundingClientRect();
+		const cells = [...document.querySelectorAll('[data-organize-view] [role=option]')].map((c) => c.getBoundingClientRect());
+		const top = Math.min(...cells.map((c) => c.top));
+		const row = cells.filter((c) => Math.abs(c.top - top) < 1);
+		return {
+			left: Math.min(...row.map((c) => c.left)) - grid.left,
+			// (Without the scrollbar, when there is one.)
+			right: grid.left + document.querySelector('[data-organize-view] [role=listbox]').clientWidth - Math.max(...row.map((c) => c.right)),
+			inRow: row.length,
+			cellHeight: row[0].height,
+			viewHeight: grid.height
+		};
+	});
 
 test('pages are moved, turned and deleted in the grid, and the document follows', async () => {
 	const base = sample('organize-base.pdf', 6);
@@ -97,9 +117,29 @@ test('pages are moved, turned and deleted in the grid, and the document follows'
 		const k = await keys(browser);
 		assert.match(await (await browser.$('[data-organize-count]')).getText(), /^6 pages$/);
 
+		// The bar: Insert, Extract and Labels say what they are, and Done comes last.
+		const named = await browser.execute(() =>
+			[...document.querySelectorAll('[data-organize-bar] button')].map((b) => b.textContent.trim())
+		);
+		assert.deepEqual(named.filter(Boolean), ['Insert', 'Extract', 'Labels', 'Done']);
+		assert.equal(named.at(-1), 'Done', 'Done is not at the end of the bar');
+		// The pages are centered in the view.
+		const centered = await layout(browser);
+		assert.ok(Math.abs(centered.left - centered.right) <= 1.5, `the grid is not centered: ${JSON.stringify(centered)}`);
+
 		// The last page, two places earlier; undo takes one step back, redo brings it again.
 		await clickPage(browser, 5);
 		assert.match(await (await browser.$('[data-organize-count]')).getText(), /^1 of 6 pages selected$/);
+		// A selected page has the accent's border around its whole block, not its picture.
+		const marked = await browser.execute(() => {
+			const cell = document.querySelector('[data-organize-view] [role=option][aria-selected="true"]');
+			return {
+				block: getComputedStyle(cell).boxShadow,
+				picture: getComputedStyle(cell.querySelector('[data-picture]')).outlineStyle
+			};
+		});
+		assert.match(marked.block, /inset/, `the selected block has no border: ${marked.block}`);
+		assert.equal(marked.picture, 'none', 'the selected picture is outlined');
 		await browser.keys(['Alt', 'Shift', 'ArrowLeft']);
 		await browser.keys(['Alt', 'Shift', 'ArrowLeft']);
 		const moved = [k[0], k[1], k[2], k[5], k[3], k[4]];
@@ -130,13 +170,20 @@ test('pages are moved, turned and deleted in the grid, and the document follows'
 				picture: box(cell.querySelector('[data-picture]')),
 				bar: box(cell.querySelector('[data-tool]')),
 				text: cell.querySelector('[data-tool]').textContent.trim(),
-				buttons: [...cell.querySelectorAll('[data-tool] button')].map((b) => b.getAttribute('aria-label'))
+				buttons: [...cell.querySelectorAll('[data-tool] button')].map((b) => b.getAttribute('aria-label')),
+				sizes: [...cell.querySelectorAll('[data-tool] button')].map((b) => {
+					const r = b.getBoundingClientRect();
+					return [r.width, r.height, b.querySelector('svg').getBoundingClientRect().width];
+				})
 			};
 		}, second);
 		assert.equal(place.text, '2', 'the bar does not show the page’s label');
 		assert.deepEqual(place.buttons, ['Rotate counter-clockwise', 'Rotate clockwise', 'Delete']);
+		// Its buttons are a bar's: 32 px, with 16 px icons.
+		assert.deepEqual(place.sizes, [[32, 32, 16], [32, 32, 16], [32, 32, 16]]);
 		assert.ok(place.bar.top >= place.picture.bottom - 1, `the bar is over the picture: ${JSON.stringify(place)}`);
-		assert.ok(place.bar.bottom <= place.cell.bottom + 1, `the bar is under its cell: ${JSON.stringify(place)}`);
+		// It keeps clear of the block's lower edge.
+		assert.ok(place.bar.bottom <= place.cell.bottom - 6, `the bar sits on the edge of its block: ${JSON.stringify(place)}`);
 		const middle = (b) => (b.left + b.right) / 2;
 		assert.ok(Math.abs(middle(place.bar) - middle(place.cell)) <= 1, `the bar is not centered: ${JSON.stringify(place)}`);
 		await browser.saveScreenshot(join(OUT, 'organize-bar.png'));
@@ -163,6 +210,27 @@ test('pages are moved, turned and deleted in the grid, and the document follows'
 		await (await browser.$('button[aria-label="Larger pages"]')).click();
 		await (await browser.$('button[aria-label="Larger pages"]')).click();
 		assert.equal(await waitForWidth(browser, (w) => w > smallest, 'back to the first size'), start);
+
+		// Larger, step by step, as far as it goes: one page fills the view, in the middle.
+		const largerButton = await browser.$('button[aria-label="Larger pages"]');
+		for (let i = 0; i < 20 && (await largerButton.isEnabled()); i++) await largerButton.click();
+		assert.equal(await largerButton.isEnabled(), false, 'the pictures never reached their largest size');
+		await waitForWidth(browser, (w) => w > start * 2, 'the largest size');
+		const one = await layout(browser);
+		assert.equal(one.inRow, 1, `more than one page in a row at the largest size: ${JSON.stringify(one)}`);
+		assert.ok(one.cellHeight <= one.viewHeight, `a page does not fit the view: ${JSON.stringify(one)}`);
+		assert.ok(Math.abs(one.left - one.right) <= 1.5, `the page is not centered: ${JSON.stringify(one)}`);
+		// The wheel goes no further.
+		const largest = await cellWidth(browser);
+		await wheelOver(browser, 1, -120);
+		assert.equal(await waitForWidth(browser, () => true, 'past the largest size'), largest);
+		await browser.saveScreenshot(join(OUT, 'organize-one-page.png'));
+		const smallerButton = await browser.$('button[aria-label="Smaller pages"]');
+		for (let i = 0; i < 20 && (await cellWidth(browser)) > start; i++) {
+			await smallerButton.click();
+			await waitForWidth(browser, () => true, 'a step smaller');
+		}
+		assert.equal(await cellWidth(browser), start, 'the steps down did not come back to the first size');
 		assert.deepEqual(await keys(browser), moved, 'changing the size moved a page');
 
 		// Delete the third page, which a bookmark leads to. Cancel first.
@@ -236,14 +304,42 @@ test('pages are moved, turned and deleted in the grid, and the document follows'
 const activeTab = (browser) =>
 	browser.execute(() => document.querySelector('[role="tab"][aria-selected="true"]')?.textContent.trim() ?? '');
 
-test('pages come from files where the menu says, and go into a new file', async () => {
+test('the start screen’s Organize pages asks for a file and shows its pages as a grid', async () => {
+	const doc = sample('organize-start.pdf', 3);
+	// The file dialog: given up, then the file.
+	const { browser, stop } = await launch([], { dialogs: [null, [doc]] });
+	try {
+		const tile = await browser.$('[data-tool="organize"]');
+		await tile.waitForDisplayed({ timeoutMsg: 'the start screen has no Organize pages' });
+		assert.equal((await tile.getText()).trim(), 'Organize pages…');
+		await browser.saveScreenshot(join(OUT, 'organize-start.png'));
+		await tile.click();
+		await browser.pause(300);
+		assert.equal(await organizing(browser), false, 'a file given up was organized');
+		assert.equal(await tile.isDisplayed(), true, 'giving the file up left the start screen');
+
+		await tile.click();
+		await browser.waitUntil(() => organizing(browser), { timeoutMsg: 'the file’s pages did not show as a grid' });
+		assert.match(await activeTab(browser), /organize-start\.pdf/);
+		await browser.waitUntil(async () => (await keys(browser)).length === 3, { timeoutMsg: 'not every page is in the grid' });
+		// Done goes on to reading it.
+		await (await browser.$('button=Done')).click();
+		await waitForDocument(browser);
+		assert.match(await statusText(browser), /of 3/);
+	} finally {
+		await stop();
+	}
+});
+
+test('pages come from files where the menu says, and go into a new document', async () => {
 	const doc = sample('organize-into.pdf', 4);
 	const from = sample('organize-from.pdf', 3);
 	const more = sample('organize-more.pdf', 2);
 	const out = join(OUT, 'organize-extract.pdf');
 	rmSync(out, { force: true });
 
-	// The file dialogs: given up, then two files to insert, then where to save the extract.
+	// The file dialogs: given up, then two files to insert, then where to save the new
+	// document the extracted pages went into.
 	const { browser, stop } = await launch([doc], { dialogs: [null, [from, more], out] });
 	try {
 		await waitForDocument(browser);
@@ -272,10 +368,10 @@ test('pages come from files where the menu says, and go into a new file', async 
 				'Rotate clockwise',
 				'Rotate counter-clockwise',
 				'Delete page…',
-				'Extract page into a new file…',
+				'Extract page into a new document',
 				'Insert pages from file before…',
 				'Insert pages from file after…',
-				'New label range from this page',
+				'Page labels…',
 				'Read from this page'
 			]
 		);
@@ -289,7 +385,7 @@ test('pages come from files where the menu says, and go into a new file', async 
 		assert.match(asked, /Into organize-into\.pdf, after page 2\./);
 		assert.match(asked, /organize-from\.pdf\s+3 pages\s+organize-more\.pdf\s+2 pages/);
 		assert.equal(await (await browser.$('input[aria-label="Pages to insert"]')).isExisting(), false);
-		await (await browser.$('button=Insert')).click();
+		await (await browser.$('[role=dialog] button[type=submit]')).click();
 		const count = await browser.$('[data-organize-count]');
 		await browser.waitUntil(async () => (await count.getText()) === '5 of 9 pages selected', {
 			timeoutMsg: `the pages did not arrive: ${await count.getText()}`
@@ -313,20 +409,67 @@ test('pages come from files where the menu says, and go into a new file', async 
 		await browser.keys('Escape');
 		await (await browser.$('[role=menu]')).waitForDisplayed({ reverse: true });
 
-		// The first file's pages into a new file, with the changes not saved yet: it opens
-		// in a tab of its own, and the document keeps its pages.
+		// The first file's pages into a new document, with the changes not saved yet: it
+		// opens in a tab of its own with its pages as a grid, without asking where to save,
+		// and the document keeps its pages.
 		await clickPage(browser, 2);
 		await browser.keys(['Shift', 'ArrowRight']);
 		await browser.keys(['Shift', 'ArrowRight']);
 		assert.equal(await count.getText(), '3 of 9 pages selected');
 		await (await browser.$('button[aria-label="Extract selected pages"]')).click();
-		await browser.waitUntil(async () => (await activeTab(browser)).includes('organize-extract.pdf'), {
-			timeoutMsg: `the new file did not open: ${await activeTab(browser)}`
+		await browser.waitUntil(async () => (await activeTab(browser)).includes('Pages from organize-into.pdf'), {
+			timeoutMsg: `the new document did not open: ${await activeTab(browser)}`
 		});
-		await waitForDocument(browser);
-		assert.match(await statusText(browser), /of 3/);
-		assert.match(await bodyText(browser), /Extracted 3 pages into organize-extract\.pdf\./);
-		await browser.keys(['Control', 'Tab']);
+		await browser.waitUntil(async () => (await (await browser.$('[data-organize-count]')).getText()) === '3 pages', {
+			timeoutMsg: 'the new document does not show its pages as a grid'
+		});
+		assert.equal(await organizing(browser), true);
+		// It is no file yet: marked unsaved, and its tab says so.
+		assert.match(await statusText(browser), /Unsaved changes$/);
+		assert.equal(
+			await browser.execute(() => document.querySelector('[role="tab"][aria-selected="true"]').getAttribute('data-tip')),
+			'Not saved yet'
+		);
+		const said = await bodyText(browser);
+		assert.match(said, /Extracted 3 pages into a new document\./);
+		assert.match(said, /It is not saved yet: save it to keep it\./);
+		assert.equal(existsSync(out), false, 'a file was written before saving');
+		await browser.saveScreenshot(join(OUT, 'organize-extracted.png'));
+
+		// Its pages can be put in order before it is saved: the last one first.
+		const made = await keys(browser);
+		await clickPage(browser, 2);
+		await browser.keys(['Alt', 'Shift', 'ArrowLeft']);
+		await browser.keys(['Alt', 'Shift', 'ArrowLeft']);
+		await waitForKeys(browser, [made[2], made[0], made[1]], 'moved in the new document');
+
+		// Save asks where: then it is that file.
+		await browser.keys(['Control', 's']);
+		await browser.waitUntil(async () => (await activeTab(browser)).includes('organize-extract.pdf'), {
+			timeoutMsg: `saving did not name the document: ${await activeTab(browser)}`
+		});
+		await browser.waitUntil(async () => /All changes saved$/.test(await statusText(browser)), { timeoutMsg: 'not saved' });
+		assert.equal(await organizing(browser), true, 'saving left the grid');
+
+		// One more page into a new document, closed without saving: Lectrix asks first.
+		await clickPage(browser, 0);
+		await (await browser.$('button[aria-label="Extract selected pages"]')).click();
+		await browser.waitUntil(async () => (await activeTab(browser)).includes('Pages from organize-extract.pdf'), {
+			timeoutMsg: `the second new document did not open: ${await activeTab(browser)}`
+		});
+		await browser.keys(['Control', 'w']);
+		const ask = await browser.$('[role=alertdialog]');
+		await ask.waitForDisplayed({ timeoutMsg: 'closing a document that was never saved did not ask' });
+		assert.match(await ask.getText(), /Pages from organize-extract\.pdf has not been saved yet/);
+		await (await browser.$('button=Don’t save')).click();
+		await browser.waitUntil(async () => (await activeTab(browser)).includes('organize-extract.pdf'), {
+			timeoutMsg: `the unsaved document did not close: ${await activeTab(browser)}`
+		});
+
+		await browser.keys(['Control', 'Shift', 'Tab']);
+		await browser.waitUntil(async () => (await activeTab(browser)).includes('organize-into.pdf'), {
+			timeoutMsg: `not back at the document: ${await activeTab(browser)}`
+		});
 		await browser.waitUntil(() => organizing(browser), { timeoutMsg: 'the document left the grid' });
 		assert.equal(await (await browser.$('[data-organize-count]')).getText(), '3 of 9 pages selected');
 	} finally {

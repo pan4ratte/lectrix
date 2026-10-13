@@ -1,15 +1,15 @@
-// Page label actions shared by the labels' section of the page organizing tool, the menus
-// and the thumbnails (sections 6.3 and 6.7). The section edits a list of rules; every
-// applied change sends the whole list to Rust as one operation, so it is one undo step.
+// Page label actions shared by the Page labels dialog and the grid of pages being
+// organized, where it is opened (sections 6.3 and 6.7). The dialog numbers the pages
+// picked in it; every applied change sends the whole list of rules to Rust as one
+// operation, so it is one undo step.
 
-import { organizePages } from '#lib/features/organize/actions.ts';
 import type { LabelRule } from '#lib/ipc/index.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
-import { editableRules, romanThenArabic, sameRules, withRuleAt } from './rules.ts';
+import { assignLabels, defaultRule, editableRules, sameRules, type Numbering } from './rules.ts';
 
-/** The rules the panel shows for the document. */
+/** The rules a change starts from: the document's, as `editableRules` reads them. */
 export function shownRules(tab: DocTab): LabelRule[] {
 	return editableRules(tab.labelRules, tab.pageCount).rules;
 }
@@ -27,9 +27,8 @@ function refuseEdit(tab: DocTab): boolean {
 }
 
 /**
- * Label actions run one after another. Each computes its rules from the labels as they are
- * when it runs, so a field applied on blur and the click that caused the blur (Delete
- * range, a preset) don't overwrite each other.
+ * Label changes run one after another. Each computes its rules from the labels as they are
+ * when it runs, so two of them started close together don't overwrite each other.
  */
 let queue: Promise<unknown> = Promise.resolve();
 
@@ -39,29 +38,24 @@ function queued<T>(run: () => Promise<T>): Promise<T> {
 	return next;
 }
 
-/** Shows the page labels: beside the grid of the document's pages, which is shown for it
- * if the document is being read. */
-export async function showLabels(tab: DocTab) {
-	app.labelsShown = true;
-	await organizePages(tab);
-}
-
-/** The page labels' button in the grid's bar: shows them, or puts them away. */
-export function toggleLabels() {
-	app.labelsShown = !app.labelsShown;
+/**
+ * Opens the Page labels dialog over the grid of the document's pages: it is part of the
+ * page organizing tool, and does nothing while the document is read. The dialog starts
+ * with the pages selected in the grid, or else with the page that has the keyboard focus
+ * there.
+ */
+export function showLabels(tab: DocTab) {
+	if (!tab.organize || app.labelsRequest || refuseEdit(tab)) return;
+	app.labelsRequest = { tabId: tab.id };
 }
 
 /**
  * Applies `rules` (or removes all labels, for an empty list). Nothing is sent when the
- * rules are what the panel already shows, so leaving a field unchanged is not an edit: a
- * document without labels does not get a "1, 2, 3" tree, and rules another app stored
- * past the last page stay until a real change.
- * Returns true if the panel now shows `rules`.
+ * rules are what the document already has, so that is not an edit: a document without
+ * labels does not get a "1, 2, 3" tree, and rules another app stored past the last page
+ * stay until a real change.
+ * Returns true if the document now has `rules`.
  */
-export function setRules(tab: DocTab, rules: LabelRule[]): Promise<boolean> {
-	return queued(() => applyRules(tab, rules));
-}
-
 async function applyRules(tab: DocTab, rules: LabelRule[]): Promise<boolean> {
 	const unchanged = rules.length === 0 ? tab.labels === null : sameRules(rules, shownRules(tab));
 	if (unchanged) {
@@ -77,43 +71,14 @@ async function applyRules(tab: DocTab, rules: LabelRule[]): Promise<boolean> {
 	return change !== null;
 }
 
-/** Starts a new label range (1, 2, 3 from 1) at `page` and shows it among the labels,
- * with its page selected in the grid. */
-export function startRangeAt(tab: DocTab, page: number) {
-	return queued(async () => {
-		await showLabels(tab);
-		const rules = shownRules(tab);
-		if (rules.some((r) => r.startPage === page) || (await applyRules(tab, withRuleAt(rules, page)))) {
-			tab.organize?.show(page);
-			tab.selectedLabelRule = page;
-		}
-	});
-}
-
-/** Deletes the rule starting at `page` (never the first one); its pages join the range before. */
-export function deleteRule(tab: DocTab, page: number) {
-	return queued(async () => {
-		const rules = shownRules(tab);
-		const index = rules.findIndex((r) => r.startPage === page);
-		if (index <= 0) return;
-		if (await applyRules(tab, rules.filter((r) => r.startPage !== page))) {
-			tab.selectedLabelRule = rules[index - 1]!.startPage;
-		}
-	});
-}
-
-/** "Roman front matter, then arabic from this page": replaces every rule. */
-export function romanFrontMatter(tab: DocTab, page: number) {
-	if (page <= 0) return Promise.resolve();
-	return queued(async () => {
-		await showLabels(tab);
-		if (await applyRules(tab, romanThenArabic(page))) tab.selectedLabelRule = page;
-	});
-}
-
-/** "Remove all labels." */
-export function removeLabels(tab: DocTab) {
-	return queued(async () => {
-		if (await applyRules(tab, [])) tab.selectedLabelRule = 0;
+/**
+ * Numbers `pages` (0-based, sorted) as `numbering` says; every other page keeps its label.
+ * A document numbered 1, 2, 3 throughout needs no labels, so it is left without any.
+ * Returns true if the document now has those labels.
+ */
+export function assign(tab: DocTab, pages: readonly number[], numbering: Numbering): Promise<boolean> {
+	return queued(() => {
+		const rules = assignLabels(shownRules(tab), tab.pageCount, pages, numbering);
+		return applyRules(tab, sameRules(rules, [defaultRule()]) ? [] : rules);
 	});
 }

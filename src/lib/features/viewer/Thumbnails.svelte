@@ -12,7 +12,7 @@
 
 	import { chain } from '#lib/components/chain.ts';
 	import { motionMs } from '#lib/components/panes.ts';
-	import { startRangeAt } from '#lib/features/labels/actions.ts';
+
 	import { insertFromFile } from '#lib/features/organize/actions.ts';
 	import { pageUrl } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
@@ -348,14 +348,6 @@
 					onSelect={() => void insertFromFile(tab, contextPage + 1)}
 				>
 					Insert pages from file after this page…
-				</ContextMenu.Item>
-				<ContextMenu.Separator class="menu-separator" />
-				<ContextMenu.Item
-					class="menu-item"
-					disabled={!tab.canEditLabels}
-					onSelect={() => void startRangeAt(tab, contextPage)}
-				>
-					New label range from this page
 				</ContextMenu.Item>
 			</ContextMenu.Content>
 		</ContextMenu.Portal>

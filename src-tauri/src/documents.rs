@@ -10,6 +10,12 @@
 //! The registry also keeps the tabs' recovery copies (section 7, `recovery.rs`): saving,
 //! reloading or closing a document deletes its copy, and a copy left by a crash can be
 //! restored as a tab.
+//!
+//! A tab can also show a document that has *no file of its own yet*: pages extracted into
+//! a new document (section 6.7). Its file is a working copy in a folder of Lectrix's own,
+//! beside the recovery folder. It has unsaved changes from the start, Save asks where to
+//! save it, and the working copy goes once it is saved there, or closed. It is not a recent
+//! file, has no remembered view and is not watched.
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -55,7 +61,21 @@ struct OpenDoc {
     password: Option<String>,
     /// Opened as a source for combining or inserting pages, not as a tab.
     source: bool,
+    /// Not saved under a name yet: `path` is a working copy in Lectrix's folder for such
+    /// documents.
+    unsaved: Option<Unsaved>,
 }
+
+/// What is kept for a document that has no file of its own yet.
+#[derive(Debug, Clone)]
+struct Unsaved {
+    /// The folder its Save dialog starts in: that of the document its pages came from.
+    folder: Option<PathBuf>,
+}
+
+/// The longest name a working copy gets, in characters: it is a file name under the
+/// app's data folder, which is a long path already.
+const MAX_UNSAVED_NAME: usize = 96;
 
 /// An encrypted file waiting for its password.
 struct Pending {
@@ -73,6 +93,8 @@ pub struct Documents {
     pending: Mutex<HashMap<u32, Pending>>,
     next_token: AtomicU32,
     recovery: Recovery,
+    /// Numbers the working copies of documents not saved yet.
+    next_unsaved: AtomicU32,
 }
 
 fn lock<T>(m: &Mutex<T>) -> Result<MutexGuard<'_, T>, AppError> {
@@ -110,6 +132,191 @@ impl Documents {
             .get(&id)
             .map(|d| d.path.clone())
             .ok_or_else(AppError::document_closed)
+    }
+
+    // ----- documents without a file of their own yet -----
+
+    /// Where the working copies of documents not saved yet are kept: beside the recovery
+    /// folder, in the app's local data. Without one (measurement and test runs), in a
+    /// folder of this process in the system's temporary files.
+    fn unsaved_dir(&self) -> PathBuf {
+        match self.recovery.dir().and_then(Path::parent) {
+            Some(data) => data.join("unsaved"),
+            None => std::env::temp_dir().join(format!("lectrix-unsaved-{}", std::process::id())),
+        }
+    }
+
+    fn is_working_copy(&self, path: &Path) -> bool {
+        path.starts_with(self.unsaved_dir())
+    }
+
+    /// Whether document `id` has no file of its own yet.
+    pub fn is_unsaved(&self, id: u32) -> bool {
+        self.docs
+            .lock()
+            .is_ok_and(|docs| docs.get(&id).is_some_and(|d| d.unsaved.is_some()))
+    }
+
+    /// The name and the folder the Save dialog starts with for document `id`: its file's,
+    /// or for a document not saved yet, its name and the folder of the document it came
+    /// from.
+    pub fn save_suggestion(&self, id: u32) -> Result<(Option<String>, Option<PathBuf>), AppError> {
+        let docs = lock(&self.docs)?;
+        let doc = docs.get(&id).ok_or_else(AppError::document_closed)?;
+        let name = doc
+            .path
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned());
+        let folder = match &doc.unsaved {
+            Some(unsaved) => unsaved.folder.clone(),
+            None => doc.path.parent().map(Path::to_path_buf),
+        };
+        Ok((name, folder))
+    }
+
+    /// A path for the working copy of a new document named `name` ("Pages from a.pdf"), in
+    /// a folder of its own, so that any two have different paths. Nothing is at the path
+    /// yet.
+    pub fn new_working_copy(&self, name: &str) -> Result<PathBuf, AppError> {
+        let n = self.next_unsaved.fetch_add(1, Ordering::Relaxed) + 1;
+        let stamp = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0);
+        let folder = self
+            .unsaved_dir()
+            .join(format!("{stamp}-{}-{n}", std::process::id()));
+        std::fs::create_dir_all(&folder).map_err(|e| {
+            crate::applog::warn(format!(
+                "no folder {} for a new document: {e}",
+                folder.display()
+            ));
+            AppError::new(
+                "Lectrix couldn’t make room for the new document.",
+                Some("Check that the disk is not full, then try again."),
+            )
+        })?;
+        Ok(folder.join(working_copy_name(name)))
+    }
+
+    /// Deletes a working copy and its folder: its document was saved elsewhere or closed,
+    /// or none was opened from it (the extraction failed or was stopped). As far as that
+    /// can be done now: a file still open stays until the next start, which sweeps the
+    /// folder.
+    pub fn remove_working_copy(&self, path: &Path) {
+        if !self.is_working_copy(path) {
+            return;
+        }
+        let _ = std::fs::remove_file(path);
+        if let Some(folder) = path.parent() {
+            let _ = std::fs::remove_dir(folder);
+        }
+        // The folder in the temporary files is this process's alone: it goes with its
+        // last working copy (removing it fails while others are there).
+        if self.recovery.dir().is_none() {
+            let _ = std::fs::remove_dir(self.unsaved_dir());
+        }
+    }
+
+    /// Opens the working copy at `path` (from [`Documents::new_working_copy`]) as a tab
+    /// for a document that has not been saved yet. `folder` is where its Save dialog
+    /// starts.
+    pub fn open_unsaved(&self, path: &Path, folder: Option<PathBuf>) -> OpenResult {
+        let name = file_name(path);
+        match Session::open_unsaved(path) {
+            Ok((session, info)) => {
+                let id = self.next_id.fetch_add(1, Ordering::Relaxed) + 1;
+                let doc = OpenDoc {
+                    session,
+                    path: path.to_path_buf(),
+                    stamp: FileStamp::of(path),
+                    reported: None,
+                    saving: false,
+                    password: None,
+                    source: false,
+                    unsaved: Some(Unsaved { folder }),
+                };
+                match self.docs.lock() {
+                    Ok(mut docs) => {
+                        docs.insert(id, doc);
+                    }
+                    Err(_) => {
+                        self.remove_working_copy(path);
+                        return OpenResult::Failed {
+                            name,
+                            error: AppError::bad_state(),
+                        };
+                    }
+                }
+                crate::applog::info(format!(
+                    "opened new document {id}: {} pages, not saved yet",
+                    info.pages.len()
+                ));
+                OpenResult::Opened {
+                    document: Box::new(document_info(id, info, None, true)),
+                }
+            }
+            Err(e) => {
+                crate::applog::warn(format!("could not open {}: {e:?}", path.display()));
+                self.remove_working_copy(path);
+                OpenResult::Failed {
+                    name,
+                    error: e.into(),
+                }
+            }
+        }
+    }
+
+    /// Deletes the working copies nothing needs any more: at the start, those an earlier
+    /// run left (it crashed, or quit with such a document open) and that no recovery copy
+    /// waiting to be restored belongs to; after recovered changes are discarded, theirs.
+    pub fn sweep_working_copies(&self) {
+        // (Only the app's own folder: the one in the temporary files is this process's.)
+        if self.recovery.dir().is_none() {
+            return;
+        }
+        let Ok(entries) = std::fs::read_dir(self.unsaved_dir()) else {
+            return;
+        };
+        let mut kept: Vec<PathBuf> = self
+            .recovery
+            .pending()
+            .into_iter()
+            .map(|p| p.path)
+            .collect();
+        if let Ok(docs) = self.docs.lock() {
+            kept.extend(docs.values().map(|d| d.path.clone()));
+        }
+        for entry in entries.flatten() {
+            let folder = entry.path();
+            if kept.iter().any(|path| path.starts_with(&folder)) {
+                continue;
+            }
+            let removed = if folder.is_dir() {
+                std::fs::remove_dir_all(&folder)
+            } else {
+                std::fs::remove_file(&folder)
+            };
+            if let Err(e) = removed {
+                crate::applog::warn(format!("could not delete {}: {e}", folder.display()));
+            }
+        }
+    }
+
+    /// Deletes the working copies of the documents still open: Lectrix is quitting, after
+    /// the user saved them or chose not to.
+    pub fn discard_unsaved(&self) {
+        let paths: Vec<PathBuf> = match self.docs.lock() {
+            Ok(docs) => docs
+                .values()
+                .filter(|d| d.unsaved.is_some())
+                .map(|d| d.path.clone())
+                .collect(),
+            Err(_) => return,
+        };
+        for path in paths {
+            self.remove_working_copy(&path);
+        }
     }
 
     fn find_open(&self, path: &Path, platform: &dyn Platform) -> Option<u32> {
@@ -173,6 +380,7 @@ impl Documents {
                     saving: false,
                     password: password.map(str::to_owned),
                     source,
+                    unsaved: None,
                 };
                 match self.docs.lock() {
                     Ok(mut docs) => {
@@ -202,7 +410,7 @@ impl Documents {
                     info.open_time.as_secs_f64() * 1000.0
                 ));
                 OpenResult::Opened {
-                    document: Box::new(document_info(id, info, view)),
+                    document: Box::new(document_info(id, info, view, false)),
                 }
             }
             Err(e @ (pdf_core::Error::PasswordRequired | pdf_core::Error::WrongPassword)) => {
@@ -276,6 +484,9 @@ impl Documents {
                 ),
             };
         }
+        // A document that had not been saved under a name when Lectrix crashed is one
+        // again: its file is a working copy, and Save asks where to save.
+        let unsaved = self.is_working_copy(&source.path);
         match Session::restore(&source.copy, &source.path, password) {
             Ok((session, info)) => {
                 let id = self.next_id.fetch_add(1, Ordering::Relaxed) + 1;
@@ -290,6 +501,7 @@ impl Documents {
                     saving: false,
                     password: password.map(str::to_owned),
                     source: false,
+                    unsaved: unsaved.then_some(Unsaved { folder: None }),
                 };
                 match self.docs.lock() {
                     Ok(mut docs) => {
@@ -303,16 +515,20 @@ impl Documents {
                     }
                 }
                 self.recovery.adopt(id, &source, revision);
-                let view = store.lock().ok().and_then(|mut s| {
-                    s.add_recent(&source.path, |a, b| platform.same_file(a, b));
-                    s.view(&platform.file_key(&source.path))
-                });
+                let view = if unsaved {
+                    None
+                } else {
+                    store.lock().ok().and_then(|mut s| {
+                        s.add_recent(&source.path, |a, b| platform.same_file(a, b));
+                        s.view(&platform.file_key(&source.path))
+                    })
+                };
                 crate::applog::info(format!(
                     "restored document {id} from recovery slot {}",
                     source.slot
                 ));
                 OpenResult::Opened {
-                    document: Box::new(document_info(id, info, view)),
+                    document: Box::new(document_info(id, info, view, unsaved)),
                 }
             }
             Err(e @ (pdf_core::Error::PasswordRequired | pdf_core::Error::WrongPassword)) => {
@@ -417,10 +633,15 @@ impl Documents {
         let doc = self.docs.lock().ok()?.remove(&id)?;
         doc.session.close();
         self.recovery.discard(id);
+        if doc.unsaved.is_some() {
+            self.remove_working_copy(&doc.path);
+        }
         Some(doc.session)
     }
 
-    /// Saves document `id` in place or (with `target`) to a new file.
+    /// Saves document `id` in place or (with `target`) to a new file. A document not saved
+    /// under a name yet is saved only to a new file, which it then belongs to; its working
+    /// copy goes.
     pub fn save(
         &self,
         id: u32,
@@ -443,6 +664,16 @@ impl Documents {
                 }
             }
             let doc = docs.get_mut(&id).ok_or_else(AppError::document_closed)?;
+            let onto_itself = match &target {
+                Some(target) => platform.same_file(&doc.path, target),
+                None => true,
+            };
+            if doc.unsaved.is_some() && onto_itself {
+                return Err(AppError::new(
+                    "This document has not been saved yet.",
+                    Some("Use Save as, and choose where to save it."),
+                ));
+            }
             doc.saving = true;
             doc.session.clone()
         };
@@ -452,11 +683,18 @@ impl Documents {
         doc.saving = false;
         let saved = result?;
         let save_as = !platform.same_file(&doc.path, &saved.path);
+        let working_copy = doc
+            .unsaved
+            .take()
+            .map(|_| std::mem::replace(&mut doc.path, saved.path.clone()));
         doc.path = saved.path.clone();
         doc.stamp = FileStamp::of(&doc.path);
         doc.reported = None;
         drop(docs);
         self.recovery.discard(id);
+        if let Some(working_copy) = working_copy {
+            self.remove_working_copy(&working_copy);
+        }
         if save_as && let Ok(mut store) = store.lock() {
             store.add_recent(&saved.path, |a, b| platform.same_file(a, b));
         }
@@ -488,6 +726,12 @@ impl Documents {
         platform: &dyn Platform,
         store: &Mutex<Store>,
     ) -> Result<DocumentInfo, AppError> {
+        if self.is_unsaved(id) {
+            return Err(AppError::new(
+                "This document has not been saved yet, so there is no file to read again.",
+                Some("Save it first."),
+            ));
+        }
         let session = self.session(id)?;
         let info = session.reload()?;
         self.recovery.discard(id);
@@ -502,7 +746,7 @@ impl Documents {
             .lock()
             .ok()
             .and_then(|s| s.view(&platform.file_key(&path)));
-        Ok(document_info(id, info, view))
+        Ok(document_info(id, info, view, false))
     }
 
     /// Reports a change of document `id`'s file again at the next check: its tab moved to
@@ -520,7 +764,7 @@ impl Documents {
         let snapshot: Vec<(u32, PathBuf)> = match self.docs.lock() {
             Ok(docs) => docs
                 .iter()
-                .filter(|(_, d)| !d.saving && !d.source)
+                .filter(|(_, d)| !d.saving && !d.source && d.unsaved.is_none())
                 .map(|(id, d)| (*id, d.path.clone()))
                 .collect(),
             Err(_) => return Vec::new(),
@@ -554,12 +798,28 @@ impl Documents {
 /// How often open files are checked for outside changes.
 pub const WATCH_INTERVAL: Duration = Duration::from_millis(1500);
 
-pub fn document_info(id: u32, info: CoreInfo, view: Option<ViewState>) -> DocumentInfo {
+/// A working copy's file name for a document named `name`: cut to a length that fits
+/// under the app's data folder, with its `.pdf` kept.
+fn working_copy_name(name: &str) -> String {
+    let stem = name.strip_suffix(".pdf").unwrap_or(name);
+    let stem: String = stem.chars().take(MAX_UNSAVED_NAME).collect();
+    format!("{}.pdf", stem.trim_end())
+}
+
+/// What the frontend is told about document `id`. `untitled`: it has no file of its own
+/// yet.
+pub fn document_info(
+    id: u32,
+    info: CoreInfo,
+    view: Option<ViewState>,
+    untitled: bool,
+) -> DocumentInfo {
     let (labels, label_rules) = crate::ipc::split_labels(info.labels);
     DocumentInfo {
         id,
         name: file_name(&info.path),
         path: info.path.display().to_string(),
+        untitled,
         pages: info.pages.into_iter().map(Into::into).collect(),
         labels,
         label_rules,
@@ -894,5 +1154,175 @@ mod tests {
         ));
         docs.close(document.id);
         assert!(docs.recovery().pending().is_empty());
+    }
+
+    /// Makes a document that has no file of its own yet from the first two pages of `from`,
+    /// as `extract_pages` does.
+    fn extract_two(docs: &Documents, from: u32) -> Box<DocumentInfo> {
+        let (_, folder) = docs.save_suggestion(from).unwrap();
+        let target = docs.new_working_copy("Pages from a.pdf").unwrap();
+        docs.session(from)
+            .unwrap()
+            .extract(vec![1, 0], &target, |_| true)
+            .unwrap();
+        match docs.open_unsaved(&target, folder) {
+            OpenResult::Opened { document } => document,
+            other => panic!("expected Opened, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn extracted_pages_are_a_document_without_a_file_until_it_is_saved() {
+        let (dir, _, store) = setup("unsaved");
+        let docs = Documents::new(Recovery::new(Some(dir.join("recovery"))));
+        let platform = crate::platform::current();
+        let OpenResult::Opened { document: source } =
+            docs.open(&sample(&dir, "a.pdf"), None, platform, &store)
+        else {
+            panic!("expected Opened");
+        };
+
+        let made = extract_two(&docs, source.id);
+        assert!(made.untitled && made.state.dirty);
+        assert_eq!(made.name, "Pages from a.pdf");
+        assert_eq!(made.pages.len(), 2);
+        let working = PathBuf::from(&made.path);
+        assert!(working.starts_with(dir.join("unsaved")) && working.is_file());
+        // A tab, but not a recent file, and its working copy is not watched.
+        assert_eq!(docs.ids().unwrap(), vec![source.id, made.id]);
+        assert_eq!(store.lock().unwrap().recent().len(), 1);
+        assert!(docs.poll_changes().is_empty());
+        // Its Save dialog starts with its name, in the folder its pages came from.
+        assert_eq!(
+            docs.save_suggestion(made.id).unwrap(),
+            (Some("Pages from a.pdf".into()), Some(dir.clone()))
+        );
+
+        // It has no file to save onto, nor one to read again.
+        let refused = docs
+            .save(made.id, SaveKind::Incremental, None, platform, &store)
+            .unwrap_err();
+        assert!(
+            refused.message.contains("not been saved yet"),
+            "{refused:?}"
+        );
+        assert!(docs.reload(made.id, platform, &store).is_err());
+
+        let target = dir.join("pages.pdf");
+        let saved = docs
+            .save(
+                made.id,
+                SaveKind::Full,
+                Some(target.clone()),
+                platform,
+                &store,
+            )
+            .unwrap();
+        assert_eq!(saved.name, "pages.pdf");
+        assert!(!saved.state.dirty);
+        // Now it is a file like any other: a recent one, saved in place, and its working
+        // copy is gone with its folder.
+        assert!(!docs.is_unsaved(made.id));
+        assert_eq!(docs.path(made.id).unwrap(), target);
+        assert_eq!(store.lock().unwrap().recent().len(), 2);
+        assert!(!working.exists(), "the working copy stayed");
+        assert!(!working.parent().unwrap().exists());
+        docs.session(made.id)
+            .unwrap()
+            .apply(Operation::RotatePages {
+                pages: vec![0],
+                degrees: 90,
+            })
+            .unwrap();
+        docs.save(made.id, SaveKind::Incremental, None, platform, &store)
+            .unwrap();
+
+        // Closed without saving, a new document leaves nothing behind.
+        let dropped = extract_two(&docs, source.id);
+        let working = PathBuf::from(&dropped.path);
+        assert!(working.is_file());
+        docs.close(dropped.id);
+        docs.sweep_working_copies();
+        assert!(!working.exists(), "the working copy stayed");
+    }
+
+    #[test]
+    fn a_document_without_a_file_comes_back_after_a_crash_as_one() {
+        let (dir, _, store) = setup("unsaved-crash");
+        let platform = crate::platform::current();
+        let recovery_dir = dir.join("recovery");
+        let working;
+        {
+            let docs = Documents::new(Recovery::new(Some(recovery_dir.clone())));
+            let OpenResult::Opened { document: source } =
+                docs.open(&sample(&dir, "a.pdf"), None, platform, &store)
+            else {
+                panic!("expected Opened");
+            };
+            working = PathBuf::from(&extract_two(&docs, source.id).path);
+            docs.write_recovery_copies();
+            // A crash: the registry goes without closing anything.
+        }
+
+        let docs = Documents::new(Recovery::new(Some(recovery_dir.clone())));
+        // The start of the next run keeps what a recovery copy belongs to.
+        docs.sweep_working_copies();
+        assert!(working.is_file());
+        let pending = docs.recovery().pending();
+        assert_eq!(pending.len(), 1);
+        let OpenResult::Opened { document } = docs.restore(&pending[0].slot, platform, &store)
+        else {
+            panic!("expected Opened");
+        };
+        assert!(document.untitled && document.state.dirty);
+        assert_eq!(document.name, "Pages from a.pdf");
+        assert_eq!(document.pages.len(), 2);
+        assert!(
+            docs.save(document.id, SaveKind::Incremental, None, platform, &store)
+                .is_err()
+        );
+        let target = dir.join("kept.pdf");
+        docs.save(
+            document.id,
+            SaveKind::Full,
+            Some(target.clone()),
+            platform,
+            &store,
+        )
+        .unwrap();
+        assert!(target.is_file() && !working.exists());
+        docs.close(document.id);
+
+        // Discarded instead of restored, its working copy goes at the sweep that follows.
+        let docs = Documents::new(Recovery::new(Some(recovery_dir.clone())));
+        let OpenResult::Opened { document: source } =
+            docs.open(&dir.join("a.pdf"), None, platform, &store)
+        else {
+            panic!("expected Opened");
+        };
+        let working = PathBuf::from(&extract_two(&docs, source.id).path);
+        docs.write_recovery_copies();
+        drop(docs);
+        let docs = Documents::new(Recovery::new(Some(recovery_dir)));
+        let slots: Vec<String> = docs
+            .recovery()
+            .pending()
+            .into_iter()
+            .map(|p| p.slot)
+            .collect();
+        assert_eq!(slots.len(), 1);
+        docs.recovery().discard_pending(&slots);
+        docs.sweep_working_copies();
+        assert!(!working.exists(), "the working copy stayed");
+    }
+
+    #[test]
+    fn working_copies_get_names_that_fit() {
+        assert_eq!(working_copy_name("Pages from a.pdf"), "Pages from a.pdf");
+        assert_eq!(working_copy_name("no extension"), "no extension.pdf");
+        let long = format!("Pages from {}.pdf", "x".repeat(300));
+        let name = working_copy_name(&long);
+        assert_eq!(name.chars().count(), MAX_UNSAVED_NAME + 4);
+        assert!(name.ends_with(".pdf"));
     }
 }

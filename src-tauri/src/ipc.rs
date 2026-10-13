@@ -231,6 +231,10 @@ pub struct DocumentInfo {
     pub name: String,
     /// Full path, shown as the tab's tooltip.
     pub path: String,
+    /// Not saved under a name yet (pages extracted into a new document, section 6.7):
+    /// `path` is a working copy in Lectrix's own folder, Save asks where to save, and the
+    /// document has unsaved changes until then.
+    pub untitled: bool,
     pub pages: Vec<PageSize>,
     /// One label per page, or null when the document has no page labels.
     pub labels: Option<Vec<String>>,
@@ -597,14 +601,15 @@ pub struct MergeProgress {
     pub total: u32,
 }
 
-/// A combined file, written and opened in a tab.
+/// A combined file, written and opened in a tab; or pages extracted into a new document,
+/// opened in a tab and not saved yet.
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct MergeOutcome {
     pub opened: OpenResult,
     pub report: MergeReport,
-    /// The new file's name.
+    /// The new file's name (for extracted pages, the name the new document starts with).
     pub name: String,
 }
 

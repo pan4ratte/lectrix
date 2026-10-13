@@ -47,21 +47,48 @@ export interface Grid {
 	/** Distance between cell origins, horizontally and vertically. */
 	pitchX: number;
 	pitchY: number;
-	/** Padding around the cells. */
+	/** Padding around the cells: above the first row and below the last, and the least at
+	 * the sides. */
 	pad: number;
+	/** Where the first column starts: the columns are centered in the width. */
+	left: number;
 }
 
-export function gridFor(width: number, cellWidth: number, cellHeight: number, gap: number, pad: number): Grid {
+/**
+ * The grid for `count` pages in `width`: as many columns as fit, centered. Fewer pages than
+ * that are centered as the one row they are.
+ */
+export function gridFor(
+	width: number,
+	cellWidth: number,
+	cellHeight: number,
+	gap: number,
+	pad: number,
+	count = Infinity
+): Grid {
 	const columns = Math.max(1, Math.floor((width - 2 * pad + gap) / (cellWidth + gap)));
-	return { columns, cellWidth, cellHeight, pitchX: cellWidth + gap, pitchY: cellHeight + gap, pad };
+	const used = Math.max(1, Math.min(columns, count));
+	const left = Math.max(pad, Math.floor((width - (used * (cellWidth + gap) - gap)) / 2));
+	return { columns, cellWidth, cellHeight, pitchX: cellWidth + gap, pitchY: cellHeight + gap, pad, left };
 }
 
 /** Where cell `index` starts in the grid's content. */
 export function cellOrigin(grid: Grid, index: number) {
 	return {
-		x: grid.pad + (index % grid.columns) * grid.pitchX,
+		x: grid.left + (index % grid.columns) * grid.pitchX,
 		y: grid.pad + Math.floor(index / grid.columns) * grid.pitchY
 	};
+}
+
+/** How much wider a cell is than the square its picture is fitted into. */
+export const CELL_SIDE = 16;
+
+/**
+ * The largest square a picture is fitted into in a view of `width` x `height`: the size at
+ * which one page, with the `captionHeight` under it, fills the view.
+ */
+export function largestThumb(width: number, height: number, pad: number, captionHeight: number): number {
+	return Math.floor(Math.min(width - 2 * pad - CELL_SIDE, height - 2 * pad - captionHeight));
 }
 
 /** A place between pages to drop dragged pages: its index (0 is before the first page)
@@ -74,12 +101,12 @@ export interface Gap {
 
 /** The gap nearest a point in the grid's content, in the row under the pointer. */
 export function gapAt(grid: Grid, count: number, x: number, y: number): Gap {
-	if (count === 0) return { gap: 0, x: grid.pad, y: grid.pad };
+	if (count === 0) return { gap: 0, x: grid.left, y: grid.pad };
 	const rows = Math.ceil(count / grid.columns);
 	const row = Math.max(0, Math.min(rows - 1, Math.floor((y - grid.pad) / grid.pitchY)));
 	const cellsInRow = Math.min(grid.columns, count - row * grid.columns);
-	const col = Math.max(0, Math.min(cellsInRow, Math.round((x - grid.pad) / grid.pitchX)));
-	return { gap: row * grid.columns + col, x: grid.pad + col * grid.pitchX, y: grid.pad + row * grid.pitchY };
+	const col = Math.max(0, Math.min(cellsInRow, Math.round((x - grid.left) / grid.pitchX)));
+	return { gap: row * grid.columns + col, x: grid.left + col * grid.pitchX, y: grid.pad + row * grid.pitchY };
 }
 
 /** A rectangle in the grid's content. */

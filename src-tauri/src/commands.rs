@@ -262,10 +262,12 @@ pub fn restore_recovered(
         .collect()
 }
 
-/// Deletes recovered changes the user chose not to keep.
+/// Deletes recovered changes the user chose not to keep, and with them the working copies
+/// of documents that had not been saved under a name.
 #[tauri::command]
 pub fn discard_recovered(state: State<'_, AppState>, slots: Vec<String>) {
     state.documents.recovery().discard_pending(&slots);
+    state.documents.sweep_working_copies();
 }
 
 /// The user agreed to close the window (saved or chose not to save). If it is the last
@@ -311,12 +313,23 @@ pub fn close_document(state: State<'_, AppState>, id: u32) {
 pub fn get_document_info(state: State<'_, AppState>, id: u32) -> Result<DocumentInfo, AppError> {
     let session = state.documents.session(id)?;
     let path = state.documents.path(id)?;
-    let view = state
-        .store
-        .lock()
-        .ok()
-        .and_then(|s| s.view(&state.platform.file_key(&path)));
-    Ok(crate::documents::document_info(id, session.info()?, view))
+    // A document not saved under a name yet has no view remembered for a file.
+    let untitled = state.documents.is_unsaved(id);
+    let view = if untitled {
+        None
+    } else {
+        state
+            .store
+            .lock()
+            .ok()
+            .and_then(|s| s.view(&state.platform.file_key(&path)))
+    };
+    Ok(crate::documents::document_info(
+        id,
+        session.info()?,
+        view,
+        untitled,
+    ))
 }
 
 /// The documents the asking window shows in tabs, for a page that loads after it got
@@ -892,11 +905,13 @@ fn report_progress(on_progress: Channel<MergeProgress>) -> impl Fn(Progress) + S
     }
 }
 
-/// Shows the Save dialog and copies `pages` (0-based, in this order) of document `id`
-/// into the chosen file, as the document is now (unsaved changes included), reporting
-/// progress on `on_progress`; then opens the new file in a tab. The document is not
-/// changed. Returns null if the user cancels the dialog; an extraction stopped with
-/// `cancel_merge` fails with the `cancelled` code and writes nothing.
+/// Copies `pages` (0-based, in this order) of document `id` into a new document, as the
+/// document is now (unsaved changes included), reporting progress on `on_progress`; then
+/// opens the new document in a tab. It is named "Pages from …" after the document, is not
+/// saved under that name or any other yet (its file is a working copy of Lectrix's own),
+/// and its Save dialog starts in the document's folder. The document itself is not
+/// changed. An extraction stopped with `cancel_merge` fails with the `cancelled` code and
+/// leaves nothing behind.
 #[tauri::command(async)]
 pub fn extract_pages(
     app: AppHandle,
@@ -905,7 +920,7 @@ pub fn extract_pages(
     id: u32,
     pages: Vec<u32>,
     on_progress: Channel<MergeProgress>,
-) -> Result<Option<MergeOutcome>, AppError> {
+) -> Result<MergeOutcome, AppError> {
     if pages.is_empty() {
         return Err(AppError::new(
             "No pages are selected.",
@@ -914,36 +929,18 @@ pub fn extract_pages(
     }
     let session = state.documents.session(id)?;
     let current = state.documents.path(id)?;
-    let Some(target) = pick_save_target(
-        &app,
-        Some("Save extracted pages"),
-        Some(format!("Pages from {}", file_name(&current))),
-        current.parent(),
-    )?
-    else {
-        return Ok(None);
-    };
-    if state.platform.same_file(&current, &target) {
-        return Err(AppError::new(
-            format!(
-                "{} is the document the pages come from.",
-                file_name(&current)
-            ),
-            Some("Choose a new name: extracting never changes the document."),
-        ));
-    }
-    if !state
+    let (_, folder) = state.documents.save_suggestion(id)?;
+    let target = state
         .documents
-        .tabs_showing(&target, state.platform)
-        .is_empty()
-    {
-        return Err(AppError::new(
-            "That file is open in a tab.",
-            Some("Close it there first, or choose a different name."),
-        ));
-    }
+        .new_working_copy(&format!("Pages from {}", file_name(&current)))?;
 
-    let cancel = start_page_job(&state)?;
+    let cancel = match start_page_job(&state) {
+        Ok(cancel) => cancel,
+        Err(e) => {
+            state.documents.remove_working_copy(&target);
+            return Err(e);
+        }
+    };
     let started = Instant::now();
     let result = combine::extract(
         &session,
@@ -957,25 +954,28 @@ pub fn extract_pages(
     }
     let report = match result {
         Ok(report) => report,
-        Err(pdf_core::Error::Cancelled) => {
-            return Err(
-                AppError::new("Extracting was stopped. No file was written.", None)
-                    .with_code(crate::ipc::ErrorCode::Cancelled),
-            );
+        Err(e) => {
+            state.documents.remove_working_copy(&target);
+            return Err(match e {
+                pdf_core::Error::Cancelled => {
+                    AppError::new("Extracting was stopped. No document was made.", None)
+                        .with_code(crate::ipc::ErrorCode::Cancelled)
+                }
+                e => e.into(),
+            });
         }
-        Err(e) => return Err(e.into()),
     };
     crate::applog::info(format!(
-        "extracted {} pages into {} in {:.0} ms",
+        "extracted {} pages into a new document in {:.0} ms",
         report.pages,
-        target.display(),
         started.elapsed().as_secs_f64() * 1000.0
     ));
-    Ok(Some(MergeOutcome {
-        opened: windows::adopt(&app, window.label(), state.open(&target)),
+    let opened = state.documents.open_unsaved(&target, folder);
+    Ok(MergeOutcome {
+        opened: windows::adopt(&app, window.label(), opened),
         report: report.into(),
         name: file_name(&target),
-    }))
+    })
 }
 
 /// Stops the merge or extraction in progress, if any.
@@ -1055,6 +1055,8 @@ pub fn save(
 
 /// Shows the Save As dialog and saves there. `optimized` rewrites the file with garbage
 /// collection and compression ("Save As (optimized)"). Returns null if the user cancels.
+/// This is also how a document not saved under a name yet is saved: the dialog starts
+/// with its name, in the folder of the document its pages came from.
 #[tauri::command(async)]
 pub fn save_as(
     app: AppHandle,
@@ -1063,15 +1065,8 @@ pub fn save_as(
     optimized: bool,
 ) -> Result<Option<SaveResult>, AppError> {
     let current = state.documents.path(id)?;
-    let Some(target) = pick_save_target(
-        &app,
-        None,
-        current
-            .file_name()
-            .map(|n| n.to_string_lossy().into_owned()),
-        current.parent(),
-    )?
-    else {
+    let (name, folder) = state.documents.save_suggestion(id)?;
+    let Some(target) = pick_save_target(&app, None, name, folder.as_deref())? else {
         return Ok(None);
     };
     let kind = if optimized {
@@ -1098,6 +1093,10 @@ pub fn reload_document(state: State<'_, AppState>, id: u32) -> Result<DocumentIn
 /// time the file is opened.
 #[tauri::command]
 pub fn remember_view(state: State<'_, AppState>, id: u32, view: ViewState) -> Result<(), AppError> {
+    // A document not saved under a name yet has no file to remember a view for.
+    if state.documents.is_unsaved(id) {
+        return Ok(());
+    }
     let view = view.normalized();
     let path = state.documents.path(id)?;
     let key = state.platform.file_key(&path);

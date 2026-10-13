@@ -6,7 +6,7 @@ import type { Tool } from '#lib/features/annotations/tools.ts';
 import { addBookmark } from '#lib/features/bookmarks/actions.ts';
 import { openWhatsNew } from '#lib/features/changelog/announce.ts';
 import { toggleFullScreen } from '#lib/features/fullscreen/actions.ts';
-import { showLabels, startRangeAt } from '#lib/features/labels/actions.ts';
+import { showLabels } from '#lib/features/labels/actions.ts';
 import { insertFromFile, toggleOrganize } from '#lib/features/organize/actions.ts';
 import { update } from '#lib/features/update/update.svelte.ts';
 import { copySelection } from '#lib/features/viewer/actions.ts';
@@ -153,11 +153,9 @@ export const commands = {
 	toolNote: useTool('note'),
 	toolPen: useTool('ink'),
 	toolText: useTool('freeText'),
-	/** The page labels, beside the grid of pages (sections 6.3 and 6.7). */
-	showLabels: withTab((t) => showLabels(t)),
-	/** A new range of labels from the page the document is at; in the grid of pages, from
-	 * the first selected page. */
-	startLabelRange: withTab((t) => startRangeAt(t, t.organize ? t.organize.anchorPage : t.currentPage))
+	/** The Page labels dialog (section 6.3). It belongs to the grid of pages being organized
+	 * (section 6.7), for the pages selected there: it does nothing while a document is read. */
+	showLabels: withTab((t) => showLabels(t))
 };
 
 export type CommandName = keyof typeof commands;

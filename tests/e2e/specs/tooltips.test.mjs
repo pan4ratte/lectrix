@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { launch, waitForDocument } from '../lib/app.mjs';
+import { launch, organizePages, waitForDocument } from '../lib/app.mjs';
 import { sample } from '../lib/pdfcli.mjs';
 
 /** The control tooltip on screen: its text, its box, and its tail's box; null without one. */
@@ -111,16 +111,18 @@ test('controls show the app’s own tooltips, with a tail', async () => {
 		const highlight = await hover(browser, tool);
 		assertPointsAt(await shown(browser, 'Highlight (H)'), highlight, 'highlight tool');
 
-		// A disabled field says why: the first range's start can't be changed. (The page
-		// labels are beside the grid of pages.)
-		await (await browser.$('button[aria-label="Organize pages"]')).click();
+		// A disabled field says why: a style without numbers has no first number. (The page
+		// labels are set in a dialog over the grid of pages.)
+		await organizePages(browser);
 		await (await browser.$('button[aria-label="Page labels"]')).click();
-		const why = 'The first range always starts at page 1.';
+		await (await browser.$('[data-labels-dialog] [data-select-trigger]')).click();
+		await (await browser.$('//*[@role="option"][normalize-space()="None (prefix only)"]')).click();
+		const why = 'This style shows the prefix only.';
 		const field = `input[data-tip="${why}"]`;
-		await (await browser.$(field)).waitForDisplayed({ timeoutMsg: 'the first range is not shown' });
-		// (Once the labels have slid in: the field is measured where it stays.)
+		await (await browser.$(field)).waitForDisplayed({ timeoutMsg: 'the first number is not shown' });
+		// (Once the dialog and the list have come in: the field is measured where it stays.)
 		await browser.waitUntil(() => browser.execute(() => document.getAnimations().every((a) => a.playState !== 'running')), {
-			timeoutMsg: 'the page labels kept sliding'
+			timeoutMsg: 'the dialog kept moving'
 		});
 		assert.equal(await browser.execute((sel) => document.querySelector(sel).disabled, field), true);
 		const start = await hover(browser, field);

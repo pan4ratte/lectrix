@@ -11,7 +11,7 @@
 
 import { basename } from 'node:path';
 
-import { launch, waitForDocument } from '../e2e/lib/app.mjs';
+import { launch, organizePages, waitForDocument } from '../e2e/lib/app.mjs';
 
 /** Waits until every cell on screen shows a picture, and returns how many there are. */
 async function drawn(browser) {
@@ -66,7 +66,7 @@ async function measure(file) {
 	const { browser, stop } = await launch([file]);
 	try {
 		await waitForDocument(browser);
-		await (await browser.$('[aria-label="Organize pages"]')).click();
+		await organizePages(browser);
 		const cells = await drawn(browser);
 		const pages = await (await browser.$('[data-organize-count]')).getText();
 		// The second page on screen, one place later.

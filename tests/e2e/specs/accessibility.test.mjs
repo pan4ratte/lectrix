@@ -6,7 +6,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { focused, tabWalk, unnamedControls } from '../lib/a11y.mjs';
-import { launch, statusText, waitForDocument } from '../lib/app.mjs';
+import { launch, organizePages, statusText, waitForDocument } from '../lib/app.mjs';
 import { cli, outlineLines, sample } from '../lib/pdfcli.mjs';
 
 /** A 4-page sample with a sticky note on page 1. */
@@ -55,7 +55,9 @@ test('every Tab stop is named and shows focus, in every panel and dialog', async
 	try {
 		await browser.waitUntil(() => browser.execute(() => document.body.innerText.includes('Combine files')));
 		const names = assertStops(await tabWalk(browser), 'start screen');
-		for (const name of ['File', 'Open… Ctrl+O', 'Combine files…', 'Close']) assert.ok(names.includes(name), `start screen reaches ${name}`);
+		for (const name of ['File', 'Open… Ctrl+O', 'Combine files…', 'Organize pages…', 'Close']) {
+			assert.ok(names.includes(name), `start screen reaches ${name}`);
+		}
 		await assertAllNamed(browser, 'start screen');
 	} finally {
 		await stop();
@@ -77,18 +79,26 @@ test('every Tab stop is named and shows focus, in every panel and dialog', async
 			await assertAllNamed(browser, `${panel} panel`);
 		}
 
-		// The grid of pages being organized, with the page labels beside it.
-		await (await browser.$('button[aria-label="Organize pages"]')).click();
-		await (await browser.$('[data-organize-view]')).waitForDisplayed();
-		await (await browser.$('button[aria-label="Page labels"]')).click();
-		await (await browser.$('[data-organize-labels]')).waitForDisplayed();
+		// The grid of pages being organized, then the Page labels dialog over it.
+		await organizePages(browser);
 		await browser.pause(300);
 		const organizing = assertStops(await tabWalk(browser, { max: 80 }), 'organize pages');
-		for (const name of ['Done', 'Insert pages from file', 'Page labels', 'Label ranges', 'New range from the selected page']) {
+		for (const name of ['Done', 'Insert pages from file', 'Page labels', 'Larger pages']) {
 			assert.ok(organizing.includes(name), `organizing pages reaches ${name}: ${JSON.stringify(organizing)}`);
 		}
 		await assertAllNamed(browser, 'organize pages');
 		await (await browser.$('button[aria-label="Page labels"]')).click();
+		await (await browser.$('[data-labels-dialog]')).waitForDisplayed();
+		await browser.pause(300);
+		const labelling = assertStops(await tabWalk(browser, { max: 40 }), 'page labels');
+		for (const name of ['First page', 'Last page', 'Style', 'Prefix', 'Start with', 'Cancel', 'Apply']) {
+			assert.ok(labelling.includes(name), `the Page labels dialog reaches ${name}: ${JSON.stringify(labelling)}`);
+		}
+		// (The focus stays inside the dialog: nothing of the grid's bar is reached.)
+		assert.ok(!labelling.includes('Done'), 'Tab left the Page labels dialog');
+		await assertAllNamed(browser, 'page labels');
+		await (await browser.$('button=Cancel')).click();
+		await (await browser.$('[data-labels-dialog]')).waitForExist({ reverse: true });
 		await (await browser.$('button=Done')).click();
 		await waitForDocument(browser);
 

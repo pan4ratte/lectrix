@@ -5,21 +5,33 @@
 import { pageName } from '#lib/features/viewer/pagebox.ts';
 import type { DeleteReport, MergeReport } from '#lib/ipc/index.ts';
 
-/** The squares the bar's buttons fit a page's picture into, in CSS pixels. The wheel and a
- * pinch give any size from the first to the last. */
-export const THUMB_SIZES = [96, 128, 160, 208, 264] as const;
+/** The squares the bar's buttons fit a page's picture into, in CSS pixels: each about a
+ * third larger than the one before, up to the largest the view has room for, at which one
+ * page fills it. The wheel and a pinch give any size from the first to that one. */
+export const THUMB_SIZES = [96, 128, 160, 208, 264, 336, 432, 560, 720, 928, 1200, 1552, 2000] as const;
 export const DEFAULT_THUMB = 160;
-const MIN_THUMB = THUMB_SIZES[0];
-const MAX_THUMB = THUMB_SIZES[THUMB_SIZES.length - 1]!;
+export const MIN_THUMB = THUMB_SIZES[0];
 
-export function clampThumb(size: number): number {
-	if (!Number.isFinite(size)) return DEFAULT_THUMB;
-	return Math.min(MAX_THUMB, Math.max(MIN_THUMB, size));
+/** The sizes the buttons step through in a view whose largest size is `largest`: those
+ * clearly under it, then that size itself. */
+function sizesUpTo(largest: number): number[] {
+	if (!Number.isFinite(largest)) return [...THUMB_SIZES];
+	const top = Math.max(MIN_THUMB, largest);
+	// (A step of a few pixels to the largest size would not be one.)
+	return [...THUMB_SIZES.filter((s) => s <= top * 0.9), top];
+}
+
+/** `size` kept between the smallest size and `largest`, the size at which one page fills
+ * the view (unknown until the grid has measured it: no limit then). */
+export function clampThumb(size: number, largest = Infinity): number {
+	const top = Math.max(MIN_THUMB, largest);
+	if (!Number.isFinite(size)) return Math.min(DEFAULT_THUMB, top);
+	return Math.max(MIN_THUMB, Math.min(top, size));
 }
 
 /** The next smaller (`-1`) or larger (`1`) of the buttons' sizes, or null at the end. */
-export function stepThumb(size: number, direction: 1 | -1): number | null {
-	const sizes: readonly number[] = THUMB_SIZES;
+export function stepThumb(size: number, direction: 1 | -1, largest = Infinity): number | null {
+	const sizes = sizesUpTo(largest);
 	// (A size from the wheel may be a hair off one of them.)
 	const next = direction > 0 ? sizes.find((s) => s > size + 0.5) : sizes.findLast((s) => s < size - 0.5);
 	return next ?? null;
@@ -70,19 +82,22 @@ export function insertPlace(at: number, pageCount: number, labels: readonly stri
 }
 
 /**
- * What is said once pages are extracted into a new file: how many, where, and what could
- * not go with them (links and bookmarks that led to pages left behind).
+ * What is said once pages are extracted into a new document: how many, that it is not a
+ * file yet, and what could not go with them (links and bookmarks that led to pages left
+ * behind).
  */
-export function extractedMessage(report: MergeReport, name: string) {
+export function extractedMessage(report: MergeReport) {
 	const dropped: string[] = [];
 	if (report.droppedLinks) dropped.push(count(report.droppedLinks, 'link', 'links'));
 	if (report.droppedBookmarks) dropped.push(count(report.droppedBookmarks, 'bookmark', 'bookmarks'));
 	const single = report.droppedLinks + report.droppedBookmarks === 1;
+	const parts = ['It is not saved yet: save it to keep it.'];
+	if (dropped.length) {
+		parts.push(`${dropped.join(' and ')} that led to pages left behind ${single ? 'was' : 'were'} not copied.`);
+	}
 	return {
-		message: `Extracted ${count(report.pages, 'page', 'pages')} into ${name}.`,
-		suggestion: dropped.length
-			? `${dropped.join(' and ')} that led to pages left behind ${single ? 'was' : 'were'} not copied.`
-			: null
+		message: `Extracted ${count(report.pages, 'page', 'pages')} into a new document.`,
+		suggestion: parts.join(' ')
 	};
 }
 

@@ -258,12 +258,20 @@ export async function atRest(browser, selector) {
 	);
 }
 
+/** Document > Organize pages: the document's pages as a grid, in the viewer's place
+ * (AGENTS.md section 6.7). */
+export async function organizePages(browser) {
+	await (await browser.$('button=Document')).click();
+	await (await browser.$('div*=Organize pages')).click();
+	await (await browser.$('[data-organize-view]')).waitForDisplayed({ timeoutMsg: 'the grid of pages did not show' });
+}
+
 /**
  * Turns the first page in the document, a change to the file like any other for the tests
  * that need one: in the grid of pages (AGENTS.md section 6.7), then back to reading.
  */
 export async function rotateFirstPage(browser) {
-	await (await browser.$('button[aria-label="Organize pages"]')).click();
+	await organizePages(browser);
 	const cell = '[data-organize-view] [role=option][aria-posinset="1"]';
 	await atRest(browser, cell);
 	const first = await browser.$(cell);

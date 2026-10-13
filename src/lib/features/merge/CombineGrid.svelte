@@ -54,42 +54,42 @@
 >
 	{#snippet tools(page: CombinePage)}
 		<!-- (At most a little wider than the cell, so the bar never reaches out of the grid.) -->
-		<span class="truncate px-1.5 text-xs tabular-nums" style:max-width="{THUMB - 40}px" aria-hidden="true">{labelOf(page)}</span>
+		<span class="page-cell-label px-1.5" style:max-width="{THUMB - 56}px" aria-hidden="true">{labelOf(page)}</span>
 		<button
 			type="button"
-			class="icon-button icon-button-small"
+			class="icon-button"
 			tabindex="-1"
 			aria-label="Turn counter-clockwise"
 			data-tip="Turn counter-clockwise (Shift+R)"
 			onclick={() => combine.rotate(new Set([page.key]), -90)}
 		>
-			<RotateCcw size={14} aria-hidden="true" />
+			<RotateCcw size={16} aria-hidden="true" />
 		</button>
 		<button
 			type="button"
-			class="icon-button icon-button-small"
+			class="icon-button"
 			tabindex="-1"
 			aria-label="Turn clockwise"
 			data-tip="Turn clockwise (R)"
 			onclick={() => combine.rotate(new Set([page.key]), 90)}
 		>
-			<RotateCw size={14} aria-hidden="true" />
+			<RotateCw size={16} aria-hidden="true" />
 		</button>
 		<button
 			type="button"
-			class="icon-button icon-button-small"
+			class="icon-button"
 			tabindex="-1"
 			aria-label="Remove"
 			data-tip="Remove (Del)"
 			onclick={() => combine.remove(new Set([page.key]))}
 		>
-			<X size={14} aria-hidden="true" />
+			<X size={16} aria-hidden="true" />
 		</button>
 	{/snippet}
 	{#snippet caption(page: CombinePage)}
 		{@const source = combine.source(page.source)}
 		<!-- A line as tall as the bar that shows in its place under the pointer, with the same words. -->
-		<span class="h-[24px] max-w-full shrink-0 truncate px-1 text-xs leading-[24px] tabular-nums group-hover:invisible">
+		<span class="page-cell-label h-[36px] max-w-full shrink-0 px-1 leading-[36px] group-hover:invisible">
 			{labelOf(page)}
 		</span>
 		<span class="flex max-w-full items-center gap-1 px-1 text-xs text-fg-muted">

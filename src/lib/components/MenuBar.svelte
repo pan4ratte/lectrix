@@ -67,7 +67,7 @@
 					Save as (optimized)…{@render keys('saveAsOptimized')}
 				</Menubar.Item>
 				<Menubar.Separator class="menu-separator" />
-				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.reload}>
+				<Menubar.Item class="menu-item" disabled={!hasDoc || tab?.untitled} onSelect={commands.reload}>
 					Reload from disk{@render keys('reload')}
 				</Menubar.Item>
 				<Menubar.Item class="menu-item" disabled={!hasDoc && !app.combineActive} onSelect={commands.closeTab}>
@@ -235,13 +235,6 @@
 				<Menubar.Separator class="menu-separator" />
 				<Menubar.Item class="menu-item" disabled={!reading || !tab?.canEditBookmarks} onSelect={commands.addBookmark}>
 					Add bookmark{@render keys('addBookmark')}
-				</Menubar.Item>
-				<Menubar.Separator class="menu-separator" />
-				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.showLabels}>
-					Page labels{@render keys('showLabels')}
-				</Menubar.Item>
-				<Menubar.Item class="menu-item" disabled={!tab?.canEditLabels} onSelect={commands.startLabelRange}>
-					New label range from this page{@render keys('startLabelRange')}
 				</Menubar.Item>
 				<Menubar.Separator class="menu-separator" />
 				<Menubar.Item

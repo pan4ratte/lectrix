@@ -107,7 +107,9 @@ The user decided the behaviour:
     numbers such a file's pages from their place in it, since there several files meet.)
 16. **The new file is a plain full save**, not encrypted, as a combined file is. A
     document whose permissions forbid copying its content is refused, as it is as a
-    source for combining. The document's own file is refused as the target.
+    source for combining. The document's own file is refused as the target. (Since
+    2026-10-13 the app no longer asks where to save first: the pages go into a working
+    copy that opens as a document without a file, ADR 0019.)
 17. **Stopping** works as for combining: at the next page, or once the file is written
     and before it takes its name, so a stopped extraction leaves nothing behind and an
     existing file of that name stays as it was.

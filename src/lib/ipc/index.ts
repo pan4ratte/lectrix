@@ -186,13 +186,13 @@ export function executeMerge(request: MergeRequest, onProgress: (p: MergeProgres
 	channel.onmessage = onProgress;
 	return invoke<MergeOutcome | null>('execute_merge', { request, onProgress: channel });
 }
-/** Asks where to save and copies `pages` (0-based, in this order) of document `id` into
- * that file, as the document is now, with progress; then opens the new file. Null if the
- * user cancels the dialog. `cancelMerge` stops it. */
+/** Copies `pages` (0-based, in this order) of document `id` into a new document, as the
+ * document is now, with progress; then opens the new document in a tab, not saved yet.
+ * `cancelMerge` stops it. */
 export function extractPages(id: number, pages: number[], onProgress: (p: MergeProgress) => void) {
 	const channel = new Channel<MergeProgress>();
 	channel.onmessage = onProgress;
-	return invoke<MergeOutcome | null>('extract_pages', { id, pages, onProgress: channel });
+	return invoke<MergeOutcome>('extract_pages', { id, pages, onProgress: channel });
 }
 /** Stops the merge or extraction in progress. */
 export const cancelMerge = () => invoke<void>('cancel_merge');

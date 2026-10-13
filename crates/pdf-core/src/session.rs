@@ -293,6 +293,22 @@ impl Session {
         })
     }
 
+    /// Opens `file` as a document that has no file of its own yet: a working copy of
+    /// something just made (pages extracted from another document), which the user has
+    /// not saved under a name. It has unsaved changes from the start and until it is saved
+    /// to another file with [`Session::save`], which it then belongs to; undoing every
+    /// change leaves it unsaved all the same. `file` must stay until then, or until the
+    /// session is closed. Never opened for reading only.
+    pub fn open_unsaved(file: &Path) -> Result<(Session, DocumentInfo)> {
+        Self::spawn(Origin {
+            file: file.to_path_buf(),
+            path: file.to_path_buf(),
+            password: None,
+            restored: true,
+            options: OpenOptions::default(),
+        })
+    }
+
     fn spawn(origin: Origin) -> Result<(Session, DocumentInfo)> {
         let (tx, rx) = mpsc::channel();
         let (ready_tx, ready_rx) = mpsc::sync_channel(1);
@@ -515,7 +531,8 @@ struct Origin {
     /// The file the document belongs to (saved to).
     path: PathBuf,
     password: Option<String>,
-    /// `file` is a recovery copy of `path`.
+    /// The document differs from what `path` holds from the start: `file` is a recovery
+    /// copy of `path`, or a working copy of a document not saved under a name yet.
     restored: bool,
     options: OpenOptions,
 }

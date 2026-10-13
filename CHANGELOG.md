@@ -8,6 +8,10 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ## Unreleased
 
+### Start screen
+
+- **Organize pages…** is among the tools: pick a file, and its pages show as a grid, ready to be put in order.
+
 ### Viewer and tabs
 
 - The rotate buttons of the Pages panel, and **Rotate page** in a thumbnail’s menu, now turn a page on screen only, as **View > Rotate view** turns them all. The file is not changed, so there is nothing to save, and a file open for reading only can be turned too.
@@ -21,26 +25,28 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ### Page labels
 
-- Page labels are now edited in **Organize pages**, beside the grid of pages, where every page shows its label as you type. **Document > Page labels** opens it; the Page labels side panel is gone.
-- Select a page in the grid to start a new range there, and click a range in the list to see its pages selected.
+- Page labels are now set in a dialog, as in Acrobat: choose **Labels** in **Organize pages**. Pick all pages, the pages selected in the grid or a range of pages, then a style, a prefix and a first number, or continue the numbering of the page before.
+- Only the pages you pick are numbered anew; the others keep their labels. The grid shows the result under each page before you apply it.
+- Page labels now belong to **Organize pages** alone: the Page labels side panel is gone, and so are **Page labels** and **New label range from this page** in the Document menu and in the menu of a page in the Pages panel.
 
 ### Combining files
 
 - Drag a rectangle over the pages to select the ones it touches. Start anywhere but on a page’s picture, which still drags the page; hold **Ctrl** or **Shift** to add to the pages already selected.
 - **Insert pages from file** no longer asks for a page number: the pages go after the page you are on, into the grid of pages (see Organizing pages), where they can be dragged anywhere. Several files can be picked at once; their pages go in one file after another.
-- The buttons that turn or remove the page under the pointer are now in a small bar under its picture, beside its label.
+- The buttons that turn or remove the page under the pointer are now in a bar under its picture, beside its label.
+- A selected page has a border around its whole block, and the pages are centered in the window.
 
 ### Organizing pages
 
-- **Document > Organize pages**, and a new button beside the visual adjustments, shows the document’s pages as a grid in place of the viewer and the side panes. **Done** or **Esc** goes back to reading; a double-click on a page opens it.
+- **Document > Organize pages** shows the document’s pages as a grid in place of the viewer and the side panes. **Done** or **Esc** goes back to reading; a double-click on a page opens it.
 - Drag pages to put them in another order, or press **Alt+Shift** with an arrow key. Links and bookmarks still lead to the same pages, and page labels stay with the places: a moved page takes the label of its new place.
 - Rotate the selected pages with the bar’s buttons, or **R** and **Shift+R**. This is now the place to rotate pages in the file: **Document > Rotate pages…** is gone.
 - Point at a page to rotate or delete it alone, with the buttons that show beside its label.
-- Make the pages larger or smaller with the bar’s buttons, **Ctrl+=** and **Ctrl+-**, **Ctrl** and the mouse wheel, or a pinch on the touchpad.
+- Make the pages larger or smaller with the bar’s buttons, **Ctrl+=** and **Ctrl+-**, **Ctrl** and the mouse wheel, or a pinch on the touchpad, up to one page filling the window.
 - Delete the selected pages with the bar’s button or **Del**. Lectrix asks first, deletes the links and bookmarks that led to them, and closes the page numbering up.
 - After deleting pages, Lectrix says that they stay inside the file until you save with **File > Save As (optimized)**, and offers to do it.
 - Insert pages from other files, one or several at once, with the bar’s button, a right click on a page, or by dragging PDFs from File Explorer into the gap where their pages should go. The inserted pages are selected, ready to be moved.
-- Extract the selected pages into a new file with the bar’s button or a right click. The new file opens in a tab, with the pages’ annotations, bookmarks and page labels; the document keeps its pages.
+- Extract the selected pages into a new document with **Extract** or a right click. It opens in a tab of its own with its pages as a grid, and is not a file until you save it: **Save** asks where. The pages’ annotations, bookmarks and page labels come along; the document keeps its pages.
 - A right click on a page, or **Shift+F10**, offers everything that can be done with the selected pages.
 - Every change applies to the document at once and can be undone with **Ctrl+Z**.
 

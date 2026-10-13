@@ -69,3 +69,10 @@ export function toggleOrganize(tab: DocTab) {
 	if (tab.organize) leaveOrganize(tab);
 	else void organizePages(tab);
 }
+
+/** The start screen's Organize pages: asks for a file and shows its pages as a grid to
+ * organize. A file that is open already is organized in its tab. */
+export async function organizeFile() {
+	const tab = await app.open();
+	if (tab) await organizePages(tab);
+}

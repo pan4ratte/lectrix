@@ -322,6 +322,9 @@ pub fn run() {
                 merge_cancel: Mutex::new(None),
                 updates: update::Updates::default(),
             });
+            // Working copies of documents an earlier run never saved, and that no recovery
+            // copy waits to bring back.
+            app.state::<AppState>().documents.sweep_working_copies();
             watch_files(app.handle().clone());
             if recovering {
                 write_recovery_copies(app.handle().clone());
@@ -457,6 +460,8 @@ pub fn run() {
                         store.save();
                     }
                     state.documents.recovery().close();
+                    // And so do the working copies of documents never saved under a name.
+                    state.documents.discard_unsaved();
                     // Windows: an update downloaded in this run is installed now.
                     update::install_on_exit(&state);
                 }

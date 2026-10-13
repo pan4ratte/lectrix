@@ -1,11 +1,12 @@
 <script lang="ts">
 	// The bar above the page grid while a document's pages are organized (section 6.7): in
-	// the view bar's place and of its look. Done goes back to reading; the buttons act on the
-	// selected pages; then pages from a file and into one, the page labels, the size of the
-	// pictures, and how many pages are selected.
+	// the view bar's place and of its look. The buttons act on the selected pages; then pages
+	// from a file and into a new document, and the page labels, each with its name beside
+	// its icon; the size of the pictures; how many pages are selected; and at the end Done,
+	// which goes back to reading.
 	import { FileOutput, FilePlus, RotateCcw, RotateCw, Tag, Trash, ZoomIn, ZoomOut } from '@lucide/svelte';
 
-	import { toggleLabels } from '#lib/features/labels/actions.ts';
+	import { showLabels } from '#lib/features/labels/actions.ts';
 
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -18,8 +19,8 @@
 
 	const selected = $derived(organize.selected.length);
 	const usable = $derived(organize.editable && selected > 0);
-	const smaller = $derived(stepThumb(organize.thumbTarget, -1));
-	const larger = $derived(stepThumb(organize.thumbTarget, 1));
+	const smaller = $derived(stepThumb(organize.thumbTarget, -1, organize.largest));
+	const larger = $derived(stepThumb(organize.thumbTarget, 1, organize.largest));
 	const pages = $derived(tab.pageCount === 1 ? '1 page' : `${tab.pageCount.toLocaleString()} pages`);
 </script>
 
@@ -33,15 +34,6 @@
 	aria-label="Organize pages"
 	data-organize-bar
 >
-	<button
-		type="button"
-		class="button button-primary h-[28px]"
-		data-tip="Back to reading (Esc)"
-		onclick={() => leaveOrganize(tab)}
-	>
-		Done
-	</button>
-	{@render rule()}
 	<button
 		type="button"
 		class="icon-button"
@@ -75,34 +67,33 @@
 	{@render rule()}
 	<button
 		type="button"
-		class="icon-button"
+		class="bar-button"
 		aria-label="Insert pages from file"
 		data-tip={app.hint('Insert pages from a file, after the selected pages', 'insertPages')}
 		disabled={!organize.editable}
 		onclick={() => void insertFromFile(tab)}
 	>
-		<FilePlus size={16} aria-hidden="true" />
+		<FilePlus size={16} aria-hidden="true" />Insert
 	</button>
 	<button
 		type="button"
-		class="icon-button"
+		class="bar-button"
 		aria-label="Extract selected pages"
-		data-tip="Extract the selected pages into a new file"
+		data-tip="Extract the selected pages into a new document"
 		disabled={selected === 0}
 		onclick={() => organize.extract(organize.selectedSet)}
 	>
-		<FileOutput size={16} aria-hidden="true" />
+		<FileOutput size={16} aria-hidden="true" />Extract
 	</button>
-	{@render rule()}
 	<button
 		type="button"
-		class="icon-button tool-button"
+		class="bar-button"
 		aria-label="Page labels"
-		data-tip={app.hint('Page labels', 'showLabels')}
-		aria-pressed={app.labelsShown}
-		onclick={toggleLabels}
+		data-tip={app.hint('Number the selected pages, or a range of pages', 'showLabels')}
+		disabled={!tab.canEditLabels}
+		onclick={() => void showLabels(tab)}
 	>
-		<Tag size={16} aria-hidden="true" />
+		<Tag size={16} aria-hidden="true" />Labels
 	</button>
 	{@render rule()}
 	<button
@@ -134,4 +125,13 @@
 		{@render rule()}
 		<span role="note">This document’s security settings don’t allow changing its pages.</span>
 	{/if}
+	{@render rule()}
+	<button
+		type="button"
+		class="button button-primary h-[28px]"
+		data-tip="Back to reading (Esc)"
+		onclick={() => leaveOrganize(tab)}
+	>
+		Done
+	</button>
 </div>

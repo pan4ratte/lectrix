@@ -7,14 +7,16 @@
 	// the focus (Shift extends); Alt+Shift+arrows move the selected pages; R and Shift+R turn
 	// them; Delete removes them; Enter or a double-click opens a page, where that means
 	// something. Ctrl+wheel and a touchpad pinch ask for larger or smaller pictures, where
-	// their size can change, and the page under the pointer keeps its place meanwhile. What
-	// the pages are, and what the edits do, is the model's.
+	// their size can change, and the page under the pointer keeps its place meanwhile. The
+	// columns are centered in the view. What the pages are, and what the edits do, is the
+	// model's.
 	import { onMount, tick, untrack, type Snippet } from 'svelte';
 
 	import RenderedImage from '#lib/features/viewer/RenderedImage.svelte';
 	import { isWheelNotch, wheelZoomFactor } from '#lib/features/viewer/zoom.ts';
 
 	import {
+		CELL_SIDE,
 		boxBetween,
 		boxesTouch,
 		cellOrigin,
@@ -22,6 +24,7 @@
 		fitPicture,
 		gapAt,
 		gridFor,
+		largestThumb,
 		withKeys,
 		type Box,
 		type Gap,
@@ -45,7 +48,7 @@
 		/** The lines under a page's picture. */
 		caption: Snippet<[T, number]>;
 		/** A bar shown for the page under the pointer, centered under its picture, over the
-		 * first line of the caption (24 px): that line's words, then the page's buttons. */
+		 * first line of the caption (36 px): that line's words, then the page's buttons. */
 		tools?: Snippet<[T, number]>;
 		/** The square each picture is fitted into, in CSS pixels. */
 		thumb?: number;
@@ -56,6 +59,9 @@
 		 * is true for a mouse wheel notch (which glides) and false for a pinch (which follows
 		 * the fingers). */
 		onzoom?: (factor: number, notch: boolean) => void;
+		/** Told the largest square a picture can be fitted into here, the size at which one
+		 * page fills the view, whenever the view's size changes. */
+		onlargest?: (thumb: number) => void;
 		/** The height the caption takes. */
 		captionHeight?: number;
 		/** False where the pages can only be selected and looked at. */
@@ -85,7 +91,8 @@
 		thumb = 120,
 		renderThumb,
 		onzoom,
-		captionHeight = 52,
+		onlargest,
+		captionHeight = 64,
 		editable = true,
 		onopen,
 		reveal = null,
@@ -100,7 +107,7 @@
 	const CELL_TOP = 7;
 	const DRAG_THRESHOLD = 6;
 
-	const cellW = $derived(thumb + 16);
+	const cellW = $derived(thumb + CELL_SIDE);
 	const cellH = $derived(thumb + captionHeight);
 
 	let scroller: HTMLDivElement | undefined = $state();
@@ -109,7 +116,7 @@
 	let scrollTop = $state(0);
 	let dpr = $state(typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1);
 
-	const grid = $derived(gridFor(width, cellW, cellH, GAP, PAD));
+	const grid = $derived(gridFor(width, cellW, cellH, GAP, PAD, items.length));
 	const rowCount = $derived(Math.ceil(items.length / grid.columns));
 	const totalHeight = $derived(rowCount ? 2 * PAD + rowCount * grid.pitchY - GAP : 0);
 	const focusIndex = $derived(Math.max(0, items.findIndex((p) => p.key === model.focusKey)));
@@ -194,7 +201,7 @@
 		const inContent = (scroller?.scrollTop ?? 0) + y;
 		const rows = Math.max(1, Math.ceil(items.length / g.columns));
 		const row = Math.max(0, Math.min(rows - 1, Math.floor((inContent - g.pad) / g.pitchY)));
-		const column = Math.max(0, Math.min(g.columns - 1, Math.floor((x - g.pad) / g.pitchX)));
+		const column = Math.max(0, Math.min(g.columns - 1, Math.floor((x - g.left) / g.pitchX)));
 		const index = Math.min(items.length - 1, row * g.columns + column);
 		const part = Math.max(0, Math.min(1, (inContent - (g.pad + row * g.pitchY)) / layout.cellH));
 		return { index, part, y, at: performance.now() };
@@ -534,6 +541,7 @@
 			width = scroller?.clientWidth ?? 0;
 			viewportH = scroller?.clientHeight ?? 0;
 			dpr = window.devicePixelRatio || 1;
+			if (width && viewportH) onlargest?.(largestThumb(width, viewportH, PAD, captionHeight));
 		});
 		resize.observe(scroller);
 		// Not passive: a Ctrl+wheel must not zoom the app.
@@ -622,7 +630,7 @@
 				{#if tools && editable}
 					<span
 						data-tool
-						class="absolute left-1/2 hidden -translate-x-1/2 items-center gap-px rounded-control bg-surface-raised p-px shadow-[0_1px_4px_var(--color-page-shadow)] group-hover:flex"
+						class="page-cell-tools absolute left-1/2 hidden -translate-x-1/2 items-center rounded-control bg-surface-raised group-hover:flex"
 						style:top="{CELL_TOP + thumb}px"
 					>
 						{@render tools(item, index)}

@@ -191,12 +191,28 @@ Needs an installed earlier release and a newer one published (ADR 0011,
       scrolls near its top and bottom edges. Drop it: the dialog names that place, and the
       inserted pages are there, selected. Drop two files at once, one of them protected by
       a password: the dialog comes after the password and lists both, and both go in.
-- [ ] Select a chapter's pages and extract them: the new file opens in a tab with their
-      bookmarks, annotations and page labels, and opens the same in Acrobat Reader.
-- [ ] Choose **Document > Page labels** while reading: the grid shows with the labels at
-      its right. Select the first page of the body, choose the roman front matter preset,
-      then type a prefix for the body: every page's label under it follows as you type.
-      Narrator reads the list of ranges and the fields.
+- [ ] On the start screen, choose **Organize pages…** and pick a book: its pages show as
+      a grid. Press **Larger pages** until it is disabled: one page fills the window, in
+      the middle, and the pages come one under another. Make the window smaller: the
+      page shrinks to fit. Step back down to several columns: they stay centered.
+- [ ] Select a chapter's pages and choose **Extract**: a new document opens in a tab of
+      its own, named "Pages from …", marked unsaved, with its pages as a grid and their
+      bookmarks, annotations and page labels. Move a page in it, then press Ctrl+S: the
+      dialog starts in the book's folder with that name. Save, and open the file in
+      Acrobat Reader: it is the same there.
+- [ ] Extract pages again and close the new tab: Lectrix asks whether to save the
+      document. Choose Don't save; `%LOCALAPPDATA%\org.lectrix.pdf\unsaved` is then
+      empty. Extract once more, wait two minutes, end Lectrix in Task Manager and start
+      it again: it offers to restore the document, which comes back unsaved, and Save
+      asks where.
+- [ ] While reading, open the Document menu and the menu of a page in the Pages panel:
+      neither has page labels, and the bar above the pages has no Organize pages
+      button. Choose **Document > Organize pages**, select the front matter's pages,
+      choose **Labels**, pick i, ii, iii and Apply; then the body's first page to its
+      last with a prefix: every page's label under it follows as you type, and the
+      pages you did not pick keep their labels. Narrator reads the choices and the
+      fields. Point at a page: the bar with its label and buttons keeps clear of the
+      lower edge of the page's block.
 - [ ] Delete a chapter's first page: Lectrix asks first, then says what went with it and
       offers Save As (optimized). Back in the viewer, the table of contents' other lines
       still lead to their chapters, and Undo brings the page and its bookmark back.

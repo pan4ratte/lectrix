@@ -153,7 +153,7 @@ test('insert pages from a file, undo, redo and save', async () => {
 		assert.equal(await browser.execute(() => document.querySelector('[data-organize-view]') !== null), true);
 		// Pages 2-3 of the file.
 		await (await browser.$('input[aria-label="Pages to insert"]')).setValue('2-3');
-		await (await browser.$('button=Insert')).click();
+		await (await browser.$('[role=dialog] button[type=submit]')).click();
 		// The inserted pages are selected there. Then back to reading.
 		await browser.waitUntil(
 			async () => (await (await browser.$('[data-organize-count]')).getText()) === '2 of 5 pages selected',

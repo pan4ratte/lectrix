@@ -381,10 +381,29 @@ input[type='color'],
 .icon-button:disabled {
 	opacity: 0.4;
 }
-/* In a bar that takes the place of a line of text (a page's, in the grid of pages). */
-.icon-button-small {
-	width: 22px;
-	height: 22px;
+/* A bar's button with its name beside its icon (Insert, Extract and Labels in the bar of
+   the grid of pages): as tall as an icon button, and tinted the same way. */
+.bar-button {
+	display: inline-flex;
+	height: 32px;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 6px;
+	padding: 0 8px;
+	border: 0;
+	border-radius: var(--radius-control);
+	background: transparent;
+	white-space: nowrap;
+}
+.bar-button:hover:not(:disabled),
+.bar-button[aria-expanded='true'] {
+	background: var(--lectrix-hover);
+}
+.bar-button:active:not(:disabled) {
+	background: var(--lectrix-pressed);
+}
+.bar-button:disabled {
+	opacity: 0.4;
 }
 
 /* Controls (buttons, fields, dropdowns) have the same edge on every side: the theme's line,
@@ -2212,19 +2231,38 @@ button.shortcut-key:hover,
 .page-cell:hover {
 	background: var(--lectrix-hover);
 }
+/* A selected page's whole block (its picture and what is under it) has the accent's tint
+   and border. */
 .page-cell-selected,
 .page-cell-selected:hover {
 	background: var(--lectrix-row-selected);
+	box-shadow: inset 0 0 0 2px var(--lectrix-accent);
 }
 .page-cell-picture {
 	box-shadow: 0 1px 2px var(--lectrix-page-shadow);
 }
-.page-cell-selected .page-cell-picture {
-	outline: 2px solid var(--lectrix-accent);
-	outline-offset: 2px;
-}
+/* The keyboard focus is a ring around the block, clear of a selected one's border. */
 .page-grid:focus-visible .page-cell-focus {
-	box-shadow: inset 0 0 0 2px var(--lectrix-focus);
+	outline: 2px solid var(--lectrix-focus);
+	outline-offset: 1px;
+}
+/* The bar of the page under the pointer, in the place of its label: the label, then the
+   page's buttons. It has the measures of the bars that float over a page (an annotation's):
+   their edge and shadow, and a bar's buttons (32 px, with 16 px icons). 36 px tall, as the
+   label's line is. */
+.page-cell-tools {
+	gap: 1px;
+	padding: 1px;
+	border: 1px solid var(--lectrix-line);
+	box-shadow: 0 4px 12px var(--lectrix-page-shadow);
+}
+/* The label under a page, and in its bar. */
+.page-cell-label {
+	overflow: hidden;
+	font-size: 13px;
+	font-variant-numeric: tabular-nums;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 .page-grid-drop-line {
 	position: absolute;

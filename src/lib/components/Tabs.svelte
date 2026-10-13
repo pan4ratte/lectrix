@@ -244,7 +244,7 @@
 						role="tab"
 						tabindex={reachable ? 0 : -1}
 						aria-selected={active}
-						data-tip={tab.path}
+						data-tip={tab.untitled ? 'Not saved yet' : tab.path}
 						onpointerdown={(e) => onPointerDown(e, tab.id)}
 						onkeydown={(e) => onKeyDown(e, tab.id)}
 						oncontextmenu={() => onContextMenu(tab.id)}

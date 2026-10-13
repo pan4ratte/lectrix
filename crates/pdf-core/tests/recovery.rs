@@ -315,3 +315,36 @@ fn an_encrypted_document_stays_encrypted_in_its_copy() {
     assert_eq!(info.pages[0].width, 792.0);
     check.close();
 }
+
+/// A document that has no file of its own yet (pages extracted into a new document) is a
+/// working copy with unsaved changes from the start. Saved to a file, it belongs to that
+/// file, and the working copy is no longer read.
+#[test]
+fn a_document_not_saved_yet_is_unsaved_until_it_is_saved_to_a_file() {
+    let dir = fresh_dir("recovery-unsaved");
+    let working = sample_file(&dir, "working.pdf", SampleSpec::default());
+    let (session, info) = Session::open_unsaved(&working).unwrap();
+    assert!(info.state.dirty && !info.read_only);
+    assert_eq!(info.state.undo_name, None);
+    // Nothing else holds it, so it gets a recovery copy before anything is changed.
+    let copy = dir.join("copy.pdf");
+    written(writing(|| session.write_recovery(&copy, None)).unwrap());
+    // Undoing a change leaves it unsaved all the same.
+    session.apply(rotate(0)).unwrap();
+    assert!(session.undo().unwrap().state.dirty);
+
+    session.apply(rotate(1)).unwrap();
+    let target = dir.join("saved.pdf");
+    let saved = writing(|| session.save(SaveKind::Full, Some(target.clone()))).unwrap();
+    assert!(!saved.state.dirty);
+    assert_eq!(saved.path, target);
+    assert_eq!(rotation_on_disk(&target, 1), 90);
+
+    // The working copy can go: later saves add to the file it was saved to.
+    fs::remove_file(&working).unwrap();
+    session.apply(rotate(0)).unwrap();
+    writing(|| session.save(SaveKind::Incremental, None)).unwrap();
+    session.close();
+    assert_eq!(rotation_on_disk(&target, 0), 90);
+    qpdf_check(&target);
+}

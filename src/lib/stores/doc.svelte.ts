@@ -223,17 +223,19 @@ export class DocTab {
 	readonly id: number;
 	name = $state('');
 	path = $state('');
+	/** Not saved under a name yet (pages extracted into a new document, section 6.7): it
+	 * has unsaved changes until Save, which asks where to save it. */
+	untitled = $state(false);
 	pages = $state<PageSize[]>([]);
 	/** One label per page as stored, or null when the document has no labels. */
 	labels = $state<string[] | null>(null);
 	/** The label rules exactly as stored (empty without labels). */
 	labelRules = $state<LabelRule[]>([]);
-	/** Labels of a rule being edited, before it is applied (live preview, section 6.3). */
+	/** The labels the Page labels dialog would give, before it is applied (live preview,
+	 * section 6.3). */
 	previewLabels = $state<string[] | null>(null);
 	/** What thumbnails, the page box and the page position show. */
 	displayLabels = $derived(this.previewLabels ?? this.labels);
-	/** Start page of the label rule selected in the Page labels panel. */
-	selectedLabelRule = $state<number | null>(null);
 	/** What Rust reports about the file: what it allows and how it is saved. */
 	fileFlags = $state<DocumentFlags>({
 		encrypted: false,
@@ -352,6 +354,7 @@ export class DocTab {
 	update(info: DocumentInfo) {
 		this.name = info.name;
 		this.path = info.path;
+		this.untitled = info.untitled;
 		this.pages = info.pages;
 		// The file was read anew: nothing says which page is which of the ones before.
 		this.pageKeys = info.pages.map(() => this.nextPageKey++);

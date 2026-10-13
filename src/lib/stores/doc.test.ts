@@ -14,6 +14,7 @@ function info(pdfa: PdfaLevel | null, readOnly = pdfa !== null): DocumentInfo {
 		id: 7,
 		name: 'archive.pdf',
 		path: 'C:\\docs\\archive.pdf',
+		untitled: false,
 		pages: [{ width: 612, height: 792, rotation: 0 }],
 		labels: null,
 		labelRules: [],

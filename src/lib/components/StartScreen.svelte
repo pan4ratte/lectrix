@@ -14,6 +14,7 @@
 	import { APP_NAME } from '#lib/config.ts';
 	import { openWhatsNew } from '#lib/features/changelog/announce.ts';
 	import { toolMark } from '#lib/features/annotations/toolMark.ts';
+	import { organizeFile } from '#lib/features/organize/actions.ts';
 	import { fileSize, fullDate, openedDate } from '#lib/format.ts';
 	import { recentPreviewUrl, removeRecent, type RecentFile } from '#lib/ipc/index.ts';
 	import type { CommandName } from '#lib/commands.ts';
@@ -31,7 +32,8 @@
 	/** The tools, as tiles in a grid; more will come. */
 	const TOOLS: readonly Tool[] = [
 		{ id: 'open', label: 'Open…', icon: FolderOpen, command: 'open', run: () => void app.open() },
-		{ id: 'combine', label: 'Combine files…', icon: Layers, run: () => app.openCombine() }
+		{ id: 'combine', label: 'Combine files…', icon: Layers, run: () => app.openCombine() },
+		{ id: 'organize', label: 'Organize pages…', icon: LayoutGrid, run: () => void organizeFile() }
 	];
 
 	/** Lucide icons are drawn on a 24-unit grid. */

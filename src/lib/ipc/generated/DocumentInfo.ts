@@ -16,7 +16,13 @@ name: string,
 /**
  * Full path, shown as the tab's tooltip.
  */
-path: string, pages: Array<PageSize>, 
+path: string, 
+/**
+ * Not saved under a name yet (pages extracted into a new document, section 6.7):
+ * `path` is a working copy in Lectrix's own folder, Save asks where to save, and the
+ * document has unsaved changes until then.
+ */
+untitled: boolean, pages: Array<PageSize>, 
 /**
  * One label per page, or null when the document has no page labels.
  */

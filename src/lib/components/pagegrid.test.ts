@@ -8,12 +8,15 @@ import {
 	fitPicture,
 	gapAt,
 	gridFor,
+	largestThumb,
 	rangeOfKeys,
 	withKeys
 } from './pagegrid.ts';
 
 describe('grid', () => {
+	// Five columns of 140 with 8 between them are 732 wide: 34 left over at each side.
 	const grid = gridFor(800, 140, 180, 8, 16);
+	const LEFT = 34;
 
 	it('fits whole cells into the width', () => {
 		// 800 - 32 + 8 = 776; 776 / 148 = 5.2
@@ -21,22 +24,42 @@ describe('grid', () => {
 		expect(gridFor(50, 140, 180, 8, 16).columns).toBe(1);
 	});
 
+	it('centers the columns, and a row of fewer pages than fit', () => {
+		expect(grid.left).toBe(LEFT);
+		// Two pages are one row, 288 wide.
+		expect(gridFor(800, 140, 180, 8, 16, 2)).toMatchObject({ columns: 5, left: 256 });
+		expect(gridFor(800, 140, 180, 8, 16, 12).left).toBe(LEFT);
+		// No narrower than the padding, however little room there is.
+		expect(gridFor(50, 140, 180, 8, 16).left).toBe(16);
+		expect(gridFor(800, 140, 180, 8, 16, 0).left).toBe(330);
+	});
+
 	it('places cells row by row', () => {
-		expect(cellOrigin(grid, 0)).toEqual({ x: 16, y: 16 });
-		expect(cellOrigin(grid, 4)).toEqual({ x: 16 + 4 * 148, y: 16 });
-		expect(cellOrigin(grid, 5)).toEqual({ x: 16, y: 16 + 188 });
+		expect(cellOrigin(grid, 0)).toEqual({ x: LEFT, y: 16 });
+		expect(cellOrigin(grid, 4)).toEqual({ x: LEFT + 4 * 148, y: 16 });
+		expect(cellOrigin(grid, 5)).toEqual({ x: LEFT, y: 16 + 188 });
 	});
 
 	it('finds the nearest gap in the row under the pointer', () => {
 		const at = (count: number, x: number, y: number) => gapAt(grid, count, x, y);
-		expect(at(12, 16, 20)).toEqual({ gap: 0, x: 16, y: 16 });
-		expect(at(12, 16 + 148 * 0.6, 20).gap).toBe(1);
+		expect(at(12, LEFT, 20)).toEqual({ gap: 0, x: LEFT, y: 16 });
+		// Left of the first column is still before the first page.
+		expect(at(12, 2, 20).gap).toBe(0);
+		expect(at(12, LEFT + 148 * 0.6, 20).gap).toBe(1);
 		// The end of a full row is drawn after its last cell.
-		expect(at(12, 16 + 148 * 5, 30)).toEqual({ gap: 5, x: 16 + 5 * 148, y: 16 });
-		expect(at(12, 16 + 148 * 4, 16 + 188 + 10).gap).toBe(9);
+		expect(at(12, LEFT + 148 * 5, 30)).toEqual({ gap: 5, x: LEFT + 5 * 148, y: 16 });
+		expect(at(12, LEFT + 148 * 4, 16 + 188 + 10).gap).toBe(9);
 		// Past the end: after the last page, in the last row.
-		expect(at(12, 9999, 9999)).toEqual({ gap: 12, x: 16 + 2 * 148, y: 16 + 2 * 188 });
+		expect(at(12, 9999, 9999)).toEqual({ gap: 12, x: LEFT + 2 * 148, y: 16 + 2 * 188 });
 		expect(at(0, 40, 40).gap).toBe(0);
+	});
+
+	it('knows the size at which one page fills the view', () => {
+		// 1000 wide leaves 1000 - 32 - 16 for the square; 700 tall leaves 700 - 32 - 44.
+		expect(largestThumb(1000, 700, 16, 44)).toBe(624);
+		expect(largestThumb(500, 900, 16, 44)).toBe(452);
+		// At that size the grid has one column.
+		expect(gridFor(1000, 624 + 16, 624 + 44, 8, 16, 30).columns).toBe(1);
 	});
 });
 

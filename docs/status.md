@@ -34,8 +34,9 @@ on screen only and remembered per file. The pages next to those on screen are re
 ahead, so that pages slow to render (scans) are there when scrolled to. Organizing pages
 (AGENTS.md section 6.7, ADR 0018): a document's pages as a grid in the viewer's place,
 where they are moved, rotated, deleted, inserted from other files and extracted into a
-new one, and where the page labels are edited, in place of their side panel. Rotating in
-the viewer turns a page on screen only, remembered per file.
+new document, which is not a file until it is saved (ADR 0019), and where the page labels
+are set in a dialog, in place of their side panel. The start screen has it among its
+tools. Rotating in the viewer turns a page on screen only, remembered per file.
 
 ## Performance
 
@@ -206,7 +207,9 @@ pages, `tests/perf/organize.mjs` (its numbers are under "Organizing pages" below
     followed after 236 to 256 ms before: there the bookmarks, whose pages have other
     numbers after a move, are sent to the window again.
   - Not yet checked by a person (`docs/manual-checklist.md`, "Organizing pages" and
-    "Pages turned on screen"): PDFs dropped from File Explorer on the grid, which the
+    "Pages turned on screen"): the start screen's tool, the largest size in windows of
+    several sizes, an extracted document through a save, a close and a real crash, and
+    the Page labels dialog with Narrator; PDFs dropped from File Explorer on the grid, which the
     test driver cannot do (the gap under the pointer is worked out from the position
     Tauri reports, in device pixels, so it wants trying at more than one display scale);
     a touchpad pinch over the grid; files with pages moved, deleted and extracted opened
@@ -239,12 +242,30 @@ pages, `tests/perf/organize.mjs` (its numbers are under "Organizing pages" below
     file stays as it is; the changelog and the tab's missing dot do.
   - Inserting pages shows no progress and cannot be stopped (one operation on the
     document, as before); the dialog says "Inserting…" meanwhile.
-  - Whether the page labels show beside the grid is kept only while Lectrix runs, and
-    their section has one width (288 px). The size of the grid's pictures is not
-    remembered.
+  - The size of the grid's pictures is not remembered. At the largest size (one page
+    filling the view) each picture is a whole page rendered at that size, as the pages
+    are while reading below the zoom at which they are drawn in tiles; scrolling the grid
+    at that size has not been measured (`tests/perf/organize.mjs` runs at the first
+    size).
+  - The Page labels dialog does not list the ranges a document has: the grid shows every
+    page's label, and a range is taken away with "Continue the numbering of the page
+    before". It numbers the pages picked through in page order; a selection made in
+    another order is not numbered in that order. What was last picked in it is not
+    remembered: it starts as "1, 2, 3 from 1" each time.
+  - **Organize pages…** on the start screen shows the grid for a file that opens at once.
+    One that asks for its password first opens for reading; the grid is then a click
+    away.
   - An extract carries every attached file of the document, whatever pages are picked,
     and nothing of its metadata (title, author, XMP), as a combined file does. While
     pages are extracted, the document renders nothing new.
+  - Extracted pages are a document without a file until it is saved (ADR 0019). Its
+    pages are written twice: into a working copy in the app's data folder, then where
+    the user saves it. Extracted from again, it gives "Pages from Pages from …". After a
+    crash it is restored as a document without a file, but its Save dialog no longer
+    starts in the folder its pages came from; a crash before its first recovery copy
+    (two minutes) loses it. A tab of such a document moved to another window stays one
+    (tested in Rust, not by hand). In the Combine view, the working copy could be picked
+    as a file from the app's data folder; nothing stops that.
   - A tagged file keeps its structure elements for deleted pages (they point at emptied
     page objects), and article threads and an open action that lead to a deleted page are
     left as they are. Deleting pages therefore removes a PDF/A claim at the next save.

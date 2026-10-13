@@ -41,6 +41,19 @@ describe('picture sizes', () => {
 		expect(stepThumb(THUMB_SIZES[THUMB_SIZES.length - 1]!, 1)).toBeNull();
 	});
 
+	it('go up to the size at which one page fills the view, and no further', () => {
+		// In a view whose largest size is 700: ..., 432, 560, then 700 itself.
+		expect(stepThumb(432, 1, 700)).toBe(560);
+		expect(stepThumb(560, 1, 700)).toBe(700);
+		expect(stepThumb(700, 1, 700)).toBeNull();
+		expect(stepThumb(700, -1, 700)).toBe(560);
+		// A size a few pixels under the largest is not a step of its own.
+		expect(stepThumb(432, 1, 570)).toBe(570);
+		// A view too small for the smallest size still has that one.
+		expect(stepThumb(96, 1, 40)).toBeNull();
+		expect(clampThumb(500, 40)).toBe(96);
+	});
+
 	it('step from a size between two of them, as the wheel and a pinch leave', () => {
 		expect(stepThumb(140, 1)).toBe(160);
 		expect(stepThumb(140, -1)).toBe(128);
@@ -51,9 +64,11 @@ describe('picture sizes', () => {
 
 	it('stay between the smallest and the largest', () => {
 		expect(clampThumb(20)).toBe(THUMB_SIZES[0]);
-		expect(clampThumb(1000)).toBe(THUMB_SIZES[THUMB_SIZES.length - 1]);
-		expect(clampThumb(141.5)).toBe(141.5);
+		expect(clampThumb(1000, 624)).toBe(624);
+		expect(clampThumb(141.5, 624)).toBe(141.5);
 		expect(clampThumb(Number.NaN)).toBe(160);
+		// Until the grid has measured its view, there is no largest size.
+		expect(clampThumb(1000)).toBe(1000);
 	});
 });
 
@@ -69,7 +84,7 @@ describe('inserting and extracting', () => {
 		expect(insertPlace(2, 4, null)).toBe('after page 2');
 	});
 
-	it('says how many pages went into the new file, and what could not go with them', () => {
+	it('says how many pages went into the new document, and what could not go with them', () => {
 		const report = {
 			pages: 3,
 			renamedDestinations: 0,
@@ -79,16 +94,17 @@ describe('inserting and extracting', () => {
 			droppedBookmarks: 0,
 			bookmarksSkipped: false
 		};
-		expect(extractedMessage(report, 'Pages from book.pdf')).toEqual({
-			message: 'Extracted 3 pages into Pages from book.pdf.',
-			suggestion: null
+		const unsaved = 'It is not saved yet: save it to keep it.';
+		expect(extractedMessage(report)).toEqual({
+			message: 'Extracted 3 pages into a new document.',
+			suggestion: unsaved
 		});
-		expect(extractedMessage({ ...report, pages: 1, droppedLinks: 1 }, 'a.pdf')).toEqual({
-			message: 'Extracted 1 page into a.pdf.',
-			suggestion: '1 link that led to pages left behind was not copied.'
+		expect(extractedMessage({ ...report, pages: 1, droppedLinks: 1 })).toEqual({
+			message: 'Extracted 1 page into a new document.',
+			suggestion: `${unsaved} 1 link that led to pages left behind was not copied.`
 		});
-		expect(extractedMessage({ ...report, droppedLinks: 2, droppedBookmarks: 1 }, 'a.pdf').suggestion).toBe(
-			'2 links and 1 bookmark that led to pages left behind were not copied.'
+		expect(extractedMessage({ ...report, droppedLinks: 2, droppedBookmarks: 1 }).suggestion).toBe(
+			`${unsaved} 2 links and 1 bookmark that led to pages left behind were not copied.`
 		);
 	});
 });

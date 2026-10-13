@@ -129,6 +129,11 @@ impl Recovery {
         self.dir.is_some()
     }
 
+    /// The recovery folder, if there is one.
+    pub fn dir(&self) -> Option<&Path> {
+        self.dir.as_deref()
+    }
+
     fn meta_path(dir: &Path, slot: &str) -> PathBuf {
         dir.join(format!("{slot}.json"))
     }

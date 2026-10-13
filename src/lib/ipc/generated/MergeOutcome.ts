@@ -3,10 +3,11 @@ import type { MergeReport } from "./MergeReport";
 import type { OpenResult } from "./OpenResult";
 
 /**
- * A combined file, written and opened in a tab.
+ * A combined file, written and opened in a tab; or pages extracted into a new document,
+ * opened in a tab and not saved yet.
  */
 export type MergeOutcome = { opened: OpenResult, report: MergeReport, 
 /**
- * The new file's name.
+ * The new file's name (for extracted pages, the name the new document starts with).
  */
 name: string, };
