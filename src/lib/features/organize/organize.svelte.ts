@@ -5,17 +5,13 @@
 // over it from another program, and pages being extracted into a new document.
 
 import { GridSelection } from '#lib/components/gridselection.svelte.ts';
-import { motionMs } from '#lib/components/panes.ts';
-import { ZOOM_GLIDE_MS, zoomBetween } from '#lib/features/viewer/zoom.ts';
+import { GridZoom } from '#lib/components/gridzoom.svelte.ts';
 import { cancelMerge, extractPages, toAppError, type MergeProgress } from '#lib/ipc/index.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
 import { notifyDeleted } from './notify.ts';
-import { DEFAULT_THUMB, MIN_THUMB, clampThumb, deleteQuestion, extractedMessage, nudgeGap, stepThumb } from './pages.ts';
-
-/** How long a pinch must rest before the pictures are rendered for their new size. */
-const PINCH_REST_MS = 150;
+import { deleteQuestion, extractedMessage, nudgeGap } from './pages.ts';
 
 /** A page in the grid: its key, which it keeps wherever it goes, and its place now. */
 export interface GridPage {
@@ -24,17 +20,8 @@ export interface GridPage {
 }
 
 export class OrganizeState extends GridSelection {
-	/** The square each page's picture is fitted into, in CSS pixels: on its way to
-	 * `thumbTarget` while the size glides there. */
-	thumb = $state(DEFAULT_THUMB);
-	/** The size asked for. */
-	thumbTarget = $state(DEFAULT_THUMB);
-	/** The size the pictures are rendered for: where a glide ends or a pinch rests, so that
-	 * they are rendered once and not for every frame on the way. */
-	renderThumb = $state(DEFAULT_THUMB);
-	/** The largest size: the one at which a single page fills the grid's view, which the
-	 * grid measures (no limit until it has). */
-	largest = $state(Infinity);
+	/** The size of the pictures (the bar's buttons, the keys, the wheel, a pinch). */
+	readonly zoom = new GridZoom(() => app.settings?.smoothZoom !== false);
 	/** Files from another program are dragged over the window, here (viewport pixels). */
 	filePoint = $state<{ x: number; y: number } | null>(null);
 	/** The gap the grid shows for them, or null while they are not over the grid. */
@@ -43,10 +30,6 @@ export class OrganizeState extends GridSelection {
 	private droppedAt: number | null = null;
 	/** Pages are being extracted into a new document: how far that is, once it has started. */
 	extracting = $state<{ progress: MergeProgress | null; stopping: boolean } | null>(null);
-	private glide = 0;
-	private pinch = 1;
-	private pinchFrame = 0;
-	private rest: ReturnType<typeof setTimeout> | undefined;
 	/** A page for the grid to bring into view: it does when this changes. */
 	reveal = $state<{ key: number } | null>(null);
 	readonly tab: DocTab;
@@ -228,7 +211,7 @@ export class OrganizeState extends GridSelection {
 				const made = opened.kind === 'opened' ? app.tabs.find((t) => t.id === opened.document.id) : undefined;
 				if (made && !made.organize) {
 					made.organize = new OrganizeState(made);
-					made.organize.zoomTo(this.thumbTarget);
+					made.organize.zoom.zoomTo(this.zoom.thumbTarget);
 				}
 				app.notify({ kind: 'info', ...extractedMessage(outcome.report) }, 12000);
 			} catch (e) {
@@ -271,77 +254,6 @@ export class OrganizeState extends GridSelection {
 		const at = this.droppedAt ?? this.insertGap();
 		this.droppedAt = null;
 		return at;
-	}
-
-	// ----- the size of the pictures -----
-
-	/** Glides the pictures to `size` (140 ms, as zooming the pages does; at once when
-	 * Settings' smooth zooming is off or the system asks for reduced motion). */
-	zoomTo(size: number) {
-		const to = Math.round(clampThumb(size, this.largest));
-		this.stopZoom();
-		this.thumbTarget = to;
-		this.renderThumb = to;
-		const from = this.thumb;
-		const duration = app.settings?.smoothZoom === false ? 0 : motionMs(ZOOM_GLIDE_MS);
-		if (duration === 0 || from === to) {
-			this.thumb = to;
-			return;
-		}
-		const start = performance.now();
-		const frame = (now: number) => {
-			const t = Math.min(1, (now - start) / duration);
-			this.thumb = zoomBetween(from, to, t);
-			this.glide = t < 1 ? requestAnimationFrame(frame) : 0;
-		};
-		this.glide = requestAnimationFrame(frame);
-	}
-
-	/** The next smaller or larger of the buttons' sizes, going on from where a glide is
-	 * heading. */
-	zoomStep(direction: 1 | -1) {
-		const next = stepThumb(this.thumbTarget, direction, this.largest);
-		if (next !== null) this.zoomTo(next);
-	}
-
-	/** A mouse wheel notch: glides on by `factor` from where a glide is heading. */
-	zoomNotch(factor: number) {
-		this.zoomTo(this.thumbTarget * factor);
-	}
-
-	/** A touchpad pinch: the pictures follow the fingers, once a frame, and are rendered
-	 * for their new size when the pinch rests. */
-	zoomPinch(factor: number) {
-		this.pinch *= factor;
-		if (this.pinchFrame) return;
-		this.pinchFrame = requestAnimationFrame(() => {
-			const to = clampThumb(this.thumb * this.pinch, this.largest);
-			this.stopZoom();
-			this.thumb = to;
-			this.thumbTarget = to;
-			this.rest = setTimeout(() => {
-				this.thumb = this.thumbTarget = this.renderThumb = Math.round(this.thumb);
-			}, PINCH_REST_MS);
-		});
-	}
-
-	/** The grid's view changed size: the largest size is the one at which one page fills it.
-	 * Pictures larger than that now are that size at once. */
-	setLargest(size: number) {
-		this.largest = Math.max(MIN_THUMB, size);
-		if (this.thumbTarget <= this.largest) return;
-		this.stopZoom();
-		this.thumb = this.thumbTarget = this.renderThumb = this.largest;
-	}
-
-	/** Ends a glide or a pinch where it is. */
-	stopZoom() {
-		cancelAnimationFrame(this.glide);
-		cancelAnimationFrame(this.pinchFrame);
-		clearTimeout(this.rest);
-		this.glide = 0;
-		this.pinchFrame = 0;
-		this.pinch = 1;
 	}
 
 	/** Resolves once every edit started so far has run. */

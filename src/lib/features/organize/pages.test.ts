@@ -1,17 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-	caption,
-	clampThumb,
-	deleteQuestion,
-	deletedMessage,
-	describePage,
-	extractedMessage,
-	insertPlace,
-	nudgeGap,
-	stepThumb,
-	THUMB_SIZES
-} from './pages.ts';
+import { caption, deleteQuestion, deletedMessage, describePage, extractedMessage, insertPlace, nudgeGap } from './pages.ts';
 
 describe('what the grid says about a page', () => {
 	const labels = ['i', 'ii', '', '4', 'A-1'];
@@ -30,45 +19,6 @@ describe('what the grid says about a page', () => {
 		expect(describePage(1, 5, labels)).toBe('2 of 5: page ii');
 		expect(describePage(2, 5, labels)).toBe('3 of 5: page 3');
 		expect(describePage(2, 5, null)).toBe('3 of 5: page 3');
-	});
-});
-
-describe('picture sizes', () => {
-	it('step through the sizes and stop at the ends', () => {
-		expect(stepThumb(160, 1)).toBe(208);
-		expect(stepThumb(160, -1)).toBe(128);
-		expect(stepThumb(THUMB_SIZES[0], -1)).toBeNull();
-		expect(stepThumb(THUMB_SIZES[THUMB_SIZES.length - 1]!, 1)).toBeNull();
-	});
-
-	it('go up to the size at which one page fills the view, and no further', () => {
-		// In a view whose largest size is 700: ..., 432, 560, then 700 itself.
-		expect(stepThumb(432, 1, 700)).toBe(560);
-		expect(stepThumb(560, 1, 700)).toBe(700);
-		expect(stepThumb(700, 1, 700)).toBeNull();
-		expect(stepThumb(700, -1, 700)).toBe(560);
-		// A size a few pixels under the largest is not a step of its own.
-		expect(stepThumb(432, 1, 570)).toBe(570);
-		// A view too small for the smallest size still has that one.
-		expect(stepThumb(96, 1, 40)).toBeNull();
-		expect(clampThumb(500, 40)).toBe(96);
-	});
-
-	it('step from a size between two of them, as the wheel and a pinch leave', () => {
-		expect(stepThumb(140, 1)).toBe(160);
-		expect(stepThumb(140, -1)).toBe(128);
-		// A hair off a size is that size.
-		expect(stepThumb(159.8, 1)).toBe(208);
-		expect(stepThumb(160.3, -1)).toBe(128);
-	});
-
-	it('stay between the smallest and the largest', () => {
-		expect(clampThumb(20)).toBe(THUMB_SIZES[0]);
-		expect(clampThumb(1000, 624)).toBe(624);
-		expect(clampThumb(141.5, 624)).toBe(141.5);
-		expect(clampThumb(Number.NaN)).toBe(160);
-		// Until the grid has measured its view, there is no largest size.
-		expect(clampThumb(1000)).toBe(1000);
 	});
 });
 

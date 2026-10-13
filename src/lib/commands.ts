@@ -44,6 +44,14 @@ function layOut(tab: DocTab, mode: ViewMode, cover: boolean) {
 	}
 }
 
+/** Zooms the pages in or out. In a grid of pages (the Combine view's, or that of a document
+ * whose pages are being organized), the pictures get larger and smaller. */
+function zoom(direction: 1 | -1) {
+	if (app.combineActive) app.combine?.zoom.zoomStep(direction);
+	else if (app.active?.organize) app.active.organize.zoom.zoomStep(direction);
+	else app.active?.viewer?.zoomStep(direction);
+}
+
 /** Picks an annotation tool (section 8 shortcuts). Drawing tools need permission to annotate,
  * and a document that can be changed: one open for reading only says how to change that. */
 function useTool(tool: Tool) {
@@ -101,9 +109,8 @@ export const commands = {
 	findNext: reading((t) => t.search.step(1)),
 	findPrevious: reading((t) => t.search.step(-1)),
 
-	// In the grid of pages being organized, the pictures get larger and smaller.
-	zoomIn: withTab((t) => (t.organize ? t.organize.zoomStep(1) : t.viewer?.zoomStep(1))),
-	zoomOut: withTab((t) => (t.organize ? t.organize.zoomStep(-1) : t.viewer?.zoomStep(-1))),
+	zoomIn: () => zoom(1),
+	zoomOut: () => zoom(-1),
 	fitWidth: reading((t) => t.viewer?.fit('fitWidth')),
 	fitPage: reading((t) => t.viewer?.fit('fitPage')),
 	rotateViewClockwise: reading((t) => {

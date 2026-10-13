@@ -106,13 +106,14 @@
 	--lectrix-close-hover: #c9303a;
 	--lectrix-close-hover-fg: #ffffff;
 	/* Marks telling files apart in the Combine view: Neo's blue, pink, green, orange, purple
-	   and teal, deepened where needed for 3:1 against the chrome and the surface. */
-	--lectrix-source-1: #5680db;
-	--lectrix-source-2: #d44993;
-	--lectrix-source-3: #0ca339;
-	--lectrix-source-4: #df6b1e;
+	   and teal, deepened where needed for 3:1 against the chrome and the surface, and, as the
+	   border of a selected page, against the canvas and their own tint on it. */
+	--lectrix-source-1: #4f76c9;
+	--lectrix-source-2: #c8458b;
+	--lectrix-source-3: #0a8a30;
+	--lectrix-source-4: #be5b19;
 	--lectrix-source-5: #6f55f1;
-	--lectrix-source-6: #25949e;
+	--lectrix-source-6: #21848d;
 }
 
 /* Dark, Neo's Midnight: the system's choice unless Settings forces light, or forced
@@ -2231,19 +2232,26 @@ button.shortcut-key:hover,
 .page-cell:hover {
 	background: var(--lectrix-hover);
 }
+/* Where each page has a colour of its own (the Combine view: its file's), the block under
+   the pointer shows it: a lighter tint than a selected page's, and a thin edge. */
+.page-cell-tinted:hover {
+	background: color-mix(in srgb, var(--page-cell-accent) 10%, transparent);
+	box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--page-cell-accent) 60%, transparent);
+}
 /* A selected page's whole block (its picture and what is under it) has the accent's tint
-   and border. */
+   and border: a selected row's share of it. In the Combine view the block has the colour
+   of the page's file in the accent's place (`--page-cell-accent`). */
 .page-cell-selected,
 .page-cell-selected:hover {
-	background: var(--lectrix-row-selected);
-	box-shadow: inset 0 0 0 2px var(--lectrix-accent);
+	background: color-mix(in srgb, var(--page-cell-accent, var(--lectrix-accent)) 16%, transparent);
+	box-shadow: inset 0 0 0 2px var(--page-cell-accent, var(--lectrix-accent));
 }
 .page-cell-picture {
 	box-shadow: 0 1px 2px var(--lectrix-page-shadow);
 }
 /* The keyboard focus is a ring around the block, clear of a selected one's border. */
 .page-grid:focus-visible .page-cell-focus {
-	outline: 2px solid var(--lectrix-focus);
+	outline: 2px solid var(--page-cell-accent, var(--lectrix-focus));
 	outline-offset: 1px;
 }
 /* The bar of the page under the pointer, in the place of its label: the label, then the
@@ -2281,6 +2289,21 @@ button.shortcut-key:hover,
 }
 
 /* ----- combine view ----- */
+
+/* A file in the list: its focus ring inside the row, which the list would clip. */
+.combine-file:focus-visible {
+	outline-offset: -2px;
+}
+/* Where a dragged file would go. */
+.combine-file-drop-line {
+	position: absolute;
+	right: 8px;
+	left: 8px;
+	height: 2px;
+	border-radius: 1px;
+	background: var(--lectrix-accent);
+	pointer-events: none;
+}
 
 .progress-indeterminate {
 	animation: progress-slide 1.2s ease-in-out infinite;

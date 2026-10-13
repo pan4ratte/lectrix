@@ -35,6 +35,10 @@ the wording, translations): docs/releasing.md, "The changelog".
 - **Insert pages from file** no longer asks for a page number: the pages go after the page you are on, into the grid of pages (see Organizing pages), where they can be dragged anywhere. Several files can be picked at once; their pages go in one file after another.
 - The buttons that turn or remove the page under the pointer are now in a bar under its picture, beside its label.
 - A selected page has a border around its whole block, and the pages are centered in the window.
+- A selected page now has the colour of its file, the one beside the file’s name in the list. The file’s name is no longer repeated under every page: point at a page to see its file’s colour and, in a tooltip, its name.
+- Drag a file up or down the list to put it at another place, or press **Alt+Shift** with the up or down arrow; its pages move with it in the grid.
+- Make the pages larger or smaller with the toolbar’s buttons, **Ctrl+=** and **Ctrl+-**, **Ctrl** and the mouse wheel, or a pinch on the touchpad, up to one page filling the window.
+- The pane with the files and the options can be made wider or narrower by dragging its edge. Lectrix remembers its width.
 
 ### Organizing pages
 

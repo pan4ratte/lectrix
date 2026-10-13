@@ -2,11 +2,14 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	History,
+	gatherPages,
+	moveItem,
 	movePages,
 	nudgePages,
 	removePages,
 	reportDetail,
 	rotatePages,
+	rowGapAt,
 	signedWarning,
 	summary,
 	type CombinePage
@@ -36,6 +39,65 @@ describe('moving pages', () => {
 		expect(keysOf(nudgePages(list, new Set([2, 3]), -1))).toEqual([2, 3, 1, 4, 5]);
 		expect(nudgePages(list, new Set([1]), -1)).toBe(list);
 		expect(nudgePages(list, new Set([5]), 1)).toBe(list);
+	});
+});
+
+describe('moving files', () => {
+	it('drops an item into a gap of the list as it is', () => {
+		const list = ['a', 'b', 'c', 'd'];
+		expect(moveItem(list, 0, 2)).toEqual(['b', 'a', 'c', 'd']);
+		expect(moveItem(list, 0, 4)).toEqual(['b', 'c', 'd', 'a']);
+		expect(moveItem(list, 3, 0)).toEqual(['d', 'a', 'b', 'c']);
+		expect(moveItem(list, 2, 1)).toEqual(['a', 'c', 'b', 'd']);
+		// The gaps beside it leave it where it is.
+		expect(moveItem(list, 1, 1)).toEqual(list);
+		expect(moveItem(list, 1, 2)).toEqual(list);
+		// Past the ends is the ends; an item that is not there moves nothing.
+		expect(moveItem(list, 1, 99)).toEqual(['a', 'c', 'd', 'b']);
+		expect(moveItem(list, 9, 0)).toEqual(list);
+	});
+
+	const from = (sources: number[]): CombinePage[] => sources.map((source, i) => ({ key: i + 1, source, page: i, rotation: 0 }));
+
+	it('takes a file’s pages along, as a block before the pages of the file after it', () => {
+		// Files 10, 20, 30, their pages in that order.
+		const list = from([10, 10, 20, 20, 30]);
+		// 30 to the front.
+		expect(keysOf(gatherPages(list, [30, 10, 20], 30))).toEqual([5, 1, 2, 3, 4]);
+		// 10 after 20.
+		expect(keysOf(gatherPages(list, [20, 10, 30], 10))).toEqual([3, 4, 1, 2, 5]);
+		// 10 to the end.
+		expect(keysOf(gatherPages(list, [20, 30, 10], 10))).toEqual([3, 4, 5, 1, 2]);
+	});
+
+	it('brings together pages that were apart, and leaves the others as they are', () => {
+		// 10 and 20 alternate. 20 before 10: its pages come first, in the order they had.
+		const mixed = from([10, 20, 10, 20, 30]);
+		expect(keysOf(gatherPages(mixed, [20, 10, 30], 20))).toEqual([2, 4, 1, 3, 5]);
+		// 30 before 20: before 20's first page; 10's and 20's pages keep their order.
+		expect(keysOf(gatherPages(mixed, [10, 30, 20], 30))).toEqual([1, 5, 2, 3, 4]);
+	});
+
+	it('skips files without pages in the list, and moves nothing for one of them', () => {
+		// 20 has no pages left: 10 dropped after it goes before 30's pages.
+		const list = from([10, 10, 30]);
+		expect(keysOf(gatherPages(list, [20, 10, 30], 10))).toEqual([1, 2, 3]);
+		expect(keysOf(gatherPages(list, [30, 20, 10], 10))).toEqual([3, 1, 2]);
+		expect(gatherPages(list, [20, 10, 30], 20)).toBe(list);
+	});
+
+	it('finds the gap of a list nearest a point', () => {
+		const rows = [
+			{ top: 0, bottom: 40 },
+			{ top: 40, bottom: 80 },
+			{ top: 80, bottom: 120 }
+		];
+		expect(rowGapAt(rows, -5)).toBe(0);
+		expect(rowGapAt(rows, 19)).toBe(0);
+		expect(rowGapAt(rows, 21)).toBe(1);
+		expect(rowGapAt(rows, 70)).toBe(2);
+		expect(rowGapAt(rows, 500)).toBe(3);
+		expect(rowGapAt([], 10)).toBe(0);
 	});
 });
 

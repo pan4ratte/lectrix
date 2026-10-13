@@ -64,6 +64,12 @@
 		onlargest?: (thumb: number) => void;
 		/** The height the caption takes. */
 		captionHeight?: number;
+		/** The color (a CSS value) a page's tint, border and focus ring have when it is
+		 * selected, where that is not the accent: the Combine view's pages have their file's.
+		 * Under the pointer, the page's block shows it too. */
+		accent?: (item: T, index: number) => string | null;
+		/** A page's tooltip (the Combine view: its file's name). */
+		tip?: (item: T, index: number) => string | null;
 		/** False where the pages can only be selected and looked at. */
 		editable?: boolean;
 		/** Enter or a double-click on a page. */
@@ -93,6 +99,8 @@
 		onzoom,
 		onlargest,
 		captionHeight = 64,
+		accent,
+		tip,
 		editable = true,
 		onopen,
 		reveal = null,
@@ -579,10 +587,12 @@
 			{@const pos = cellOrigin(grid, index)}
 			{@const shown = thumbFor(item, index)}
 			{@const selected = model.selectedSet.has(item.key)}
+			{@const color = accent?.(item, index) ?? null}
 			<div
 				id="{idPrefix}-{item.key}"
 				data-key={item.key}
 				class="page-cell group absolute flex flex-col items-center rounded-panel hover:z-10"
+				class:page-cell-tinted={color !== null}
 				class:page-cell-selected={selected}
 				class:page-cell-focus={item.key === model.focusKey}
 				class:opacity-40={drag?.keys.has(item.key)}
@@ -591,6 +601,8 @@
 				style:width="{cellW}px"
 				style:height="{cellH}px"
 				style:padding-top="{CELL_TOP}px"
+				style:--page-cell-accent={color}
+				data-tip={tip?.(item, index) ?? undefined}
 				role="option"
 				aria-selected={selected}
 				aria-label={describe(item, index)}

@@ -19,10 +19,13 @@ import {
 	type PageSize
 } from '#lib/ipc/index.ts';
 import { GridSelection } from '#lib/components/gridselection.svelte.ts';
+import { GridZoom } from '#lib/components/gridzoom.svelte.ts';
 import type { DialogRequest, Toast } from '#lib/stores/app.svelte.ts';
 
 import {
 	History,
+	gatherPages,
+	moveItem,
 	movePages,
 	nudgePages,
 	removePages,
@@ -61,11 +64,15 @@ export interface CombineHost {
 	saveTab(id: number): Promise<boolean>;
 	/** Shows the combined file (its tab). */
 	opened(result: OpenResult): void;
+	/** Whether a new size of the pictures is glided to (Settings' smooth zooming). */
+	smoothZoom(): boolean;
 }
 
 interface Snapshot {
 	pages: CombinePage[];
 	selected: number[];
+	/** The files' ids, as they are listed. */
+	order: number[];
 }
 
 export class CombineState extends GridSelection {
@@ -85,6 +92,8 @@ export class CombineState extends GridSelection {
 	private version = $state(0);
 	private nextKey = 1;
 	private colorCount = 0;
+	/** The size of the pictures (the toolbar's buttons, the keys, the wheel, a pinch). */
+	readonly zoom: GridZoom;
 
 	canUndo = $derived.by(() => {
 		void this.version;
@@ -94,7 +103,7 @@ export class CombineState extends GridSelection {
 		void this.version;
 		return this.history.canRedo;
 	});
-	/** Files with pages in the list, in the order they were added. */
+	/** Files with pages in the list, in the order they are listed. */
 	usedSources = $derived.by(() => {
 		const used = new Set(this.pages.map((p) => p.source));
 		return this.sources.filter((s) => used.has(s.id));
@@ -103,6 +112,7 @@ export class CombineState extends GridSelection {
 
 	constructor(private readonly host: CombineHost) {
 		super();
+		this.zoom = new GridZoom(() => host.smoothZoom());
 	}
 
 	protected keys(): number[] {
@@ -199,14 +209,47 @@ export class CombineState extends GridSelection {
 		this.remove(new Set(this.pages.filter((p) => p.source === id).map((p) => p.key)));
 	}
 
+	/**
+	 * Puts a file at another place in the list: into gap `gap` of the list as it is (0 is
+	 * before the first file). Its pages go with it: they come together before the pages of
+	 * the file listed after it (`gatherPages`). One undo step.
+	 */
+	moveFile(id: number, gap: number) {
+		const from = this.sources.findIndex((s) => s.id === id);
+		const sources = moveItem(this.sources, from, gap);
+		if (sources.every((s, i) => s === this.sources[i])) return;
+		const order = sources.map((s) => s.id);
+		this.change({ pages: gatherPages(this.pages, order, id), order });
+	}
+
+	/** Moves a file one place up (`-1`) or down (`1`) the list. */
+	nudgeFile(id: number, direction: 1 | -1) {
+		const from = this.sources.findIndex((s) => s.id === id);
+		if (from >= 0) this.moveFile(id, direction < 0 ? from - 1 : from + 2);
+	}
+
 	// ----- editing the list (undoable) -----
 
+	private snapshot(): Snapshot {
+		return { pages: this.pages, selected: this.selected, order: this.sources.map((s) => s.id) };
+	}
+
 	private change(next: Partial<Snapshot>) {
-		this.history.push({ pages: this.pages, selected: this.selected });
+		this.history.push(this.snapshot());
 		if (next.pages) this.pages = next.pages;
 		if (next.selected) this.selected = next.selected;
+		if (next.order) this.listFiles(next.order);
 		this.combinedAs = null;
 		this.version++;
+	}
+
+	/** Lists the files in `order` (their ids); files it does not name, added since, stay
+	 * after them as they are. */
+	private listFiles(order: readonly number[]) {
+		const place = new Map(order.map((id, i) => [id, i]));
+		const at = (s: CombineSource) => place.get(s.id) ?? order.length;
+		// (Sorting is stable, so files with the same place keep their order.)
+		this.sources = [...this.sources].sort((a, b) => at(a) - at(b));
 	}
 
 	remove(keys: ReadonlySet<number>) {
@@ -237,18 +280,19 @@ export class CombineState extends GridSelection {
 	}
 
 	undo() {
-		const previous = this.history.undo({ pages: this.pages, selected: this.selected });
+		const previous = this.history.undo(this.snapshot());
 		if (previous) this.restore(previous);
 	}
 
 	redo() {
-		const next = this.history.redo({ pages: this.pages, selected: this.selected });
+		const next = this.history.redo(this.snapshot());
 		if (next) this.restore(next);
 	}
 
 	private restore(snapshot: Snapshot) {
 		this.pages = snapshot.pages;
 		this.selected = snapshot.selected;
+		this.listFiles(snapshot.order);
 		this.combinedAs = null;
 		this.version++;
 	}
@@ -342,6 +386,7 @@ export class CombineState extends GridSelection {
 
 	/** Closes every source (when the Combine view closes). */
 	async dispose() {
+		this.zoom.stopZoom();
 		const ids = this.sources.map((s) => s.id);
 		this.sources = [];
 		this.pages = [];

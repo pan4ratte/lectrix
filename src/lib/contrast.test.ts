@@ -168,9 +168,12 @@ describe.each([
 		expect(contrast(handle, '#ffffff'), 'selection handle on the page').toBeGreaterThanOrEqual(3);
 		expect(contrast(handle, on('--lectrix-selection', vars, '#ffffff')), 'selection handle on the selection').toBeGreaterThanOrEqual(3);
 		for (let i = 1; i <= 6; i++) {
-			for (const bg of ['--lectrix-surface', '--lectrix-chrome']) {
-				expect(contrast(solid(`--lectrix-source-${i}`, vars), solid(bg, vars)), `source ${i} on ${bg}`).toBeGreaterThanOrEqual(3);
+			const source = solid(`--lectrix-source-${i}`, vars);
+			for (const bg of ['--lectrix-surface', '--lectrix-chrome', '--lectrix-canvas']) {
+				expect(contrast(source, solid(bg, vars)), `source ${i} on ${bg}`).toBeGreaterThanOrEqual(3);
 			}
+			// The border of a selected page in the Combine view, beside the tint inside it.
+			expect(contrast(source, mix(canvas, source, ROW_SELECTED_SHARE)), `source ${i} on its tint`).toBeGreaterThanOrEqual(3);
 		}
 	});
 

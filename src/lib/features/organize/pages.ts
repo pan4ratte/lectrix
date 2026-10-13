@@ -5,38 +5,6 @@
 import { pageName } from '#lib/features/viewer/pagebox.ts';
 import type { DeleteReport, MergeReport } from '#lib/ipc/index.ts';
 
-/** The squares the bar's buttons fit a page's picture into, in CSS pixels: each about a
- * third larger than the one before, up to the largest the view has room for, at which one
- * page fills it. The wheel and a pinch give any size from the first to that one. */
-export const THUMB_SIZES = [96, 128, 160, 208, 264, 336, 432, 560, 720, 928, 1200, 1552, 2000] as const;
-export const DEFAULT_THUMB = 160;
-export const MIN_THUMB = THUMB_SIZES[0];
-
-/** The sizes the buttons step through in a view whose largest size is `largest`: those
- * clearly under it, then that size itself. */
-function sizesUpTo(largest: number): number[] {
-	if (!Number.isFinite(largest)) return [...THUMB_SIZES];
-	const top = Math.max(MIN_THUMB, largest);
-	// (A step of a few pixels to the largest size would not be one.)
-	return [...THUMB_SIZES.filter((s) => s <= top * 0.9), top];
-}
-
-/** `size` kept between the smallest size and `largest`, the size at which one page fills
- * the view (unknown until the grid has measured it: no limit then). */
-export function clampThumb(size: number, largest = Infinity): number {
-	const top = Math.max(MIN_THUMB, largest);
-	if (!Number.isFinite(size)) return Math.min(DEFAULT_THUMB, top);
-	return Math.max(MIN_THUMB, Math.min(top, size));
-}
-
-/** The next smaller (`-1`) or larger (`1`) of the buttons' sizes, or null at the end. */
-export function stepThumb(size: number, direction: 1 | -1, largest = Infinity): number | null {
-	const sizes = sizesUpTo(largest);
-	// (A size from the wheel may be a hair off one of them.)
-	const next = direction > 0 ? sizes.find((s) => s > size + 0.5) : sizes.findLast((s) => s < size - 0.5);
-	return next ?? null;
-}
-
 /**
  * Under a page's picture: its label, with its place in the document after it where that
  * says something else ("iv (4)"), since labels stay with the places while pages move. A

@@ -2,7 +2,9 @@
 // with labels, one with a highlight) after removing, turning and moving pages, with undo;
 // then insert pages from a file into an open document, undo and redo it, and save.
 // And the grid's pointer: a rectangle drawn over it selects pages, a picture drags its page,
-// and the page under it shows a bar with its label and buttons.
+// and the page under it shows a bar with its label and buttons. The pane with the files
+// resizes from its edge, a file is dragged to another place in the list and takes its pages
+// along, the pictures change size, and a selected page has its file's colour.
 
 import assert from 'node:assert/strict';
 import { existsSync, rmSync, writeFileSync } from 'node:fs';
@@ -352,22 +354,23 @@ test('the page under the pointer shows a bar with its label and buttons, in the 
 				return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
 			};
 			const cell = document.querySelector(sel);
-			// The second line of the caption: the file's name, which the bar leaves alone.
-			const name = [...cell.children].at(-2);
 			return {
 				cell: box(cell),
 				picture: box(cell.querySelector('[data-picture]')),
 				bar: box(cell.querySelector('[data-tool]')),
-				name: { ...box(name), text: name.textContent.trim() },
+				caption: cell.querySelector('[data-page-caption]').textContent.trim(),
+				all: cell.textContent,
 				text: cell.querySelector('[data-tool]').textContent.trim(),
 				buttons: [...cell.querySelectorAll('[data-tool] button')].map((b) => b.getAttribute('aria-label'))
 			};
 		}, second);
 		assert.equal(place.text, '2', 'the bar does not show the page’s label');
 		assert.deepEqual(place.buttons, ['Turn counter-clockwise', 'Turn clockwise', 'Remove']);
-		assert.equal(place.name.text, 'combine-bar.pdf');
+		// Under a page is its label alone: the file's name is in the list, not here.
+		assert.equal(place.caption, '2');
+		assert.equal(place.all.includes('.pdf'), false, `the page shows its file’s name: ${place.all}`);
 		assert.ok(place.bar.top >= place.picture.bottom - 1, `the bar is over the picture: ${JSON.stringify(place)}`);
-		assert.ok(place.bar.bottom <= place.name.top + 1, `the bar is over the file’s name: ${JSON.stringify(place)}`);
+		assert.ok(place.bar.bottom <= place.cell.bottom - 7, `the bar sits on the block’s edge: ${JSON.stringify(place)}`);
 		const middle = (b) => (b.left + b.right) / 2;
 		assert.ok(Math.abs(middle(place.bar) - middle(place.cell)) <= 1, `the bar is not centered: ${JSON.stringify(place)}`);
 		await browser.saveScreenshot(join(OUT, 'combine-bar.png'));
@@ -375,6 +378,185 @@ test('the page under the pointer shows a bar with its label and buttons, in the 
 		// Its buttons act on that page alone.
 		await (await browser.$(`${second} [data-tool] button[aria-label="Remove"]`)).click();
 		await waitForCells(browser, ['combine-bar.pdf, page 1', 'combine-bar.pdf, page 3'], 'the bar’s Remove');
+	} finally {
+		await stop();
+	}
+});
+
+/** The files in the list, in order. */
+const fileNames = (browser) =>
+	browser.execute(() =>
+		[...document.querySelectorAll('[aria-label=Files] [data-file]')].map((row) => row.querySelector('[data-tip]').textContent.trim())
+	);
+
+/** Where the row of file `name` is in the list, in viewport pixels. */
+const fileRow = (browser, name) =>
+	browser.execute((n) => {
+		const row = [...document.querySelectorAll('[aria-label=Files] [data-file]')].find((r) => r.getAttribute('aria-label').startsWith(n));
+		const r = row.getBoundingClientRect();
+		return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+	}, name);
+
+/** The name of the file whose row has the keyboard focus. */
+const focusedFile = (browser) => browser.execute(() => document.activeElement?.getAttribute('aria-label') ?? '');
+
+const paneWidth = (browser) => browser.execute(() => document.querySelector('[data-combine-pane]').getBoundingClientRect().width);
+
+/** The width of the first page's cell, which follows the size of the pictures. */
+const cellWidth = (browser) => browser.execute(() => document.querySelector('[role=option]').getBoundingClientRect().width);
+
+/** Waits for the cells to rest (a glide is over) at a width that passes `check`. */
+async function waitForWidth(browser, check, message) {
+	let width = 0;
+	await browser.waitUntil(
+		async () => {
+			const first = await cellWidth(browser);
+			await browser.pause(200);
+			width = await cellWidth(browser);
+			return first === width && check(width);
+		},
+		{ timeout: 5000, timeoutMsg: `${message}: the cell is ${await cellWidth(browser)} px wide` }
+	);
+	return width;
+}
+
+test('the pane resizes, a file moves in the list with its pages, the pages change size, and a selected page has its file’s colour', async () => {
+	const files = [sample('order-a.pdf', 2), sample('order-b.pdf', 2), sample('order-c.pdf', 1)];
+	const { browser, stop } = await launch([], { dialogs: [files] });
+	try {
+		await (await browser.$('button*=Combine files')).click();
+		await (await browser.$('button=Add files…')).click();
+		const A = [1, 2].map((n) => `order-a.pdf, page ${n}`);
+		const B = [1, 2].map((n) => `order-b.pdf, page ${n}`);
+		const C = ['order-c.pdf, page 1'];
+		await waitForCells(browser, [...A, ...B, ...C], 'files added');
+		assert.deepEqual(await fileNames(browser), ['order-a.pdf', 'order-b.pdf', 'order-c.pdf']);
+
+		// ----- the pane's edge resizes it: dragged, from the keyboard, and back with a double-click
+		const edge = '[data-combine-pane] [role=separator]';
+		assert.equal(await (await browser.$(edge)).getAttribute('aria-label'), 'Resize files and options');
+		assert.equal(await paneWidth(browser), 224);
+		const grip = middle(
+			await browser.execute((s) => {
+				const r = document.querySelector(s).getBoundingClientRect();
+				return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+			}, edge)
+		);
+		await pressAndMove(browser, grip, { x: grip.x + 60, y: grip.y });
+		await release(browser);
+		assert.equal(await paneWidth(browser), 284, 'dragging the edge did not resize the pane');
+		await browser.execute((s) => document.querySelector(s).focus(), edge);
+		await browser.keys('ArrowLeft');
+		assert.equal(await paneWidth(browser), 268, 'the arrow key did not resize the pane');
+		await browser.keys('Home');
+		assert.equal(await paneWidth(browser), 180);
+		await (await browser.$(edge)).doubleClick();
+		assert.equal(await paneWidth(browser), 224, 'a double-click did not put the width back');
+
+		// ----- a file dragged to another place in the list takes its pages along
+		const first = await fileRow(browser, 'order-a.pdf');
+		const last = await fileRow(browser, 'order-c.pdf');
+		const hold = { x: Math.round(last.left + 60), y: middle(last).y };
+		await pressAndMove(browser, hold, { x: hold.x, y: Math.round(first.top + 3) });
+		assert.equal(await (await browser.$('.combine-file-drop-line')).isExisting(), true, 'no line shows where the file would go');
+		await browser.saveScreenshot(join(OUT, 'combine-file-drag.png'));
+		await release(browser);
+		assert.deepEqual(await fileNames(browser), ['order-c.pdf', 'order-a.pdf', 'order-b.pdf']);
+		await waitForCells(browser, [...C, ...A, ...B], 'the file’s pages went with it');
+
+		// Esc during a drag leaves the list as it was.
+		const c = await fileRow(browser, 'order-c.pdf');
+		const b = await fileRow(browser, 'order-b.pdf');
+		await pressAndMove(browser, { x: Math.round(c.left + 60), y: middle(c).y }, { x: Math.round(c.left + 60), y: Math.round(b.bottom - 3) });
+		assert.equal(await (await browser.$('.combine-file-drop-line')).isExisting(), true);
+		await browser.keys('Escape');
+		assert.equal(await (await browser.$('.combine-file-drop-line')).isExisting(), false);
+		await release(browser);
+		assert.deepEqual(await fileNames(browser), ['order-c.pdf', 'order-a.pdf', 'order-b.pdf']);
+
+		// From the keyboard: Alt+Shift+Down moves the file with the focus, which keeps it.
+		await browser.execute(() => document.querySelector('[aria-label=Files] [data-file]').focus());
+		await browser.keys(['Alt', 'Shift', 'ArrowDown']);
+		await waitForCells(browser, [...A, ...C, ...B], 'Alt+Shift+Down');
+		assert.deepEqual(await fileNames(browser), ['order-a.pdf', 'order-c.pdf', 'order-b.pdf']);
+		assert.equal(await focusedFile(browser), 'order-c.pdf, 1 page');
+		// Up and Down move between the files.
+		await browser.keys('ArrowUp');
+		assert.equal(await focusedFile(browser), 'order-a.pdf, 2 pages');
+		// One undo step each, and the list goes back with the pages.
+		await browser.keys(['Control', 'z']);
+		await waitForCells(browser, [...C, ...A, ...B], 'undo');
+		assert.deepEqual(await fileNames(browser), ['order-c.pdf', 'order-a.pdf', 'order-b.pdf']);
+		await browser.keys(['Control', 'y']);
+		await waitForCells(browser, [...A, ...C, ...B], 'redo');
+		assert.deepEqual(await fileNames(browser), ['order-a.pdf', 'order-c.pdf', 'order-b.pdf']);
+
+		// Pages apart come together: b's second page to the front, then b moved to the top.
+		await clickCell(browser, 4);
+		for (let i = 0; i < 4; i++) await browser.keys(['Alt', 'Shift', 'ArrowLeft']);
+		await waitForCells(browser, [B[1], ...A, ...C, B[0]], 'a page moved to the front');
+		assert.deepEqual(await fileNames(browser), ['order-a.pdf', 'order-c.pdf', 'order-b.pdf'], 'moving pages changed the list');
+		await browser.execute(() => document.querySelectorAll('[aria-label=Files] [data-file]')[2].focus());
+		await browser.keys(['Alt', 'Shift', 'ArrowUp']);
+		await browser.keys(['Alt', 'Shift', 'ArrowUp']);
+		await waitForCells(browser, [B[1], B[0], ...A, ...C], 'the file’s pages came together');
+		assert.deepEqual(await fileNames(browser), ['order-b.pdf', 'order-a.pdf', 'order-c.pdf']);
+
+		// ----- the size of the pictures: the toolbar's buttons, the keys, the wheel
+		const start = await cellWidth(browser);
+		assert.equal(start, 176, 'the pictures do not start at 160 px');
+		await (await browser.$('button[aria-label="Larger pages"]')).click();
+		const larger = await waitForWidth(browser, (w) => w > start, 'Larger pages');
+		assert.equal(larger, 224);
+		await browser.keys(['Control', '-']);
+		await waitForWidth(browser, (w) => w === start, 'Ctrl+-');
+		await browser.keys(['Control', '=']);
+		await waitForWidth(browser, (w) => w === larger, 'Ctrl+=');
+		await browser.execute(() => {
+			const cell = document.querySelector('[role=option]');
+			const r = cell.getBoundingClientRect();
+			const at = { clientX: r.left + r.width / 2, clientY: r.top + r.height / 2 };
+			cell.dispatchEvent(new WheelEvent('wheel', { deltaY: 120, ctrlKey: true, bubbles: true, cancelable: true, ...at }));
+		});
+		await waitForWidth(browser, (w) => w < larger, 'a wheel notch');
+		const smaller = await browser.$('button[aria-label="Smaller pages"]');
+		for (let i = 0; i < 4 && (await smaller.isEnabled()); i++) await smaller.click();
+		await waitForWidth(browser, (w) => w === 112, 'Smaller pages, to the smallest');
+		assert.equal(await smaller.isEnabled(), false);
+
+		// ----- a selected page has the colour of its file, the one its row shows
+		const colours = async (index) => {
+			await clickCell(browser, index);
+			return browser.execute(() => {
+				const cell = document.querySelector('[role=option][aria-selected=true]');
+				const file = cell.getAttribute('aria-label').replace(/^[0-9]+ of [0-9]+: /, '').split(',')[0];
+				const row = [...document.querySelectorAll('[aria-label=Files] [data-file]')].find((r) => r.getAttribute('aria-label').startsWith(file));
+				return { file, border: getComputedStyle(cell).boxShadow, dot: getComputedStyle(row.querySelector('span')).backgroundColor };
+			});
+		};
+		const ofB = await colours(0);
+		const ofA = await colours(2);
+		assert.equal(ofB.file, 'order-b.pdf');
+		assert.equal(ofA.file, 'order-a.pdf');
+		assert.ok(ofB.border.includes(ofB.dot), `b’s page is not in b’s colour: ${JSON.stringify(ofB)}`);
+		assert.ok(ofA.border.includes(ofA.dot), `a’s page is not in a’s colour: ${JSON.stringify(ofA)}`);
+		assert.notEqual(ofA.dot, ofB.dot);
+
+		// Under the pointer, a page that is not selected shows its file: an edge in the file's
+		// colour, and a tooltip with its name.
+		const fifth = '[role=option][aria-posinset="5"]';
+		await (await browser.$(`${fifth} [data-picture]`)).moveTo();
+		await browser.waitUntil(
+			async () => (await browser.execute(() => document.querySelector('.tip-fixed .tip-text')?.textContent.trim() ?? '')) === 'order-c.pdf',
+			{ timeout: 3000, timeoutMsg: 'no tooltip names the file of the page under the pointer' }
+		);
+		const hovered = await browser.execute((sel) => {
+			const cell = document.querySelector(sel);
+			return { selected: cell.getAttribute('aria-selected'), edge: getComputedStyle(cell).boxShadow };
+		}, fifth);
+		assert.equal(hovered.selected, 'false');
+		assert.match(hovered.edge, /1px inset$/, `the page under the pointer has no edge in its file’s colour: ${hovered.edge}`);
+		await browser.saveScreenshot(join(OUT, 'combine-colours.png'));
 	} finally {
 		await stop();
 	}

@@ -47,6 +47,49 @@ export function removePages(pages: CombinePage[], keys: ReadonlySet<number>): Co
 	return pages.filter((p) => !keys.has(p.key));
 }
 
+/**
+ * `items` with the one at `from` dropped into gap `gap` of the list as it is: 0 is before
+ * the first, `items.length` after the last. The gaps on either side of it leave it where it
+ * is.
+ */
+export function moveItem<T>(items: readonly T[], from: number, gap: number): T[] {
+	const item = items[from];
+	if (item === undefined) return [...items];
+	const rest = items.filter((_, i) => i !== from);
+	const at = Math.max(0, Math.min(rest.length, gap > from ? gap - 1 : gap));
+	return [...rest.slice(0, at), item, ...rest.slice(at)];
+}
+
+/**
+ * The pages after file `source` took a new place in the list of files, `order` (the
+ * files' ids as they are listed now). Its pages come together, in the order they have,
+ * before the first page of the file listed after it (the next one that has pages), or at
+ * the end without such a file. The other pages stay as they are.
+ */
+export function gatherPages(pages: CombinePage[], order: readonly number[], source: number): CombinePage[] {
+	const own = pages.filter((p) => p.source === source);
+	if (own.length === 0) return pages;
+	const rest = pages.filter((p) => p.source !== source);
+	let at = rest.length;
+	for (const next of order.slice(order.indexOf(source) + 1)) {
+		const first = rest.findIndex((p) => p.source === next);
+		if (first >= 0) {
+			at = first;
+			break;
+		}
+	}
+	return [...rest.slice(0, at), ...own, ...rest.slice(at)];
+}
+
+/**
+ * The gap of a list a point is nearest to: `rows` are its rows' tops and bottoms, in
+ * order, and `y` is the point, measured as they are. 0 is before the first row.
+ */
+export function rowGapAt(rows: readonly { top: number; bottom: number }[], y: number): number {
+	const after = rows.findIndex((row) => y < (row.top + row.bottom) / 2);
+	return after < 0 ? rows.length : after;
+}
+
 /** Undo history of snapshots (the view's own; files are not changed until combining). */
 export class History<T> {
 	private past: T[] = [];

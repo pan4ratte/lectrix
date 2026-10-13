@@ -151,10 +151,10 @@
 					Annotations{@render keys('showAnnotations')}
 				</Menubar.Item>
 				<Menubar.Separator class="menu-separator" />
-				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.zoomIn}>
+				<Menubar.Item class="menu-item" disabled={!hasDoc && !app.combineActive} onSelect={commands.zoomIn}>
 					Zoom in{@render keys('zoomIn')}
 				</Menubar.Item>
-				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.zoomOut}>
+				<Menubar.Item class="menu-item" disabled={!hasDoc && !app.combineActive} onSelect={commands.zoomOut}>
 					Zoom out{@render keys('zoomOut')}
 				</Menubar.Item>
 				<Menubar.Item class="menu-item" disabled={!reading} onSelect={commands.fitWidth}>

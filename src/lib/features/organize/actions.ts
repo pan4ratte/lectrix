@@ -33,7 +33,7 @@ export async function organizePages(tab: DocTab) {
 /** Back to reading: where the document was, or at the top of `page`. */
 export function leaveOrganize(tab: DocTab, page?: number) {
 	if (!tab.organize) return;
-	tab.organize.stopZoom();
+	tab.organize.zoom.stopZoom();
 	tab.organize = null;
 	if (page !== undefined) {
 		tab.currentPage = page;

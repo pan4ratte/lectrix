@@ -1248,7 +1248,8 @@ pub struct StartupInfo {
 
 /// The side panes (section 8): which are open, how wide they are, which panels each holds
 /// in which order, the panel each shows, and the size of page thumbnails; also how the start
-/// screen shows recent files. Remembered in app data. Widths are CSS pixels;
+/// screen shows recent files, and how wide the Combine view's pane is. Remembered in app
+/// data. Widths are CSS pixels;
 /// the frontend keeps them within its limits, and puts each panel in exactly one pane.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase", default)]
@@ -1271,6 +1272,8 @@ pub struct PaneLayout {
     pub thumbnails_grid: bool,
     /// The start screen shows recent files as a grid of previews, rather than a table.
     pub recent_files_grid: bool,
+    /// The width of the Combine view's pane (its files and options), CSS pixels.
+    pub combine_width: u32,
 }
 
 impl Default for PaneLayout {
@@ -1288,6 +1291,7 @@ impl Default for PaneLayout {
             thumbnails_fit: false,
             thumbnails_grid: false,
             recent_files_grid: false,
+            combine_width: 224,
         }
     }
 }

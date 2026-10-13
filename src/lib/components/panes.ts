@@ -15,6 +15,9 @@ export const LEFT_LIMITS: PaneLimits = { min: 180, max: 480, initial: 240 };
 /** The right pane, which holds the annotation list at first. */
 export const RIGHT_LIMITS: PaneLimits = { min: 240, max: 560, initial: 300 };
 
+/** The Combine view's pane, which holds its files and options. */
+export const COMBINE_LIMITS: PaneLimits = { min: 180, max: 480, initial: 224 };
+
 /** Each pane takes at most this share of the window, so the page always keeps room. */
 export const MAX_WINDOW_SHARE = 0.4;
 

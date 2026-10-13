@@ -52,6 +52,7 @@ import {
 	type StartupInfo
 } from '#lib/ipc/index.ts';
 import {
+	COMBINE_LIMITS,
 	DEFAULT_ARRANGEMENT,
 	LEFT_LIMITS,
 	RIGHT_LIMITS,
@@ -155,6 +156,8 @@ class AppStore {
 	thumbnailsGrid = $state(false);
 	/** The start screen shows recent files as a grid of previews, rather than a table. */
 	recentFilesGrid = $state(false);
+	/** The width of the Combine view's pane (its files and options). */
+	combineWidth = $state(COMBINE_LIMITS.initial);
 	#leftActive = $state<PanelId | null>(null);
 	#rightActive = $state<PanelId | null>(null);
 	/** The remembered pane layout is in; until then panes neither animate nor are saved. */
@@ -302,6 +305,7 @@ class AppStore {
 		this.thumbnailsFit = panes.thumbnailsFit;
 		this.thumbnailsGrid = panes.thumbnailsGrid;
 		this.recentFilesGrid = panes.recentFilesGrid;
+		this.combineWidth = clampWidth(panes.combineWidth, COMBINE_LIMITS);
 		this.panesRestored = true;
 	}
 
@@ -318,7 +322,8 @@ class AppStore {
 			thumbnailWidth: this.thumbnailWidth,
 			thumbnailsFit: this.thumbnailsFit,
 			thumbnailsGrid: this.thumbnailsGrid,
-			recentFilesGrid: this.recentFilesGrid
+			recentFilesGrid: this.recentFilesGrid,
+			combineWidth: this.combineWidth
 		};
 	}
 
@@ -616,7 +621,8 @@ class AppStore {
 						return false;
 					}
 				},
-				opened: (result) => this.handleOpenResults([result])
+				opened: (result) => this.handleOpenResults([result]),
+				smoothZoom: () => this.settings?.smoothZoom !== false
 			});
 		}
 		this.startShown = false;

@@ -13,14 +13,11 @@
 
 	import { insertFromFile, leaveOrganize } from './actions.ts';
 	import type { OrganizeState } from './organize.svelte.ts';
-	import { stepThumb } from './pages.ts';
 
 	let { tab, organize }: { tab: DocTab; organize: OrganizeState } = $props();
 
 	const selected = $derived(organize.selected.length);
 	const usable = $derived(organize.editable && selected > 0);
-	const smaller = $derived(stepThumb(organize.thumbTarget, -1, organize.largest));
-	const larger = $derived(stepThumb(organize.thumbTarget, 1, organize.largest));
 	const pages = $derived(tab.pageCount === 1 ? '1 page' : `${tab.pageCount.toLocaleString()} pages`);
 </script>
 
@@ -101,8 +98,8 @@
 		class="icon-button"
 		aria-label="Smaller pages"
 		data-tip={app.hint('Smaller pages', 'zoomOut')}
-		disabled={smaller === null}
-		onclick={() => organize.zoomStep(-1)}
+		disabled={organize.zoom.smaller === null}
+		onclick={() => organize.zoom.zoomStep(-1)}
 	>
 		<ZoomOut size={16} aria-hidden="true" />
 	</button>
@@ -111,8 +108,8 @@
 		class="icon-button"
 		aria-label="Larger pages"
 		data-tip={app.hint('Larger pages', 'zoomIn')}
-		disabled={larger === null}
-		onclick={() => organize.zoomStep(1)}
+		disabled={organize.zoom.larger === null}
+		onclick={() => organize.zoom.zoomStep(1)}
 	>
 		<ZoomIn size={16} aria-hidden="true" />
 	</button>

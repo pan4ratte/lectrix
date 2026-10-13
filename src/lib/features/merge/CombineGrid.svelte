@@ -1,8 +1,9 @@
 <script lang="ts">
 	// Every page of the result in one grid (section 6.4): the shared page grid, with each
-	// page's label and file under it. Under the pointer, the label has the buttons that
-	// turn or remove its page after it, in a bar in the label's place. Selecting, dragging
-	// and the keys are the grid's (`PageGrid.svelte`).
+	// page's label under it. Under the pointer, the label has the buttons that turn or
+	// remove its page after it, in a bar in the label's place. A selected page has the colour
+	// of its file, which the list of files shows beside the file's name. Selecting, dragging,
+	// the keys and the size of the pictures are the grid's (`PageGrid.svelte`).
 	import { RotateCcw, RotateCw, X } from '@lucide/svelte';
 
 	import PageGrid from '#lib/components/PageGrid.svelte';
@@ -33,8 +34,16 @@
 		return label && label !== number ? `${label} (${number})` : number;
 	}
 
-	/** The side of the square each picture is fitted into (the grid's own). */
-	const THUMB = 120;
+	/** What a page's block has besides its picture: 7 px above it, the label's line under
+	 * it (36 px, as tall as the bar that shows in its place), and 8 px under that, so the
+	 * bar does not sit on the block's edge. */
+	const CAPTION_HEIGHT = 51;
+
+	/** The colour of a page's file, which its block has when it is selected. */
+	function colorOf(page: CombinePage): string | null {
+		const source = combine.source(page.source);
+		return source ? `var(--lectrix-source-${source.color})` : null;
+	}
 
 	function describe(page: CombinePage, index: number): string {
 		const source = combine.source(page.source);
@@ -50,11 +59,17 @@
 	{describe}
 	label="Pages of the combined file"
 	idPrefix="combine-page"
-	thumb={THUMB}
+	thumb={combine.zoom.thumb}
+	renderThumb={combine.zoom.renderThumb}
+	onzoom={(factor, notch) => (notch ? combine.zoom.zoomNotch(factor) : combine.zoom.zoomPinch(factor))}
+	onlargest={(size) => combine.zoom.setLargest(size)}
+	captionHeight={CAPTION_HEIGHT}
+	accent={colorOf}
+	tip={(page) => combine.source(page.source)?.name ?? null}
 >
 	{#snippet tools(page: CombinePage)}
 		<!-- (At most a little wider than the cell, so the bar never reaches out of the grid.) -->
-		<span class="page-cell-label px-1.5" style:max-width="{THUMB - 56}px" aria-hidden="true">{labelOf(page)}</span>
+		<span class="page-cell-label px-1.5" style:max-width="{combine.zoom.thumb - 56}px" aria-hidden="true">{labelOf(page)}</span>
 		<button
 			type="button"
 			class="icon-button"
@@ -87,18 +102,9 @@
 		</button>
 	{/snippet}
 	{#snippet caption(page: CombinePage)}
-		{@const source = combine.source(page.source)}
 		<!-- A line as tall as the bar that shows in its place under the pointer, with the same words. -->
-		<span class="page-cell-label h-[36px] max-w-full shrink-0 px-1 leading-[36px] group-hover:invisible">
+		<span class="page-cell-label h-[36px] max-w-full shrink-0 px-1 leading-[36px] group-hover:invisible" data-page-caption>
 			{labelOf(page)}
-		</span>
-		<span class="flex max-w-full items-center gap-1 px-1 text-xs text-fg-muted">
-			<span
-				class="size-2 shrink-0 rounded-full"
-				style:background="var(--lectrix-source-{source?.color ?? 1})"
-				aria-hidden="true"
-			></span>
-			<span class="truncate">{source?.name ?? ''}</span>
 		</span>
 	{/snippet}
 </PageGrid>

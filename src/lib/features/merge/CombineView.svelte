@@ -1,13 +1,17 @@
 <script lang="ts">
-	// The Combine view (section 6.4): the files on the left with the options, every page
-	// of every file in one grid, and the Combine button. Pages can be reordered, turned and
-	// removed; the files are only read, and the result is written to a new file.
-	import { ArchiveRestore, FilePlus, Layers, Redo2, RotateCcw, RotateCw, Trash, Undo2, X } from '@lucide/svelte';
+	// The Combine view (section 6.4): the files on the left with the options, in a pane
+	// that resizes from its edge as the side panes do, every page of every file in one grid,
+	// and the Combine button. Pages can be reordered, turned and removed; the files are only
+	// read, and the result is written to a new file.
+	import { FilePlus, Layers, Redo2, RotateCcw, RotateCw, Trash, Undo2, ZoomIn, ZoomOut } from '@lucide/svelte';
 
+	import PaneResizer from '#lib/components/PaneResizer.svelte';
+	import { COMBINE_LIMITS, shownWidth } from '#lib/components/panes.ts';
 	import type { BookmarkMode, LabelMode } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 
 	import type { CombineState } from './combine.svelte.ts';
+	import CombineFiles from './CombineFiles.svelte';
 	import CombineGrid from './CombineGrid.svelte';
 	import CopyProgress from './CopyProgress.svelte';
 
@@ -26,15 +30,19 @@
 
 	const hasSelection = $derived(combine.selected.length > 0);
 
-	function pagesText(count: number, total: number) {
-		if (count === total) return total === 1 ? '1 page' : `${total.toLocaleString()} pages`;
-		if (count === 0) return 'Left out';
-		return `${count.toLocaleString()} of ${total.toLocaleString()} pages`;
-	}
+	let windowWidth = $state(typeof window === 'undefined' ? 0 : window.innerWidth);
+	const paneWidth = $derived(shownWidth(app.combineWidth, COMBINE_LIMITS, windowWidth));
 </script>
 
+<svelte:window bind:innerWidth={windowWidth} />
+
 <div class="flex min-h-0 flex-1">
-	<aside class="flex w-64 shrink-0 flex-col border-r border-line bg-chrome" aria-label="Files and options">
+	<aside
+		class="relative flex shrink-0 flex-col border-r border-line bg-chrome"
+		style:width="{paneWidth}px"
+		aria-label="Files and options"
+		data-combine-pane
+	>
 		<div class="flex items-center justify-between px-3 pt-3 pb-1">
 			<h2 class="text-sm font-semibold">Files</h2>
 			<button
@@ -48,44 +56,7 @@
 				<FilePlus size={16} aria-hidden="true" />
 			</button>
 		</div>
-		<ul class="min-h-0 flex-1 overflow-y-auto px-2" aria-label="Files">
-			{#each combine.sources as source (source.id)}
-				{@const count = combine.pagesFrom(source.id)}
-				<li class="group flex items-center gap-2 rounded-control py-1.5 pr-1 pl-2 hover:bg-hover">
-					<span
-						class="size-2.5 shrink-0 rounded-full"
-						style:background="var(--lectrix-source-{source.color})"
-						aria-hidden="true"
-					></span>
-					<span class="min-w-0 flex-1">
-						<span class="block truncate" data-tip={source.path}>{source.name}</span>
-						<span class="block text-xs text-fg-muted">{pagesText(count, source.pages.length)}</span>
-					</span>
-					{#if count < source.pages.length}
-						<button
-							type="button"
-							class="icon-button size-7 shrink-0"
-							aria-label="Put back the pages of {source.name} that were removed"
-							data-tip="Put back removed pages"
-							onclick={() => combine.restoreFile(source.id)}
-						>
-							<ArchiveRestore size={14} aria-hidden="true" />
-						</button>
-					{/if}
-					{#if count > 0}
-						<button
-							type="button"
-							class="icon-button size-7 shrink-0"
-							aria-label="Leave out {source.name}"
-							data-tip="Leave out this file"
-							onclick={() => combine.removeFile(source.id)}
-						>
-							<X size={14} aria-hidden="true" />
-						</button>
-					{/if}
-				</li>
-			{/each}
-		</ul>
+		<CombineFiles {combine} />
 		<div class="flex flex-col gap-4 border-t border-line p-3">
 			<fieldset class="flex flex-col gap-1.5">
 				<legend class="mb-1 text-sm font-semibold">Bookmarks</legend>
@@ -106,6 +77,7 @@
 				{/each}
 			</fieldset>
 		</div>
+		<PaneResizer side="left" bind:width={app.combineWidth} shown={paneWidth} limits={COMBINE_LIMITS} label="Files and options" />
 	</aside>
 
 	<section class="flex min-w-0 flex-1 flex-col" aria-label="Combine files">
@@ -165,6 +137,27 @@
 				onclick={() => combine.redo()}
 			>
 				<Redo2 size={16} aria-hidden="true" />
+			</button>
+			<span class="mx-1 h-5 w-px bg-line" aria-hidden="true"></span>
+			<button
+				type="button"
+				class="icon-button"
+				aria-label="Smaller pages"
+				data-tip={app.hint('Smaller pages', 'zoomOut')}
+				disabled={combine.zoom.smaller === null}
+				onclick={() => combine.zoom.zoomStep(-1)}
+			>
+				<ZoomOut size={16} aria-hidden="true" />
+			</button>
+			<button
+				type="button"
+				class="icon-button"
+				aria-label="Larger pages"
+				data-tip={app.hint('Larger pages', 'zoomIn')}
+				disabled={combine.zoom.larger === null}
+				onclick={() => combine.zoom.zoomStep(1)}
+			>
+				<ZoomIn size={16} aria-hidden="true" />
 			</button>
 			<span class="ml-auto truncate pr-2 text-sm text-fg-muted" aria-live="polite">
 				{#if hasSelection}{combine.selected.length.toLocaleString()} selected ·

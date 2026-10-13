@@ -75,10 +75,10 @@
 					describe={(page) => describePage(page.index, tab.pageCount, tab.displayLabels)}
 					label="Pages of {tab.name}"
 					idPrefix="organize-page"
-					thumb={organize.thumb}
-					renderThumb={organize.renderThumb}
-					onzoom={(factor, notch) => (notch ? organize.zoomNotch(factor) : organize.zoomPinch(factor))}
-					onlargest={(size) => organize.setLargest(size)}
+					thumb={organize.zoom.thumb}
+					renderThumb={organize.zoom.renderThumb}
+					onzoom={(factor, notch) => (notch ? organize.zoom.zoomNotch(factor) : organize.zoom.zoomPinch(factor))}
+					onlargest={(size) => organize.zoom.setLargest(size)}
 					captionHeight={CAPTION_HEIGHT}
 					editable={organize.editable}
 					reveal={organize.reveal}
@@ -88,7 +88,7 @@
 				>
 					{#snippet tools(page: GridPage)}
 						<!-- (At most a little wider than the cell, so the bar never reaches out of the grid.) -->
-						<span class="page-cell-label px-1.5" style:max-width="{organize.thumb - 56}px" aria-hidden="true">
+						<span class="page-cell-label px-1.5" style:max-width="{organize.zoom.thumb - 56}px" aria-hidden="true">
 							{captionOf(page.index, tab.displayLabels)}
 						</span>
 						<button

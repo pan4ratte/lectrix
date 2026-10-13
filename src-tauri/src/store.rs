@@ -665,6 +665,7 @@ mod tests {
             thumbnails_fit: true,
             thumbnails_grid: true,
             recent_files_grid: true,
+            combine_width: 300,
         };
         store.set_panes(panes.clone());
         assert_eq!(Store::load(Some(file.clone())).panes(), panes);
@@ -683,6 +684,7 @@ mod tests {
         assert_eq!(partial.thumbnail_width, 112);
         assert!(!partial.thumbnails_fit);
         assert!(!partial.thumbnails_grid);
+        assert_eq!(partial.combine_width, 224);
         // From before panels could move: the sidebar and annotation pane's names.
         fs::write(
             &file,

@@ -1,6 +1,6 @@
 <script lang="ts">
 	// A side pane (section 8): slides open and closed, and resizes from its inner edge with
-	// the pointer or the keyboard (a window splitter: arrows, Home, End; double-click resets).
+	// the pointer or the keyboard (`PaneResizer.svelte`).
 	// The content keeps its width while the pane slides, clipped, so it does not reflow on
 	// every frame. A line on its inner edge parts it from the page, below the top row: that
 	// row and the view bar beside it read as one bar. Full screen (section 6.1) it lies over
@@ -11,7 +11,8 @@
 	import type { Snippet } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 
-	import { PANE_MOTION_MS, clampWidth, keyResize, motionMs, shownWidth, type PaneLimits, type PaneSide } from './panes.ts';
+	import PaneResizer from './PaneResizer.svelte';
+	import { PANE_MOTION_MS, motionMs, shownWidth, type PaneLimits, type PaneSide } from './panes.ts';
 
 	interface Props {
 		side: PaneSide;
@@ -36,8 +37,6 @@
 	let windowWidth = $state(typeof window === 'undefined' ? 0 : window.innerWidth);
 	const shown = $derived(shownWidth(width, limits, windowWidth));
 
-	let drag: { pointer: number; x: number; width: number } | null = $state(null);
-
 	function slide(node: HTMLElement) {
 		// As full screen starts or ends the pane is, or has just been, slid away already.
 		const still = !animate || sliding || node.classList.contains('chrome-away');
@@ -48,30 +47,6 @@
 		}
 		const w = node.getBoundingClientRect().width;
 		return { duration, easing: cubicOut, css: (t: number) => `width: ${t * w}px; opacity: ${t};` };
-	}
-
-	function onPointerDown(event: PointerEvent) {
-		if (event.button !== 0) return;
-		event.preventDefault();
-		(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
-		drag = { pointer: event.pointerId, x: event.clientX, width: shown };
-	}
-
-	function onPointerMove(event: PointerEvent) {
-		if (!drag || event.pointerId !== drag.pointer) return;
-		const dx = event.clientX - drag.x;
-		width = clampWidth(drag.width + (side === 'left' ? dx : -dx), limits);
-	}
-
-	function onPointerUp(event: PointerEvent) {
-		if (drag?.pointer === event.pointerId) drag = null;
-	}
-
-	function onKeyDown(event: KeyboardEvent) {
-		const next = keyResize(shown, event.key, side, limits);
-		if (next === null) return;
-		event.preventDefault();
-		width = next;
 	}
 </script>
 
@@ -99,26 +74,6 @@
 			</div>
 		</div>
 		<span class="pane-edge" class:right-0={side === 'left'} class:left-0={side === 'right'} aria-hidden="true"></span>
-		<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-		<div
-			class="pane-resizer"
-			class:pane-resizer-left={side === 'left'}
-			class:pane-resizer-right={side === 'right'}
-			class:pane-resizer-active={drag !== null}
-			role="separator"
-			aria-orientation="vertical"
-			aria-label="Resize {label.toLowerCase()}"
-			aria-valuemin={limits.min}
-			aria-valuemax={limits.max}
-			aria-valuenow={shown}
-			tabindex="0"
-			data-tip="Drag to resize; double-click to reset"
-			onpointerdown={onPointerDown}
-			onpointermove={onPointerMove}
-			onpointerup={onPointerUp}
-			onpointercancel={onPointerUp}
-			onkeydown={onKeyDown}
-			ondblclick={() => (width = limits.initial)}
-		></div>
+		<PaneResizer {side} bind:width {shown} {limits} {label} />
 	</aside>
 {/if}
