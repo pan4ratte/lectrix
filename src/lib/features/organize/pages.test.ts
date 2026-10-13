@@ -1,6 +1,17 @@
 import { describe, expect, it } from 'vitest';
 
-import { caption, clampThumb, deleteQuestion, deletedMessage, describePage, nudgeGap, stepThumb, THUMB_SIZES } from './pages.ts';
+import {
+	caption,
+	clampThumb,
+	deleteQuestion,
+	deletedMessage,
+	describePage,
+	extractedMessage,
+	insertPlace,
+	nudgeGap,
+	stepThumb,
+	THUMB_SIZES
+} from './pages.ts';
 
 describe('what the grid says about a page', () => {
 	const labels = ['i', 'ii', '', '4', 'A-1'];
@@ -43,6 +54,42 @@ describe('picture sizes', () => {
 		expect(clampThumb(1000)).toBe(THUMB_SIZES[THUMB_SIZES.length - 1]);
 		expect(clampThumb(141.5)).toBe(141.5);
 		expect(clampThumb(Number.NaN)).toBe(160);
+	});
+});
+
+describe('inserting and extracting', () => {
+	const labels = ['i', 'ii', '', '4'];
+
+	it('says where inserted pages go, naming the page before them', () => {
+		expect(insertPlace(0, 4, labels)).toBe('before the first page');
+		expect(insertPlace(2, 4, labels)).toBe('after page ii');
+		// A page whose label is empty is named by its number.
+		expect(insertPlace(3, 4, labels)).toBe('after page 3');
+		expect(insertPlace(4, 4, labels)).toBe('after the last page');
+		expect(insertPlace(2, 4, null)).toBe('after page 2');
+	});
+
+	it('says how many pages went into the new file, and what could not go with them', () => {
+		const report = {
+			pages: 3,
+			renamedDestinations: 0,
+			renamedFields: 0,
+			renamedAttachments: 0,
+			droppedLinks: 0,
+			droppedBookmarks: 0,
+			bookmarksSkipped: false
+		};
+		expect(extractedMessage(report, 'Pages from book.pdf')).toEqual({
+			message: 'Extracted 3 pages into Pages from book.pdf.',
+			suggestion: null
+		});
+		expect(extractedMessage({ ...report, pages: 1, droppedLinks: 1 }, 'a.pdf')).toEqual({
+			message: 'Extracted 1 page into a.pdf.',
+			suggestion: '1 link that led to pages left behind was not copied.'
+		});
+		expect(extractedMessage({ ...report, droppedLinks: 2, droppedBookmarks: 1 }, 'a.pdf').suggestion).toBe(
+			'2 links and 1 bookmark that led to pages left behind were not copied.'
+		);
 	});
 });
 

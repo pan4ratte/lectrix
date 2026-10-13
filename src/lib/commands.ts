@@ -7,7 +7,7 @@ import { addBookmark } from '#lib/features/bookmarks/actions.ts';
 import { openWhatsNew } from '#lib/features/changelog/announce.ts';
 import { toggleFullScreen } from '#lib/features/fullscreen/actions.ts';
 import { showLabels, startRangeAt } from '#lib/features/labels/actions.ts';
-import { toggleOrganize } from '#lib/features/organize/actions.ts';
+import { insertFromFile, toggleOrganize } from '#lib/features/organize/actions.ts';
 import { update } from '#lib/features/update/update.svelte.ts';
 import { copySelection } from '#lib/features/viewer/actions.ts';
 import { normalizeRotation, type ViewMode } from '#lib/features/viewer/layout.ts';
@@ -142,7 +142,7 @@ export const commands = {
 	rotatePages: withTab(() => {
 		app.rotateDialogOpen = true;
 	}),
-	insertPages: withTab((t) => app.insertFromFile(t)),
+	insertPages: withTab((t) => insertFromFile(t)),
 	addBookmark: reading((t) => addBookmark(t)),
 	showPages: reading(() => app.showPanel('pages')),
 	showBookmarks: reading(() => app.showPanel('bookmarks')),

@@ -175,8 +175,9 @@ export const enableEditing = (id: number) => invoke<void>('enable_editing', { id
 // Combining files and inserting pages (section 6.4). Sources are documents opened for
 // that purpose only: not tabs. Close them with closeDocument when they are no longer needed.
 export const openMergeSources = () => invoke<OpenResult[]>('open_merge_sources');
-export const openInsertSource = () => invoke<OpenResult | null>('open_insert_source');
-/** Sends dropped files to the Combine view (true) or into tabs. */
+export const openInsertSources = () => invoke<OpenResult[]>('open_insert_sources');
+/** Sends dropped files to the grid of pages on screen (true: the Combine view's, or that
+ * of a document whose pages are being organized), opened as sources, or into tabs. */
 export const setDropTarget = (combine: boolean) => invoke<void>('set_drop_target', { combine });
 export const planMerge = (sources: number[]) => invoke<MergePlan>('plan_merge', { sources });
 /** Asks where to save, combines with progress, and opens the result. Null if the user cancels the dialog. */

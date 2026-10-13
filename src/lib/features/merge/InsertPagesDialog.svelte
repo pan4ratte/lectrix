@@ -1,21 +1,24 @@
 <script lang="ts">
-	// "Insert pages from file" (section 6.4): which pages of the chosen file, where, and
-	// what happens to its bookmarks and page labels. One undoable step.
+	// "Insert pages from file" (section 6.4): which pages of the chosen file (of several
+	// files, all their pages, in the files' order), and what happens to their bookmarks and
+	// page labels. Where they go is decided before it opens, in the grid of pages (section
+	// 6.7), and it says where. One undoable step for each file.
 	import { Dialog } from 'bits-ui';
 	import { untrack } from 'svelte';
 
 	import Dropdown from '#lib/components/Dropdown.svelte';
+	import { insertPlace } from '#lib/features/organize/pages.ts';
 	import { parsePageRanges } from '#lib/features/viewer/ranges.ts';
 	import type { BookmarkMode, InsertLabelMode } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 
 	const request = $derived(app.insertRequest);
 	const tab = $derived(request ? (app.tabs.find((t) => t.id === request.tabId) ?? null) : null);
+	/** The file, when one came alone: its pages can be picked. */
+	const alone = $derived(request?.sources.length === 1 ? request.sources[0]! : null);
 
 	let which = $state<'all' | 'range'>('all');
 	let rangeText = $state('');
-	let where = $state<'before' | 'after'>('after');
-	let pageText = $state('1');
 	let bookmarks = $state<BookmarkMode>('nest');
 	let labels = $state<InsertLabelMode>('keep');
 	let error = $state('');
@@ -30,22 +33,15 @@
 			rangeText = '';
 			error = '';
 			busy = false;
-			if (current.at === 0) {
-				where = 'before';
-				pageText = '1';
-			} else {
-				where = 'after';
-				pageText = String(current.at);
-			}
 		});
 	});
 
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
 		if (!request || !tab || busy) return;
-		const count = request.source.pages.length;
 		let pages: number[] = [];
-		if (which === 'range') {
+		if (alone && which === 'range') {
+			const count = alone.pages.length;
 			const parsed = parsePageRanges(rangeText, count);
 			if (!parsed?.length) {
 				error = `Enter pages between 1 and ${count}, for example 1-3, 7.`;
@@ -53,14 +49,9 @@
 			}
 			pages = parsed;
 		}
-		const n = Number(pageText);
-		if (!Number.isInteger(n) || n < 1 || n > tab.pageCount) {
-			error = `Enter a page between 1 and ${tab.pageCount}.`;
-			return;
-		}
 		error = '';
 		busy = true;
-		await app.insertPages(pages, where === 'before' ? n - 1 : n, bookmarks, labels);
+		await app.insertPages(pages, bookmarks, labels);
 		busy = false;
 	}
 </script>
@@ -75,60 +66,64 @@
 		<Dialog.Overlay class="dialog-overlay" />
 		<Dialog.Content class="dialog-content w-[440px]">
 			{#if request && tab}
-				<Dialog.Title class="truncate text-base font-semibold">Insert pages from {request.source.name}</Dialog.Title>
+				<Dialog.Title class="truncate text-base font-semibold">
+					Insert pages from {alone ? alone.name : `${request.sources.length} files`}
+				</Dialog.Title>
 				<Dialog.Description class="mt-1 text-sm text-fg-muted">
-					Into {tab.name}. Inserted pages keep their annotations, links and form fields.
+					Into {tab.name}, {insertPlace(request.at, tab.pageCount, tab.displayLabels)}. Inserted pages keep their
+					annotations, links and form fields.
 				</Dialog.Description>
 				<form class="mt-4 flex flex-col gap-4" onsubmit={submit}>
-					<fieldset class="flex flex-col gap-2">
-						<legend class="mb-1 text-sm font-medium">Pages</legend>
-						<label class="flex items-center gap-2">
-							<input type="radio" bind:group={which} value="all" />
-							All {request.source.pages.length.toLocaleString()}
-							{request.source.pages.length === 1 ? 'page' : 'pages'}
-						</label>
-						<label class="flex items-center gap-2">
-							<input type="radio" bind:group={which} value="range" />
-							Pages
-							<input
-								class="field h-7 flex-1"
-								bind:value={rangeText}
-								onfocus={() => (which = 'range')}
-								placeholder="1-3, 7"
-								aria-label="Pages to insert"
-							/>
-						</label>
-					</fieldset>
-					<fieldset class="flex flex-col gap-2">
-						<legend class="mb-1 text-sm font-medium">Where</legend>
-						<div class="flex items-center gap-2">
-							<Dropdown
-								class="h-7 w-32"
-								bind:value={where}
-								label="Before or after"
-								options={[
-									{ value: 'before', label: 'Before page' },
-									{ value: 'after', label: 'After page' }
-								]}
-							/>
-							<input
-								class="field h-7 w-20"
-								bind:value={pageText}
-								inputmode="numeric"
-								aria-label="Page number"
-							/>
-							<span class="text-sm text-fg-muted">of {tab.pageCount.toLocaleString()}</span>
-						</div>
-					</fieldset>
+					{#if !alone}
+						<fieldset class="flex flex-col gap-2">
+							<legend class="mb-1 text-sm font-medium">Files</legend>
+							<ol class="flex max-h-[132px] flex-col gap-1 overflow-y-auto text-sm" aria-label="Files to insert">
+								{#each request.sources as source (source.id)}
+									<li class="flex items-baseline justify-between gap-3">
+										<span class="truncate">{source.name}</span>
+										<span class="shrink-0 text-fg-muted tabular-nums">
+											{source.pages.length === 1 ? '1 page' : `${source.pages.length.toLocaleString()} pages`}
+										</span>
+									</li>
+								{/each}
+							</ol>
+							<p class="text-sm text-fg-muted">Every page of each file, in this order. Undo takes them back a file at a time.</p>
+						</fieldset>
+					{:else}
+						<fieldset class="flex flex-col gap-2">
+							<legend class="mb-1 text-sm font-medium">Pages</legend>
+							<label class="flex items-center gap-2">
+								<input type="radio" bind:group={which} value="all" />
+								All {alone.pages.length.toLocaleString()}
+								{alone.pages.length === 1 ? 'page' : 'pages'}
+							</label>
+							<label class="flex items-center gap-2">
+								<input type="radio" bind:group={which} value="range" />
+								Pages
+								<input
+									class="field h-7 flex-1"
+									bind:value={rangeText}
+									onfocus={() => (which = 'range')}
+									placeholder="1-3, 7"
+									aria-label="Pages to insert"
+								/>
+							</label>
+						</fieldset>
+					{/if}
 					<fieldset class="flex flex-col gap-2">
 						<legend class="mb-1 text-sm font-medium">Bookmarks</legend>
 						<Dropdown
 							class="h-7 w-full"
 							bind:value={bookmarks}
-							label="Bookmarks of the inserted file"
+							label={alone ? 'Bookmarks of the inserted file' : 'Bookmarks of the inserted files'}
 							options={[
-								{ value: 'nest', label: 'One bookmark for the file, with its bookmarks inside' },
-								{ value: 'flat', label: 'The file’s bookmarks as they are' },
+								{
+									value: 'nest',
+									label: alone
+										? 'One bookmark for the file, with its bookmarks inside'
+										: 'One bookmark for each file, with its bookmarks inside'
+								},
+								{ value: 'flat', label: alone ? 'The file’s bookmarks as they are' : 'The files’ bookmarks as they are' },
 								{ value: 'drop', label: 'No bookmarks' }
 							]}
 						/>

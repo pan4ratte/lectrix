@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-insert-sources"
+description = "Enables the open_insert_sources command without any pre-configured scope."
+commands.allow = ["open_insert_sources"]
+
+[[permission]]
+identifier = "deny-open-insert-sources"
+description = "Denies the open_insert_sources command without any pre-configured scope."
+commands.deny = ["open_insert_sources"]

@@ -2,9 +2,11 @@
 // viewer, without the side panes; a page moved, turned and deleted there, each at once and
 // undoable; the question before deleting and what is said after; the bar under the pointer
 // with the page's label and buttons; larger and smaller pictures from the bar, the wheel
-// and a pinch; back to reading, and the saved file.
+// and a pinch; back to reading, and the saved file. Then pages from a file, put where the
+// menu says, and pages into a new file.
 
 import assert from 'node:assert/strict';
+import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
@@ -225,4 +227,107 @@ test('pages are moved, turned and deleted in the grid, and the document follows'
 	// The sixth page went to the fourth place, was turned, and is the third now.
 	assert.match(report, /rotated pages \(page:degrees\): 3:90$/m);
 	assert.deepEqual(outlineLines(path), [], 'the bookmark to the deleted page is gone');
+});
+
+const activeTab = (browser) =>
+	browser.execute(() => document.querySelector('[role="tab"][aria-selected="true"]')?.textContent.trim() ?? '');
+
+test('pages come from files where the menu says, and go into a new file', async () => {
+	const doc = sample('organize-into.pdf', 4);
+	const from = sample('organize-from.pdf', 3);
+	const more = sample('organize-more.pdf', 2);
+	const out = join(OUT, 'organize-extract.pdf');
+	rmSync(out, { force: true });
+
+	// The file dialogs: given up, then two files to insert, then where to save the extract.
+	const { browser, stop } = await launch([doc], { dialogs: [null, [from, more], out] });
+	try {
+		await waitForDocument(browser);
+		// While reading, the command shows the grid for the pages to go into. Giving the
+		// file up goes back to reading.
+		await (await browser.$('button=Document')).click();
+		await (await browser.$('div*=Insert pages from file')).click();
+		await browser.waitUntil(async () => (await reading(browser)) && !(await organizing(browser)), {
+			timeoutMsg: 'giving the file up did not go back to reading'
+		});
+
+		await startOrganizing(browser);
+		await browser.waitUntil(async () => (await keys(browser)).length === 4, { timeoutMsg: 'not every page is in the grid' });
+		const k = await keys(browser);
+
+		// The menu of the third page, from the keyboard: it is for the selected pages.
+		await clickPage(browser, 2);
+		await browser.keys(['Shift', 'F10']);
+		const menu = await browser.$('[role=menu]');
+		await menu.waitForDisplayed({ timeoutMsg: 'Shift+F10 opened no menu' });
+		await browser.saveScreenshot(join(OUT, 'organize-menu.png'));
+		const items = await browser.execute(() => [...document.querySelectorAll('[role=menu] [role=menuitem]')].map((i) => i.textContent.trim()));
+		assert.deepEqual(
+			items.map((i) => i.replace(/(Shift\+R|R|Del|Enter)$/, '').trim()),
+			[
+				'Rotate clockwise',
+				'Rotate counter-clockwise',
+				'Delete page…',
+				'Extract page into a new file…',
+				'Insert pages from file before…',
+				'Insert pages from file after…',
+				'Read from this page'
+			]
+		);
+		await (await browser.$('div*=Insert pages from file before')).click();
+		const dialog = await browser.$('[role=dialog]');
+		await dialog.waitForDisplayed();
+		// Two files: every page of each, in their order; the dialog lists them and does not
+		// ask which pages.
+		const asked = await dialog.getText();
+		assert.match(asked, /Insert pages from 2 files/);
+		assert.match(asked, /Into organize-into\.pdf, after page 2\./);
+		assert.match(asked, /organize-from\.pdf\s+3 pages\s+organize-more\.pdf\s+2 pages/);
+		assert.equal(await (await browser.$('input[aria-label="Pages to insert"]')).isExisting(), false);
+		await (await browser.$('button=Insert')).click();
+		const count = await browser.$('[data-organize-count]');
+		await browser.waitUntil(async () => (await count.getText()) === '5 of 9 pages selected', {
+			timeoutMsg: `the pages did not arrive: ${await count.getText()}`
+		});
+		const after = await keys(browser);
+		assert.deepEqual([after[0], after[1], after[7], after[8]], k, 'the document’s own pages moved otherwise');
+		await browser.waitUntil(async () => (await bodyText(browser)).includes('Inserted 5 pages from 2 files.'), {
+			timeoutMsg: 'nothing said about the insertion'
+		});
+		// Undo takes the files back one at a time: the second one's two pages first.
+		await browser.keys(['Control', 'z']);
+		await browser.waitUntil(async () => (await keys(browser)).length === 7, { timeoutMsg: 'undo did not take a file back' });
+		assert.deepEqual(await keys(browser), [after[0], after[1], after[2], after[3], after[4], after[7], after[8]]);
+		await browser.keys(['Control', 'y']);
+		await browser.waitUntil(async () => (await keys(browser)).length === 9, { timeoutMsg: 'redo did not bring it again' });
+
+		// A right click on a page that is not selected selects it for the menu.
+		await (await browser.$('[data-organize-view] [role=option][aria-posinset="1"] [data-picture]')).click({ button: 'right' });
+		await (await browser.$('[role=menu]')).waitForDisplayed();
+		assert.equal(await count.getText(), '1 of 9 pages selected');
+		await browser.keys('Escape');
+		await (await browser.$('[role=menu]')).waitForDisplayed({ reverse: true });
+
+		// The first file's pages into a new file, with the changes not saved yet: it opens
+		// in a tab of its own, and the document keeps its pages.
+		await clickPage(browser, 2);
+		await browser.keys(['Shift', 'ArrowRight']);
+		await browser.keys(['Shift', 'ArrowRight']);
+		assert.equal(await count.getText(), '3 of 9 pages selected');
+		await (await browser.$('button[aria-label="Extract selected pages"]')).click();
+		await browser.waitUntil(async () => (await activeTab(browser)).includes('organize-extract.pdf'), {
+			timeoutMsg: `the new file did not open: ${await activeTab(browser)}`
+		});
+		await waitForDocument(browser);
+		assert.match(await statusText(browser), /of 3/);
+		assert.match(await bodyText(browser), /Extracted 3 pages into organize-extract\.pdf\./);
+		await browser.keys(['Control', 'Tab']);
+		await browser.waitUntil(() => organizing(browser), { timeoutMsg: 'the document left the grid' });
+		assert.equal(await (await browser.$('[data-organize-count]')).getText(), '3 of 9 pages selected');
+	} finally {
+		await stop();
+	}
+
+	assert.match(cli('info', out), /^pages: 3$/m);
+	assert.match(cli('info', doc), /^pages: 4$/m, 'the document was saved, or changed on disk');
 });

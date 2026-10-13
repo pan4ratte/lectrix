@@ -3,6 +3,7 @@
 
 import { tools } from '#lib/features/annotations/state.svelte.ts';
 import { fullscreen } from '#lib/features/fullscreen/fullscreen.svelte.ts';
+import type { OpenResult } from '#lib/ipc/index.ts';
 import { isTextInput } from '#lib/shortcuts.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -38,6 +39,30 @@ export function leaveOrganize(tab: DocTab, page?: number) {
 		tab.currentPage = page;
 		tab.pendingPosition = { page, offset: 0 };
 	}
+}
+
+/**
+ * Insert pages from files (section 6.4): asks for the files, then for the options. The
+ * pages go into the grid of pages, which is shown for it if it is not yet (and left again
+ * if the insertion is given up): before page `at`, or else after the selected pages, or
+ * the page the document is at.
+ */
+export async function insertFromFile(tab: DocTab, at?: number) {
+	if (app.inserting || !app.canInsert(tab)) return;
+	const started = !tab.organize;
+	if (started) {
+		await organizePages(tab);
+		if (at !== undefined && at > 0) tab.organize?.show(at - 1, false);
+	}
+	const organize = tab.organize;
+	if (!organize) return;
+	await app.insertFromFile(tab, at ?? organize.insertGap(), started ? () => leaveOrganize(tab) : undefined);
+}
+
+/** Files dropped on the grid of pages were opened: their pages are inserted where they
+ * were dropped, after the options are asked. */
+export function insertDropped(tab: DocTab, results: OpenResult[]) {
+	app.insertOpened(tab, results, tab.organize?.takeDrop() ?? tab.currentPage + 1);
 }
 
 export function toggleOrganize(tab: DocTab) {

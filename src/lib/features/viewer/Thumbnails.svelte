@@ -12,6 +12,7 @@
 	import { chain } from '#lib/components/chain.ts';
 	import { motionMs } from '#lib/components/panes.ts';
 	import { startRangeAt } from '#lib/features/labels/actions.ts';
+	import { insertFromFile } from '#lib/features/organize/actions.ts';
 	import { pageUrl } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -336,7 +337,7 @@
 				<ContextMenu.Item
 					class="menu-item"
 					disabled={!tab.flags.canAssemble}
-					onSelect={() => void app.insertFromFile(tab, contextPage + 1)}
+					onSelect={() => void insertFromFile(tab, contextPage + 1)}
 				>
 					Insert pages from file after this page…
 				</ContextMenu.Item>

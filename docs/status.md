@@ -128,11 +128,14 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
 - **Organizing pages** is being built (plan agreed 2026-10-13; AGENTS.md section 6.7,
   ADR 0018). Done: the engine (`MovePages`, `DeletePages`, extracting pages into a new
   file), the grid shared with the Combine view, and the mode itself, where pages are
-  selected, moved, rotated and deleted. Still to come: extracting and inserting from the
-  grid (the engine and the `extract_pages` command are there; `pdf-cli pages extract`
-  reaches them), page labels edited there in place of their side panel, and rotation in
+  selected, moved, rotated, deleted, inserted from a file and extracted into a new one.
+  Still to come: page labels edited there in place of their side panel, and rotation in
   the viewer turning pages on screen only. What is open meanwhile:
-  - The grid has no context menu yet.
+  - A file dragged in from another program is tested by hand only (the manual checklist):
+    the test driver cannot drag from File Explorer. The gap under it is worked out from
+    the position Tauri reports, in device pixels.
+  - Inserting pages shows no progress and cannot be stopped (one operation on the
+    document, as before); the dialog says "Inserting…" meanwhile.
   - The side panes are not shown while pages are organized (the user's decision,
     2026-10-13), so page labels can be edited only while reading until their editor
     moves into the tool.

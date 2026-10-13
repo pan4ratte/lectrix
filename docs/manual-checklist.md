@@ -185,6 +185,13 @@ Needs an installed earlier release and a newer one published (ADR 0011,
       pictures follow the fingers and glide for the wheel, and the page under the pointer
       stays under it. Point at a page: its label gives way to a bar with the label and
       the buttons that rotate and delete that page.
+- [ ] Drag a PDF from File Explorer over the grid: a line shows the gap under the pointer
+      and follows it (also on a second monitor with another display scale), and the grid
+      scrolls near its top and bottom edges. Drop it: the dialog names that place, and the
+      inserted pages are there, selected. Drop two files at once, one of them protected by
+      a password: the dialog comes after the password and lists both, and both go in.
+- [ ] Select a chapter's pages and extract them: the new file opens in a tab with their
+      bookmarks, annotations and page labels, and opens the same in Acrobat Reader.
 - [ ] Delete a chapter's first page: Lectrix asks first, then says what went with it and
       offers Save As (optimized). Back in the viewer, the table of contents' other lines
       still lead to their chapters, and Undo brings the page and its bookmark back.

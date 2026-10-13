@@ -1,24 +1,33 @@
 <script lang="ts">
-	// Progress while combining (section 8: long operations show progress and can be
-	// cancelled). Stopping writes nothing and leaves an existing file of that name alone.
+	// Progress while pages are copied into a new file: combining files, extracting pages
+	// (section 8: long operations show progress and can be cancelled). Stopping writes
+	// nothing and leaves an existing file of that name alone.
 	import { AlertDialog } from 'bits-ui';
 
-	import type { CombineState } from './combine.svelte.ts';
+	import type { MergeProgress } from '#lib/ipc/index.ts';
 
-	let { combine }: { combine: CombineState } = $props();
+	interface Props {
+		/** What is going on: "Combining files". */
+		heading: string;
+		/** Shown once the first progress is in; null when nothing is copied. */
+		progress: MergeProgress | null;
+		stopping: boolean;
+		onstop: () => void;
+	}
 
-	const progress = $derived(combine.progress);
+	let { heading, progress, stopping, onstop }: Props = $props();
+
 	const copying = $derived(progress?.stage === 'copying');
 	const share = $derived(progress && copying && progress.total > 0 ? progress.done / progress.total : null);
 	const status = $derived.by(() => {
-		if (combine.stopping) return 'Stopping…';
+		if (stopping) return 'Stopping…';
 		if (!progress) return '';
 		if (progress.stage === 'writing') return 'Writing the file…';
 		return `Copying pages: ${progress.done.toLocaleString()} of ${progress.total.toLocaleString()}`;
 	});
 </script>
 
-<AlertDialog.Root open={combine.running && progress !== null}>
+<AlertDialog.Root open={progress !== null}>
 	<AlertDialog.Portal>
 		<AlertDialog.Overlay class="dialog-overlay" />
 		<AlertDialog.Content
@@ -26,12 +35,12 @@
 			escapeKeydownBehavior="ignore"
 			interactOutsideBehavior="ignore"
 		>
-			<AlertDialog.Title class="text-base font-semibold">Combining files</AlertDialog.Title>
+			<AlertDialog.Title class="text-base font-semibold">{heading}</AlertDialog.Title>
 			<AlertDialog.Description class="mt-2 text-sm text-fg-muted" aria-live="polite">{status}</AlertDialog.Description>
 			<div
 				class="mt-4 h-1.5 overflow-hidden rounded-full bg-line"
 				role="progressbar"
-				aria-label="Combining progress"
+				aria-label="{heading}: progress"
 				aria-valuemin={0}
 				aria-valuemax={progress?.total ?? 0}
 				aria-valuenow={copying ? progress?.done : undefined}
@@ -43,7 +52,7 @@
 				{/if}
 			</div>
 			<div class="mt-6 flex justify-end">
-				<button type="button" class="button" disabled={combine.stopping} onclick={() => combine.stop()}>Stop</button>
+				<button type="button" class="button" disabled={stopping} onclick={onstop}>Stop</button>
 			</div>
 		</AlertDialog.Content>
 	</AlertDialog.Portal>

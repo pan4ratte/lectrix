@@ -1,7 +1,8 @@
 <script lang="ts">
 	// Every page of the result in one grid (section 6.4): the shared page grid, with each
-	// page's file under it and buttons to turn or remove it. Selecting, dragging and the
-	// keys are the grid's (`PageGrid.svelte`).
+	// page's label and file under it. Under the pointer, the label has the buttons that
+	// turn or remove its page after it, in a bar in the label's place. Selecting, dragging
+	// and the keys are the grid's (`PageGrid.svelte`).
 	import { RotateCcw, RotateCw, X } from '@lucide/svelte';
 
 	import PageGrid from '#lib/components/PageGrid.svelte';
@@ -32,6 +33,9 @@
 		return label && label !== number ? `${label} (${number})` : number;
 	}
 
+	/** The side of the square each picture is fitted into (the grid's own). */
+	const THUMB = 120;
+
 	function describe(page: CombinePage, index: number): string {
 		const source = combine.source(page.source);
 		const turned = page.rotation ? `, turned ${page.rotation}°` : '';
@@ -46,11 +50,14 @@
 	{describe}
 	label="Pages of the combined file"
 	idPrefix="combine-page"
+	thumb={THUMB}
 >
 	{#snippet tools(page: CombinePage)}
+		<!-- (At most a little wider than the cell, so the bar never reaches out of the grid.) -->
+		<span class="truncate px-1.5 text-xs tabular-nums" style:max-width="{THUMB - 40}px" aria-hidden="true">{labelOf(page)}</span>
 		<button
 			type="button"
-			class="icon-button size-6"
+			class="icon-button icon-button-small"
 			tabindex="-1"
 			aria-label="Turn counter-clockwise"
 			data-tip="Turn counter-clockwise (Shift+R)"
@@ -60,7 +67,7 @@
 		</button>
 		<button
 			type="button"
-			class="icon-button size-6"
+			class="icon-button icon-button-small"
 			tabindex="-1"
 			aria-label="Turn clockwise"
 			data-tip="Turn clockwise (R)"
@@ -70,7 +77,7 @@
 		</button>
 		<button
 			type="button"
-			class="icon-button size-6"
+			class="icon-button icon-button-small"
 			tabindex="-1"
 			aria-label="Remove"
 			data-tip="Remove (Del)"
@@ -81,7 +88,10 @@
 	{/snippet}
 	{#snippet caption(page: CombinePage)}
 		{@const source = combine.source(page.source)}
-		<span class="mt-1.5 max-w-full truncate px-1 text-xs tabular-nums">{labelOf(page)}</span>
+		<!-- A line as tall as the bar that shows in its place under the pointer, with the same words. -->
+		<span class="h-[24px] max-w-full shrink-0 truncate px-1 text-xs leading-[24px] tabular-nums group-hover:invisible">
+			{labelOf(page)}
+		</span>
 		<span class="flex max-w-full items-center gap-1 px-1 text-xs text-fg-muted">
 			<span
 				class="size-2 shrink-0 rounded-full"

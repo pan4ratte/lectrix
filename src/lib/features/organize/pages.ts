@@ -3,7 +3,7 @@
 // and its tests share them.
 
 import { pageName } from '#lib/features/viewer/pagebox.ts';
-import type { DeleteReport } from '#lib/ipc/index.ts';
+import type { DeleteReport, MergeReport } from '#lib/ipc/index.ts';
 
 /** The squares the bar's buttons fit a page's picture into, in CSS pixels. The wheel and a
  * pinch give any size from the first to the last. */
@@ -57,6 +57,33 @@ export function nudgeGap(indexes: readonly number[], count: number, direction: 1
 
 function count(n: number, one: string, many: string) {
 	return `${n.toLocaleString()} ${n === 1 ? one : many}`;
+}
+
+/**
+ * Where pages inserted before page `at` (0-based; the page count appends) go, in words:
+ * "after page iv", naming the page as the page box does, or "before the first page".
+ */
+export function insertPlace(at: number, pageCount: number, labels: readonly string[] | null): string {
+	if (at <= 0) return 'before the first page';
+	if (at >= pageCount) return 'after the last page';
+	return `after page ${pageName(at - 1, labels)}`;
+}
+
+/**
+ * What is said once pages are extracted into a new file: how many, where, and what could
+ * not go with them (links and bookmarks that led to pages left behind).
+ */
+export function extractedMessage(report: MergeReport, name: string) {
+	const dropped: string[] = [];
+	if (report.droppedLinks) dropped.push(count(report.droppedLinks, 'link', 'links'));
+	if (report.droppedBookmarks) dropped.push(count(report.droppedBookmarks, 'bookmark', 'bookmarks'));
+	const single = report.droppedLinks + report.droppedBookmarks === 1;
+	return {
+		message: `Extracted ${count(report.pages, 'page', 'pages')} into ${name}.`,
+		suggestion: dropped.length
+			? `${dropped.join(' and ')} that led to pages left behind ${single ? 'was' : 'were'} not copied.`
+			: null
+	};
 }
 
 /** The question asked before pages are deleted. */

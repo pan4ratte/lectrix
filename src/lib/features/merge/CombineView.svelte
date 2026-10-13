@@ -9,7 +9,7 @@
 
 	import type { CombineState } from './combine.svelte.ts';
 	import CombineGrid from './CombineGrid.svelte';
-	import CombineProgress from './CombineProgress.svelte';
+	import CopyProgress from './CopyProgress.svelte';
 
 	let { combine }: { combine: CombineState } = $props();
 
@@ -211,4 +211,9 @@
 	</section>
 </div>
 
-<CombineProgress {combine} />
+<CopyProgress
+	heading="Combining files"
+	progress={combine.running ? combine.progress : null}
+	stopping={combine.stopping}
+	onstop={() => combine.stop()}
+/>

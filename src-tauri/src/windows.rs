@@ -35,7 +35,8 @@ pub struct Windows {
     handoffs: Mutex<HashMap<u32, TabHandoff>>,
     /// The window that last had the focus: files from a second launch open there.
     focused: Mutex<Option<String>>,
-    /// Windows whose dropped files go to their Combine view instead of tabs.
+    /// Windows whose dropped files go to the grid of pages they show (the Combine view, a
+    /// document's pages being organized) instead of tabs.
     drop_to_combine: Mutex<HashSet<String>>,
     /// Minimized windows (their webviews then use less memory).
     minimized: Mutex<HashSet<String>>,

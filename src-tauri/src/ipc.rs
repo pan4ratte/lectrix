@@ -901,7 +901,7 @@ pub enum OperationInput {
     SetPageLabels {
         rules: Vec<LabelRule>,
     },
-    /// Insert pages of a file opened with `open_insert_source` (its document id) before
+    /// Insert pages of a file opened with `open_insert_sources` (its document id) before
     /// page `at` (the page count appends). `pages` (0-based) empty inserts all of them.
     InsertPages {
         source: u32,

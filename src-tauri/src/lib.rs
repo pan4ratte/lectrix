@@ -410,7 +410,7 @@ pub fn run() {
             commands::search_text,
             commands::apply_operation,
             commands::open_merge_sources,
-            commands::open_insert_source,
+            commands::open_insert_sources,
             commands::set_drop_target,
             commands::plan_merge,
             commands::execute_merge,
@@ -472,6 +472,39 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A command the webview may not call fails at run time only ("Something went wrong"),
+    /// so every command handled here must be declared in build.rs and granted in the
+    /// capability file.
+    #[test]
+    fn every_command_is_declared_and_granted() {
+        let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+        let read = |path: &str| std::fs::read_to_string(root.join(path)).unwrap();
+        let lib = read("src/lib.rs");
+        let declared = read("build.rs");
+        let granted = read("capabilities/default.json");
+        let handled = lib
+            .split("generate_handler![")
+            .nth(1)
+            .and_then(|rest| rest.split("])").next())
+            .unwrap();
+        let names: Vec<&str> = handled
+            .lines()
+            .filter_map(|line| line.trim().trim_end_matches(',').rsplit("::").next())
+            .filter(|name| !name.is_empty())
+            .collect();
+        assert!(names.len() > 40, "found only {} commands", names.len());
+        for name in names {
+            assert!(
+                declared.contains(&format!("\"{name}\"")),
+                "{name} is not in build.rs"
+            );
+            assert!(
+                granted.contains(&format!("\"allow-{}\"", name.replace('_', "-"))),
+                "{name} is not granted in capabilities/default.json"
+            );
+        }
+    }
 
     #[test]
     fn window_background_is_the_chrome_colour() {

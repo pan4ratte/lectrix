@@ -37,7 +37,7 @@
 	import { update } from '#lib/features/update/update.svelte.ts';
 	import { firstPagePainted, runPerf, watchPerf } from '#lib/features/viewer/perfrun.ts';
 	import { dispatchPinch } from '#lib/features/viewer/pinch.ts';
-	import { leaveOrganize } from '#lib/features/organize/actions.ts';
+	import { insertDropped, leaveOrganize } from '#lib/features/organize/actions.ts';
 	import OrganizeBar from '#lib/features/organize/OrganizeBar.svelte';
 	import OrganizeView from '#lib/features/organize/OrganizeView.svelte';
 	import RotatePagesDialog from '#lib/features/viewer/RotatePagesDialog.svelte';
@@ -47,7 +47,6 @@
 	import {
 		appReady,
 		closeDeclined,
-		closeDocument,
 		getSettings,
 		logMetric,
 		onDocumentSaved,
@@ -125,6 +124,8 @@
 			return;
 		}
 		if (event.key === 'Escape' && !inInput && tab?.organize) {
+			// An Esc that closes a menu or a dialog does that and nothing more.
+			if (event.target instanceof Element && event.target.closest('[role=menu], [role=dialog], [role=alertdialog]')) return;
 			// Back to reading. (A selection in the grid goes first: the grid keeps that Esc.)
 			leaveOrganize(tab);
 			return;
@@ -221,6 +222,12 @@
 		if (event.ctrlKey) event.preventDefault();
 	}
 
+	// Files dropped on a grid of pages are for it, not for tabs: Rust opens them accordingly.
+	$effect(() => {
+		void app.dropGrid;
+		app.syncDropTarget();
+	});
+
 	// The window's title, for the taskbar and Alt+Tab: what it shows, then the app's name.
 	$effect(() => {
 		const shown = tab?.name ?? (app.combineActive ? 'Combine files' : null);
@@ -261,13 +268,14 @@
 		void startup();
 		const unlisteners = [
 			onDocumentsOpened((results) => app.handleOpenResults(results)),
+			// Files dropped on a grid of pages, opened: the Combine view's, or that of the
+			// document whose pages are being organized (section 6.7).
 			onMergeSourcesAdded((results) => {
-				if (app.combine) {
-					app.combine.addOpened(results);
-				} else {
-					// The Combine view closed while the files were opening.
-					for (const r of results) if (r.kind === 'opened') void closeDocument(r.document.id).catch(() => {});
-				}
+				const grid = app.dropGrid;
+				if (grid === 'organize' && app.active) insertDropped(app.active, results);
+				else if (app.combine && (grid === 'combine' || !grid)) app.combine.addOpened(results);
+				// The grid closed while the files were opening.
+				else app.discardSources(results);
 			}),
 			onFileChanged((event) => app.fileChanged(event.id, event.exists)),
 			// Other windows (section 8): tabs moved into this one, a file opened elsewhere that
@@ -285,8 +293,19 @@
 				void closeDeclined().catch(() => {});
 			}),
 			getCurrentWebview().onDragDropEvent((event) => {
-				const type = event.payload.type;
-				app.dropTarget = type === 'enter' || type === 'over';
+				const drop = event.payload;
+				// Over the grid of a document's pages, the gap the files would go into shows,
+				// in place of the sign across the window.
+				const organize = app.dropGrid === 'organize' ? app.active?.organize : null;
+				if (organize) {
+					app.dropTarget = false;
+					const ratio = window.devicePixelRatio || 1;
+					if (drop.type === 'enter' || drop.type === 'over') organize.fileOver(drop.position.x / ratio, drop.position.y / ratio);
+					else if (drop.type === 'drop') organize.fileDropped();
+					else organize.fileLeft();
+					return;
+				}
+				app.dropTarget = drop.type === 'enter' || drop.type === 'over';
 			})
 		];
 		return () => {

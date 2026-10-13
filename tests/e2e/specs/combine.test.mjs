@@ -1,7 +1,8 @@
 // Stitching (AGENTS.md section 6.4): combine three files (one with bookmarks, one
 // with labels, one with a highlight) after removing, turning and moving pages, with undo;
 // then insert pages from a file into an open document, undo and redo it, and save.
-// And the grid's pointer: a rectangle drawn over it selects pages, a picture drags its page.
+// And the grid's pointer: a rectangle drawn over it selects pages, a picture drags its page,
+// and the page under it shows a bar with its label and buttons.
 
 import assert from 'node:assert/strict';
 import { existsSync, rmSync, writeFileSync } from 'node:fs';
@@ -145,15 +146,23 @@ test('insert pages from a file, undo, redo and save', async () => {
 		const dialog = await browser.$('[role=dialog]');
 		await dialog.waitForDisplayed();
 		assert.match(await dialog.getText(), /Insert pages from insert-from\.pdf/);
-		// Pages 2-3 of the file, after page 1.
+		// Where they go is said, not asked: after the page the document is at, in the grid
+		// of pages, which is shown for it.
+		assert.match(await dialog.getText(), /Into insert-into\.pdf, after page 1\./);
+		assert.equal(await (await browser.$('input[aria-label="Page number"]')).isExisting(), false);
+		assert.equal(await browser.execute(() => document.querySelector('[data-organize-view]') !== null), true);
+		// Pages 2-3 of the file.
 		await (await browser.$('input[aria-label="Pages to insert"]')).setValue('2-3');
-		await (await browser.$('input[aria-label="Page number"]')).setValue('1');
 		await (await browser.$('button=Insert')).click();
+		// The inserted pages are selected there. Then back to reading.
+		await browser.waitUntil(
+			async () => (await (await browser.$('[data-organize-count]')).getText()) === '2 of 5 pages selected',
+			{ timeout: 5000, timeoutMsg: 'the document did not grow to 5 pages' }
+		);
+		await (await browser.$('button=Done')).click();
+		await waitForDocument(browser);
 		const status = () => statusText(browser);
-		await browser.waitUntil(async () => (await status()).includes('of 5'), {
-			timeout: 5000,
-			timeoutMsg: 'the document did not grow to 5 pages'
-		});
+		assert.match(await status(), /of 5/);
 		await (await browser.$('.page')).click();
 		await browser.keys(['Control', 'z']);
 		await browser.waitUntil(async () => (await status()).includes('of 3'), { timeoutMsg: 'undo' });
@@ -321,6 +330,51 @@ test('a rectangle selects the pages it touches, and a picture still drags its pa
 		await release(browser);
 		await waitForCells(browser, [names[5], ...names.slice(0, 5), names[6]], 'moved by dragging its picture');
 		assert.deepEqual(await selectedCells(browser), [0]);
+	} finally {
+		await stop();
+	}
+});
+
+test('the page under the pointer shows a bar with its label and buttons, in the label’s place', async () => {
+	const a = sample('combine-bar.pdf', 3);
+	const { browser, stop } = await launch([], { dialogs: [[a]] });
+	try {
+		await (await browser.$('button*=Combine files')).click();
+		await (await browser.$('button=Add files…')).click();
+		await waitForCells(browser, ['combine-bar.pdf, page 1', 'combine-bar.pdf, page 2', 'combine-bar.pdf, page 3'], 'pages added');
+
+		const second = '[role=option][aria-posinset="2"]';
+		await (await browser.$(`${second} [data-picture]`)).moveTo();
+		await (await browser.$(`${second} [data-tool]`)).waitForDisplayed({ timeoutMsg: 'no bar under the pointer' });
+		const place = await browser.execute((sel) => {
+			const box = (e) => {
+				const r = e.getBoundingClientRect();
+				return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+			};
+			const cell = document.querySelector(sel);
+			// The second line of the caption: the file's name, which the bar leaves alone.
+			const name = [...cell.children].at(-2);
+			return {
+				cell: box(cell),
+				picture: box(cell.querySelector('[data-picture]')),
+				bar: box(cell.querySelector('[data-tool]')),
+				name: { ...box(name), text: name.textContent.trim() },
+				text: cell.querySelector('[data-tool]').textContent.trim(),
+				buttons: [...cell.querySelectorAll('[data-tool] button')].map((b) => b.getAttribute('aria-label'))
+			};
+		}, second);
+		assert.equal(place.text, '2', 'the bar does not show the page’s label');
+		assert.deepEqual(place.buttons, ['Turn counter-clockwise', 'Turn clockwise', 'Remove']);
+		assert.equal(place.name.text, 'combine-bar.pdf');
+		assert.ok(place.bar.top >= place.picture.bottom - 1, `the bar is over the picture: ${JSON.stringify(place)}`);
+		assert.ok(place.bar.bottom <= place.name.top + 1, `the bar is over the file’s name: ${JSON.stringify(place)}`);
+		const middle = (b) => (b.left + b.right) / 2;
+		assert.ok(Math.abs(middle(place.bar) - middle(place.cell)) <= 1, `the bar is not centered: ${JSON.stringify(place)}`);
+		await browser.saveScreenshot(join(OUT, 'combine-bar.png'));
+
+		// Its buttons act on that page alone.
+		await (await browser.$(`${second} [data-tool] button[aria-label="Remove"]`)).click();
+		await waitForCells(browser, ['combine-bar.pdf, page 1', 'combine-bar.pdf, page 3'], 'the bar’s Remove');
 	} finally {
 		await stop();
 	}

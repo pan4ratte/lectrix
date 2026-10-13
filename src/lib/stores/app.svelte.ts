@@ -17,7 +17,7 @@ import {
 	listWindows,
 	moveDocument,
 	onCloseDeclined,
-	openInsertSource,
+	openInsertSources,
 	openRecent,
 	openStartupDocuments,
 	openWithDialog,
@@ -38,6 +38,7 @@ import {
 	type DocumentChange,
 	type DocumentInfo,
 	type InsertLabelMode,
+	type MergeReport,
 	type MoveTarget,
 	type OpenResult,
 	type OperationInput,
@@ -98,12 +99,15 @@ export interface PasswordRequest {
 	purpose: 'open' | 'combine' | 'insert';
 }
 
-/** "Insert pages from file": the file chosen, waiting for the dialog's options. */
+/** "Insert pages from file": the files chosen, waiting for the dialog's options. */
 export interface InsertRequest {
 	tabId: number;
-	source: DocumentInfo;
-	/** Suggested position: insert before this page (0-based; the page count appends). */
+	/** In the order their pages go in. */
+	sources: DocumentInfo[];
+	/** The pages go before this page (0-based; the page count appends). */
 	at: number;
+	/** Run when the insertion is given up: what was started for it is ended. */
+	back?: () => void;
 }
 
 export interface Toast {
@@ -222,7 +226,16 @@ class AppStore {
 	/** "Insert pages from file" waiting for its options. */
 	insertRequest = $state<InsertRequest | null>(null);
 	/** Where pages go when the insert file is still waiting for its password. */
-	private pendingInsert: { tabId: number; at: number } | null = null;
+	/** An insertion whose files are being chosen or opened: each file's place in their
+	 * order (null until it is open, or if it could not be), and the password prompts
+	 * waited for, each with the place of its file. */
+	private pendingInsert: {
+		tabId: number;
+		at: number;
+		back?: () => void;
+		slots: (DocumentInfo | null)[];
+		waiting: Map<number, number>;
+	} | null = null;
 	/** The start screen is on screen while documents (or the Combine view) stay open in
 	 * their tabs: shown from the title bar's icon and name, left by picking a tab. */
 	startShown = $state(false);
@@ -527,7 +540,7 @@ class AppStore {
 		this.passwordPrompts = this.passwordPrompts.filter((p) => p.token !== token);
 		if (password === null) {
 			await cancelUnlock(token);
-			if (prompt?.purpose === 'insert') this.pendingInsert = null;
+			if (prompt?.purpose === 'insert') this.insertPasswordDone(token, null);
 			return;
 		}
 		try {
@@ -537,9 +550,10 @@ class AppStore {
 				// The Combine view closed while the password was asked for.
 				else if (result.kind === 'opened') void closeDocument(result.document.id).catch(() => {});
 			}
-			else if (prompt?.purpose === 'insert') this.insertSourceOpened(result);
+			else if (prompt?.purpose === 'insert') this.insertPasswordDone(token, result);
 			else this.handleOpenResults([result]);
 		} catch (e) {
+			if (prompt?.purpose === 'insert') this.insertPasswordDone(token, null);
 			this.showError(toAppError(e));
 		}
 	}
@@ -588,12 +602,22 @@ class AppStore {
 		}
 		this.startShown = false;
 		this.combineActive = true;
-		void setDropTarget(true).catch(() => {});
 	}
 
 	private leaveCombine() {
 		this.combineActive = false;
-		void setDropTarget(false).catch(() => {});
+	}
+
+	/** The grid of pages on screen, if one is: the Combine view's, or that of a document
+	 * whose pages are being organized. Files dropped on the window go there. */
+	get dropGrid(): 'combine' | 'organize' | null {
+		if (this.combineActive) return 'combine';
+		return !this.startShown && this.active?.organize ? 'organize' : null;
+	}
+
+	/** Tells Rust where dropped files go: opened as sources for a grid of pages, or as tabs. */
+	syncDropTarget() {
+		void setDropTarget(this.dropGrid !== null).catch(() => {});
 	}
 
 	/** Closes the Combine view, after asking if pages were arranged and not combined. */
@@ -650,47 +674,93 @@ class AppStore {
 		if (this.tabs.length === 0 && !this.combine) this.startShown = false;
 	}
 
-	// ----- inserting pages from a file (section 6.4) -----
+	// ----- inserting pages from files (section 6.4) -----
 
-	/** Asks for a file and then for the options; pages go before page `at` by default. */
-	async insertFromFile(tab: DocTab, at = tab.currentPage + 1) {
-		if (this.refuseReadOnly(tab)) return;
-		if (!tab.flags.canAssemble) {
-			this.notify({
-				kind: 'error',
-				message: 'This document’s security settings don’t allow inserting pages.',
-				suggestion: 'Combine it with the other file into a new one instead (File > Combine files).'
-			});
+	/** Whether pages can be inserted into `tab`; says why not. */
+	canInsert(tab: DocTab): boolean {
+		if (this.refuseReadOnly(tab)) return false;
+		if (tab.flags.canAssemble) return true;
+		this.notify({
+			kind: 'error',
+			message: 'This document’s security settings don’t allow inserting pages.',
+			suggestion: 'Combine it with the other file into a new one instead (File > Combine files).'
+		});
+		return false;
+	}
+
+	/** An insertion is under way: its files are being chosen or opened, or its options asked. */
+	get inserting(): boolean {
+		return this.pendingInsert !== null || this.insertRequest !== null;
+	}
+
+	/** Asks for files and then for the options; their pages go before page `at`, in the
+	 * order of the files. `back` runs if the insertion is given up on the way. */
+	async insertFromFile(tab: DocTab, at: number, back?: () => void) {
+		if (this.inserting || !this.canInsert(tab)) {
+			back?.();
 			return;
 		}
-		this.pendingInsert = { tabId: tab.id, at: Math.min(at, tab.pageCount) };
+		this.pendingInsert = { tabId: tab.id, at: Math.min(at, tab.pageCount), back, slots: [], waiting: new Map() };
 		try {
-			const result = await openInsertSource();
-			if (result) this.insertSourceOpened(result);
-			else this.pendingInsert = null;
+			this.insertSourcesOpened(await openInsertSources());
 		} catch (e) {
 			this.pendingInsert = null;
+			back?.();
 			this.showError(toAppError(e));
 		}
 	}
 
-	private insertSourceOpened(result: OpenResult) {
-		const pending = this.pendingInsert;
-		if (result.kind === 'needsPassword') {
-			this.askPassword(result.token, result.name, result.retry, 'insert');
+	/** Asks for the options of files opened already (dropped on the grid of pages), whose
+	 * pages go before page `at`. */
+	insertOpened(tab: DocTab, results: OpenResult[], at: number) {
+		if (this.inserting || !this.canInsert(tab)) {
+			this.discardSources(results);
 			return;
 		}
-		this.pendingInsert = null;
-		if (result.kind === 'failed') {
+		this.pendingInsert = { tabId: tab.id, at: Math.min(at, tab.pageCount), slots: [], waiting: new Map() };
+		this.insertSourcesOpened(results);
+	}
+
+	/** Closes files opened as sources that nothing will use. */
+	discardSources(results: OpenResult[]) {
+		for (const result of results) {
+			if (result.kind === 'opened') void closeDocument(result.document.id).catch(() => {});
+			else if (result.kind === 'needsPassword') void cancelUnlock(result.token).catch(() => {});
+		}
+	}
+
+	/** The files of an insertion, opened or not: each has its place in their order, which
+	 * a file that needs its password keeps until the password is given. */
+	private insertSourcesOpened(results: OpenResult[]) {
+		const pending = this.pendingInsert;
+		if (!pending) {
+			this.discardSources(results);
+			return;
+		}
+		for (const result of results) this.insertSourceOpened(result, pending.slots.push(null) - 1);
+		this.insertSourcesReady();
+	}
+
+	private insertSourceOpened(result: OpenResult, slot: number) {
+		const pending = this.pendingInsert;
+		if (!pending) {
+			this.discardSources([result]);
+			return;
+		}
+		if (result.kind === 'needsPassword') {
+			pending.waiting.set(result.token, slot);
+			this.askPassword(result.token, result.name, result.retry, 'insert');
+		} else if (result.kind === 'failed') {
 			this.notify(
 				{ kind: 'error', message: `${result.name}: ${result.error.message}`, suggestion: result.error.suggestion },
 				12000
 			);
-			return;
-		}
-		if (result.kind !== 'opened' || !pending) return;
-		const source = result.document;
-		if (!source.flags.canCopy) {
+		} else if (result.kind === 'opened') {
+			const source = result.document;
+			if (source.flags.canCopy) {
+				pending.slots[slot] = source;
+				return;
+			}
 			void closeDocument(source.id).catch(() => {});
 			this.notify(
 				{
@@ -700,45 +770,98 @@ class AppStore {
 				},
 				12000
 			);
-			return;
 		}
-		this.insertRequest = { tabId: pending.tabId, source, at: pending.at };
 	}
 
-	/** Inserts the chosen pages (all if empty) before page `at`. */
-	async insertPages(
-		pages: number[],
-		at: number,
-		bookmarks: BookmarkMode,
-		labels: InsertLabelMode
-	): Promise<boolean> {
+	/** A password asked for a file of an insertion was given (`result`) or not (null). */
+	private insertPasswordDone(token: number, result: OpenResult | null) {
+		const pending = this.pendingInsert;
+		const slot = pending?.waiting.get(token);
+		if (!pending || slot === undefined) {
+			if (result) this.discardSources([result]);
+			return;
+		}
+		pending.waiting.delete(token);
+		if (result) this.insertSourceOpened(result, slot);
+		this.insertSourcesReady();
+	}
+
+	/** Once no password is waited for: the options are asked for the files that opened.
+	 * If none did, the insertion ends. */
+	private insertSourcesReady() {
+		const pending = this.pendingInsert;
+		if (!pending || pending.waiting.size > 0) return;
+		this.pendingInsert = null;
+		const sources = pending.slots.filter((source) => source !== null);
+		if (sources.length > 0 && this.tabs.some((t) => t.id === pending.tabId)) {
+			this.insertRequest = { tabId: pending.tabId, sources, at: pending.at, back: pending.back };
+			return;
+		}
+		// (Or the document was closed meanwhile.)
+		for (const source of sources) void closeDocument(source.id).catch(() => {});
+		pending.back?.();
+	}
+
+	/**
+	 * Inserts the files' pages before the place asked for, in the files' order: every page
+	 * of each, or `pages` (0-based; all if empty) of a file that came alone. Each file is
+	 * one step to undo.
+	 */
+	async insertPages(pages: number[], bookmarks: BookmarkMode, labels: InsertLabelMode): Promise<boolean> {
 		const request = this.insertRequest;
 		const tab = request && this.tabs.find((t) => t.id === request.tabId);
 		if (!request || !tab) {
 			this.cancelInsert();
 			return false;
 		}
-		if (request.source.flags.signed && (await this.ask(signedWarning([request.source.name], true))) !== 'go') {
-			return false;
+		const signed = request.sources.filter((s) => s.flags.signed).map((s) => s.name);
+		if (signed.length > 0 && (await this.ask(signedWarning(signed, true))) !== 'go') return false;
+		const alone = request.sources.length === 1;
+		const report: MergeReport = {
+			pages: 0,
+			renamedDestinations: 0,
+			renamedFields: 0,
+			renamedAttachments: 0,
+			droppedLinks: 0,
+			droppedBookmarks: 0,
+			bookmarksSkipped: false
+		};
+		let files = 0;
+		for (const source of request.sources) {
+			const change = await this.apply(tab, {
+				kind: 'insertPages',
+				source: source.id,
+				pages: alone ? pages : [],
+				at: request.at + report.pages,
+				bookmarks,
+				labels
+			});
+			// (What went wrong has been said. The files before this one are in.)
+			if (!change) break;
+			files += 1;
+			const part = change.mergeReport;
+			report.pages += part?.pages ?? (alone && pages.length ? pages.length : source.pages.length);
+			if (!part) continue;
+			report.renamedDestinations += part.renamedDestinations;
+			report.renamedFields += part.renamedFields;
+			report.renamedAttachments += part.renamedAttachments;
+			report.droppedLinks += part.droppedLinks;
+			report.droppedBookmarks += part.droppedBookmarks;
+			report.bookmarksSkipped ||= part.bookmarksSkipped;
 		}
-		const change = await this.apply(tab, {
-			kind: 'insertPages',
-			source: request.source.id,
-			pages,
-			at,
-			bookmarks,
-			labels
-		});
-		if (!change) return false;
-		this.cancelInsert();
+		if (files === 0) return false;
+		this.insertRequest = null;
+		for (const source of request.sources) void closeDocument(source.id).catch(() => {});
 		this.activate(tab.id);
-		tab.viewer?.goTo({ page: at, offset: 0 });
-		const inserted = change.mergeReport?.pages ?? pages.length;
-		const detail = change.mergeReport ? reportDetail(change.mergeReport) : null;
+		// In the grid of pages, the inserted ones are selected, ready to be put elsewhere.
+		if (tab.organize) tab.organize.showRange(request.at, report.pages);
+		else tab.viewer?.goTo({ page: request.at, offset: 0 });
+		const detail = reportDetail(report);
+		const from = files === 1 ? request.sources[0]!.name : `${files} files`;
 		this.notify(
 			{
 				kind: 'info',
-				message: `Inserted ${inserted === 1 ? '1 page' : `${inserted.toLocaleString()} pages`} from ${request.source.name}.`,
+				message: `Inserted ${report.pages === 1 ? '1 page' : `${report.pages.toLocaleString()} pages`} from ${from}.`,
 				suggestion: detail
 			},
 			detail ? 15000 : 6000
@@ -746,11 +869,13 @@ class AppStore {
 		return true;
 	}
 
-	/** Closes the insert dialog and the file it would have taken pages from. */
+	/** Closes the insert dialog and the files it would have taken pages from. */
 	cancelInsert() {
 		const request = this.insertRequest;
 		this.insertRequest = null;
-		if (request) void closeDocument(request.source.id).catch(() => {});
+		if (!request) return;
+		for (const source of request.sources) void closeDocument(source.id).catch(() => {});
+		request.back?.();
 	}
 
 	cycleTab(direction: 1 | -1) {

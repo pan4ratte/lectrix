@@ -713,20 +713,22 @@ pub fn open_merge_sources(
         .collect())
 }
 
-/// Shows the Open dialog for the file to insert pages from, and opens it as a source.
+/// Shows the Open dialog for the files to insert pages from, and opens them as sources.
 #[tauri::command(async)]
-pub fn open_insert_source(
+pub fn open_insert_sources(
     app: AppHandle,
     window: WebviewWindow,
     state: State<'_, AppState>,
-) -> Result<Option<OpenResult>, AppError> {
-    Ok(pick_pdfs(&app, Some("Insert pages from"), false)?
-        .first()
-        .map(|p| windows::adopt(&app, window.label(), state.open_source(p))))
+) -> Result<Vec<OpenResult>, AppError> {
+    Ok(pick_pdfs(&app, Some("Insert pages from"), true)?
+        .iter()
+        .map(|p| windows::adopt(&app, window.label(), state.open_source(p)))
+        .collect())
 }
 
-/// Where files dropped on the asking window go: to its Combine view (`true`, reported as
-/// `merge-sources-added`) or into tabs.
+/// Where files dropped on the asking window go: to the grid of pages it shows (`true`: its
+/// Combine view, or a document whose pages are being organized; they are opened as
+/// sources and reported as `merge-sources-added`) or into tabs.
 #[tauri::command]
 pub fn set_drop_target(window: WebviewWindow, state: State<'_, AppState>, combine: bool) {
     state.windows.set_drop_to_combine(window.label(), combine);

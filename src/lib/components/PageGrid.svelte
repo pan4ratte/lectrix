@@ -44,11 +44,9 @@
 		idPrefix: string;
 		/** The lines under a page's picture. */
 		caption: Snippet<[T, number]>;
-		/** Buttons shown for the page under the pointer. */
+		/** A bar shown for the page under the pointer, centered under its picture, over the
+		 * first line of the caption (24 px): that line's words, then the page's buttons. */
 		tools?: Snippet<[T, number]>;
-		/** Where they show: at a corner of the picture, or over the caption, centered, in its
-		 * place (the snippet then says what the caption says, before its buttons). */
-		toolsAt?: 'corner' | 'caption';
 		/** The square each picture is fitted into, in CSS pixels. */
 		thumb?: number;
 		/** The square the pictures are rendered for, when that is not `thumb`: the size a
@@ -68,6 +66,11 @@
 		reveal?: { key: number } | null;
 		/** Render priority of the page in the middle of the view; pages further off wait longer. */
 		priority?: number;
+		/** Where something from another program (files) is dragged over the window, in
+		 * viewport pixels. The grid shows the gap it would go into, scrolls near its top and
+		 * bottom edges, and reports that gap (null while the point is not on the grid). */
+		dropPoint?: { x: number; y: number } | null;
+		ondropgap?: (gap: number | null) => void;
 	}
 
 	let {
@@ -79,7 +82,6 @@
 		idPrefix,
 		caption,
 		tools,
-		toolsAt = 'corner',
 		thumb = 120,
 		renderThumb,
 		onzoom,
@@ -87,7 +89,9 @@
 		editable = true,
 		onopen,
 		reveal = null,
-		priority = 500_000
+		priority = 500_000,
+		dropPoint = null,
+		ondropgap
 	}: Props = $props();
 
 	const GAP = 8;
@@ -339,6 +343,10 @@
 	/** The rectangle being drawn: its start and end in the grid's content, the selection
 	 * before it, and the part of that it adds to. */
 	let marquee = $state<{ from: { x: number; y: number }; box: Box; before: number[]; base: number[] } | null>(null);
+	/** The gap under what is dragged in from another program. */
+	let outside = $state<Gap | null>(null);
+	/** The line that shows where pages will go: dragged pages, or what is dragged in. */
+	const dropLine = $derived(drag?.gap ?? outside);
 	let autoScroll = 0;
 	let lastPointer = { x: 0, y: 0 };
 
@@ -429,9 +437,38 @@
 		model.setSelection(withKeys(marquee.base, hits), nearest);
 	}
 
-	/** Scrolls while pages are dragged, or a rectangle is drawn, near the top or bottom edge. */
+	// What is dragged in from another program: the gap under it, and scrolling near the edges.
+	$effect(() => {
+		const point = dropPoint;
+		untrack(() => {
+			if (drag || marquee) return;
+			cancelAnimationFrame(autoScroll);
+			if (point) {
+				lastPointer = point;
+				autoScroll = requestAnimationFrame(autoScrollStep);
+			}
+			updateOutside();
+		});
+	});
+
+	function updateOutside() {
+		let gap: Gap | null = null;
+		if (dropPoint && scroller && editable) {
+			const rect = scroller.getBoundingClientRect();
+			const { x, y } = dropPoint;
+			if (x >= rect.left && x <= rect.right && y >= rect.top && y <= rect.bottom) {
+				const at = inContent(x, y);
+				gap = gapAt(grid, items.length, at.x, at.y);
+			}
+		}
+		outside = gap;
+		ondropgap?.(gap?.gap ?? null);
+	}
+
+	/** Scrolls while pages are dragged, a rectangle is drawn, or something is dragged in,
+	 * near the top or bottom edge. */
 	function autoScrollStep() {
-		if ((!drag && !marquee) || !scroller) return;
+		if ((!drag && !marquee && !dropPoint) || !scroller) return;
 		const rect = scroller.getBoundingClientRect();
 		const edge = 40;
 		let dy = 0;
@@ -440,7 +477,8 @@
 		if (dy !== 0) {
 			scroller.scrollTop += dy;
 			if (drag) updateDrop(lastPointer.x, lastPointer.y);
-			else updateMarquee(lastPointer.x, lastPointer.y);
+			else if (marquee) updateMarquee(lastPointer.x, lastPointer.y);
+			else updateOutside();
 		}
 		autoScroll = requestAnimationFrame(autoScrollStep);
 	}
@@ -468,6 +506,16 @@
 		press = null;
 		drag = null;
 		marquee = null;
+	}
+
+	/** A menu is asked for (a right click, Shift+F10): it is for the selected pages, so a
+	 * page that is not selected becomes the selection first. */
+	function onContextMenu(event: MouseEvent) {
+		const cell = (event.target as Element).closest<HTMLElement>('[data-key]');
+		if (!cell || !scroller?.contains(cell)) return;
+		const key = Number(cell.dataset.key);
+		if (!model.selectedSet.has(key)) model.select(key, 'single');
+		else model.focusKey = key;
 	}
 
 	function onDoubleClick(event: MouseEvent) {
@@ -515,6 +563,7 @@
 	onpointercancel={stopPointer}
 	onlostpointercapture={stopPointer}
 	ondblclick={onDoubleClick}
+	oncontextmenu={onContextMenu}
 >
 	<div class="relative" style:height="{totalHeight}px">
 		{#each visible as index (items[index]!.key)}
@@ -568,31 +617,24 @@
 							{/if}
 						</span>
 					</span>
-					{#if tools && editable && toolsAt === 'corner'}
-						<span
-							data-tool
-							class="absolute top-0 right-0 hidden gap-0.5 rounded-control bg-surface-raised p-0.5 shadow-[0_1px_4px_var(--color-page-shadow)] group-hover:flex"
-						>
-							{@render tools(item, index)}
-						</span>
-					{/if}
 				</span>
 				{@render caption(item, index)}
-				{#if tools && editable && toolsAt === 'caption'}
+				{#if tools && editable}
 					<span
 						data-tool
-						class="absolute bottom-0 left-1/2 hidden -translate-x-1/2 items-center gap-px rounded-control bg-surface-raised p-px shadow-[0_1px_4px_var(--color-page-shadow)] group-hover:flex"
+						class="absolute left-1/2 hidden -translate-x-1/2 items-center gap-px rounded-control bg-surface-raised p-px shadow-[0_1px_4px_var(--color-page-shadow)] group-hover:flex"
+						style:top="{CELL_TOP + thumb}px"
 					>
 						{@render tools(item, index)}
 					</span>
 				{/if}
 			</div>
 		{/each}
-		{#if drag?.gap}
+		{#if dropLine}
 			<div
 				class="page-grid-drop-line"
-				style:left="{drag.gap.x - GAP / 2 - 1.5}px"
-				style:top="{drag.gap.y}px"
+				style:left="{dropLine.x - GAP / 2 - 1.5}px"
+				style:top="{dropLine.y}px"
 				style:height="{cellH}px"
 				aria-hidden="true"
 			></div>

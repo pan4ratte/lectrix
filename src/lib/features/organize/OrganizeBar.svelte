@@ -1,13 +1,14 @@
 <script lang="ts">
 	// The bar above the page grid while a document's pages are organized (section 6.7): in
 	// the view bar's place and of its look. Done goes back to reading; the buttons act on the
-	// selected pages; then the size of the pictures, and how many pages are selected.
-	import { RotateCcw, RotateCw, Trash, ZoomIn, ZoomOut } from '@lucide/svelte';
+	// selected pages; then pages from a file and into one, the size of the pictures, and how
+	// many pages are selected.
+	import { FileOutput, FilePlus, RotateCcw, RotateCw, Trash, ZoomIn, ZoomOut } from '@lucide/svelte';
 
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
-	import { leaveOrganize } from './actions.ts';
+	import { insertFromFile, leaveOrganize } from './actions.ts';
 	import type { OrganizeState } from './organize.svelte.ts';
 	import { stepThumb } from './pages.ts';
 
@@ -68,6 +69,27 @@
 		onclick={() => organize.remove(organize.selectedSet)}
 	>
 		<Trash size={16} aria-hidden="true" />
+	</button>
+	{@render rule()}
+	<button
+		type="button"
+		class="icon-button"
+		aria-label="Insert pages from file"
+		data-tip={app.hint('Insert pages from a file, after the selected pages', 'insertPages')}
+		disabled={!organize.editable}
+		onclick={() => void insertFromFile(tab)}
+	>
+		<FilePlus size={16} aria-hidden="true" />
+	</button>
+	<button
+		type="button"
+		class="icon-button"
+		aria-label="Extract selected pages"
+		data-tip="Extract the selected pages into a new file"
+		disabled={selected === 0}
+		onclick={() => organize.extract(organize.selectedSet)}
+	>
+		<FileOutput size={16} aria-hidden="true" />
 	</button>
 	{@render rule()}
 	<button

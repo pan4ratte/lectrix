@@ -11,6 +11,8 @@ the wording, translations): docs/releasing.md, "The changelog".
 ### Combining files
 
 - Drag a rectangle over the pages to select the ones it touches. Start anywhere but on a page’s picture, which still drags the page; hold **Ctrl** or **Shift** to add to the pages already selected.
+- **Insert pages from file** no longer asks for a page number: the pages go after the page you are on, into the grid of pages (see Organizing pages), where they can be dragged anywhere. Several files can be picked at once; their pages go in one file after another.
+- The buttons that turn or remove the page under the pointer are now in a small bar under its picture, beside its label.
 
 ### Organizing pages
 
@@ -21,6 +23,9 @@ the wording, translations): docs/releasing.md, "The changelog".
 - Make the pages larger or smaller with the bar’s buttons, **Ctrl+=** and **Ctrl+-**, **Ctrl** and the mouse wheel, or a pinch on the touchpad.
 - Delete the selected pages with the bar’s button or **Del**. Lectrix asks first, deletes the links and bookmarks that led to them, and closes the page numbering up.
 - After deleting pages, Lectrix says that they stay inside the file until you save with **File > Save As (optimized)**, and offers to do it.
+- Insert pages from other files, one or several at once, with the bar’s button, a right click on a page, or by dragging PDFs from File Explorer into the gap where their pages should go. The inserted pages are selected, ready to be moved.
+- Extract the selected pages into a new file with the bar’s button or a right click. The new file opens in a tab, with the pages’ annotations, bookmarks and page labels; the document keeps its pages.
+- A right click on a page, or **Shift+F10**, offers everything that can be done with the selected pages.
 - Every change applies to the document at once and can be undone with **Ctrl+Z**.
 
 ## 1.1.0
