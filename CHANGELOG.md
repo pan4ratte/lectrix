@@ -60,6 +60,11 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 - **Appearance** has a **Visual adjustments** section: brightness, contrast, sepia, inverted colours and greyscale for the pages of every document, with **Reset**. A document you adjust by itself keeps its own adjustments; **Reset** in its Visual adjustments panel goes back to the ones in Settings.
 
+### Installation and updates
+
+- On Windows, Lectrix now comes as one installer, the setup program, which installs it for you alone or for everyone who uses the computer. The separate MSI package is gone.
+- A copy installed from the MSI package updates as before. Its first update replaces it with the setup program’s install and keeps whether Lectrix opens PDF files.
+
 ### General
 
 - Notifications grow into view and shrink away, the others making way for them, and have a slight shadow.

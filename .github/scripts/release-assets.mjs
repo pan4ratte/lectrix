@@ -27,13 +27,16 @@ function platformOf(target) {
 	throw new Error(`unknown target ${target}`);
 }
 
-/** The bundle type the updater uses on each OS when it doesn't know how it was installed. */
+/**
+ * The bundle type the updater uses on each OS when it doesn't know how it was installed, or
+ * finds no entry for how it was: a copy installed from the Windows MSI, which is no longer
+ * made, updates through the NSIS installer (ADR 0020).
+ */
 const DEFAULT_BUNDLE = { windows: 'nsis', darwin: 'app', linux: 'appimage' };
 
 /** What each bundler output is, and the name it gets in the release. */
 function classify(dir, name, version, arch) {
 	if (dir === 'nsis' && name.endsWith('-setup.exe')) return { bundle: 'nsis', asset: name };
-	if (dir === 'msi' && name.endsWith('.msi')) return { bundle: 'msi', asset: name };
 	if (dir === 'appimage' && name.endsWith('.AppImage')) return { bundle: 'appimage', asset: name };
 	if (dir === 'deb' && name.endsWith('.deb')) return { bundle: 'deb', asset: name };
 	if (dir === 'rpm' && name.endsWith('.rpm')) return { bundle: 'rpm', asset: name };

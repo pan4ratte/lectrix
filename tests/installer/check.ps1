@@ -1,10 +1,11 @@
-# Installs and uninstalls Lectrix's NSIS and MSI installers silently, with and without the
-# PDF file registration, per user and per machine, and checks the registry and files each
-# time (ADR 0007, ADR 0015).
+# Installs and uninstalls Lectrix's installer (NSIS) silently, with and without the PDF file
+# registration, per user and per machine, and checks the registry and files each time
+# (ADR 0007, ADR 0015). Then it has the installer take over an install made by the MSI that
+# Lectrix had up to 1.1.0, as an in-app update of such a copy does (ADR 0020).
 #
 # It really installs Lectrix, so it is meant for CI runners (it needs an elevated shell).
 # Run it on your own machine only if you are happy for Lectrix to be installed and removed
-# again. Needs the installers from `npm run bundle`.
+# again. Needs the installer from `npm run bundle`, and the network for the 1.1.0 MSI.
 #
 #   powershell -ExecutionPolicy Bypass -File tests/installer/check.ps1
 
@@ -12,8 +13,7 @@ $ErrorActionPreference = 'Stop'
 $root = Resolve-Path (Join-Path $PSScriptRoot '..\..')
 $bundle = Join-Path $root 'target\release\bundle'
 $nsis = Get-ChildItem (Join-Path $bundle 'nsis\*-setup.exe') | Select-Object -First 1
-$msi = Get-ChildItem (Join-Path $bundle 'msi\*.msi') | Select-Object -First 1
-if (-not $nsis -or -not $msi) { throw "installers not found in $bundle; run npm run bundle" }
+if (-not $nsis) { throw "installer not found in $bundle; run npm run bundle" }
 $logs = Join-Path $root 'target\test-output\installer'
 New-Item -ItemType Directory -Force $logs | Out-Null
 
@@ -35,7 +35,7 @@ function Has-Value([string]$key, [string]$name) {
     try { $null = Get-ItemProperty -LiteralPath $key -Name $name -ErrorAction Stop; $true } catch { $false }
 }
 
-# The registration both installers write, under HKCU (per user) or HKLM (per machine).
+# The registration the installer writes, under HKCU (per user) or HKLM (per machine).
 function Check-Registration([string]$hive, [bool]$expected, [string]$exe) {
     $classes = "${hive}:\Software\Classes"
     $command = Get-Value "$classes\$progId\shell\open\command" '(default)'
@@ -110,7 +110,7 @@ function Uninstall-Nsis([hashtable]$case) {
     Check (-not (Test-Path (Join-Path $case.Dir 'lectrix-pdf.ico'))) 'PDF icon removed'
     Check-Registration $case.Hive $false $exe
     Check (-not (Test-Path "$($case.Hive):\$uninstKey")) "$($case.Hive) has no uninstall entry"
-    # The MSI would otherwise read this and install into the NSIS folder.
+    # A later install would otherwise start from this folder, whatever its mode.
     Check ($null -eq (Get-Value "$($case.Hive):\Software\$manufacturer\$product" '(default)')) 'install location forgotten'
     Remove-Item -Recurse -Force $case.Dir -ErrorAction SilentlyContinue
 }
@@ -143,17 +143,36 @@ Check-Nsis $case ' after the update'
 Check (Has-Value "HKCU:\$uninstKey" 'CurrentUser') 'the update recorded the per-user mode'
 Uninstall-Nsis $case
 
-# --- MSI (per machine) -----------------------------------------------------------------
-$msiExe = Join-Path $env:ProgramFiles "$product\lectrix.exe"
+# --- Taking over an MSI install (ADR 0020) ---------------------------------------------
+# Lectrix 1.1.0 was the last version with an MSI. A copy installed from it finds no MSI in
+# later releases and updates through this installer, which must remove the MSI install,
+# ask nothing, and keep its folder and its PDF registration.
+$oldMsi = Join-Path ([IO.Path]::GetTempPath()) 'Lectrix_1.1.0_x64_en-US.msi'
+$oldMsiHash = '4C96C557053013BC8DB38E6891F503F800D42B7AE9DAE3FEADC8350F30D748B7'
+Invoke-WebRequest "https://github.com/pan4ratte/lectrix/releases/download/v1.1.0/$(Split-Path $oldMsi -Leaf)" -OutFile $oldMsi
+if ((Get-FileHash -LiteralPath $oldMsi -Algorithm SHA256).Hash -ne $oldMsiHash) { throw "$oldMsi is not the released 1.1.0 MSI" }
+
+# Windows Installer lists a product under its product code, not under Lectrix's own key.
+function Get-MsiInstalls {
+    Get-ChildItem 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall' | Where-Object {
+        $_.GetValue('DisplayName') -eq $product -and "$($_.GetValue('UninstallString'))" -match 'msiexec'
+    }
+}
+
 foreach ($case in @(@{ Props = @(); Registered = $true; Log = 'msi-default' }, @{ Props = @('LECTRIX_ASSOCIATE_PDF=0'); Registered = $false; Log = 'msi-no-pdf' })) {
-    Write-Host "MSI $($msi.Name) $($case.Props -join ' ')"
-    Run 'msiexec.exe' (@('/i', "`"$($msi.FullName)`"", '/qn', '/norestart', '/l*v', "`"$logs\$($case.Log)-install.log`"") + $case.Props)
-    Check (Test-Path $msiExe) "lectrix.exe installed in $(Split-Path $msiExe)"
+    Write-Host "MSI 1.1.0 $($case.Props -join ' '), then $($nsis.Name) /P /UPDATE"
+    Run 'msiexec.exe' (@('/i', "`"$oldMsi`"", '/qn', '/norestart', '/l*v', "`"$logs\$($case.Log)-install.log`"") + $case.Props)
+    $msiExe = Join-Path $machineDir 'lectrix.exe'
+    Check (Test-Path $msiExe) "the MSI installed lectrix.exe in $machineDir"
+    Check (@(Get-MsiInstalls).Count -eq 1) 'the MSI install is listed'
     Check-Registration 'HKLM' $case.Registered $msiExe
-    Run 'msiexec.exe' @('/x', "`"$($msi.FullName)`"", '/qn', '/norestart', '/l*v', "`"$logs\$($case.Log)-uninstall.log`"")
-    Check (-not (Test-Path $msiExe)) 'lectrix.exe removed'
-    Check (-not (Test-Path (Join-Path (Split-Path $msiExe) 'lectrix-pdf.ico'))) 'PDF icon removed'
-    Check-Registration 'HKLM' $false $msiExe
+
+    Run $nsis.FullName @('/P', '/UPDATE')
+    Check (@(Get-MsiInstalls).Count -eq 0) 'the MSI install is gone'
+    $taken = @{ Dir = $machineDir; Hive = 'HKLM'; Registered = $case.Registered }
+    Check-Nsis $taken ' after the update'
+    Check (Has-Value "HKLM:\$uninstKey" 'AllUsers') 'the update recorded the per-machine mode'
+    Uninstall-Nsis $taken
 }
 
 $pdfDefaultAfter = @(

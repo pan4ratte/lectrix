@@ -56,14 +56,6 @@
         "installMode": "both",
         "installerIcon": "icons/icon.ico",
         "uninstallerIcon": "icons/icon.ico"
-      },
-      "wix": {
-        "fragmentPaths": [
-          "windows/pdf-association.wxs"
-        ],
-        "featureRefs": [
-          "PdfAssociation"
-        ]
       }
     },
     "icon": [

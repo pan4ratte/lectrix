@@ -107,8 +107,8 @@ jobs:
           name: interop-output
           path: target/test-output/interop
 
-      # npm run bundle: tauri build with the MSI version for a pre-release (ADR 0011).
-      - name: Build installers
+      # On Windows this is the NSIS installer alone (ADR 0020).
+      - name: Build the installer
         id: build
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: npm run bundle
@@ -119,8 +119,9 @@ jobs:
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: python tests/licenses/notices.py --check
 
-      # Installs and uninstalls both installers silently, with and without the PDF file
-      # registration, and checks the registry (ADR 0007).
+      # Installs and uninstalls the installer silently, with and without the PDF file
+      # registration, and checks the registry (ADR 0007). Then it updates an install made
+      # by the 1.1.0 MSI, which it downloads from that release (ADR 0020).
       - name: Installer check
         id: installer
         if: ${{ !cancelled() && steps.build.outcome == 'success' }}
@@ -160,9 +161,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: installers
-          path: |
-            target/release/bundle/nsis/*.exe
-            target/release/bundle/msi/*.msi
+          path: target/release/bundle/nsis/*.exe
 
   # Build-only jobs for macOS and Linux (AGENTS.md section 9): the app and its tests must
   # compile there. The tests also run, without failing the job, to show what still

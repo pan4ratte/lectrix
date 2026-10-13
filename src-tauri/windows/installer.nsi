@@ -1,7 +1,9 @@
 ; Lectrix's NSIS installer template: Tauri's own template from @tauri-apps/cli 2.12.1
 ; (crates/tauri-bundler/src/bundle/windows/nsis/installer.nsi at tag tauri-cli-v2.12.1),
-; plus a page that asks whether Lectrix should open PDF files (ADR 0007). Every change is marked "Lectrix:". When the Tauri CLI is upgraded,
-; take its new template and apply the marked changes again.
+; plus a page that asks whether Lectrix should open PDF files (ADR 0007), and a quiet
+; takeover of an install made by the MSI that Lectrix had up to 1.1.0 (ADR 0020). Every
+; change is marked "Lectrix:". When the Tauri CLI is upgraded, take its new template and
+; apply the marked changes again.
 ;
 ; Silent and passive installs register Lectrix for PDF files unless /NOPDF is given.
 Unicode true
@@ -85,6 +87,8 @@ Var OldMainBinaryName
 ; Lectrix: 1 to register Lectrix for PDF files, and the checkbox that sets it.
 Var AssociatePdf
 Var AssociatePdfCheckbox
+; Lectrix: 1 if the MSI install this installer replaces was registered for PDF files.
+Var WixAssociatedPdf
 
 ; Lectrix: how Lectrix is registered for PDF files. It joins the apps Windows offers for
 ; .pdf (Open with, Default apps) without taking over the default: Windows asks the user
@@ -385,11 +389,32 @@ Function PageLeaveReinstall
   ${EndIf}
 
   reinst_uninstall:
+    ; Lectrix: an install made by the MSI Lectrix had up to 1.1.0 is replaced by this one
+    ; (ADR 0020). The MSI takes its PDF registration with it, so note whether it had one:
+    ; the page that asks starts from that, and an update keeps it. Lectrix must not be
+    ; running while the MSI removes it (the Install section checks only later).
+    ${If} $WixMode = 1
+      ClearErrors
+      ReadRegStr $R7 HKLM "Software\Classes\${LECTRIX_PROGID}" ""
+      ${If} ${Errors}
+        StrCpy $WixAssociatedPdf 0
+        StrCpy $AssociatePdf 0
+      ${Else}
+        StrCpy $WixAssociatedPdf 1
+      ${EndIf}
+      ; The MSI's folder, which Windows Installer writes with its last backslash.
+      ReadRegStr $R7 HKLM "$R6" "InstallLocation"
+      !insertmacro CheckIfAppIsRunning "$R7${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
+    ${EndIf}
+
     HideWindow
     ClearErrors
 
     ${If} $WixMode = 1
       ReadRegStr $R1 HKLM "$R6" "UninstallString"
+      ; Lectrix: a passive install (an in-app update) asks nothing, so the MSI must not ask
+      ; "Are you sure you want to uninstall this product?" either.
+      ${IfThen} $PassiveMode = 1 ${|} StrCpy $R1 "$R1 /passive /norestart" ${|}
       ExecWait '$R1' $0
     ${Else}
       ReadRegStr $4 SHCTX "${MANUPRODUCTKEY}" ""
@@ -757,14 +782,19 @@ Section Install
   {{/each}}
 
   ; Lectrix: an update (the in-app updater runs this installer with /UPDATE, ADR 0011)
-  ; keeps the earlier choice: Lectrix stays registered for PDF files only if it was.
+  ; keeps the earlier choice: Lectrix stays registered for PDF files only if it was. An
+  ; MSI install is gone by now, registration and all, so its choice was noted before.
   ${If} $UpdateMode = 1
-    ClearErrors
-    ReadRegStr $R0 SHCTX "Software\Classes\${LECTRIX_PROGID}" ""
-    ${If} ${Errors}
-      StrCpy $AssociatePdf 0
+    ${If} $WixMode = 1
+      StrCpy $AssociatePdf $WixAssociatedPdf
     ${Else}
-      StrCpy $AssociatePdf 1
+      ClearErrors
+      ReadRegStr $R0 SHCTX "Software\Classes\${LECTRIX_PROGID}" ""
+      ${If} ${Errors}
+        StrCpy $AssociatePdf 0
+      ${Else}
+        StrCpy $AssociatePdf 1
+      ${EndIf}
     ${EndIf}
   ${EndIf}
 
@@ -976,9 +1006,9 @@ Section Uninstall
   ${If} $UpdateMode <> 1
     DeleteRegValue HKCU "Software\Microsoft\Windows\CurrentVersion\Run" "${PRODUCTNAME}"
 
-    ; Lectrix: forget the install location even when app data is kept. The MSI reads this
-    ; value to pick its folder, so a later MSI install would otherwise land in the old
-    ; NSIS folder instead of Program Files.
+    ; Lectrix: forget the install location even when app data is kept, so a later install
+    ; starts from the default folder for its mode. (The MSI Lectrix had up to 1.1.0 reads
+    ; this value too, and would otherwise land in the old NSIS folder.)
     DeleteRegValue SHCTX "${MANUPRODUCTKEY}" ""
     DeleteRegKey /ifempty SHCTX "${MANUPRODUCTKEY}"
     DeleteRegKey /ifempty SHCTX "${MANUKEY}"

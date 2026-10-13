@@ -27,9 +27,9 @@ The in-app updater only installs files signed with Lectrix's updater key.
 
 1. In `CHANGELOG.md`, rename `## Unreleased` to `## <version>` (below).
 2. Bump `"version"` in `package.json` (and `package-lock.json`, for example with
-   `npm version 1.0.0-beta.2 --no-git-tag-version`) and push to `main`. Pre-releases must
-   end in a number (`1.0.0-beta.2`, `1.0.0-rc.1`): the MSI version is made from it
-   (ADR 0011). After the betas comes `1.0.0`. The `/release` command does this step
+   `npm version 1.0.0-beta.2 --no-git-tag-version`) and push to `main`. Pre-releases
+   end in a number (`1.0.0-beta.2`, `1.0.0-rc.1`), so the next one can follow. After the
+   betas comes `1.0.0`. The `/release` command does this step
    and the commit: it takes the version from the first `## <version>` in `CHANGELOG.md`.
 3. CI runs. It fails if `CHANGELOG.md` has no heading for the version in `package.json`.
    When it passes, the Release workflow sees that the version has no release yet. It
@@ -42,8 +42,8 @@ The in-app updater only installs files signed with Lectrix's updater key.
 A run that fails leaves a draft release. Fix the problem, then run the workflow again
 (Actions > Release > Run workflow): it replaces the draft.
 
-To build the installers on your own machine, run `npm run bundle` (plain
-`npx tauri build` fails for a beta version: the MSI needs a numeric version).
+To build the installers on your own machine, run `npm run bundle`. On Windows that is the
+setup program alone: there is no MSI since 1.1.0 (ADR 0020).
 
 ## The changelog
 

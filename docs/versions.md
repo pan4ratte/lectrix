@@ -92,8 +92,9 @@ Downloaded by the Tauri CLI (2.12.1) on the first `npm run bundle` (`tauri build
 
 | Tool | Version | Notes |
 | --- | --- | --- |
-| NSIS | 3.11 | with `nsis_tauri_utils` 0.5.3; Lectrix's template is a modified copy of the CLI's own (`src-tauri/windows/installer.nsi`, ADR 0007) |
-| WiX Toolset | 3.14 | `src-tauri/windows/pdf-association.wxs` is added as a fragment (ADR 0007) |
+| NSIS | 3.11 | with `nsis_tauri_utils` 0.5.3; Lectrix's template is a modified copy of the CLI's own (`src-tauri/windows/installer.nsi`, ADR 0007, ADR 0020) |
+
+The WiX Toolset (3.14) is no longer used: Lectrix has no MSI since 1.1.0 (ADR 0020).
 
 When the Tauri CLI is upgraded, re-apply the `Lectrix:` changes to its new NSIS template.
 

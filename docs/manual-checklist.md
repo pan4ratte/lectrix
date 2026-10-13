@@ -98,15 +98,14 @@ save a copy, and check the copy in Acrobat.
 
 # Manual release checklist: installers, crash recovery, accessibility
 
-About 20 minutes. The installers come from CI (the `installers` artifact) or from
-`npm run bundle` (`target/release/bundle/`). CI installs and uninstalls both silently and
+About 20 minutes. The installer comes from CI (the `installers` artifact) or from
+`npm run bundle` (`target/release/bundle/`). CI installs and uninstalls it silently and
 checks the registry; what it cannot check is the pages you click through and what Windows
 does afterwards.
 
 ## Installers
 
-- [ ] In Explorer, `Lectrix_<version>_x64-setup.exe` shows Lectrix's icon (the `.msi` shows
-      Windows' own installer icon, which a file of that type can't change). After
+- [ ] In Explorer, `Lectrix_<version>_x64-setup.exe` shows Lectrix's icon. After
       installing, so does `uninstall.exe` in the install folder.
 - [ ] `Lectrix_<version>_x64-setup.exe` from an administrator account: a UAC prompt comes
       first, then a "Choose Users" page with "Install for anyone using this computer"
@@ -130,8 +129,6 @@ does afterwards.
 - [ ] Uninstall (Settings > Apps): Lectrix disappears from Open with and Default apps.
 - [ ] Install again for anyone using this computer, with the box unchecked: Lectrix is in
       `C:\Program Files\Lectrix` and not offered for PDFs. Uninstall.
-- [ ] `Lectrix_<version>_x64_en-US.msi`: the same two runs (the page comes after the folder
-      page; it needs administrator rights).
 - [ ] Fedora (GNOME Software), final versions only (a beta has no rpm): install the `.rpm`, then
       close Software and open it again. Under Installed, Lectrix has its icon, and its page
       shows the icon, "View, annotate and combine PDF files" and the description. The app
@@ -166,6 +163,15 @@ Needs an installed earlier release and a newer one published (ADR 0011,
       offered for PDFs after updating.
 - [ ] Updating from `1.0.0-beta.1` (where PDFs showed the app icon), with Lectrix as the
       default app: PDFs show the Lectrix PDF icon afterwards.
+- [ ] Updating a copy installed from the MSI (ADR 0020; once, at the first release after
+      1.1.0): install `Lectrix_1.1.0_x64_en-US.msi` from its release, make Lectrix the
+      default app for PDFs, and update from the notice with Restart now. After the UAC
+      prompt come two progress windows, Windows Installer's and the setup program's, and
+      no question. Lectrix opens again as the new version, in `C:\Program Files\Lectrix`.
+      Settings > Apps lists Lectrix once, and a PDF double-clicked in Explorer still opens
+      in it.
+- [ ] The same from an MSI installed with "Open PDF files with Lectrix" unchecked: after
+      the update Lectrix is still not offered for PDFs.
 - [ ] Settings: turn off "Check for updates automatically", and remove
       `last_update_check` as above: no notice at the next start.
 - [ ] With that setting still off, Help > Check for updates…: "Checking for updates…",

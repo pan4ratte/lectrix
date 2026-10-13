@@ -121,6 +121,11 @@ The user chose (2026-10-05):
    Release workflow and local installer builds use `npm run bundle`. Betas are published
    as ordinary releases, not GitHub pre-releases, because the updater reads
    `releases/latest`, which skips pre-releases.
+
+   *Amended 2026-10-13:* the MSI is no longer made (ADR 0020), and with it go the MSI
+   version, `msi-version.mjs` and the rule that a pre-release ends in a number.
+   `npm run bundle` is plain `tauri build`. The Windows build in point 6 is the NSIS
+   installer alone, and a copy installed from the MSI updates through it.
 8. **Linux packages** are the AppImage (which the updater replaces) and a deb, plus an
    rpm for final versions only: an rpm version cannot contain `-`, and a pre-release
    version does (`src-tauri/tauri.linux.conf.json` leaves rpm out; the Release workflow

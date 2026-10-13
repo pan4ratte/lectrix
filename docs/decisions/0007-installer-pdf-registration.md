@@ -3,6 +3,11 @@
 - Status: accepted (Phase 6 review, 2026-10-04)
 - Date: 2026-10-04
 
+*Amended 2026-10-13:* the MSI is no longer made (ADR 0020). What this record says of the
+NSIS installer stands; what it says of the MSI (the WiX fragment, `LECTRIX_ASSOCIATE_PDF`)
+describes Lectrix up to 1.1.0. The NSIS installer keeps the PDF choice of an MSI install
+it replaces.
+
 ## Context
 
 Phase 6 asks for NSIS and MSI installers in which "the `.pdf` file association can be

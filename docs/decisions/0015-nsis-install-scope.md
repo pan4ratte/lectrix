@@ -3,6 +3,9 @@
 - Status: accepted (the user's decision, 2026-10-07)
 - Date: 2026-10-07
 
+*Amended 2026-10-13:* since this decision the NSIS installer does what the MSI did, and
+the MSI is no longer made (ADR 0020).
+
 ## Context
 
 The NSIS installer (`Lectrix_<version>_x64-setup.exe`) installed per user, into

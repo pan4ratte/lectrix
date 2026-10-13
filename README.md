@@ -58,7 +58,7 @@ Get the latest version from the [releases page](https://github.com/pan4ratte/lec
 
 | System | File | Requires |
 | --- | --- | --- |
-| Windows | `Lectrix_…_x64-setup.exe` (or the `.msi`, to install for every user of the computer) | Windows 10, version 1809 or later, or Windows 11; 64-bit |
+| Windows | `Lectrix_…_x64-setup.exe` | Windows 10, version 1809 or later, or Windows 11; 64-bit |
 | macOS, Apple Silicon | `Lectrix_…_aarch64.dmg` | macOS 26 |
 | macOS, Intel | `Lectrix_…_x64.dmg` | macOS 15 or later |
 | Debian, Ubuntu and their relatives | `Lectrix_…_amd64.deb` | Debian 13, Ubuntu 24.04, or later |

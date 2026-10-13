@@ -15,9 +15,9 @@ Everything in AGENTS.md sections 1 and 6: the viewer with tabs, bookmarks, page 
 combining files and inserting pages, the seven annotation types with an annotation list,
 and repair. Also: undo and redo for every edit, atomic and incremental saving, crash
 recovery, recent files with each file's last view, Settings (author name; System, Light
-or Dark appearance), an About dialog with a button to the AGPL source on GitHub, and NSIS and MSI
-installers that can register Lectrix for PDF files (ADR 0007); the NSIS one installs for
-the user or for everyone (ADR 0015).
+or Dark appearance), an About dialog with a button to the AGPL source on GitHub, and an installer
+that can register Lectrix for PDF files (ADR 0007) and installs for the user or for
+everyone (ADR 0015). Up to 1.1.0 there was an MSI as well (ADR 0020).
 
 Since v1: releases on GitHub for Windows, Linux and macOS, built by the Release
 workflow with attested installers, and an in-app updater with a Settings switch
@@ -439,7 +439,7 @@ Nothing has been run interactively there.
     app icon and the PDF file icon, which are all rights reserved
     (`THIRD_PARTY_NOTICES.md`), break their rule against proprietary components, and
     publish the code signing policy they require. Then the Release workflow signs the app
-    and both installers. A signature names the publisher; SmartScreen's warning still
+    and its installer. A signature names the publisher; SmartScreen's warning still
     fades only as downloads build reputation. Not chosen: Certum's open-source
     certificate (from 25 EUR, in the author's name, its key on a card or in their cloud)
     and Azure Artifact Signing (individuals in the USA and Canada only).
@@ -452,6 +452,14 @@ Nothing has been run interactively there.
   rights when it starts (ADR 0015). Only users without administrator rights update with
   no prompt. Updating `1.0.0-beta.1`, which installed per user without recording it,
   keeps it in `%LOCALAPPDATA%\Lectrix`.
+- **The MSI is gone after 1.1.0** (ADR 0020, 2026-10-13). A copy installed from it
+  updates through the setup program, which removes the MSI install first. Written but
+  not yet run anywhere: this machine's Lectrix is an NSIS install and its shell is not
+  elevated, so only the template's compilation was checked here. CI's installer check
+  runs the takeover from its next run on; an update started inside an MSI-installed
+  1.1.0 waits for the next release (`docs/manual-checklist.md`). Its limits (a silent
+  install over an MSI, an MSI in a folder of the user's choosing, a user without
+  administrator rights) are in the ADR.
 
 ## Upstream work
 
