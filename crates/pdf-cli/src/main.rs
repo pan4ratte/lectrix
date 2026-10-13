@@ -102,6 +102,12 @@ enum Command {
         #[arg(long, value_enum, default_value_t = InsertLabelsArg::Keep)]
         labels: InsertLabelsArg,
     },
+    /// Move, delete or extract pages, as the app does (through a session; moving and
+    /// deleting are one journal step, then an incremental save).
+    Pages {
+        #[command(subcommand)]
+        action: PagesAction,
+    },
     /// Annotations.
     Annot {
         #[command(subcommand)]
@@ -175,6 +181,39 @@ enum LabelsAction {
         out: PathBuf,
         #[arg(long = "rule")]
         rules: Vec<String>,
+    },
+}
+
+#[derive(Subcommand)]
+enum PagesAction {
+    /// Move pages, keeping their order. Page labels stay with the positions.
+    Move {
+        input: PathBuf,
+        out: PathBuf,
+        /// Pages to move (1-based), e.g. `1-3,7`.
+        #[arg(long)]
+        pages: String,
+        /// Move them before this page (1-based); the page count + 1 moves them to the end.
+        #[arg(long)]
+        before: usize,
+    },
+    /// Delete pages, with the links, bookmarks, named destinations and form fields that
+    /// lead to them or were on them.
+    Delete {
+        input: PathBuf,
+        out: PathBuf,
+        /// Pages to delete (1-based), e.g. `1-3,7`.
+        #[arg(long)]
+        pages: String,
+    },
+    /// Copy pages into a new file, with their annotations, the links among them, and the
+    /// bookmarks and labels they have. The input is not changed.
+    Extract {
+        input: PathBuf,
+        out: PathBuf,
+        /// Pages to copy (1-based), in this order, e.g. `1-3,7`.
+        #[arg(long)]
+        pages: String,
     },
 }
 
@@ -549,6 +588,47 @@ fn run(command: Command) -> Result<()> {
                         InsertLabelsArg::Follow => InsertLabels::FollowDocument,
                     },
                 },
+            };
+            edit_in_session(&input, &out, vec![op])?;
+        }
+        Command::Pages {
+            action: PagesAction::Extract { input, out, pages },
+        } => {
+            if same_file(&input, &out) {
+                return Err(Error::InvalidArgument(
+                    "write to a new file; pdf-cli never modifies its input".into(),
+                ));
+            }
+            let (session, info) = Session::open(&input, None)?;
+            let pages = parse_page_list(&pages, info.pages.len());
+            let result = pages.and_then(|pages| session.extract(pages, &out, |_| true));
+            session.close();
+            let report = result?;
+            println!("wrote {} ({} pages)", out.display(), report.pages);
+            print_report(&report);
+        }
+        Command::Pages { action } => {
+            let (input, out, pages, before) = match action {
+                PagesAction::Move {
+                    input,
+                    out,
+                    pages,
+                    before,
+                } => (input, out, pages, Some(before)),
+                PagesAction::Delete { input, out, pages } => (input, out, pages, None),
+                // Handled above.
+                PagesAction::Extract { .. } => return Ok(()),
+            };
+            let count = usize::try_from(open(&input)?.page_count()?).unwrap_or(0);
+            let pages = parse_page_list(&pages, count)?;
+            let op = match before {
+                Some(n) if n >= 1 && n <= count + 1 => Operation::MovePages { pages, to: n - 1 },
+                Some(n) => {
+                    return Err(Error::InvalidArgument(format!(
+                        "--before {n}: the document has {count} pages"
+                    )));
+                }
+                None => Operation::DeletePages { pages },
             };
             edit_in_session(&input, &out, vec![op])?;
         }
@@ -967,6 +1047,12 @@ fn edit_in_session(input: &Path, out: &Path, ops: Vec<Operation>) -> Result<()> 
             }
             if let Some(report) = &change.merge_report {
                 print_report(report);
+            }
+            if let Some(deleted) = &change.deleted {
+                println!(
+                    "deleted {} page(s), with {} link(s), {} bookmark(s) and {} form field(s)",
+                    deleted.pages, deleted.links, deleted.bookmarks, deleted.fields
+                );
             }
             revision = change.state.revision;
         }

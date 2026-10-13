@@ -38,6 +38,10 @@ pub enum Error {
     /// object): it is shown, but edits are refused.
     #[error("the document's bookmarks are damaged and cannot be edited")]
     DamagedOutline,
+    /// The page tree is malformed (a cycle, a page listed twice, a page that is not an
+    /// indirect object): the pages are shown, but moving and deleting them is refused.
+    #[error("the document's page tree is damaged and its pages cannot be rearranged")]
+    DamagedPageTree,
     /// The user stopped a long operation (combining files).
     #[error("cancelled")]
     Cancelled,

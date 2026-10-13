@@ -58,7 +58,7 @@ The **cross-renderer tests** draw every annotation Lectrix writes with three ind
 npm ci --prefix tests/interop
 python -m pip install -r tests/interop/requirements.txt
 cargo build -p pdf-cli
-python tests/interop/run.py phase5     # and phase0, phase2, phase3, phase4
+python tests/interop/run.py phase5     # and phase0, phase2, phase3, phase4, pages
 ```
 
 The **end-to-end tests** drive the release app on Windows, so they need `npm run bundle` first:

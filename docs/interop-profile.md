@@ -93,9 +93,10 @@ PDF/A: a file that claims a level (`pdfaid:part` in its XMP metadata) opens for 
 only until Enable editing, unless Settings says otherwise; the session refuses operations
 meanwhile (`Error::ReadOnly`). The write profile above is not PDF/A's (blended highlights,
 a font that is not embedded), so a save whose changes include an annotation added,
-changed, deleted or repaired, or inserted pages, removes the claim from the XMP
+changed, deleted or repaired, or pages inserted or deleted, removes the claim from the XMP
 (`docinfo::remove_pdfa_claim`: the `pdfaid` properties go, the rest stays byte for byte)
-and the user is told. Bookmarks, page labels and page rotation keep it. Enforced in
+and the user is told. Bookmarks, page labels, page rotation and the order of the pages
+keep it. Enforced in
 `session.rs` (`Operation::may_break_pdfa`), tested in `crates/pdf-core/tests/pdfa.rs` and
 `tests/e2e/specs/pdfa.test.mjs`.
 

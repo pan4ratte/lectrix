@@ -14,6 +14,7 @@ use crate::geometry::normalize_rotation;
 use crate::labels::{self, LabelRule};
 use crate::merge::{self, InsertOptions, MergeReport, MergeSource};
 use crate::outline::{ViewDest, edit};
+use crate::pages::{self, DeleteReport};
 
 /// The file pages are inserted from.
 #[derive(Clone, PartialEq)]
@@ -45,6 +46,8 @@ pub(crate) struct Applied {
     pub report: Option<MergeReport>,
     /// What repairing annotations changed.
     pub repairs: Option<Vec<RepairChange>>,
+    /// What deleting pages took out with them.
+    pub deleted: Option<DeleteReport>,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -54,6 +57,18 @@ pub enum Operation {
     RotatePages {
         pages: Vec<usize>,
         degrees: i32,
+    },
+    /// Moves pages (they keep their order in the document) into the gap `to` of the
+    /// current order: 0 is before the first page, the page count after the last. Page
+    /// labels stay with the positions. Pages that end up where they were change nothing.
+    MovePages {
+        pages: Vec<usize>,
+        to: usize,
+    },
+    /// Deletes pages, with the links, bookmarks, named destinations and form fields that
+    /// lead to them or were on them. At least one page stays.
+    DeletePages {
+        pages: Vec<usize>,
     },
     /// Adds a bookmark as child number `index` of `parent` (`None`: top level).
     AddBookmark {
@@ -130,6 +145,10 @@ impl Operation {
         match self {
             Operation::RotatePages { pages, .. } if pages.len() == 1 => "Rotate page".into(),
             Operation::RotatePages { .. } => "Rotate pages".into(),
+            Operation::MovePages { pages, .. } if pages.len() == 1 => "Move page".into(),
+            Operation::MovePages { .. } => "Move pages".into(),
+            Operation::DeletePages { pages } if pages.len() == 1 => "Delete page".into(),
+            Operation::DeletePages { .. } => "Delete pages".into(),
             Operation::AddBookmark { .. } => "Add bookmark".into(),
             Operation::RenameBookmark { .. } => "Rename bookmark".into(),
             Operation::MoveBookmark { .. } => "Move bookmark".into(),
@@ -208,19 +227,26 @@ impl Operation {
     /// True if the operation may leave a file that claims PDF/A no longer complying, so
     /// that saving it takes the claim out (section 5.4): whatever writes or changes an
     /// annotation (appearances use transparency and a font that is not embedded, and
-    /// Lectrix checks none of the standard's other rules for them), and pages that come
-    /// from another file. Bookmarks, page labels and page rotation are no part of what
-    /// PDF/A constrains.
+    /// Lectrix checks none of the standard's other rules for them), pages that come from
+    /// another file, and pages deleted (a tagged file's structure tree is left describing
+    /// them). Bookmarks, page labels, page rotation and the order of the pages are no part
+    /// of what PDF/A constrains.
     pub(crate) fn may_break_pdfa(&self) -> bool {
-        self.needs_annotate() || matches!(self, Operation::InsertPages { .. })
+        self.needs_annotate()
+            || matches!(
+                self,
+                Operation::InsertPages { .. } | Operation::DeletePages { .. }
+            )
     }
 
     /// True if the operation needs the "assemble" permission (bit 4 or 11), which covers
-    /// rotating pages, creating outline items and other document-level changes such as
-    /// page labels.
+    /// rotating, moving, deleting and inserting pages, creating outline items and other
+    /// document-level changes such as page labels.
     pub(crate) fn needs_assemble(&self) -> bool {
         match self {
             Operation::RotatePages { .. }
+            | Operation::MovePages { .. }
+            | Operation::DeletePages { .. }
             | Operation::AddBookmark { .. }
             | Operation::RenameBookmark { .. }
             | Operation::MoveBookmark { .. }
@@ -251,6 +277,23 @@ impl Operation {
                 }
                 if let Some(&bad) = pages.iter().find(|&&p| p >= page_count) {
                     return Err(Error::PageOutOfRange(bad));
+                }
+                Ok(())
+            }
+            Operation::MovePages { pages, to } => {
+                check_pages(pages, page_count)?;
+                if *to > page_count {
+                    return Err(Error::PageOutOfRange(*to));
+                }
+                Ok(())
+            }
+            Operation::DeletePages { pages } => {
+                check_pages(pages, page_count)?;
+                let distinct: std::collections::HashSet<usize> = pages.iter().copied().collect();
+                if distinct.len() >= page_count {
+                    return Err(Error::InvalidArgument(
+                        "a document needs at least one page".into(),
+                    ));
                 }
                 Ok(())
             }
@@ -329,6 +372,12 @@ impl Operation {
                 ..Applied::default()
             });
         }
+        if let Operation::DeletePages { pages } = self {
+            return Ok(Applied {
+                deleted: Some(pages::delete_pages(doc, pages)?),
+                ..Applied::default()
+            });
+        }
         if let Operation::RepairAnnotations = self {
             return Ok(Applied {
                 repairs: Some(annot::repair::repair(doc)?),
@@ -354,6 +403,7 @@ impl Operation {
                 }
                 Ok(None)
             }
+            Operation::MovePages { pages, to } => pages::move_pages(doc, pages, *to).map(|_| None),
             Operation::AddBookmark {
                 parent,
                 index,
@@ -399,8 +449,20 @@ impl Operation {
                 Ok(u32::try_from(created.xref).ok())
             }
             // Handled by `apply`.
-            Operation::InsertPages { .. } | Operation::RepairAnnotations => Ok(None),
+            Operation::InsertPages { .. }
+            | Operation::DeletePages { .. }
+            | Operation::RepairAnnotations => Ok(None),
         }
+    }
+}
+
+fn check_pages(pages: &[usize], page_count: usize) -> Result<()> {
+    if pages.is_empty() {
+        return Err(Error::InvalidArgument("no pages were picked".into()));
+    }
+    match pages.iter().find(|&&p| p >= page_count) {
+        Some(&bad) => Err(Error::PageOutOfRange(bad)),
+        None => Ok(()),
     }
 }
 
@@ -488,5 +550,30 @@ mod tests {
         };
         assert_eq!(one.name(), "Rotate page");
         assert_eq!(many.name(), "Rotate pages");
+        let pages = |n: usize| (0..n).collect::<Vec<_>>();
+        let moving = |n| Operation::MovePages {
+            pages: pages(n),
+            to: 3,
+        };
+        let deleting = |n| Operation::DeletePages { pages: pages(n) };
+        assert_eq!(moving(1).name(), "Move page");
+        assert_eq!(moving(2).name(), "Move pages");
+        assert_eq!(deleting(1).name(), "Delete page");
+        assert_eq!(deleting(2).name(), "Delete pages");
+    }
+
+    #[test]
+    fn moving_and_deleting_pages_is_checked_first() {
+        let moving = |pages: Vec<usize>, to| Operation::MovePages { pages, to };
+        assert!(moving(vec![], 0).validate(3).is_err());
+        assert!(moving(vec![3], 0).validate(3).is_err());
+        assert!(moving(vec![0], 4).validate(3).is_err());
+        assert!(moving(vec![0], 3).validate(3).is_ok());
+        let deleting = |pages: Vec<usize>| Operation::DeletePages { pages };
+        assert!(deleting(vec![]).validate(3).is_err());
+        assert!(deleting(vec![3]).validate(3).is_err());
+        // The last page of a document stays, however the pages are listed.
+        assert!(deleting(vec![0, 1, 2]).validate(3).is_err());
+        assert!(deleting(vec![0, 1, 1]).validate(3).is_ok());
     }
 }

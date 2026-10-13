@@ -7,8 +7,9 @@
 //! `target/test-output/` gets one page rotated and is saved in place, and the reopened
 //! copy must keep everything the user did not touch: page count, labels (their number tree
 //! is not even written again), bookmarks and every annotation made by other apps (section
-//! 5.1 rule 10). Labels are also checked against MuPDF's own reading of them. The corpus
-//! files themselves are only read.
+//! 5.1 rule 10). Labels are also checked against MuPDF's own reading of them. Two more
+//! tests combine each file with another, and move and delete its pages. The corpus files
+//! themselves are only read.
 
 mod common;
 
@@ -400,6 +401,223 @@ fn local_corpus_files_combine_with_everything_they_hold() {
         let name = entry["file"].as_str().unwrap();
         let file = corpus_dir().join("files").join(name);
         match combine_file(&file, &out) {
+            Ok(notes) => eprintln!("ok   {name}: {}", notes.join("; ")),
+            Err(e) => {
+                eprintln!("FAIL {name}: {e}");
+                failures.push(format!("{name}: {e}"));
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} file(s) failed:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
+/// What tells a page from another without reading its content: its size and rotation, and
+/// how many annotations it has.
+type PageMark = (u32, u32, u16, usize);
+
+fn page_marks(session: &Session) -> Result<Vec<PageMark>, String> {
+    let info = session.info().map_err(|e| format!("info: {e}"))?;
+    Ok(info
+        .pages
+        .iter()
+        .zip(&info.annotations)
+        .map(|(p, a)| {
+            (
+                (p.width * 100.0).round() as u32,
+                (p.height * 100.0).round() as u32,
+                p.rotation,
+                a.len(),
+            )
+        })
+        .collect())
+}
+
+/// Moves pages of `file` (the last one to the front, then the first half to the end),
+/// extracts three into a new file, deletes one, and checks after each step that every page looks as it did, wherever it is
+/// now: pages take their size and rotation from the nodes above them, and real files have
+/// trees of every shape. Undo must bring the order back, and the saved files must be no
+/// worse for `qpdf --check` than the original. Nothing is written to `file`.
+fn rearrange_file(file: &Path, out: &Path) -> Result<Vec<String>, String> {
+    let mut notes = Vec::new();
+    let (session, info) = Session::open(file, None).map_err(|e| format!("open: {e}"))?;
+    let n = info.pages.len();
+    if n < 3 {
+        session.close();
+        return Ok(vec!["fewer than three pages".into()]);
+    }
+    let before = page_marks(&session)?;
+    let half: Vec<usize> = (0..n / 2).collect();
+    let last_to_front = Operation::MovePages {
+        pages: vec![n - 1],
+        to: 0,
+    };
+    let half_to_end = Operation::MovePages {
+        pages: half.clone(),
+        to: n,
+    };
+    let started = std::time::Instant::now();
+    let moved = match session.apply(last_to_front) {
+        Ok(change) => change,
+        Err(e @ (Error::NotPermitted | Error::DamagedPageTree)) => {
+            session.close();
+            return Ok(vec![format!("refused: {e}")]);
+        }
+        Err(e) => return Err(format!("move: {e}")),
+    };
+    let one_ms = started.elapsed().as_secs_f64() * 1000.0;
+    // The order now, as indexes into the original one.
+    let mut order: Vec<usize> = std::iter::once(n - 1).chain(0..n - 1).collect();
+    let expected_map: Vec<Option<usize>> = order.iter().map(|&p| Some(p)).collect();
+    if moved.page_map.as_ref() != Some(&expected_map) {
+        return Err("the page map does not say the last page is first".into());
+    }
+    if moved.labels.is_some() {
+        return Err("moving a page changed the labels".into());
+    }
+    let marks = |order: &[usize]| -> Vec<PageMark> { order.iter().map(|&p| before[p]).collect() };
+    if page_marks(&session)? != marks(&order) {
+        return Err("a page looks different after the first move".into());
+    }
+
+    // Three pages into a new file, from the document as it is now (the move is not saved).
+    let name = file.file_name().unwrap().to_string_lossy();
+    let picked = [0, n / 2, n - 1];
+    let extract = out.join(format!("extract-{name}"));
+    let started = std::time::Instant::now();
+    match writing(|| session.extract(picked.to_vec(), &extract, |_| true)) {
+        Ok(report) => {
+            notes.push(format!(
+                "extract {:.0} ms",
+                started.elapsed().as_secs_f64() * 1000.0
+            ));
+            if report.pages != 3 {
+                return Err(format!("{} pages extracted", report.pages));
+            }
+            let (copy, _) = Session::open(&extract, None).map_err(|e| format!("extract: {e}"))?;
+            let size = |m: &PageMark| (m.0, m.1, m.2);
+            let got: Vec<_> = page_marks(&copy)?.iter().map(size).collect();
+            copy.close();
+            let want: Vec<_> = picked.iter().map(|&p| size(&before[order[p]])).collect();
+            if got != want {
+                return Err("an extracted page looks different".into());
+            }
+            if let (Some(input), Some(output)) = (qpdf_severity(file), qpdf_severity(&extract))
+                && output > input
+            {
+                return Err(format!(
+                    "qpdf --check is worse for the extract: {input} -> {output}"
+                ));
+            }
+            fs::remove_file(&extract).ok();
+        }
+        Err(Error::CopyNotPermitted(_)) => {
+            notes.push("extract refused: copying not allowed".into())
+        }
+        Err(e) => return Err(format!("extract: {e}")),
+    }
+
+    let started = std::time::Instant::now();
+    session
+        .apply(half_to_end)
+        .map_err(|e| format!("move half: {e}"))?;
+    let half_ms = started.elapsed().as_secs_f64() * 1000.0;
+    order = order[n / 2..]
+        .iter()
+        .chain(&order[..n / 2])
+        .copied()
+        .collect();
+    if page_marks(&session)? != marks(&order) {
+        return Err("a page looks different after the second move".into());
+    }
+    notes.push(format!(
+        "{n} pages; one page {one_ms:.0} ms, {} pages {half_ms:.0} ms",
+        n / 2
+    ));
+
+    session.undo().map_err(|e| format!("undo: {e}"))?;
+    session.undo().map_err(|e| format!("undo: {e}"))?;
+    if page_marks(&session)? != before {
+        return Err("undo did not bring the pages back".into());
+    }
+    session.redo().map_err(|e| format!("redo: {e}"))?;
+    session.redo().map_err(|e| format!("redo: {e}"))?;
+
+    let target = out.join(format!("moved-{name}"));
+    let saved = writing(|| session.save(SaveKind::Incremental, Some(target.clone())))
+        .map_err(|e| format!("save: {e}"))?;
+    if saved.outcome.fell_back_to_full {
+        notes.push("saved in full".into());
+    }
+    if page_marks(&session)? != marks(&order) {
+        return Err("a page looks different after saving".into());
+    }
+    let input = qpdf_severity(file);
+    if let (Some(input), Some(output)) = (input, qpdf_severity(&target))
+        && output > input
+    {
+        return Err(format!(
+            "qpdf --check got worse after moving: {input} -> {output}"
+        ));
+    }
+
+    // One page from the middle.
+    let gone = n / 2;
+    let started = std::time::Instant::now();
+    let change = session
+        .apply(Operation::DeletePages { pages: vec![gone] })
+        .map_err(|e| format!("delete: {e}"))?;
+    let delete_ms = started.elapsed().as_secs_f64() * 1000.0;
+    order.remove(gone);
+    if change.page_count != n - 1 || page_marks(&session)? != marks(&order) {
+        return Err("a page looks different after deleting one".into());
+    }
+    let report = change.deleted.ok_or("no report of the deletion")?;
+    notes.push(format!(
+        "delete {delete_ms:.0} ms ({} links, {} bookmarks, {} fields)",
+        report.links, report.bookmarks, report.fields
+    ));
+    let deleted = out.join(format!("deleted-{name}"));
+    writing(|| session.save(SaveKind::Incremental, Some(deleted.clone())))
+        .map_err(|e| format!("save after deleting: {e}"))?;
+    session.close();
+    if let (Some(input), Some(output)) = (input, qpdf_severity(&deleted))
+        && output > input
+    {
+        return Err(format!(
+            "qpdf --check got worse after deleting: {input} -> {output}"
+        ));
+    }
+    let reopened =
+        PdfDocument::open(deleted.to_str().unwrap()).map_err(|e| format!("reopen: {e}"))?;
+    if reopened.page_count().unwrap() as usize != n - 1 {
+        return Err("page count after reopening".into());
+    }
+    drop(reopened);
+    fs::remove_file(&target).ok();
+    fs::remove_file(&deleted).ok();
+    Ok(notes)
+}
+
+#[test]
+#[ignore = "real-world local corpus, minutes long: run with --ignored"]
+fn local_corpus_pages_move_and_are_deleted_as_they_are() {
+    let manifest_path = corpus_dir().join("manifest.json");
+    let Ok(manifest) = fs::read_to_string(&manifest_path) else {
+        eprintln!("no local corpus at {}; skipped", manifest_path.display());
+        return;
+    };
+    let manifest: Vec<Value> = serde_json::from_str(&manifest).unwrap();
+    let out = out_dir("local-corpus-pages");
+    let mut failures = Vec::new();
+    for entry in &manifest {
+        let name = entry["file"].as_str().unwrap();
+        let file = corpus_dir().join("files").join(name);
+        match rearrange_file(&file, &out) {
             Ok(notes) => eprintln!("ok   {name}: {}", notes.join("; ")),
             Err(e) => {
                 eprintln!("FAIL {name}: {e}");

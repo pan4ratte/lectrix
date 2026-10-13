@@ -104,6 +104,49 @@ pub fn delete(doc: &mut PdfDocument, id: u32) -> Result<()> {
     fix_counts(&tree, parent)
 }
 
+/// Takes out the bookmarks `dead` names (their pages were deleted): one without children
+/// is removed, and one with children loses its destination or action and stays as a
+/// heading. Returns how many were removed.
+pub(crate) fn remove_dead(
+    doc: &mut PdfDocument,
+    dead: &mut dyn FnMut(&PdfObject) -> Result<bool>,
+) -> Result<usize> {
+    let mut tree = editable(doc)?;
+    let mut removed = vec![false; tree.nodes.len()];
+    // Parents whose list of children changed; `None` is the top level.
+    let mut changed: Vec<Option<usize>> = Vec::new();
+    // Children come after their parents in `nodes`, so going backwards a bookmark's
+    // children are settled before it is.
+    for i in (0..tree.nodes.len()).rev() {
+        if !dead(&tree.nodes[i].obj)? {
+            continue;
+        }
+        if tree.nodes[i].children.is_empty() {
+            let parent = tree.nodes[i].parent;
+            tree.children_mut(parent).retain(|&c| c != i);
+            removed[i] = true;
+            if !changed.contains(&parent) {
+                changed.push(parent);
+            }
+        } else {
+            let mut obj = tree.nodes[i].obj.clone();
+            for key in ["Dest", "A"] {
+                if obj.get_dict(key)?.is_some() {
+                    obj.dict_delete(key)?;
+                }
+            }
+        }
+    }
+    for parent in changed {
+        if parent.is_some_and(|p| removed[p]) {
+            continue;
+        }
+        relink(&tree, parent)?;
+        fix_counts(&tree, parent)?;
+    }
+    Ok(removed.iter().filter(|&&r| r).count())
+}
+
 /// Points a bookmark at a new place: an explicit `/XYZ` destination replaces whatever
 /// destination or action it had.
 pub fn set_destination(doc: &mut PdfDocument, id: u32, dest: &ViewDest) -> Result<()> {

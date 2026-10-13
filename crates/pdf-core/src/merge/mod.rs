@@ -1,6 +1,6 @@
-//! Stitching (AGENTS.md section 6.4): combining PDFs into a new one ([`merge`]), and
-//! inserting pages from a file into an open document ([`insert_pages`]). Both run the same
-//! engine:
+//! Stitching (AGENTS.md section 6.4): combining PDFs into a new one ([`merge`]),
+//! inserting pages from a file into an open document ([`insert_pages`]), and copying pages
+//! of an open document into a new one ([`extract`]). All run the same engine:
 //!
 //! 1. Every picked source page gets an empty page object in the destination, and the
 //!    source objects that must not be copied are marked (see `copy.rs`).
@@ -21,7 +21,7 @@ mod bookmarks;
 mod copy;
 mod forms;
 mod labels;
-mod names;
+pub(crate) mod names;
 
 use std::collections::{HashMap, HashSet};
 use std::path::Path;
@@ -180,7 +180,8 @@ pub fn merge(
     let mut out = PdfDocument::new();
     move_info_to_trailer(&mut out)?;
     let prefixes = (0..sources.len()).map(source_prefix).collect();
-    let mut engine = Engine::new(&out, sources, prefixes)?;
+    let docs = sources.iter().map(|s| &s.doc).collect();
+    let mut engine = Engine::new(&out, docs, prefixes)?;
     let copied = engine.run(&mut out, 0, picks, options.bookmarks, progress)?;
 
     if options.bookmarks != BookmarkMode::Drop {
@@ -292,8 +293,7 @@ pub fn insert_pages(
     let old_rules = page_labels::read_rules(doc)?;
     let old_outline = outline::read_bookmarks(doc)?;
 
-    let sources = std::slice::from_ref(source);
-    let mut engine = Engine::new(doc, sources, vec![INSERT_PREFIX.to_owned()])?;
+    let mut engine = Engine::new(doc, vec![&source.doc], vec![INSERT_PREFIX.to_owned()])?;
     let mut copied = engine.run(doc, at, &picks, options.bookmarks, &mut |_, _| true)?;
 
     if options.bookmarks != BookmarkMode::Drop
@@ -359,6 +359,52 @@ pub fn insert_pages(
     }
     page_labels::set_rules(doc, rules)?;
     Ok(engine.report)
+}
+
+/// Copies `pages` of `doc` (0-based, in this order, each once) into a new document, with
+/// what the engine carries: annotations, links among the copied pages, named destinations,
+/// form fields, layers and attached files. The bookmarks that lead to the copied pages
+/// come along at the top level (one whose page stays behind is kept as a heading if it
+/// has bookmarks inside that come along), and each page keeps the label it had; a document
+/// without labels gives none. `doc` is only read, so its unsaved changes are copied as
+/// they are. `progress` is called after each page with (pages done, pages in total);
+/// returning false stops with [`Error::Cancelled`].
+pub fn extract(
+    doc: &PdfDocument,
+    pages: &[usize],
+    progress: &mut dyn FnMut(usize, usize) -> bool,
+) -> Result<(PdfDocument, MergeReport)> {
+    if pages.is_empty() {
+        return Err(Error::InvalidArgument("no pages were picked".into()));
+    }
+    let picks: Vec<PagePick> = pages
+        .iter()
+        .map(|&page| PagePick {
+            source: 0,
+            page,
+            rotate: 0,
+        })
+        .collect();
+    let mut out = PdfDocument::new();
+    move_info_to_trailer(&mut out)?;
+    // One source, so no name is ever taken twice and the prefix is not used.
+    let mut engine = Engine::new(&out, vec![doc], vec![source_prefix(0)])?;
+    let mut copied = engine.run(&mut out, 0, &picks, BookmarkMode::Flat, progress)?;
+    if let Some(items) = copied.pop() {
+        edit::insert_items(&mut out, None, 0, items)?;
+    }
+    let source_rules = page_labels::read_rules(doc)?;
+    if !source_rules.is_empty() {
+        let per_page: Vec<PageLabel> = pages
+            .iter()
+            .map(|&p| labels::page_label(&source_rules, p))
+            .collect();
+        let rules = labels::rules_for(&per_page, 0);
+        if !labels::is_plain(&rules) {
+            page_labels::write_rules(&mut out, rules)?;
+        }
+    }
+    Ok((out, engine.report))
 }
 
 /// MuPDF 1.27 creates new documents with their `/Info` dictionary inside the catalog
@@ -521,7 +567,8 @@ struct SourceState {
 }
 
 struct Engine<'a> {
-    sources: &'a [MergeSource],
+    /// The documents pages are copied from; they are only read.
+    sources: Vec<&'a PdfDocument>,
     /// Each source's prefix for renamed names.
     prefixes: Vec<String>,
     states: Vec<SourceState>,
@@ -534,7 +581,7 @@ struct Engine<'a> {
 impl<'a> Engine<'a> {
     fn new(
         dst: &PdfDocument,
-        sources: &'a [MergeSource],
+        sources: Vec<&'a PdfDocument>,
         prefixes: Vec<String>,
     ) -> Result<Engine<'a>> {
         let taken_names = names::collect(dst)?.into_iter().map(|(n, _)| n).collect();
@@ -597,7 +644,7 @@ impl<'a> Engine<'a> {
         let mut targets = Vec::with_capacity(picks.len());
         for (k, pick) in picks.iter().enumerate() {
             let target = dst.create_object()?;
-            let src = &self.sources[pick.source].doc;
+            let src = self.sources[pick.source];
             let src_num = src.find_page(page_no(pick.page)?)?.as_indirect()?;
             let state = &mut self.states[pick.source];
             state.copier.map_to(src_num, target.as_indirect()?);
@@ -605,11 +652,11 @@ impl<'a> Engine<'a> {
             state.first_output_page.get_or_insert(at + k);
             targets.push(target);
         }
-        for (s, source) in self.sources.iter().enumerate() {
+        for s in 0..self.sources.len() {
             if self.states[s].pages.is_empty() {
                 continue;
             }
-            mark_uncopied(&source.doc, &mut self.states[s])?;
+            mark_uncopied(self.sources[s], &mut self.states[s])?;
             self.plan_names(s)?;
         }
 
@@ -646,7 +693,7 @@ impl<'a> Engine<'a> {
         let mut new_names = Vec::new();
         let mut new_files = Vec::new();
         let mut copied_bookmarks = Vec::new();
-        for (s, source) in self.sources.iter().enumerate() {
+        for (s, &source) in self.sources.iter().enumerate() {
             let state = &mut self.states[s];
             if state.pages.is_empty() {
                 copied_bookmarks.push(Vec::new());
@@ -661,13 +708,13 @@ impl<'a> Engine<'a> {
             state.copier.finish(dst)?;
             self.report.renamed_fields += forms::merge_fields(
                 dst,
-                &source.doc,
+                source,
                 &mut state.copier,
                 &self.prefixes[s],
                 &mut self.taken_fields,
             )?;
-            merge_layers(dst, &source.doc, &mut state.copier)?;
-            for (name, file) in names::tree_entries(&source.doc, "EmbeddedFiles")? {
+            merge_layers(dst, source, &mut state.copier)?;
+            for (name, file) in names::tree_entries(source, "EmbeddedFiles")? {
                 let Some(copied) = state.copier.copy(dst, &file)? else {
                     continue;
                 };
@@ -683,7 +730,7 @@ impl<'a> Engine<'a> {
             let mut items = Vec::new();
             if bookmarks != BookmarkMode::Drop {
                 let targets = bookmarks::Targets {
-                    src: &source.doc,
+                    src: source,
                     picked: &state.pages,
                     dests: &state.dests,
                 };
@@ -724,7 +771,7 @@ impl<'a> Engine<'a> {
                 .sources
                 .get(pick.source)
                 .ok_or_else(|| Error::InvalidArgument(format!("no source {}", pick.source)))?;
-            let count = usize::try_from(source.doc.page_count()?).unwrap_or(0);
+            let count = usize::try_from(source.page_count()?).unwrap_or(0);
             if pick.page >= count {
                 return Err(Error::PageOutOfRange(pick.page));
             }
@@ -747,7 +794,7 @@ impl<'a> Engine<'a> {
 
     /// Decides which of a source's named destinations come along, and under what name.
     fn plan_names(&mut self, s: usize) -> Result<()> {
-        let src = &self.sources[s].doc;
+        let src = self.sources[s];
         let state = &mut self.states[s];
         state.dests = names::DestIndex::new(src)?;
         for (name, value) in names::collect(src)? {
@@ -782,7 +829,7 @@ impl<'a> Engine<'a> {
         place: PagePlace<'_>,
         inherited: &Inherited,
     ) -> Result<()> {
-        let src = &self.sources[pick.source].doc;
+        let src = self.sources[pick.source];
         let state = &mut self.states[pick.source];
         let src_page = src.find_page(page_no(pick.page)?)?;
         let mut page = dst.new_dict()?;

@@ -68,6 +68,7 @@ export type { LabelMode } from './generated/LabelMode';
 export type { WebPage } from './generated/WebPage';
 export type { MergePage } from './generated/MergePage';
 export type { MergeReport } from './generated/MergeReport';
+export type { DeleteReport } from './generated/DeleteReport';
 export type { MergeStage } from './generated/MergeStage';
 export type { UnsavedSource } from './generated/UnsavedSource';
 export type { BookmarkTarget } from './generated/BookmarkTarget';
@@ -184,6 +185,15 @@ export function executeMerge(request: MergeRequest, onProgress: (p: MergeProgres
 	channel.onmessage = onProgress;
 	return invoke<MergeOutcome | null>('execute_merge', { request, onProgress: channel });
 }
+/** Asks where to save and copies `pages` (0-based, in this order) of document `id` into
+ * that file, as the document is now, with progress; then opens the new file. Null if the
+ * user cancels the dialog. `cancelMerge` stops it. */
+export function extractPages(id: number, pages: number[], onProgress: (p: MergeProgress) => void) {
+	const channel = new Channel<MergeProgress>();
+	channel.onmessage = onProgress;
+	return invoke<MergeOutcome | null>('extract_pages', { id, pages, onProgress: channel });
+}
+/** Stops the merge or extraction in progress. */
 export const cancelMerge = () => invoke<void>('cancel_merge');
 // Updates from GitHub releases (ADR 0011).
 /** A newer release, or null: none, checks are off, it was skipped, or there is no network.

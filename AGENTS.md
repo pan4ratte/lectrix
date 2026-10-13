@@ -100,7 +100,8 @@ lectrix/
 │  │  │  ├─ annot/           # write profile, appearance streams, repair
 │  │  │  ├─ outline/         # bookmarks
 │  │  │  ├─ labels.rs        # page labels
-│  │  │  ├─ merge/           # stitching
+│  │  │  ├─ merge/           # stitching, and extracting pages into a new file
+│  │  │  ├─ pages.rs         # moving and deleting pages (ADR 0018)
 │  │  │  ├─ save.rs          # incremental / full / atomic replace
 │  │  │  ├─ ops.rs           # operation enum, undo/redo
 │  │  │  ├─ fonts/           # installed-font index (ADR 0005)
@@ -180,7 +181,7 @@ Repair must never change an annotation's content, color, author or position. Log
 - "Save As (optimized)" does a full rewrite with garbage collection and stream compression.
 - If the document is digitally signed, warn before the first edit that edits will be shown as changes after signing, and always save incrementally.
 - Encrypted documents: prompt for the password, keep the encryption on save, and respect permission flags (no annotating if the document disallows it).
-- PDF/A: a file that claims a PDF/A level (`pdfaid:part` in the XMP metadata of the catalog's `/Metadata`; the claim is read, compliance is not checked) opens for reading only, as Acrobat opens it. The session refuses every operation meanwhile, the frontend offers nothing that changes the document (annotations, bookmarks, page labels, rotating or inserting pages, repair; such a shortcut says why in a notification with an Enable editing button), and bookmarks expanded or collapsed meanwhile are not written. A banner under the view bar says so, with the level ("This file claims compliance with the PDF/A standard (PDF/A-1b), so it was opened for reading only. Saving annotations or inserted pages removes that claim."), and its **Enable editing** button makes the document one like any other for as long as it is open. Settings can open such files ready to edit (section 6.6), and one that comes with changes restored after a crash opens that way. Lectrix cannot vouch that what it writes complies, so a file never keeps a claim Lectrix may have broken: a save whose changes include an annotation added, changed, deleted or repaired, or pages inserted from another file, takes the identification properties (`pdfaid:part`, `conformance`, `amd`, `corr`, `rev`) out of the XMP, leaves the rest of the metadata as it was, and says so in a notification ("report.pdf no longer claims to be PDF/A-1b."). Changes undone before the save do not count. Bookmarks, page labels and page rotation alone keep the claim, as does a Save As, optimized or not. A document restored after a crash loses the claim at its next save, since what its changes were is not known.
+- PDF/A: a file that claims a PDF/A level (`pdfaid:part` in the XMP metadata of the catalog's `/Metadata`; the claim is read, compliance is not checked) opens for reading only, as Acrobat opens it. The session refuses every operation meanwhile, the frontend offers nothing that changes the document (annotations, bookmarks, page labels, rotating or inserting pages, repair; such a shortcut says why in a notification with an Enable editing button), and bookmarks expanded or collapsed meanwhile are not written. A banner under the view bar says so, with the level ("This file claims compliance with the PDF/A standard (PDF/A-1b), so it was opened for reading only. Saving annotations or inserted pages removes that claim."), and its **Enable editing** button makes the document one like any other for as long as it is open. Settings can open such files ready to edit (section 6.6), and one that comes with changes restored after a crash opens that way. Lectrix cannot vouch that what it writes complies, so a file never keeps a claim Lectrix may have broken: a save whose changes include an annotation added, changed, deleted or repaired, pages inserted from another file, or pages deleted, takes the identification properties (`pdfaid:part`, `conformance`, `amd`, `corr`, `rev`) out of the XMP, leaves the rest of the metadata as it was, and says so in a notification ("report.pdf no longer claims to be PDF/A-1b."). Changes undone before the save do not count. Bookmarks, page labels, page rotation and the order of the pages alone keep the claim, as does a Save As, optimized or not. A document restored after a crash loses the claim at its next save, since what its changes were is not known.
 
 ## 6. Feature specifications
 
@@ -332,7 +333,7 @@ Settled details:
 
 The Rust session is the single source of truth: the frontend holds only a view of it, and the undo history lives in Rust.
 
-**Operations.** Every change is a variant of one `Operation` enum in `ops.rs` (for example `AddAnnotation`, `UpdateAnnotation`, `DeleteAnnotation`, `SetOutline`, `SetPageLabels`, `RotatePages`, `InsertPages`, `RepairAnnotations`). Applying an operation increments the document revision and returns what changed.
+**Operations.** Every change is a variant of one `Operation` enum in `ops.rs` (for example `AddAnnotation`, `UpdateAnnotation`, `DeleteAnnotation`, `SetOutline`, `SetPageLabels`, `RotatePages`, `MovePages`, `DeletePages`, `InsertPages`, `RepairAnnotations`). Applying an operation increments the document revision and returns what changed.
 
 **Undo/redo.** Uses MuPDF's built-in journalling, wrapped in `ffi/journal.rs`; each `Operation` is one journal step with a human-readable name ("Add highlight", "Rename bookmark"). The Edit menu shows the name of the step being undone or redone. Saving reopens the file, so undo history starts again after each save (ADR 0003); after a crash restore it starts at the restored state (MuPDF cannot load a saved journal, ADR 0001).
 
@@ -438,7 +439,7 @@ Real-world files the user owns but cannot publish (for example books from their 
 2. Inside each annotation's `/Rect`, compare the render against the same page rendered without annotations. If any engine shows no visible change, the test fails: that annotation is invisible in that engine.
 3. Compare engines against each other with a tolerance, and save diff images for any failure.
 
-The suites keep the names they got during the build: `phase0` (labels, outline, merge and highlight from `pdf-cli`), `phase2` (bookmarks), `phase3` (labels), `phase4` and `phase4-local` (combining), `phase5` and `phase5-local` (annotations and repair). SumatraPDF and similar apps are built on MuPDF and do not count as an independent check.
+The suites keep the names they got during the build: `phase0` (labels, outline, merge and highlight from `pdf-cli`), `phase2` (bookmarks), `phase3` (labels), `phase4` and `phase4-local` (combining), `pages` (moving and deleting pages, named for what it checks), `phase5` and `phase5-local` (annotations and repair). SumatraPDF and similar apps are built on MuPDF and do not count as an independent check.
 
 **Manual release checklist** (`docs/manual-checklist.md`, performed by the user before every release; the agent prepares the files and keeps the checklist current): open the interop sample files in Acrobat Reader, Edge, Firefox and Foxit; for every annotation type confirm it is visible, has the right color and opacity, appears in the comments list, prints, and can be edited and deleted. Then the installers, a real crash, and a Narrator walk.
 

@@ -414,6 +414,7 @@ pub fn run() {
             commands::set_drop_target,
             commands::plan_merge,
             commands::execute_merge,
+            commands::extract_pages,
             commands::cancel_merge,
             commands::set_bookmark_open,
             commands::enable_editing,

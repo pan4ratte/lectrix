@@ -43,11 +43,12 @@ use crate::ffi::{Journal, open_pdf_shared, save_snapshot};
 use crate::geometry::{PageGeometry, read_page_boxes};
 use crate::labels::{self, LabelRule};
 use crate::links::{self, PageLink};
-use crate::merge::MergeReport;
+use crate::merge::{self, MergeReport};
 use crate::ops::Operation;
 use crate::outline::{self, Outline};
+use crate::pages::DeleteReport;
 use crate::render::{self, PixelRect, RgbaImage};
-use crate::save::{SaveKind, SaveOutcome, save_atomic};
+use crate::save::{SaveKind, SaveOutcome, save_atomic, save_atomic_checked};
 use crate::text::{self, PageText, SearchHit};
 
 /// Size of a page in view space at zoom 1 (points), after rotation and cropping.
@@ -121,6 +122,12 @@ pub struct DocumentChange {
     pub annotations: Vec<(usize, Vec<AnnotationInfo>)>,
     /// What repairing annotations changed (for the app log).
     pub repairs: Option<Vec<RepairChange>>,
+    /// Where each page was before, when the pages are no longer the same ones in the same
+    /// order (moved, deleted, inserted, or any of that undone): for each page now, its
+    /// index before, or `None` for a page that was not there.
+    pub page_map: Option<Vec<Option<usize>>>,
+    /// What deleting pages took out with them.
+    pub deleted: Option<DeleteReport>,
 }
 
 /// What [`Session::write_recovery`] did.
@@ -155,6 +162,18 @@ pub struct OpenOptions {
     /// Open a file that claims PDF/A for reading only (section 5.4): operations are
     /// refused until [`Session::enable_editing`].
     pub pdfa_read_only: bool,
+}
+
+/// Where [`Session::extract`] is. Its callback returns false to stop: nothing is written,
+/// and the extraction fails with [`Error::Cancelled`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ExtractStep {
+    /// Pages are being copied.
+    Copying { done: usize, total: usize },
+    /// Every page is copied; the file is about to be written.
+    Writing,
+    /// The file is written and about to take its name.
+    Replacing,
 }
 
 /// Search results for one page.
@@ -211,6 +230,12 @@ enum Command {
         target: PathBuf,
         written: Option<u64>,
         reply: Reply<RecoveryWrite>,
+    },
+    Extract {
+        pages: Vec<usize>,
+        target: PathBuf,
+        step: Box<dyn FnMut(ExtractStep) -> bool + Send>,
+        reply: Reply<MergeReport>,
     },
     Reload {
         reply: Reply<DocumentInfo>,
@@ -443,6 +468,26 @@ impl Session {
         })
     }
 
+    /// Copies `pages` (0-based, in this order, each once) into a new file at `target`, as
+    /// the document is now, unsaved changes included ([`merge::extract`] says what comes
+    /// along). The document itself is not changed, so this works while it is open for
+    /// reading only. `step` is told how far it is and can stop it. The document renders
+    /// nothing new meanwhile. Refused: a document whose permissions do not allow copying
+    /// its content ([`Error::CopyNotPermitted`]), and the document's own file as target.
+    pub fn extract(
+        &self,
+        pages: Vec<usize>,
+        target: &Path,
+        step: impl FnMut(ExtractStep) -> bool + Send + 'static,
+    ) -> Result<MergeReport> {
+        self.call(|reply| Command::Extract {
+            pages,
+            target: target.to_path_buf(),
+            step: Box::new(step),
+            reply,
+        })
+    }
+
     /// Discards the in-memory document and opens the file again (after it changed on
     /// disk).
     pub fn reload(&self) -> Result<DocumentInfo> {
@@ -487,6 +532,8 @@ struct Actor {
     /// already holds is written.
     read_only: bool,
     pages: Vec<PageSize>,
+    /// Each page's object number: what tells a page from another when their order changes.
+    page_ids: Vec<i32>,
     labels: Option<PageLabels>,
     /// The outline as the document has it.
     outline: Outline,
@@ -572,6 +619,14 @@ fn actor(origin: Origin, rx: Receiver<Command>, ready: SyncSender<Result<Documen
             } => {
                 let _ = reply.send(actor.write_recovery(&target, written));
             }
+            Command::Extract {
+                pages,
+                target,
+                mut step,
+                reply,
+            } => {
+                let _ = reply.send(actor.extract(&pages, &target, &mut *step));
+            }
             Command::Reload { reply } => {
                 let start = Instant::now();
                 let _ = reply.send(actor.reload().map(|()| actor.info(start.elapsed())));
@@ -633,6 +688,7 @@ impl Actor {
         let flags = read_flags(&doc)?;
         let read_only = options.pdfa_read_only && flags.pdfa.is_some() && !restored;
         let pages = page_sizes(&doc)?;
+        let page_ids = page_ids(&doc)?;
         let labels = page_labels(&doc, pages.len())?;
         let outline = outline::read_bookmarks(&doc)?;
         let annotations = read_annotations(&doc)?;
@@ -647,6 +703,7 @@ impl Actor {
             flags,
             read_only,
             pages,
+            page_ids,
             labels,
             outline,
             annotations,
@@ -814,6 +871,7 @@ impl Actor {
         change.created = applied.created;
         change.merge_report = applied.report;
         change.repairs = applied.repairs;
+        change.deleted = applied.deleted;
         Ok(change)
     }
 
@@ -859,6 +917,17 @@ impl Actor {
             .map(|(i, p)| (i, *p))
             .collect();
         self.pages = pages;
+        let page_ids = page_ids(&self.doc)?;
+        let page_map = (page_ids != self.page_ids).then(|| {
+            let before: HashMap<i32, usize> = self
+                .page_ids
+                .iter()
+                .enumerate()
+                .map(|(i, &id)| (id, i))
+                .collect();
+            page_ids.iter().map(|id| before.get(id).copied()).collect()
+        });
+        self.page_ids = page_ids;
         let labels = page_labels(&self.doc, self.pages.len())?;
         let labels = if labels != self.labels {
             self.labels = labels.clone();
@@ -885,6 +954,8 @@ impl Actor {
             merge_report: None,
             annotations,
             repairs: None,
+            page_map,
+            deleted: None,
         })
     }
 
@@ -949,6 +1020,8 @@ impl Actor {
                 self.history = vec![revision];
                 self.breaks_pdfa = vec![false];
                 self.position = 0;
+                // An optimized save numbers the objects anew.
+                self.page_ids = page_ids(&self.doc)?;
                 let outline = outline::read_bookmarks(&self.doc)?;
                 if outline != self.outline {
                     self.outline = outline;
@@ -976,6 +1049,45 @@ impl Actor {
             annotations,
             pdfa_removed,
         })
+    }
+
+    fn extract(
+        &self,
+        pages: &[usize],
+        target: &Path,
+        step: &mut dyn FnMut(ExtractStep) -> bool,
+    ) -> Result<MergeReport> {
+        if !self.flags.can_copy {
+            let name = self.path.file_name().map(|n| n.to_string_lossy());
+            return Err(Error::CopyNotPermitted(
+                name.unwrap_or_default().into_owned(),
+            ));
+        }
+        let same = |a: &Path| match (std::fs::canonicalize(a), std::fs::canonicalize(target)) {
+            (Ok(a), Ok(b)) => a == b,
+            _ => false,
+        };
+        if same(&self.path) || same(&self.file) {
+            return Err(Error::InvalidArgument(
+                "pages are extracted into a new file, not into the document's own".into(),
+            ));
+        }
+        let (doc, report) = merge::extract(&self.doc, pages, &mut |done, total| {
+            step(ExtractStep::Copying { done, total })
+        })?;
+        if !step(ExtractStep::Writing) {
+            return Err(Error::Cancelled);
+        }
+        // Copied streams keep their compression and nothing is left unreferenced, so a
+        // plain full save is enough.
+        save_atomic_checked(&doc, SaveKind::Full, None, target, &mut || {
+            if step(ExtractStep::Replacing) {
+                Ok(())
+            } else {
+                Err(Error::Cancelled)
+            }
+        })?;
+        Ok(report)
     }
 
     /// Takes the PDF/A claim out of the metadata if the changes about to be saved may have
@@ -1061,6 +1173,7 @@ impl Actor {
         self.flags = read_flags(&self.doc)?;
         self.read_only &= self.flags.pdfa.is_some();
         self.pages = page_sizes(&self.doc)?;
+        self.page_ids = page_ids(&self.doc)?;
         self.labels = page_labels(&self.doc, self.pages.len())?;
         self.outline = outline::read_bookmarks(&self.doc)?;
         self.annotations = read_annotations(&self.doc)?;
@@ -1099,6 +1212,22 @@ fn page_sizes(doc: &PdfDocument) -> Result<Vec<PageSize>> {
         });
     }
     Ok(pages)
+}
+
+/// Every page's object number (0 for a page that is not an indirect object, in a damaged
+/// file).
+fn page_ids(doc: &PdfDocument) -> Result<Vec<i32>> {
+    let count = doc.page_count()?;
+    let mut ids = Vec::with_capacity(usize::try_from(count).unwrap_or(0));
+    for i in 0..count {
+        let obj = doc.find_page(i)?;
+        ids.push(if obj.is_indirect()? {
+            obj.as_indirect()?
+        } else {
+            0
+        });
+    }
+    Ok(ids)
 }
 
 /// The stored label rules and every page's label, or `None` if the document has no labels.

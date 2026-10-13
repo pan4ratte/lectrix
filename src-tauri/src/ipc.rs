@@ -361,6 +361,39 @@ pub struct DocumentChange {
     /// Pages whose annotations changed, with all of their annotations now (a page with
     /// none left has an empty list).
     pub annotations: Vec<PageAnnotations>,
+    /// Set when the pages are no longer the same ones in the same order (moved, deleted,
+    /// inserted, or any of that undone): for each page now, the index it had before, or
+    /// null for a page that was not there. What the frontend keeps by page index (the
+    /// current page, the history of jumps) follows its page with this.
+    pub page_map: Option<Vec<Option<u32>>>,
+    /// What deleting pages took out with them.
+    pub deleted: Option<DeleteReport>,
+}
+
+/// What deleting pages took out with them, for telling the user.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DeleteReport {
+    pub pages: u32,
+    /// Links on other pages that led to the deleted ones.
+    pub links: u32,
+    /// Bookmarks that led to them (ones with bookmarks inside stay as headings).
+    pub bookmarks: u32,
+    /// Form fields that were on them.
+    pub fields: u32,
+}
+
+impl From<pdf_core::pages::DeleteReport> for DeleteReport {
+    fn from(r: pdf_core::pages::DeleteReport) -> Self {
+        let n = |v: usize| u32::try_from(v).unwrap_or(u32::MAX);
+        DeleteReport {
+            pages: n(r.pages),
+            links: n(r.links),
+            bookmarks: n(r.bookmarks),
+            fields: n(r.fields),
+        }
+    }
 }
 
 impl From<core::DocumentChange> for DocumentChange {
@@ -374,6 +407,11 @@ impl From<core::DocumentChange> for DocumentChange {
         let created = c.created;
         let page_count = u32::try_from(c.page_count).unwrap_or(u32::MAX);
         let merge_report = c.merge_report.map(MergeReport::from);
+        let page_map = c.page_map.map(|map| {
+            map.into_iter()
+                .map(|before| before.and_then(|i| u32::try_from(i).ok()))
+                .collect()
+        });
         DocumentChange {
             state: c.state.into(),
             changed_pages: c
@@ -392,6 +430,8 @@ impl From<core::DocumentChange> for DocumentChange {
             page_count,
             merge_report,
             annotations: crate::annotations::changed(c.annotations),
+            page_map,
+            deleted: c.deleted.map(DeleteReport::from),
         }
     }
 }
@@ -817,6 +857,18 @@ pub enum OperationInput {
         pages: Vec<u32>,
         degrees: i32,
     },
+    /// Move pages (they keep their order) into the gap `to` of the current order: 0 is
+    /// before the first page, the page count after the last. Page labels stay with the
+    /// positions.
+    MovePages {
+        pages: Vec<u32>,
+        to: u32,
+    },
+    /// Delete pages, with the links, bookmarks and form fields that lead to them or were
+    /// on them. At least one page stays.
+    DeletePages {
+        pages: Vec<u32>,
+    },
     /// Add a bookmark as child number `index` of `parent` (null: top level).
     AddBookmark {
         parent: Option<u32>,
@@ -946,6 +998,13 @@ impl OperationInput {
             OperationInput::RotatePages { pages, degrees } => Op::RotatePages {
                 pages: pages.into_iter().map(|p| p as usize).collect(),
                 degrees,
+            },
+            OperationInput::MovePages { pages, to } => Op::MovePages {
+                pages: pages.into_iter().map(|p| p as usize).collect(),
+                to: to as usize,
+            },
+            OperationInput::DeletePages { pages } => Op::DeletePages {
+                pages: pages.into_iter().map(|p| p as usize).collect(),
             },
             OperationInput::AddBookmark {
                 parent,
@@ -1586,6 +1645,12 @@ impl From<pdf_core::Error> for AppError {
                 "This document’s bookmarks are damaged, so Lectrix can show them but not change them.",
                 Some(
                     "Save a copy with File > Save as (optimized) in another app that can repair it, or leave the bookmarks as they are.",
+                ),
+            ),
+            E::DamagedPageTree => AppError::new(
+                "This document’s page structure is damaged, so its pages can’t be moved or deleted here.",
+                Some(
+                    "Save a copy with File > Save as (optimized), open the copy, and try again there.",
                 ),
             ),
             _ => AppError::new(

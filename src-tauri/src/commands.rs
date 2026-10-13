@@ -809,20 +809,7 @@ pub fn execute_merge(
         ));
     }
 
-    let cancel = Arc::new(AtomicBool::new(false));
-    {
-        let mut current = state
-            .merge_cancel
-            .lock()
-            .map_err(|_| AppError::bad_state())?;
-        if current.is_some() {
-            return Err(AppError::new(
-                "Lectrix is already combining files.",
-                Some("Wait for it to finish, or stop it."),
-            ));
-        }
-        *current = Some(cancel.clone());
-    }
+    let cancel = start_page_job(&state)?;
     let job = combine::Job {
         sources,
         picks: request
@@ -845,23 +832,7 @@ pub fn execute_merge(
         target: target.clone(),
     };
     let started = Instant::now();
-    let result = combine::run(job, cancel, move |p| {
-        let n = |v: usize| u32::try_from(v).unwrap_or(u32::MAX);
-        let message = match p {
-            Progress::Copying { done, total } => MergeProgress {
-                stage: MergeStage::Copying,
-                done: n(done),
-                total: n(total),
-            },
-            Progress::Writing => MergeProgress {
-                stage: MergeStage::Writing,
-                done: 0,
-                total: 0,
-            },
-        };
-        // The webview may have gone away; the merge finishes regardless.
-        let _ = on_progress.send(message);
-    });
+    let result = combine::run(job, cancel, report_progress(on_progress));
     if let Ok(mut current) = state.merge_cancel.lock() {
         *current = None;
     }
@@ -879,7 +850,133 @@ pub fn execute_merge(
     }))
 }
 
-/// Stops the merge in progress, if any.
+/// Claims the one slot for a job that copies pages into a new file (combining,
+/// extracting) and returns the flag that stops it. The caller empties the slot when the
+/// job ends.
+fn start_page_job(state: &AppState) -> Result<Arc<AtomicBool>, AppError> {
+    let cancel = Arc::new(AtomicBool::new(false));
+    let mut current = state
+        .merge_cancel
+        .lock()
+        .map_err(|_| AppError::bad_state())?;
+    if current.is_some() {
+        return Err(AppError::new(
+            "Lectrix is already combining files or extracting pages.",
+            Some("Wait for it to finish, or stop it."),
+        ));
+    }
+    *current = Some(cancel.clone());
+    Ok(cancel)
+}
+
+/// Sends a page job's progress to the frontend.
+fn report_progress(on_progress: Channel<MergeProgress>) -> impl Fn(Progress) + Send + 'static {
+    move |p| {
+        let n = |v: usize| u32::try_from(v).unwrap_or(u32::MAX);
+        let message = match p {
+            Progress::Copying { done, total } => MergeProgress {
+                stage: MergeStage::Copying,
+                done: n(done),
+                total: n(total),
+            },
+            Progress::Writing => MergeProgress {
+                stage: MergeStage::Writing,
+                done: 0,
+                total: 0,
+            },
+        };
+        // The webview may have gone away; the job finishes regardless.
+        let _ = on_progress.send(message);
+    }
+}
+
+/// Shows the Save dialog and copies `pages` (0-based, in this order) of document `id`
+/// into the chosen file, as the document is now (unsaved changes included), reporting
+/// progress on `on_progress`; then opens the new file in a tab. The document is not
+/// changed. Returns null if the user cancels the dialog; an extraction stopped with
+/// `cancel_merge` fails with the `cancelled` code and writes nothing.
+#[tauri::command(async)]
+pub fn extract_pages(
+    app: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    id: u32,
+    pages: Vec<u32>,
+    on_progress: Channel<MergeProgress>,
+) -> Result<Option<MergeOutcome>, AppError> {
+    if pages.is_empty() {
+        return Err(AppError::new(
+            "No pages are selected.",
+            Some("Select the pages to extract first."),
+        ));
+    }
+    let session = state.documents.session(id)?;
+    let current = state.documents.path(id)?;
+    let Some(target) = pick_save_target(
+        &app,
+        Some("Save extracted pages"),
+        Some(format!("Pages from {}", file_name(&current))),
+        current.parent(),
+    )?
+    else {
+        return Ok(None);
+    };
+    if state.platform.same_file(&current, &target) {
+        return Err(AppError::new(
+            format!(
+                "{} is the document the pages come from.",
+                file_name(&current)
+            ),
+            Some("Choose a new name: extracting never changes the document."),
+        ));
+    }
+    if !state
+        .documents
+        .tabs_showing(&target, state.platform)
+        .is_empty()
+    {
+        return Err(AppError::new(
+            "That file is open in a tab.",
+            Some("Close it there first, or choose a different name."),
+        ));
+    }
+
+    let cancel = start_page_job(&state)?;
+    let started = Instant::now();
+    let result = combine::extract(
+        &session,
+        pages.into_iter().map(|p| p as usize).collect(),
+        &target,
+        cancel,
+        report_progress(on_progress),
+    );
+    if let Ok(mut current) = state.merge_cancel.lock() {
+        *current = None;
+    }
+    let report = match result {
+        Ok(report) => report,
+        Err(pdf_core::Error::Cancelled) => {
+            return Err(
+                AppError::new("Extracting was stopped. No file was written.", None)
+                    .with_code(crate::ipc::ErrorCode::Cancelled),
+            );
+        }
+        Err(e) => return Err(e.into()),
+    };
+    crate::applog::info(format!(
+        "extracted {} pages into {} in {:.0} ms",
+        report.pages,
+        target.display(),
+        started.elapsed().as_secs_f64() * 1000.0
+    ));
+    Ok(Some(MergeOutcome {
+        opened: windows::adopt(&app, window.label(), state.open(&target)),
+        report: report.into(),
+        name: file_name(&target),
+    }))
+}
+
+/// Stops the merge or extraction in progress, if any.
 #[tauri::command]
 pub fn cancel_merge(state: State<'_, AppState>) {
     if let Ok(current) = state.merge_cancel.lock()

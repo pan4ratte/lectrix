@@ -325,7 +325,50 @@ pub(crate) fn add_to_tree(
     all.extend(entries);
     all.sort_by(|a, b| a.0.cmp(&b.0));
     all.dedup_by(|b, a| a.0 == b.0);
+    write_tree(doc, tree, all)
+}
 
+/// Removes the named destinations in `gone` (pages deleted from the document): from the
+/// catalog's `/Dests` dictionary, and from the name tree, which is rewritten as one sorted
+/// leaf if it held any of them.
+pub(crate) fn remove_dests(doc: &mut PdfDocument, gone: &HashSet<Vec<u8>>) -> Result<()> {
+    if gone.is_empty() {
+        return Ok(());
+    }
+    if let Some(mut dests) = doc.catalog()?.get_dict("Dests")?
+        && dests.is_dict()?
+    {
+        for (key, _) in dict_entries(&dests)? {
+            if gone.contains(&key.as_name()?) {
+                dests.dict_delete(key)?;
+            }
+        }
+    }
+    let all = tree_entries(doc, "Dests")?;
+    let before = all.len();
+    let mut kept: Vec<_> = all
+        .into_iter()
+        .filter(|(name, _)| !gone.contains(name))
+        .collect();
+    if kept.len() == before {
+        return Ok(());
+    }
+    kept.sort_by(|a, b| a.0.cmp(&b.0));
+    write_tree(doc, "Dests", kept)
+}
+
+/// Writes `all` (sorted, each name once) as the name tree `tree` under the catalog's
+/// `/Names`, in one leaf; with no entries the tree is removed.
+fn write_tree(doc: &mut PdfDocument, tree: &str, all: Vec<(Vec<u8>, PdfObject)>) -> Result<()> {
+    if all.is_empty() {
+        if let Some(mut names) = doc.catalog()?.get_dict("Names")?
+            && names.is_dict()?
+            && names.get_dict(tree)?.is_some()
+        {
+            names.dict_delete(tree)?;
+        }
+        return Ok(());
+    }
     let mut array = doc.new_array_with_capacity(i32::try_from(all.len() * 2).unwrap_or(0))?;
     for (name, value) in all {
         array.array_push(byte_string(doc, &name)?)?;

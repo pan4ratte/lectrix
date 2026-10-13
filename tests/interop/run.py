@@ -4,6 +4,7 @@
     python tests/interop/run.py phase2      # bookmarks edited as the app edits them
     python tests/interop/run.py phase3      # page labels edited as the app edits them
     python tests/interop/run.py phase4      # files combined and pages inserted as the app does it
+    python tests/interop/run.py pages       # pages moved, deleted and extracted as the app does it
     python tests/interop/run.py phase4-local  # three real files from the local corpus, combined
     python tests/interop/run.py phase5      # every annotation type on every page geometry; edits; repair
     python tests/interop/run.py phase5-local  # repair on the local corpus files that need it
@@ -695,6 +696,96 @@ def phase4(report: Report) -> None:
     annotation_checks(inserted, report, case)
 
 
+def pages(report: Report) -> None:
+    """Pages moved, deleted and extracted the way the app does it (pdf-cli pages move,
+    delete and extract go through the same session), in a file with an outline, labels,
+    links and a highlight. PDFium and pdf.js must find the pages, labels, bookmarks and links where
+    they are written out here, and the highlight must still show on its page."""
+    work = OUT / "pages"
+    shutil.rmtree(work, ignore_errors=True)
+    work.mkdir(parents=True, exist_ok=True)
+    cli = pdf_cli()
+    p = lambda name: str(work / name)
+
+    # The file phase4 combines: six pages with an outline, five with labels (i, ii, 1, 2,
+    # 3), and three whose first page has a highlight and links to the other two.
+    run([cli, "gen", p("outline-base.pdf"), "--pages", "6", "--title", "Outline sample"])
+    items = ["0+:1:Front", "1:2:Preface", "0:3:Chapter", "1:5:Section"]
+    run([cli, "outline", "set", p("outline-base.pdf"), p("outline.pdf")] + [a for i in items for a in ("--item", i)])
+    run([cli, "gen", p("labels-base.pdf"), "--pages", "5", "--title", "Labels sample"])
+    run([cli, "labels", "set", p("labels-base.pdf"), p("labels.pdf"), "--rule", "1:roman-lower", "--rule", "3:decimal"])
+    (work / "links.pdf").write_bytes(links_fixture())
+    run([cli, "annot", "markup", p("links.pdf"), p("annotated.pdf"), "--page", "1", "--text", "quick brown fox", "--opacity", "0.6", "--author", "Lectrix Harness", "--note", "Harness note"])
+    book = work / "book.pdf"
+    run([cli, "merge", str(book), p("outline.pdf"), p("labels.pdf"), p("annotated.pdf")])
+    labels = [str(n) for n in range(1, 7)] + ["i", "ii", "1", "2", "3"] + ["1", "2", "3"]
+
+    # 1. The last three pages to the front. Labels belong to the positions, so they read
+    # as before; bookmarks and links lead to the same pages, which are elsewhere now.
+    moved = work / "moved.pdf"
+    run([cli, "pages", "move", str(book), str(moved), "--pages", "12-14", "--before", "1"])
+    print(moved.name)
+    qpdf_check(moved, report)
+    outline_and_label_checks(
+        moved,
+        report,
+        pages=14,
+        labels=labels,
+        outline=[
+            ("Outline sample", 3, [("Front", 3, [("Preface", 4, [])]), ("Chapter", 5, [("Section", 7, [])])]),
+            ("Labels sample", 9, []),
+            ("annotated", 0, []),
+        ],
+    )
+    link_checks(moved, report, [(1, 2), (1, 1), (1, "https://example.org/")])
+    case = work / "moved"
+    case.mkdir(exist_ok=True)
+    annotation_checks(moved, report, case)
+
+    # 2. Three pages deleted from that: the page the link by name leads to, the page of
+    # "Preface", and the first labeled page, which "Labels sample" leads to. The link and
+    # the two bookmarks go, the numbering closes up, and the rest follows its pages.
+    deleted = work / "deleted.pdf"
+    run([cli, "pages", "delete", str(moved), str(deleted), "--pages", "2,5,10"])
+    print(deleted.name)
+    qpdf_check(deleted, report)
+    outline_and_label_checks(
+        deleted,
+        report,
+        pages=11,
+        labels=["1", "2", "3", "4", "i", "ii", "1", "2", "1", "2", "3"],
+        outline=[
+            ("Outline sample", 2, [("Front", 2, []), ("Chapter", 3, [("Section", 5, [])])]),
+            ("annotated", 0, []),
+        ],
+    )
+    link_checks(deleted, report, [(1, 1), (1, "https://example.org/")])
+    case = work / "deleted"
+    case.mkdir(exist_ok=True)
+    annotation_checks(deleted, report, case)
+
+    # 3. Five pages of the moved file extracted into a new one: the page with the highlight,
+    # the page its explicit link leads to, and three in a row from the middle (the last
+    # page of the first file, and the first two labeled ones). Each keeps the label it had
+    # where it was. The link by name goes (its page stayed behind), and so do the bookmarks
+    # of the first file, none of whose pages they lead to came along.
+    extracted = work / "extracted.pdf"
+    run([cli, "pages", "extract", str(moved), str(extracted), "--pages", "1,3,9-11"])
+    print(extracted.name)
+    qpdf_check(extracted, report)
+    outline_and_label_checks(
+        extracted,
+        report,
+        pages=5,
+        labels=["1", "3", "1", "2", "3"],
+        outline=[("Labels sample", 3, []), ("annotated", 0, [])],
+    )
+    link_checks(extracted, report, [(1, 1), (1, "https://example.org/")])
+    case = work / "extracted"
+    case.mkdir(exist_ok=True)
+    annotation_checks(extracted, report, case)
+
+
 LOCAL_CORPUS = ROOT / "tests" / "local-corpus" / "files"
 
 
@@ -1008,6 +1099,8 @@ def main(argv: list[str]) -> int:
         phase3(report)
     elif argv[:1] == ["phase4"]:
         phase4(report)
+    elif argv[:1] == ["pages"]:
+        pages(report)
     elif argv[:1] == ["phase4-local"]:
         phase4_local(report)
     elif argv[:1] == ["phase5"]:

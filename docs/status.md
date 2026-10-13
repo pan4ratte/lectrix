@@ -125,6 +125,31 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
 - **Recovery copies of large damaged files** are full copies and take 1.2 to 1.5 s for
   165 to 173 MB files. That document renders nothing new meanwhile. Copies are written at
   most every 2 minutes, and only after a change.
+- **Organizing pages** is being built (plan agreed 2026-10-13: a mode of the document's
+  tab with a page grid, where pages are selected, reordered, rotated, deleted, extracted
+  and inserted, and page labels are edited). Done so far: the engine's `MovePages` and
+  `DeletePages` operations and extracting pages into a new file (ADR 0018), reachable
+  from `pdf-cli pages move`, `pages delete` and `pages extract` only; the app has the
+  `extract_pages` command, and no interface for any of it yet. What they leave open:
+  - **A deleted page stays in the file after an ordinary save.** Saves are incremental
+    (AGENTS.md section 5.4), so the original bytes, the deleted page among them, remain
+    and can be recovered. Only Save As (optimized) writes a file without it (tested).
+    Decided 2026-10-13: the notification after deleting pages says so and offers Save As
+    (optimized). It comes with the interface; nothing tells the user yet.
+  - An extract carries every attached file of the document, whatever pages are picked,
+    and nothing of its metadata (title, author, XMP), as a combined file does. While
+    pages are extracted, the document renders nothing new.
+  - A tagged file keeps its structure elements for deleted pages (they point at emptied
+    page objects), and article threads and an open action that lead to a deleted page are
+    left as they are. Deleting pages therefore removes a PDF/A claim at the next save.
+  - A page tree that MuPDF and Lectrix read differently, or one with a page listed twice,
+    is refused (`Error::DamagedPageTree`) and not mended. None of the 30 local corpus
+    files is refused.
+  - Measured 2026-10-13 on the local corpus, release build, the session's own re-reading
+    included: moving or deleting pages takes 15 to 20 ms in the 2,881-page dictionary and
+    under 35 ms in most files. The 2,597-page file with the most bookmarks takes 0.19 to
+    0.25 s, where rotating a page (an edit v1 has) takes 0.15 s: nearly all of it is the
+    session reading the outline and the named destinations again after every edit.
 - **Combining** does not carry over the structure tree (the result is not tagged),
   article threads, document-level JavaScript, open actions, viewer preferences or XMP
   metadata. Signatures from signed sources are invalid in the result. Lectrix warns
@@ -333,7 +358,8 @@ Nothing has been run interactively there.
 ## Names kept from the build
 
 - The interop suites keep their build-phase names (`run.py phase0` to `phase5`,
-  `phase4-local`, `phase5-local`); CI calls them by these names.
+  `phase4-local`, `phase5-local`); CI calls them by these names. Suites added since are
+  named for what they check (`pages`).
 - The `mupdf-rs` fork's branch is `folio-mupdf-1.27.2` and its patch file is
   `folio_patches.rs`, from the app's earlier working name. Renaming them needs a change in
   the fork first.

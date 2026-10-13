@@ -166,6 +166,12 @@ fn changes_that_cannot_break_the_standard_keep_the_claim() {
     let path = pdfa_file(&dir, "doc.pdf");
     let (session, _) = Session::open(&path, None).unwrap();
     session.apply(rotate(0)).unwrap();
+    session
+        .apply(Operation::MovePages {
+            pages: vec![3],
+            to: 0,
+        })
+        .unwrap();
     session.apply(bookmark("Chapter", None)).unwrap();
     session
         .apply(Operation::SetPageLabels {
@@ -197,7 +203,7 @@ fn changes_that_cannot_break_the_standard_keep_the_claim() {
 }
 
 #[test]
-fn saving_annotations_or_inserted_pages_takes_the_claim_out() {
+fn saving_annotations_or_inserted_or_deleted_pages_takes_the_claim_out() {
     let dir = out_dir("pdfa-removed");
     let other = sample_file(&dir, "other.pdf", SampleSpec::default());
     let insert = || Operation::InsertPages {
@@ -209,10 +215,13 @@ fn saving_annotations_or_inserted_pages_takes_the_claim_out() {
         at: 1,
         options: InsertOptions::default(),
     };
+    // Deleting pages counts too: a tagged file's structure tree still describes them.
+    let delete = Operation::DeletePages { pages: vec![2] };
     for (name, op, kind) in [
         ("note.pdf", note(), SaveKind::Incremental),
         ("note-optimized.pdf", note(), SaveKind::Optimized),
         ("inserted.pdf", insert(), SaveKind::Incremental),
+        ("deleted.pdf", delete, SaveKind::Incremental),
     ] {
         let path = pdfa_file(&dir, name);
         let before = String::from_utf8(metadata_bytes(&open(&path)).unwrap()).unwrap();
