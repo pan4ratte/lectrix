@@ -83,7 +83,6 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 		commands: [
 			{ command: 'addBookmark', label: 'Add bookmark', keys: ['Ctrl+B'] },
 			{ command: 'organizePages', label: 'Organize pages', keys: [] },
-			{ command: 'rotatePages', label: 'Rotate pages', keys: [] },
 			{ command: 'insertPages', label: 'Insert pages from file', keys: [] },
 			{ command: 'showLabels', label: 'Page labels', keys: [], inInputs: true },
 			{ command: 'startLabelRange', label: 'New label range from this page', keys: [] },

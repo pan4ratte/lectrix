@@ -1,6 +1,6 @@
 // Zoom levels, fitting, and the render-scale ladder.
 
-import { CSS_PX_PER_PT, PAGE_GAP, PAGE_MARGIN, type Rotation, type Size } from './layout.ts';
+import { CSS_PX_PER_PT, PAGE_GAP, PAGE_MARGIN, type Size } from './layout.ts';
 
 export const MIN_ZOOM = 0.1;
 export const MAX_ZOOM = 16;
@@ -70,35 +70,21 @@ export function wheelZoomFactor(deltaY: number, deltaMode: number): number {
 	return Math.exp(-delta * perPixel);
 }
 
-/** Width and height of a page in points after view rotation. */
-function rotatedSize(size: Size, rotation: Rotation) {
-	return rotation === 90 || rotation === 270
-		? { width: size.height, height: size.width }
-		: { width: size.width, height: size.height };
-}
-
 /** Width left for pages in a viewport `viewportWidth` wide, with `columns` side by side. */
 function availableWidth(viewportWidth: number, columns: 1 | 2): number {
 	// One pixel of slack, so rounding never adds a horizontal scrollbar.
 	return viewportWidth - 2 * PAGE_MARGIN - (columns - 1) * PAGE_GAP - 1;
 }
 
-/** Zoom at which `size` fills the viewport's width (minus margins and a scrollbar); with two
- * columns, two pages of that size side by side. */
-export function fitWidthZoom(size: Size, viewportWidth: number, rotation: Rotation, columns: 1 | 2 = 1): number {
-	const { width } = rotatedSize(size, rotation);
-	return clampZoom(availableWidth(viewportWidth, columns) / (columns * width * CSS_PX_PER_PT));
+/** Zoom at which `size` (a page as it is turned on screen) fills the viewport's width (minus
+ * margins and a scrollbar); with two columns, two pages of that size side by side. */
+export function fitWidthZoom(size: Size, viewportWidth: number, columns: 1 | 2 = 1): number {
+	return clampZoom(availableWidth(viewportWidth, columns) / (columns * size.width * CSS_PX_PER_PT));
 }
 
 /** Zoom at which the whole page (or two side by side) fits in the viewport. */
-export function fitPageZoom(
-	size: Size,
-	viewportWidth: number,
-	viewportHeight: number,
-	rotation: Rotation,
-	columns: 1 | 2 = 1
-): number {
-	const { width, height } = rotatedSize(size, rotation);
+export function fitPageZoom(size: Size, viewportWidth: number, viewportHeight: number, columns: 1 | 2 = 1): number {
+	const { width, height } = size;
 	const zw = availableWidth(viewportWidth, columns) / (columns * width * CSS_PX_PER_PT);
 	const zh = (viewportHeight - 2 * PAGE_MARGIN - 1) / (height * CSS_PX_PER_PT);
 	return clampZoom(Math.min(zw, zh));

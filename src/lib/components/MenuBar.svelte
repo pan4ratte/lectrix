@@ -228,13 +228,6 @@
 				<Menubar.Item
 					class="menu-item"
 					disabled={!hasDoc || !tab?.flags.canAssemble}
-					onSelect={commands.rotatePages}
-				>
-					Rotate pages…{@render keys('rotatePages')}
-				</Menubar.Item>
-				<Menubar.Item
-					class="menu-item"
-					disabled={!hasDoc || !tab?.flags.canAssemble}
 					onSelect={commands.insertPages}
 				>
 					Insert pages from file…{@render keys('insertPages')}

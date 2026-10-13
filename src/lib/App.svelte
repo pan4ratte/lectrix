@@ -40,7 +40,6 @@
 	import { insertDropped, leaveOrganize } from '#lib/features/organize/actions.ts';
 	import OrganizeBar from '#lib/features/organize/OrganizeBar.svelte';
 	import OrganizeView from '#lib/features/organize/OrganizeView.svelte';
-	import RotatePagesDialog from '#lib/features/viewer/RotatePagesDialog.svelte';
 	import ViewBar from '#lib/features/viewer/ViewBar.svelte';
 	import Viewer from '#lib/features/viewer/Viewer.svelte';
 	import WhatsNewDialog from '#lib/features/changelog/WhatsNewDialog.svelte';
@@ -253,6 +252,7 @@
 		void current.currentPage;
 		void current.zoom;
 		void current.rotation;
+		void current.pageTurns;
 		void current.pageFilter;
 		clearTimeout(rememberTimer);
 		rememberTimer = setTimeout(() => app.rememberView(current), 1500);
@@ -480,9 +480,6 @@
 			{@render paneButton('right')}
 		{/if}
 	</div>
-	{#if tab}
-		<RotatePagesDialog {tab} />
-	{/if}
 </div>
 
 <InsertPagesDialog />

@@ -1,22 +1,22 @@
 <script lang="ts">
 	// One page: its rendered pixels (whole, or tiles at high zoom), and overlays for the
 	// text selection and search hits. Inside, everything is laid out unrotated in page
-	// points scaled to CSS pixels; a CSS transform applies the view rotation. The document's
-	// visual adjustments (section 6.1) are a CSS filter on all of that, pixels and overlays
-	// alike, so what shows on the page stays as visible as it was; the page's shadow is
-	// outside it.
+	// points scaled to CSS pixels; a CSS transform turns it as the page is shown (the view
+	// rotation and the page's own turn, section 6.1). The document's visual adjustments
+	// (section 6.1) are a CSS filter on all of that, pixels and overlays alike, so what
+	// shows on the page stays as visible as it was; the page's shadow is outside it.
 	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 
 	import { cancelTextDraft, commitTextDraft, hiddenOnPage } from '#lib/features/annotations/actions.ts';
-	import { HANDLES, handlePoint } from '#lib/features/annotations/geometry.ts';
+	import { HANDLES, handlePoint, textBoxFrame } from '#lib/features/annotations/geometry.ts';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
 	import { capabilities, isMarkupTool } from '#lib/features/annotations/tools.ts';
 	import { pageUrl, type PageSize } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
-	import { CSS_PX_PER_PT, type Rotation } from './layout.ts';
+	import { CSS_PX_PER_PT, turnTransform, type Rotation } from './layout.ts';
 	import { blankTracker } from './perf.ts';
 	import { markPageDrawn } from './perfrun.ts';
 	import RenderedImage from './RenderedImage.svelte';
@@ -37,6 +37,7 @@
 		renderZoom: number;
 		/** A wheel or pinch zoom is under way: request no new tiles. */
 		zooming: boolean;
+		/** How far the page is turned on screen. */
 		rotation: Rotation;
 		devicePixelRatio: number;
 		/** The area of the link under the pointer on this page (page points), if any. */
@@ -72,15 +73,7 @@
 	/** Unrotated page size in CSS pixels. */
 	const innerW = $derived(size.width * k);
 	const innerH = $derived(size.height * k);
-	const transform = $derived(
-		rotation === 90
-			? `translate(${innerH}px, 0) rotate(90deg)`
-			: rotation === 180
-				? `translate(${innerW}px, ${innerH}px) rotate(180deg)`
-				: rotation === 270
-					? `translate(0, ${innerW}px) rotate(270deg)`
-					: 'none'
-	);
+	const transform = $derived(turnTransform(rotation, innerW, innerH));
 
 	const revision = $derived(tab.state.revision);
 	const scale = $derived(renderScale(renderZoom, devicePixelRatio));
@@ -440,15 +433,18 @@
 		{/if}
 
 		{#if textDraft}
-			{@const b = textDraft.box}
+			<!-- Turned as the box's text is: for a new box, upright as the page is shown. Its
+			     first line starts at the editor's corner, and it grows down from there. -->
+			{@const frame = textBoxFrame(textDraft.box, textDraft.turn)}
 			<textarea
 				data-annotation-editor
 				rows="1"
-				class="annotation-editor absolute"
-				style:left="{b[0] * k}px"
-				style:top="{b[1] * k}px"
-				style:width="{(b[2] - b[0]) * k}px"
-				style:min-height="{(b[3] - b[1]) * k}px"
+				class="annotation-editor absolute origin-top-left"
+				style:left="{frame.x * k}px"
+				style:top="{frame.y * k}px"
+				style:width="{frame.across * k}px"
+				style:min-height="{frame.down * k}px"
+				style:transform={textDraft.turn ? `rotate(${-textDraft.turn}deg)` : undefined}
 				style:font-size="{textDraft.fontSize * k}px"
 				style:color={textDraft.color}
 				value={textDraft.text}

@@ -32,7 +32,12 @@ import {
 	moveBox,
 	normalizeBox,
 	resizeBox,
-	selectionRanges
+	selectionRanges,
+	textBoxFrame,
+	turnBox,
+	turnPoint,
+	unturnBox,
+	unturnPoint
 } from './geometry.ts';
 import {
 	capabilities,
@@ -69,6 +74,7 @@ function annotation(patch: Partial<Annotation>): Annotation {
 		hidden: false,
 		width: null,
 		fontSize: null,
+		turn: 0,
 		problems: [],
 		...patch
 	};
@@ -121,6 +127,51 @@ describe('moving and resizing', () => {
 		expect(normalizeBox([10, 20, 0, 5])).toEqual([0, 5, 10, 20]);
 		// An area becomes one quad in Acrobat's corner order (view space).
 		expect(boxQuad([10, 20, 0, 5])).toEqual([0, 5, 10, 5, 0, 20, 10, 20]);
+	});
+});
+
+describe('a page turned on screen', () => {
+	// A page 600 by 800, and a point near its top-left corner.
+	const [w, h] = [600, 800];
+
+	it('shows a point elsewhere, and gives it back', () => {
+		// Turned a quarter clockwise, the page's top-left corner is at the top right.
+		expect(turnPoint(0, 0, 90, w, h)).toEqual([800, 0]);
+		expect(turnPoint(10, 20, 90, w, h)).toEqual([780, 10]);
+		expect(turnPoint(10, 20, 180, w, h)).toEqual([590, 780]);
+		expect(turnPoint(10, 20, 270, w, h)).toEqual([20, 590]);
+		expect(turnPoint(10, 20, 0, w, h)).toEqual([10, 20]);
+		for (const turn of [0, 90, 180, 270] as const) {
+			expect(unturnPoint(...turnPoint(10, 20, turn, w, h), turn, w, h)).toEqual([10, 20]);
+			expect(unturnBox(turnBox([10, 20, 110, 50], turn, w, h), turn, w, h)).toEqual([10, 20, 110, 50]);
+		}
+		// A box 100 wide and 30 high lies on its side there.
+		expect(turnBox([10, 20, 110, 50], 90, w, h)).toEqual([750, 10, 780, 110]);
+	});
+
+	it('orders an area highlight as it is seen there', () => {
+		const box: [number, number, number, number] = [10, 20, 110, 50];
+		// Upper-left as seen on a page turned a quarter clockwise is the page's lower-left.
+		expect(boxQuad(box, 90)).toEqual([10, 50, 10, 20, 110, 50, 110, 20]);
+		expect(boxQuad(box, 180)).toEqual([110, 50, 10, 50, 110, 20, 10, 20]);
+		expect(boxQuad(box, 270)).toEqual([110, 20, 110, 50, 10, 20, 10, 50]);
+		expect(boxQuad(box, 0)).toEqual(boxQuad(box));
+	});
+
+	it('starts a text box where its first line starts as it is read', () => {
+		const box: [number, number, number, number] = [10, 20, 110, 50];
+		expect(textBoxFrame(box, 0)).toEqual({ x: 10, y: 20, across: 100, down: 30 });
+		// Read on a page turned a quarter clockwise, its lines run up the page.
+		expect(textBoxFrame(box, 90)).toEqual({ x: 10, y: 50, across: 30, down: 100 });
+		expect(textBoxFrame(box, 180)).toEqual({ x: 110, y: 50, across: 100, down: 30 });
+		expect(textBoxFrame(box, 270)).toEqual({ x: 110, y: 20, across: 30, down: 100 });
+		// The frame's corner is where the turned page shows the box's top-left corner.
+		for (const turn of [0, 90, 180, 270] as const) {
+			const shown = turnBox(box, turn, w, h);
+			const frame = textBoxFrame(box, turn);
+			expect(turnPoint(frame.x, frame.y, turn, w, h)).toEqual([shown[0], shown[1]]);
+			expect([frame.across, frame.down]).toEqual([shown[2] - shown[0], shown[3] - shown[1]]);
+		}
 	});
 });
 

@@ -26,4 +26,9 @@ rotation: number,
 /**
  * Views stored before there were adjustments have none.
  */
-adjustments: PageAdjustments, };
+adjustments: PageAdjustments, 
+/**
+ * The pages turned as they are shown, on top of the view rotation: a page's index and
+ * its turn in degrees (90, 180 or 270). Never in the document either.
+ */
+pageTurns: { [key in number]: number }, };

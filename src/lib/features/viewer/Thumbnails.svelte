@@ -1,10 +1,11 @@
 <script lang="ts">
 	// Pages panel: a toolbar, then a virtualized list of small page images with their labels,
 	// in one column or in a grid. Click (or Enter) jumps to the page; arrow keys move between
-	// thumbnails. The toolbar turns the current page (in the document, undoably), makes
-	// thumbnails smaller or larger, fits them to the panel's width (following it as it
-	// changes), and switches between one column and a grid of as many columns as fit. A new
-	// size glides there in 140 ms, as zooming the view does.
+	// thumbnails. The toolbar turns the current page (as it is shown, never in the document:
+	// section 6.1, view rotation), makes thumbnails smaller or larger, fits them to the
+	// panel's width (following it as it changes), and switches between one column and a grid
+	// of as many columns as fit. A new size glides there in 140 ms, as zooming the view does.
+	// A thumbnail shows its page turned as the viewer shows it, without the view rotation.
 	import { LayoutGrid, MoveHorizontal, RotateCcw, RotateCw, SquareText, ZoomIn, ZoomOut } from '@lucide/svelte';
 	import { ContextMenu } from 'bits-ui';
 	import { onMount, tick, untrack } from 'svelte';
@@ -17,6 +18,8 @@
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
+	import { turnPages } from './actions.ts';
+	import { turnTransform, turnedSize, type Rotation } from './layout.ts';
 	import { pageBoxText, pageName } from './pagebox.ts';
 	import RenderedImage from './RenderedImage.svelte';
 	import { BACKGROUND_PRIORITY } from './scheduler.ts';
@@ -55,7 +58,11 @@
 		app.thumbnailsFit = !app.thumbnailsFit;
 	}
 
-	const layout = $derived(layoutThumbs(tab.pages, thumbW, listW, app.thumbnailsGrid));
+	/** How far page `index` is turned on screen, by itself. */
+	const turnOf = (index: number): Rotation => tab.pageTurns.get(index) ?? 0;
+	/** The pages' sizes as they are shown: on its side for a page turned a quarter. */
+	const shownSizes = $derived(tab.pages.map((p, i) => turnedSize(p, turnOf(i))));
+	const layout = $derived(layoutThumbs(shownSizes, thumbW, listW, app.thumbnailsGrid));
 	const items = $derived(layout.items);
 
 	/** The row at `y` in the list (the last one starting above it). */
@@ -82,7 +89,7 @@
 	});
 
 	function scale(index: number) {
-		const p = tab.pages[index]!;
+		const p = shownSizes[index]!;
 		// Rendered once, for the width a glide ends at. Scales snap to 1/1000 so repeated
 		// visits hit the image cache.
 		return Math.round(((renderWidth(targetW) * dpr) / p.width) * 1000) / 1000;
@@ -192,8 +199,7 @@
 			class="icon-button"
 			aria-label="Rotate current page counter-clockwise"
 			data-tip="Rotate current page counter-clockwise"
-			disabled={!tab.flags.canAssemble}
-			onclick={() => void app.rotatePages(tab, [tab.currentPage], -90)}
+			onclick={() => turnPages(tab, [tab.currentPage], -90)}
 		>
 			<RotateCcw size={16} aria-hidden="true" />
 		</button>
@@ -202,8 +208,7 @@
 			class="icon-button"
 			aria-label="Rotate current page clockwise"
 			data-tip="Rotate current page clockwise"
-			disabled={!tab.flags.canAssemble}
-			onclick={() => void app.rotatePages(tab, [tab.currentPage], 90)}
+			onclick={() => turnPages(tab, [tab.currentPage], 90)}
 		>
 			<RotateCw size={16} aria-hidden="true" />
 		</button>
@@ -272,6 +277,10 @@
 							{@const item = items[index]!}
 							{@const current = index === tab.currentPage}
 							{@const caption = pageBoxText(index, tab.displayLabels)}
+							<!-- The picture as rendered, before it is turned: on its side for a quarter turn. -->
+							{@const turn = turnOf(index)}
+							{@const pictureW = turn === 90 || turn === 270 ? item.imageH : thumbW}
+							{@const pictureH = turn === 90 || turn === 270 ? thumbW : item.imageH}
 							<button
 								type="button"
 								data-thumb={index}
@@ -294,16 +303,23 @@
 									style:width="{thumbW}px"
 									style:height="{item.imageH}px"
 								>
-									<!-- The document's visual adjustments (section 6.1), as on its pages. -->
-									<span class="absolute inset-0 bg-white" style:filter={tab.pageFilter}>
+									<!-- The document's visual adjustments (section 6.1), as on its pages, and
+									     the page's turn on screen. -->
+									<span
+										class="absolute top-0 left-0 origin-top-left bg-white"
+										style:width="{pictureW}px"
+										style:height="{pictureH}px"
+										style:transform={turnTransform(turn, pictureW, pictureH)}
+										style:filter={tab.pageFilter}
+									>
 										<RenderedImage
 											imageKey="{tab.id}:{index}:{tab.state.revision}:{scale(index)}"
 											url={pageUrl(tab.id, index, scale(index), tab.state.revision)}
 											priority={BACKGROUND_PRIORITY + Math.abs(index - tab.currentPage)}
 											x={0}
 											y={0}
-											width={thumbW}
-											height={item.imageH}
+											width={pictureW}
+											height={pictureH}
 											rotation={tab.pages[index]?.rotation ?? 0}
 										/>
 									</span>
@@ -320,18 +336,10 @@
 		</ContextMenu.Trigger>
 		<ContextMenu.Portal>
 			<ContextMenu.Content class="menu-content">
-				<ContextMenu.Item
-					class="menu-item"
-					disabled={!tab.flags.canAssemble}
-					onSelect={() => void app.rotatePages(tab, [contextPage], 90)}
-				>
+				<ContextMenu.Item class="menu-item" onSelect={() => turnPages(tab, [contextPage], 90)}>
 					Rotate page clockwise
 				</ContextMenu.Item>
-				<ContextMenu.Item
-					class="menu-item"
-					disabled={!tab.flags.canAssemble}
-					onSelect={() => void app.rotatePages(tab, [contextPage], -90)}
-				>
+				<ContextMenu.Item class="menu-item" onSelect={() => turnPages(tab, [contextPage], -90)}>
 					Rotate page counter-clockwise
 				</ContextMenu.Item>
 				<ContextMenu.Item

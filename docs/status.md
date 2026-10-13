@@ -129,25 +129,13 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
   ADR 0018). Done: the engine (`MovePages`, `DeletePages`, extracting pages into a new
   file), the grid shared with the Combine view, and the mode itself, where pages are
   selected, moved, rotated, deleted, inserted from files and extracted into a new one,
-  and page labels, edited beside the grid in place of their side panel.
+  and page labels, edited beside the grid in place of their side panel. Rotation in the
+  viewer (the Pages panel's buttons, a thumbnail's menu) turns a page on screen only,
+  remembered for its file (`ViewState.page_turns`), and Document > Rotate pages… is gone:
+  the grid alone rotates pages in the document.
 
   **Left to do** (this list is removed when the feature is complete, and this entry then
   keeps only the gaps that remain):
-  - *Rotation in the viewer turns pages on screen only* (step 7 of the plan). The Pages
-    panel's rotate buttons and the thumbnail's context menu still change the document
-    (`RotatePages`); they are to turn one page as it is shown, on top of View > Rotate
-    view, never written to the PDF, without an undo step, and available in a file open
-    for reading only. The turn of each page is to be remembered for its file with its
-    view position, in app data (a field of the stored view in `src-tauri/src/store.rs`
-    and of `remember_view`). The viewer lays each page out with its own turn, and the
-    text selection, links, search hits and annotation overlays follow it through
-    `geometry.rs`. Only the page organizing tool then rotates pages in the document.
-  - *Document > Rotate pages… goes* (step 7): the command `rotatePages` with its entry in
-    `src/lib/shortcuts.ts`, `RotatePagesDialog.svelte`, `app.rotateDialogOpen`, and
-    `app.rotatePages` once the Pages panel no longer calls it. AGENTS.md sections 6.1
-    (View rotation, Pages panel toolbar) and 7, and the end-to-end tests that rotate a
-    page from the viewer (`open-save-reopen.test.mjs`, and `rotate-page.test.mjs`, where
-    a turned page is never shown squeezed), change with it.
   - *Edits in files with thousands of bookmarks* (step 8): the 0.24 s an edit takes there
     (measured below), by not reading the whole outline again after a change that cannot
     have touched it, and by keeping what the move learns about destinations written with
@@ -160,9 +148,31 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
   - *By hand, by the user*: PDFs dropped from File Explorer on the grid (the gap under
     the pointer, at more than one display scale), a touchpad pinch over the grid, and
     files with pages moved, deleted and extracted opened in Acrobat Reader, Edge and
-    Firefox (`docs/manual-checklist.md`, "Organizing pages").
+    Firefox (`docs/manual-checklist.md`, "Organizing pages"); pages turned on screen in a
+    real scan (the same file, "Pages turned on screen").
 
   What is open meanwhile:
+  - Annotations made on a page turned on screen are placed upright as seen there, as on
+    a page the document rotates (AGENTS.md section 6.5; decided by the user on
+    2026-10-13): a text box carries the page's `/Rotate` plus the turn. What is left: a
+    note's icon is drawn with the page, so it lies on its side on a page turned on screen
+    only (Acrobat shows it upright); a text box being moved or resized shows a plain
+    outline, and its handles are named for the page, not for the box as it is read;
+    Acrobat itself has not been tried with such a box (the manual checklist has the
+    files, `turned-normal.pdf` and `turned-rot90.pdf`).
+  - A text box is now fitted to its text by its own `/Rotate` when edited. For another
+    app's box whose `/Rotate` is not the page's (none at all on a rotated page, say) that
+    is a change: it was fitted as if its text stood upright on the page, which is not how
+    MuPDF draws it. No file of the local corpus has such a box.
+  - A page turned on screen is rendered once more when a fitted zoom changes with the
+    turn (a page on its side is wider); at a zoom that stays, it keeps its pixels. Its
+    thumbnail is rendered again for its new width.
+  - A turn is kept by the page's place in the file, as the view position is: if another
+    program removes or reorders pages before the file is opened again, the turn is on
+    whatever page is at that place then.
+  - No command, so no shortcut, turns the current page; the Pages panel does. The buttons
+    there keep their names ("Rotate current page clockwise"), which do not say that the
+    file stays as it is; the changelog and the tab's missing dot do.
   - A file dragged in from another program is tested by hand only (the manual checklist):
     the test driver cannot drag from File Explorer. The gap under it is worked out from
     the position Tauri reports, in device pixels.
@@ -179,7 +189,7 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
   - On a file with thousands of bookmarks an edit takes longer: 236 to 256 ms until the
     grid follows on a 2,597-page book with the most bookmarks of the local corpus (the
     pictures 50 to 70 ms later). Of that, 140 ms is the session reading the whole outline
-    again to report what differs, as it does after every change (a rotation in the viewer
+    again to report what differs, as it does after every change (a rotation in the grid
     takes as long there), and 100 ms is the move going through every link, bookmark and
     named destination for ones written with a page number (ADR 0018). Left for the last
     step of the feature, as the user decided on 2026-10-13.

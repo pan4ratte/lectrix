@@ -140,6 +140,18 @@ pub(super) fn put_text_box(
     Ok(())
 }
 
+/// A text box's `/Rotate`: how far its text is turned in user space (0, 90, 180 or 270).
+/// Acrobat writes it for a box typed on a rotated page or in a rotated view, and MuPDF
+/// draws the text by it; without it the text runs along user space.
+pub(super) fn put_text_rotation(obj: &mut PdfObject, rotation: i32) -> Result<()> {
+    if rotation == 0 {
+        obj.dict_delete("Rotate")?;
+    } else {
+        obj.dict_put("Rotate", PdfObject::new_int(rotation)?)?;
+    }
+    Ok(())
+}
+
 /// The font name and size in a text box's `/DA` (Helvetica 12 if it has none).
 pub(super) fn text_box_font(obj: &PdfObject) -> Result<(String, f32)> {
     let da = read::default_appearance(obj)?;

@@ -30,6 +30,16 @@ export async function copySelection(tab: DocTab): Promise<void> {
 	}
 }
 
+/**
+ * Turns pages by `degrees` as they are shown (section 6.1, view rotation), on top of the
+ * view rotation. On screen only: nothing to save or undo, and a file open for reading only
+ * has it too. Remembered for the file with the rest of its view.
+ */
+export function turnPages(tab: DocTab, pages: readonly number[], degrees: number) {
+	if (tab.viewer) tab.viewer.turnPages(pages, degrees);
+	else tab.turnPages(pages, degrees);
+}
+
 /** The selected text ('' without a selection). Does not check the copy permission. */
 export async function selectedText(tab: DocTab): Promise<string> {
 	const sel = tab.selection;

@@ -11,7 +11,7 @@ export const PAGE_MARGIN = 16;
 
 export type Rotation = 0 | 90 | 180 | 270;
 
-/** A page's size in points, as laid out (after its `/Rotate`). */
+/** A page's size in points, as the document has it (after its `/Rotate`). */
 export interface Size {
 	width: number;
 	height: number;
@@ -52,7 +52,7 @@ export interface PageBox {
 	top: number;
 	/** Left edge relative to the content's middle (the spine between two pages). */
 	x: number;
-	/** Size on screen after view rotation. */
+	/** Size on screen, as the page is turned there. */
 	width: number;
 	height: number;
 }
@@ -76,7 +76,6 @@ export interface Layout {
 	/** Width of the widest row shown, even about the middle. */
 	maxWidth: number;
 	zoom: number;
-	rotation: Rotation;
 }
 
 export function normalizeRotation(degrees: number): Rotation {
@@ -84,11 +83,41 @@ export function normalizeRotation(degrees: number): Rotation {
 	return r as Rotation;
 }
 
-/** Size of a page on screen at `zoom`, after view rotation. */
+/**
+ * How far each page is turned on screen: the view rotation, plus the page's own turn
+ * (section 6.1). One rotation for every page, or a page's by its index.
+ */
+export type PageRotations = Rotation | ((page: number) => Rotation);
+
+/** A size turned by `rotation`: on its side for a quarter turn. */
+export function turnedSize(size: Size, rotation: Rotation): Size {
+	return rotation === 90 || rotation === 270
+		? { width: size.height, height: size.width }
+		: { width: size.width, height: size.height };
+}
+
+/** Size of a page on screen at `zoom`, turned by `rotation`. */
 export function pageCssSize(size: Size, zoom: number, rotation: Rotation) {
-	const w = size.width * CSS_PX_PER_PT * zoom;
-	const h = size.height * CSS_PX_PER_PT * zoom;
-	return rotation === 90 || rotation === 270 ? { width: h, height: w } : { width: w, height: h };
+	const k = CSS_PX_PER_PT * zoom;
+	const { width, height } = turnedSize(size, rotation);
+	return { width: width * k, height: height * k };
+}
+
+/**
+ * The CSS transform that turns a layer `width` by `height` (laid out unturned, its origin
+ * at its top-left corner) by `rotation` into the box of the turned page.
+ */
+export function turnTransform(rotation: Rotation, width: number, height: number): string {
+	switch (rotation) {
+		case 90:
+			return `translate(${height}px, 0) rotate(90deg)`;
+		case 180:
+			return `translate(${width}px, ${height}px) rotate(180deg)`;
+		case 270:
+			return `translate(0, ${width}px) rotate(270deg)`;
+		default:
+			return 'none';
+	}
 }
 
 /** The row holding page `page`. */
@@ -111,10 +140,11 @@ export function rowCount(count: number, columns: 1 | 2, cover: boolean): number 
 export function computeLayout(
 	sizes: readonly Size[],
 	zoom: number,
-	rotation: Rotation,
+	rotations: PageRotations,
 	arrangement: Arrangement = CONTINUOUS
 ): Layout {
 	const { columns, cover } = arrangement;
+	const rotationOf = typeof rotations === 'function' ? rotations : () => rotations;
 	const n = sizes.length;
 	const pages: PageBox[] = new Array(n);
 	const rows: Row[] = [];
@@ -124,7 +154,7 @@ export function computeLayout(
 		const last = Math.min(n, rowStart(row + 1, columns, cover)) - 1;
 		let height = 0;
 		for (let i = first; i <= last; i++) {
-			const { width, height: h } = pageCssSize(sizes[i]!, zoom, rotation);
+			const { width, height: h } = pageCssSize(sizes[i]!, zoom, rotationOf(i));
 			pages[i] = { top, x: 0, width, height: h };
 			height = Math.max(height, h);
 		}
@@ -142,7 +172,7 @@ export function computeLayout(
 		top += height + PAGE_GAP;
 		first = last + 1;
 	}
-	if (rows.length === 0) return { pages, rows, shown: [0, -1], totalHeight: 0, maxWidth: 0, zoom, rotation };
+	if (rows.length === 0) return { pages, rows, shown: [0, -1], totalHeight: 0, maxWidth: 0, zoom };
 
 	let shown: [number, number] = [0, rows.length - 1];
 	let totalHeight = top - PAGE_GAP + PAGE_MARGIN;
@@ -163,7 +193,7 @@ export function computeLayout(
 			half = Math.max(half, -p.x, p.x + p.width);
 		}
 	}
-	return { pages, rows, shown, totalHeight, maxWidth: 2 * half, zoom, rotation };
+	return { pages, rows, shown, totalHeight, maxWidth: 2 * half, zoom };
 }
 
 /** Whether page `index` is in a row shown. */

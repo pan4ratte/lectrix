@@ -139,9 +139,6 @@ export const commands = {
 
 	/** The pages as a grid to organize, in place of the viewer (section 6.7), and back. */
 	organizePages: withTab((t) => toggleOrganize(t)),
-	rotatePages: withTab(() => {
-		app.rotateDialogOpen = true;
-	}),
 	insertPages: withTab((t) => insertFromFile(t)),
 	addBookmark: reading((t) => addBookmark(t)),
 	showPages: reading(() => app.showPanel('pages')),

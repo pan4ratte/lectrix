@@ -259,7 +259,9 @@ export async function commitTextDraft(tab: DocTab) {
 	const text = d.text.replace(/\s+$/, '');
 	if (d.id === null) {
 		if (!text.trim()) return;
-		await create(tab, 'freeText', [{ page: d.page, body: { tool: 'freeText', rect: d.box, text, fontSize: d.fontSize } }]);
+		await create(tab, 'freeText', [
+			{ page: d.page, body: { tool: 'freeText', rect: d.box, text, fontSize: d.fontSize, turn: d.turn } }
+		]);
 		return;
 	}
 	const a = tab.annotation(d.page, d.id);

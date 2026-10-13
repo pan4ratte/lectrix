@@ -97,7 +97,7 @@ describe('any other file', () => {
 });
 
 describe('visual adjustments', () => {
-	const view = { page: 0, offset: 0, zoom: 1, zoomMode: 'custom' as const, rotation: 0 };
+	const view = { page: 0, offset: 0, zoom: 1, zoomMode: 'custom' as const, rotation: 0, pageTurns: {} };
 
 	it('start with none, and with the ones remembered for the file', () => {
 		const fresh = new DocTab(info(null));
@@ -132,6 +132,85 @@ describe('visual adjustments', () => {
 		tab.adjustments.invert = true;
 		expect(tab.pageFilter).toBe('invert(1) hue-rotate(180deg)');
 		expect(tab.readOnly).toBe(true);
+	});
+});
+
+describe('pages turned as they are shown', () => {
+	const size = { width: 612, height: 792, rotation: 0 };
+	const adjustments = { brightness: 100, contrast: 100, invert: false, grayscale: false };
+	const view = { page: 0, offset: 0, zoom: 1, zoomMode: 'custom' as const, rotation: 0, adjustments, pageTurns: {} };
+	const three = () => new DocTab({ ...info(null), pages: [size, size, size] });
+
+	it('turn by quarters on top of the view rotation, and back to none', () => {
+		const tab = three();
+		tab.turnPages([1], 90);
+		tab.turnPages([1, 2], -90);
+		expect([0, 1, 2].map((p) => tab.shownRotation(p))).toEqual([0, 0, 270]);
+		expect([...tab.pageTurns]).toEqual([[2, 270]]);
+		tab.rotation = 180;
+		expect([0, 1, 2].map((p) => tab.shownRotation(p))).toEqual([180, 180, 90]);
+		// A page that is not there is not turned.
+		tab.turnPages([3, -1], 90);
+		expect([...tab.pageTurns]).toEqual([[2, 270]]);
+	});
+
+	it('change nothing in the document, in one open for reading only either', () => {
+		const tab = new DocTab(info(PDFA_1B));
+		tab.turnPages([0], 90);
+		expect(tab.shownRotation(0)).toBe(90);
+		expect(tab.state).toEqual({ revision: 0, dirty: false, undoName: null, redoName: null });
+		expect(tab.pages[0]).toEqual(size);
+		expect(tab.readOnly).toBe(true);
+	});
+
+	it('go to Rust with the view, and come back with it', () => {
+		const tab = three();
+		tab.turnPages([0], 180);
+		tab.turnPages([2], 90);
+		expect(tab.viewState().pageTurns).toEqual({ 0: 180, 2: 90 });
+		// What Rust stored for the file: a turn that is none, one that is not a quarter turn
+		// and one for a page the file no longer has are left out.
+		const again = new DocTab({
+			...info(null),
+			pages: [size, size, size],
+			view: { ...view, pageTurns: { 0: 180, 1: 0, 2: 450, 7: 90 } }
+		});
+		expect([...again.pageTurns]).toEqual([
+			[0, 180],
+			[2, 90]
+		]);
+		// A view remembered before pages could be turned has none.
+		const { pageTurns: _, ...old } = view;
+		expect(new DocTab({ ...info(null), view: old as DocumentInfo['view'] }).pageTurns.size).toBe(0);
+	});
+
+	it('follow their pages when pages are moved or deleted, and end with a shorter file', () => {
+		const tab = three();
+		tab.turnPages([0], 90);
+		tab.turnPages([2], 180);
+		// The third page to the front, then that page deleted.
+		const moved = (pageMap: (number | null)[]): DocumentChange => ({
+			state: { revision: tab.state.revision + 1, dirty: true, undoName: 'Move page', redoName: null },
+			changedPages: [],
+			labelsChanged: false,
+			labels: null,
+			labelRules: [],
+			outline: null,
+			created: null,
+			pageCount: pageMap.length,
+			mergeReport: null,
+			annotations: [],
+			pageMap,
+			deleted: null
+		});
+		tab.applyChange(moved([2, 0, 1]));
+		expect(Object.fromEntries(tab.pageTurns)).toEqual({ 0: 180, 1: 90 });
+		tab.applyChange(moved([1, 2]));
+		expect(Object.fromEntries(tab.pageTurns)).toEqual({ 0: 90 });
+		// Read anew with one page: the turn of a page past its end goes.
+		tab.turnPages([1], 270);
+		tab.update({ ...info(null), pages: [size] });
+		expect(Object.fromEntries(tab.pageTurns)).toEqual({ 0: 90 });
 	});
 });
 

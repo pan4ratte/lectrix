@@ -109,6 +109,18 @@ keep it. Enforced in
   32000-1 12.5.6.4); PDFium and pdf.js turn it with the page, one icon-width away. Lectrix
   writes notes for Acrobat's model (ADR 0006); the harness accepts either place.
 - MuPDF 1.27 writes a `/CL` callout line on every new FreeText; Lectrix removes it.
+- A FreeText's `/Rotate` (an Adobe key the specification does not list) says how far its
+  text is turned in user space. MuPDF's create gives a new box the page's `/Rotate`, so its
+  text is upright on a rotated page, and draws the text by the box's own. Lectrix writes
+  the page's `/Rotate` plus the turn of the page on screen where the box was typed (the
+  view rotation, a page's own turn), as Acrobat does for a box typed in a rotated view,
+  and none when that is 0 (`annot::write::put_text_rotation`). The box is fitted to its
+  text where the text is upright (`PageGeometry::turned`), on creation and on every edit,
+  by the box's own `/Rotate`: another app's box without one, on a rotated page, is fitted
+  along user space, where MuPDF draws its text. Tested in
+  `annotations::a_text_box_typed_on_a_page_turned_on_screen_stands_upright_there` (every
+  page geometry, each turn) and by the harness (`turned-normal.pdf`, `turned-rot90.pdf`:
+  drawn alike by MuPDF, PDFium and pdf.js, which all draw the appearance stream).
 - Thin lines (underline, strikeout, squiggly are under 1 pt): the rasterizers spread their
   anti-aliased edges differently, which at 2x render scale outweighed the line in the
   harness's colour comparison (a strikeout on a 180° page: distance 76 against the limit

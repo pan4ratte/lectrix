@@ -26,6 +26,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -883,7 +884,10 @@ def list_annotations(pdf: Path) -> list[dict]:
         author = line.split(' author "', 1)[1].split('"', 1)[0] if ' author "' in line else ""
         text = line.split(' text "', 1)[1].rsplit('"', 1)[0] if ' text "' in line else ""
         problems = line.split(" needs-repair ", 1)[1] if " needs-repair " in line else ""
-        out.append({"page": int(words[0][1:]), "id": int(words[2]), "subtype": words[3], "author": author, "text": text, "problems": problems})
+        # After the text, which may hold the word itself.
+        turned = re.search(r'" turned (\d+)(?: |$)', line.rsplit(' text "', 1)[-1])
+        turn = int(turned.group(1)) if turned else 0
+        out.append({"page": int(words[0][1:]), "id": int(words[2]), "subtype": words[3], "author": author, "text": text, "problems": problems, "turn": turn})
     return out
 
 
@@ -944,6 +948,28 @@ def phase5(report: Report) -> None:
         annotation_checks(out, report, case)
         if name in ("normal", "rot90", "crop", "userunit"):
             shutil.copyfile(out, MANUAL / f"types-{name}.pdf")
+
+    # 1b. A text box typed on a page that is turned on screen only (the view rotation, a
+    # page's own turn): it carries the page's /Rotate plus the turn, and every engine draws
+    # it. One page for each turn, on a page as it is and on one the document rotates.
+    for name in ("normal", "rot90"):
+        current = work / f"gen-{name}.pdf"
+        for k, turn in enumerate((90, 180, 270)):
+            nxt = work / f"turned-{name}-step{k + 1}.pdf"
+            run([cli, "annot", "text", str(current), str(nxt), "--page", str(k + 1), "--rect", "72,200,300,430", "--turn", str(turn),
+                 "--text", f"Typed on a page shown at {turn} degrees\nSecond line", "--size", "14", "--color", "C62828", "--author", "Lectrix Harness"])
+            current = nxt
+        out = work / f"turned-{name}.pdf"
+        shutil.copyfile(current, out)
+        print(out.name)
+        qpdf_check(out, report)
+        listed = list_annotations(out)
+        turns = {a["page"]: a["turn"] for a in listed}
+        report.check(turns == {1: 90, 2: 180, 3: 270} and not any(a["problems"] for a in listed), f"{out.name}: three text boxes, turned 90, 180 and 270, none needs repair (got {turns})")
+        case = work / f"turned-{name}"
+        case.mkdir(exist_ok=True)
+        annotation_checks(out, report, case)
+        shutil.copyfile(out, MANUAL / f"turned-{name}.pdf")
 
     # 2. Edits on the normal file: recolour and re-note the highlight, turn the underline
     # into a highlight and the squiggly into an underline, move the note, resize the

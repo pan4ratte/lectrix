@@ -449,7 +449,36 @@ mod tests {
                 invert: true,
                 grayscale: false,
             },
+            page_turns: BTreeMap::from([(2, 90), (40, 270)]),
         }
+    }
+
+    #[test]
+    fn a_view_stored_before_pages_were_turned_has_none_turned() {
+        let file = temp_store("view-without-turns.json");
+        fs::write(
+            &file,
+            r#"{"views":{"c:/docs/a.pdf":{"view":{"page":3,"offset":0.5,"zoom":1.25,"zoomMode":"custom","rotation":90,"adjustments":{"invert":true}},"saved_at":1}}}"#,
+        )
+        .unwrap();
+        let stored = Store::load(Some(file))
+            .view("c:/docs/a.pdf")
+            .expect("the view was read");
+        assert_eq!(stored.rotation, 90);
+        assert!(stored.page_turns.is_empty());
+    }
+
+    #[test]
+    fn only_quarter_turns_are_kept() {
+        let wild = ViewState {
+            page_turns: BTreeMap::from([(0, 90), (1, 0), (2, 45), (3, 360), (4, 180), (5, 270)]),
+            ..view(0)
+        };
+        assert_eq!(
+            wild.normalized().page_turns,
+            BTreeMap::from([(0, 90), (4, 180), (5, 270)])
+        );
+        assert_eq!(view(7).normalized(), view(7));
     }
 
     #[test]

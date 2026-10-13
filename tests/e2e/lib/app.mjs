@@ -234,6 +234,46 @@ export async function statusText(browser) {
 	});
 }
 
+/**
+ * Waits until the element at `selector` is on screen and holds still: a grid lays its cells
+ * out once it knows its width and then brings a page into view, and a click sent meanwhile
+ * lands on whatever has come under it.
+ */
+export async function atRest(browser, selector) {
+	const where = () =>
+		browser.execute((sel) => {
+			const r = document.querySelector(sel)?.getBoundingClientRect();
+			return r && r.width > 0 ? [r.left, r.top, r.width, r.height].join() : null;
+		}, selector);
+	await browser.waitUntil(
+		async () => {
+			const before = await where();
+			await browser.pause(150);
+			return before !== null && before === (await where());
+		},
+		{ timeoutMsg: `${selector} did not come to rest` }
+	);
+}
+
+/**
+ * Turns the first page in the document, a change to the file like any other for the tests
+ * that need one: in the grid of pages (AGENTS.md section 6.7), then back to reading.
+ */
+export async function rotateFirstPage(browser) {
+	await (await browser.$('button[aria-label="Organize pages"]')).click();
+	const cell = '[data-organize-view] [role=option][aria-posinset="1"]';
+	await atRest(browser, cell);
+	const first = await browser.$(cell);
+	await first.click();
+	await browser.keys('r');
+	await browser.waitUntil(
+		() => browser.execute(() => document.querySelector('[role="tab"][aria-selected="true"] [data-unsaved]') !== null),
+		{ timeoutMsg: 'turning a page in the grid did not change the document' }
+	);
+	await (await (await browser.$('[data-organize-bar]')).$('button=Done')).click();
+	await waitForDocument(browser);
+}
+
 /** Presses keys with modifiers, e.g. keys(browser, ['Control', 'b']). */
 export async function keys(browser, combo) {
 	await browser.keys(combo);

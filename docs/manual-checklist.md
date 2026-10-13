@@ -12,6 +12,7 @@ Run `python tests/interop/run.py phase5` and the end-to-end tests (`npm test` in
 | --- | --- |
 | `types-normal.pdf` | One annotation per page, all written by Lectrix: 1 highlight with a note ("Highlight note — ünïcödé"), 60% opacity; 2 green underline; 3 red strikeout; 4 blue squiggly underline; 5 sticky note ("Sticky note text"); 6 blue drawing, two strokes, 80% opacity; 7 red text box, two lines; 8 area highlight (a rectangle, 50% opacity). Author "Lectrix Harness". |
 | `types-rot90.pdf` | The same on pages turned 90°. The four text markups follow the text, so they turn with it. The note, drawing, text box and area highlight were placed the way you place them in the app on a turned page: at the same spot on screen as in `types-normal.pdf` (top left of the page as shown), upright as you see it. Relative to the text they are therefore elsewhere than in `types-normal.pdf`, and not turned with it. |
+| `turned-normal.pdf`, `turned-rot90.pdf` | Three pages, each with a red text box ("Typed on a page shown at 90 degrees", then 180 and 270, and "Second line") typed as on a page turned that far on screen only: on page 1 its text reads when the page is turned a quarter clockwise, on page 2 upside down, on page 3 when turned a quarter counter-clockwise. The second file's pages are also rotated 90° in the document. Each must be visible, and when edited in Acrobat keep its direction. |
 | `types-crop.pdf` | The same on pages with a cropped, offset visible area. |
 | `types-userunit.pdf` | The same on pages with a UserUnit of 2 (pages twice the usual size). |
 | `edited.pdf` | `types-normal.pdf` after edits: the highlight is pink with the note "Edited note", the green underline on page 2 is now a green highlight, the blue squiggly on page 4 is now a blue underline, the note moved to the lower middle, the drawing resized to a wide box with 4 pt strokes, the text box retyped at 16 pt, and the strikeout deleted. |
@@ -257,6 +258,28 @@ Needs an installed earlier release and a newer one published (ADR 0011,
       shows no unsaved changes, and the file opens unchanged in Acrobat.
 - [ ] Scroll a long document quickly with adjustments on: as smooth as without.
 - [ ] Close Lectrix and open the file again: adjusted as it was; another file is not.
+
+## Pages turned on screen
+
+- [ ] In a scan with a page that lies on its side, go to that page and press Rotate
+      current page clockwise in the Pages panel: the page and its thumbnail turn, the
+      other pages stay, and the tab shows no unsaved changes. Select text on the turned
+      page, follow a link, search for a word and make a highlight: each is where the
+      pointer is, and the highlight is on the text.
+- [ ] On that turned page, type a text box, place a note and Alt-drag an area highlight:
+      the box is typed upright as you see the page and grows downwards, and the note's
+      icon is below and right of the click (lying on its side with the page). Save, and
+      open the file in Acrobat Reader: the page is as the file has it, the box's text
+      runs the way the scan's text does, and the note's icon is upright. Double-click the
+      box in Lectrix with the page turned back: its editor lies as its text does.
+- [ ] Turn another page from its thumbnail's menu, then choose View > Rotate view
+      clockwise: every page turns, the two turned pages a quarter further than the rest.
+- [ ] Close Lectrix and open the file again: the pages are turned as they were left. The
+      file opens unchanged in Acrobat.
+- [ ] Open a PDF/A file (the banner shows): its pages turn the same way.
+- [ ] With a page turned, choose Document > Organize pages: the grid shows the pages as
+      the file has them. Move the turned page to another place and go back to reading:
+      it is still turned, in its new place.
 
 ## Tabs and windows
 

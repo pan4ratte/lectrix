@@ -56,6 +56,11 @@ replyTo: number | null,
  */
 hidden: boolean, width: number | null, fontSize: number | null, 
 /**
+ * A text box: how far its text is turned from the page as the document shows it,
+ * clockwise (0, 90, 180 or 270); 0 for every other type.
+ */
+turn: number, 
+/**
  * Empty when nothing needs repair.
  */
 problems: Array<AnnotationProblem>, };

@@ -84,6 +84,9 @@ pub struct AnnotationInfo {
     pub width: Option<f64>,
     /// FreeText font size.
     pub font_size: Option<f64>,
+    /// FreeText: how far its text is turned from the page as the document shows it,
+    /// clockwise (see [`text_box_turn`]); 0 for every other type.
+    pub turn: i32,
     pub problems: Vec<Problem>,
 }
 
@@ -219,6 +222,11 @@ fn read_one(
         hidden: flags.is_some_and(|f| f & (2 | 32) != 0),
         width: (subtype == "Ink").then(|| border_width(obj)).transpose()?,
         font_size,
+        turn: if kind == Some(Kind::FreeText) {
+            text_box_turn(obj, geometry)?
+        } else {
+            0
+        },
         problems: problems(obj, &subtype, flags, geometry)?,
         subtype,
     }))
@@ -478,6 +486,19 @@ pub(crate) fn note_view(obj: &PdfObject, rect: Rect, geometry: &PageGeometry) ->
 /// A text box's colour (from `/DA`).
 pub(crate) fn text_box_color(obj: &PdfObject) -> Result<Option<Rgb>> {
     Ok(default_appearance(obj)?.color)
+}
+
+/// How far a text box's text is turned from the page as the document shows it, clockwise
+/// (0, 90, 180 or 270): its `/Rotate` (none: the text runs along user space) against the
+/// page's. 0 for a box typed on the page as the document has it.
+pub(crate) fn text_box_turn(obj: &PdfObject, geometry: &PageGeometry) -> Result<i32> {
+    let rotate = match obj.get_dict("Rotate")? {
+        Some(r) => objects::number(&r)?.map_or(0, |v| v.round() as i32),
+        None => 0,
+    };
+    Ok(crate::geometry::normalize_rotation(
+        rotate - geometry.rotation,
+    ))
 }
 
 /// A text box in view space: `/Rect` without the `/RD` margin.

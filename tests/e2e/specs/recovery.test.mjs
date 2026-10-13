@@ -6,7 +6,7 @@ import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { OUT, launch, statusText, waitForDocument } from '../lib/app.mjs';
+import { OUT, launch, rotateFirstPage, statusText, waitForDocument } from '../lib/app.mjs';
 import { cli, sample } from '../lib/pdfcli.mjs';
 
 const DIR = join(OUT, 'recovery');
@@ -19,10 +19,10 @@ async function dialogText(browser) {
 	return browser.execute(() => document.querySelector('[role="alertdialog"]')?.textContent ?? '');
 }
 
-/** Rotates page 1 from the Pages panel and waits for a recovery copy of it. */
+/** Rotates page 1 in the document and waits for a recovery copy of it. */
 async function changeAndWaitForCopy(browser) {
 	await waitForDocument(browser);
-	await (await browser.$('button[aria-label="Rotate current page clockwise"]')).click();
+	await rotateFirstPage(browser);
 	await browser.waitUntil(async () => (await statusText(browser)).includes('Unsaved changes'), {
 		timeoutMsg: 'the rotation did not mark the document as changed'
 	});

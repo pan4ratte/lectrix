@@ -10,7 +10,7 @@ import { rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { OUT, launch, statusText, waitForDocument } from '../lib/app.mjs';
+import { OUT, atRest, launch, statusText, waitForDocument } from '../lib/app.mjs';
 import { cli, outlineLines, sample } from '../lib/pdfcli.mjs';
 
 /** The pages of the grid in order, by their keys (a page keeps its key wherever it goes). */
@@ -207,9 +207,13 @@ test('pages are moved, turned and deleted in the grid, and the document follows'
 		await browser.keys(['Control', 'y']);
 		await browser.waitUntil(async () => /of 5/.test(await statusText(browser)), { timeoutMsg: 'redo did not delete it again' });
 
-		// A double-click on a page opens it for reading.
+		// A double-click on a page opens it for reading. (The grid lays its cells out once it
+		// knows its width, and puts the current page in view: the page is clicked where it
+		// rests.)
 		await startOrganizing(browser);
-		await (await browser.$('[data-organize-view] [role=option][aria-posinset="4"] [data-picture]')).doubleClick();
+		const fourth = '[data-organize-view] [role=option][aria-posinset="4"] [data-picture]';
+		await atRest(browser, fourth);
+		await (await browser.$(fourth)).doubleClick();
 		await browser.waitUntil(() => reading(browser), { timeoutMsg: 'a double-click did not open the page' });
 		await waitForDocument(browser);
 		await browser.waitUntil(async () => /\b4 of 5/.test(await statusText(browser)), {

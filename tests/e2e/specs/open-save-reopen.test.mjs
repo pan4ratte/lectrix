@@ -3,7 +3,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
-import { launch, statusText, waitForDocument } from '../lib/app.mjs';
+import { launch, rotateFirstPage, statusText, waitForDocument } from '../lib/app.mjs';
 import { cli, sample } from '../lib/pdfcli.mjs';
 
 /** Width and height of the first page on screen. */
@@ -41,7 +41,7 @@ test('open, rotate a page, save, reopen', async () => {
 		const before = await firstPageShape(browser);
 		assert.ok(before && before.height > before.width, 'portrait page');
 
-		await (await browser.$('button[aria-label="Rotate current page clockwise"]')).click();
+		await rotateFirstPage(browser);
 		await browser.waitUntil(async () => (await statusText(browser)).includes('Unsaved changes'), {
 			timeoutMsg: 'the rotation did not mark the document as changed'
 		});

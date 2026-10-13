@@ -3,6 +3,7 @@
 // origin, y down), like text geometry.
 
 import type { Annotation } from '#lib/ipc/index.ts';
+import type { Rotation } from '#lib/features/viewer/layout.ts';
 import type { Caret, TextGeometry } from '#lib/features/viewer/selection.ts';
 
 export type Box = [number, number, number, number];
@@ -122,14 +123,89 @@ export function annotationAt(list: readonly Annotation[], x: number, y: number, 
 	return null;
 }
 
-/** A rectangle as one quad (ul, ur, ll, lr): an area highlight. */
-export function boxQuad(b: Box): number[] {
-	const [x0, y0, x1, y1] = [Math.min(b[0], b[2]), Math.min(b[1], b[3]), Math.max(b[0], b[2]), Math.max(b[1], b[3])];
-	return [x0, y0, x1, y0, x0, y1, x1, y1];
-}
-
 export function normalizeBox(b: Box): Box {
 	return [Math.min(b[0], b[2]), Math.min(b[1], b[3]), Math.max(b[0], b[2]), Math.max(b[1], b[3])];
+}
+
+// A page turned on screen (the view rotation, a page's own turn: section 6.1) shows its
+// points elsewhere. What is placed upright as seen there (a text box, a note's icon, an
+// area highlight: section 6.5) is worked out where the page is shown so, and brought back.
+
+/** A point of a page `w` by `h`, where the page turned by `turn` (clockwise) shows it. */
+export function turnPoint(x: number, y: number, turn: Rotation, w: number, h: number): [number, number] {
+	switch (turn) {
+		case 90:
+			return [h - y, x];
+		case 180:
+			return [w - x, h - y];
+		case 270:
+			return [y, w - x];
+		default:
+			return [x, y];
+	}
+}
+
+/** The point of the page that the page turned by `turn` shows at (x, y): the inverse of
+ * `turnPoint`. */
+export function unturnPoint(x: number, y: number, turn: Rotation, w: number, h: number): [number, number] {
+	switch (turn) {
+		case 90:
+			return [y, h - x];
+		case 180:
+			return [w - x, h - y];
+		case 270:
+			return [w - y, x];
+		default:
+			return [x, y];
+	}
+}
+
+/** A box of the page, where the page turned by `turn` shows it. */
+export function turnBox(b: Box, turn: Rotation, w: number, h: number): Box {
+	const [ax, ay] = turnPoint(b[0], b[1], turn, w, h);
+	const [bx, by] = turnPoint(b[2], b[3], turn, w, h);
+	return normalizeBox([ax, ay, bx, by]);
+}
+
+/** The box of the page that the page turned by `turn` shows at `b`. */
+export function unturnBox(b: Box, turn: Rotation, w: number, h: number): Box {
+	const [ax, ay] = unturnPoint(b[0], b[1], turn, w, h);
+	const [bx, by] = unturnPoint(b[2], b[3], turn, w, h);
+	return normalizeBox([ax, ay, bx, by]);
+}
+
+/**
+ * A rectangle as one quad (ul, ur, ll, lr): an area highlight. Upper and lower, left and
+ * right are as the page turned by `turn` shows it, where the area was drawn.
+ */
+export function boxQuad(b: Box, turn: Rotation = 0): number[] {
+	// The page's size cancels out: the quad's corners are the box's own.
+	const [x0, y0, x1, y1] = turnBox(b, turn, 0, 0);
+	return [
+		[x0, y0],
+		[x1, y0],
+		[x0, y1],
+		[x1, y1]
+	].flatMap(([x, y]) => unturnPoint(x!, y!, turn, 0, 0));
+}
+
+/**
+ * Where a text box whose text is turned by `turn` from the page (its lines run across
+ * the page turned so) starts, and how far its lines run and its box reaches down: the
+ * corner of `b` at the start of its first line, the length across and the length down.
+ */
+export function textBoxFrame(b: Box, turn: Rotation): { x: number; y: number; across: number; down: number } {
+	const [w, h] = [b[2] - b[0], b[3] - b[1]];
+	switch (turn) {
+		case 90:
+			return { x: b[0], y: b[3], across: h, down: w };
+		case 180:
+			return { x: b[2], y: b[3], across: w, down: h };
+		case 270:
+			return { x: b[2], y: b[1], across: h, down: w };
+		default:
+			return { x: b[0], y: b[1], across: w, down: h };
+	}
 }
 
 export interface PageRanges {

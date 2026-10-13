@@ -205,6 +205,21 @@ pub struct ViewState {
     /// Views stored before there were adjustments have none.
     #[serde(default)]
     pub adjustments: PageAdjustments,
+    /// The pages turned as they are shown, on top of the view rotation: a page's index and
+    /// its turn in degrees (90, 180 or 270). Never in the document either.
+    #[serde(default)]
+    pub page_turns: BTreeMap<u32, u16>,
+}
+
+impl ViewState {
+    /// The view as it is stored: adjustments within their range, and only turns that are
+    /// quarter turns.
+    pub fn normalized(mut self) -> Self {
+        self.adjustments = self.adjustments.clamped();
+        self.page_turns
+            .retain(|_, degrees| matches!(*degrees, 90 | 180 | 270));
+        self
+    }
 }
 
 #[derive(Debug, Clone, Serialize, TS)]

@@ -1098,10 +1098,7 @@ pub fn reload_document(state: State<'_, AppState>, id: u32) -> Result<DocumentIn
 /// time the file is opened.
 #[tauri::command]
 pub fn remember_view(state: State<'_, AppState>, id: u32, view: ViewState) -> Result<(), AppError> {
-    let view = ViewState {
-        adjustments: view.adjustments.clamped(),
-        ..view
-    };
+    let view = view.normalized();
     let path = state.documents.path(id)?;
     let key = state.platform.file_key(&path);
     state

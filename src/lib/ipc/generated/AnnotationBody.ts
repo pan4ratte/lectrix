@@ -5,4 +5,4 @@ import type { TextRangeInput } from "./TextRangeInput";
 /**
  * What a new annotation is (geometry in view space at zoom 1).
  */
-export type AnnotationBody = { "tool": "textMarkup", kind: AnnotationKind, ranges: Array<TextRangeInput>, note: string | null, } | { "tool": "markup", kind: AnnotationKind, quads: Array<number>, note: string | null, } | { "tool": "note", x: number, y: number, text: string, } | { "tool": "ink", strokes: Array<Array<number>>, width: number, } | { "tool": "freeText", rect: [number, number, number, number], text: string, fontSize: number, };
+export type AnnotationBody = { "tool": "textMarkup", kind: AnnotationKind, ranges: Array<TextRangeInput>, note: string | null, } | { "tool": "markup", kind: AnnotationKind, quads: Array<number>, note: string | null, } | { "tool": "note", x: number, y: number, text: string, } | { "tool": "ink", strokes: Array<Array<number>>, width: number, } | { "tool": "freeText", rect: [number, number, number, number], text: string, fontSize: number, turn: number, };

@@ -284,6 +284,12 @@ pub enum Body {
         rect: Rect,
         text: String,
         font_size: f64,
+        /// How far the page was turned on screen where the box was typed, clockwise from
+        /// how the document has it (a multiple of 90): the text stands upright as shown
+        /// so, its lines run across the box there, and the box grows downwards there. The
+        /// box then carries the page's `/Rotate` plus this, as Acrobat writes for a box
+        /// typed in a rotated view. 0 for a page shown as the document has it.
+        turn: i32,
     },
 }
 
@@ -352,10 +358,22 @@ impl NewAnnotation {
                 }
             }
             Body::FreeText {
-                rect, font_size, ..
+                rect,
+                font_size,
+                turn,
+                ..
             } => {
+                if turn.rem_euclid(90) != 0 {
+                    return bad("a text box is turned by quarter turns");
+                }
                 let r = rect.normalized();
-                if ![r.x0, r.y0, r.x1, r.y1].iter().all(|v| v.is_finite()) || r.width() < 1.0 {
+                // Its lines run across the box as the turned page shows it.
+                let across = if turn.rem_euclid(180) == 0 {
+                    r.width()
+                } else {
+                    r.height()
+                };
+                if ![r.x0, r.y0, r.x1, r.y1].iter().all(|v| v.is_finite()) || across < 1.0 {
                     return bad("the text box is too small");
                 }
                 if !FONT_SIZES.contains(font_size) {
@@ -555,6 +573,7 @@ pub fn create(doc: &mut PdfDocument, new: &NewAnnotation) -> Result<AnnotationRe
             rect,
             text,
             font_size,
+            turn,
         } => {
             annot.set_default_appearance(
                 write::FREE_TEXT_FONT,
@@ -565,8 +584,14 @@ pub fn create(doc: &mut PdfDocument, new: &NewAnnotation) -> Result<AnnotationRe
             // MuPDF's create writes a callout line (/CL) on every text box; it means
             // something only for callouts (/IT /FreeTextCallout), which Lectrix doesn't make.
             obj.dict_delete("CL")?;
-            let fitted = text_box::fit(rect.normalized(), text, *font_size, false)?;
-            write::put_text_box(doc, &mut obj, fitted, &geometry)?;
+            // The box as the page was shown where it was typed: fitted to its text there,
+            // and its text stands upright there (MuPDF's create gave it the page's own
+            // `/Rotate` only).
+            let shown = geometry.turned(*turn);
+            let typed = shown.user_rect_to_view(geometry.view_rect_to_user(rect.normalized()));
+            let fitted = text_box::fit(typed, text, *font_size, false)?;
+            write::put_text_box(doc, &mut obj, fitted, &shown)?;
+            write::put_text_rotation(&mut obj, shown.rotation)?;
         }
     }
 
@@ -735,16 +760,21 @@ pub fn edit(doc: &mut PdfDocument, page: usize, id: u32, edit: &AnnotationEdit) 
     if kind == Some(Kind::FreeText)
         && (edit.bounds.is_some() || edit.contents.is_some() || edit.font_size.is_some())
     {
-        let current = read::text_box_view(&obj, &geometry)?;
+        // Fitted where its text stands upright (its own `/Rotate`, which need not be the
+        // page's): its lines run across the box there.
+        let upright = geometry.turned(read::text_box_turn(&obj, &geometry)?);
         let (target, grow_only) = match edit.bounds {
-            Some(b) => (b.normalized(), true),
-            None => (current, false),
+            Some(b) => (
+                upright.user_rect_to_view(geometry.view_rect_to_user(b.normalized())),
+                true,
+            ),
+            None => (read::text_box_view(&obj, &upright)?, false),
         };
         let text = read::contents(&obj)?;
         let (_, size) = write::text_box_font(&obj)?;
         let fitted = text_box::fit(target, &text, f64::from(size), grow_only)?;
         let mut obj = annot.object();
-        write::put_text_box(doc, &mut obj, fitted, &geometry)?;
+        write::put_text_box(doc, &mut obj, fitted, &upright)?;
     }
 
     annot

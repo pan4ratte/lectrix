@@ -123,6 +123,7 @@ fn every_kind(doc: &PdfDocument, page: usize) -> Vec<NewAnnotation> {
         rect: Rect::new(72.0, 330.0, 272.0, 340.0),
         text: "Text box from Lectrix\nwith a second line that is long enough to wrap".into(),
         font_size: 14.0,
+        turn: 0,
     }));
     out
 }
@@ -661,6 +662,150 @@ fn notes_move_drawings_resize_and_text_boxes_refit() {
                 a.kind,
                 a.problems
             );
+        }
+    }
+}
+
+/// A text box typed on a page that is turned on screen only (the view rotation, a page's
+/// own turn): its text stands upright as the page is shown there, the box is fitted to
+/// its text there, and it carries the page's `/Rotate` plus the turn.
+#[test]
+fn a_text_box_typed_on_a_page_turned_on_screen_stands_upright_there() {
+    let dir = out_dir("annotations-turned-text-box");
+    for (case, spec) in geometry_cases() {
+        for turn in [90, 180, 270] {
+            let case = format!("{case}-turn{turn}");
+            let src = sample_file(&dir, &format!("{case}-src.pdf"), spec.clone());
+            let mut doc = open(&src);
+            let page = PageGeometry::new(&read_page_boxes(&doc.find_page(0).unwrap()).unwrap());
+            let shown = page.turned(turn);
+            // A rectangle of the turned page, as the document's page has it, and back.
+            let on_page = |r: Rect| page.user_rect_to_view(shown.view_rect_to_user(r));
+            let as_shown = |r: Rect| shown.user_rect_to_view(page.view_rect_to_user(r));
+            let near = |a: Rect, b: Rect| {
+                [a.x0 - b.x0, a.y0 - b.y0, a.x1 - b.x1, a.y1 - b.y1]
+                    .iter()
+                    .all(|d| d.abs() < 0.01)
+            };
+
+            // 150 wide and one line high where it is typed; its text needs three lines.
+            let typed = Rect::new(60.0, 80.0, 210.0, 90.0);
+            let made = annot::create(
+                &mut doc,
+                &NewAnnotation {
+                    page: 0,
+                    body: Body::FreeText {
+                        rect: on_page(typed),
+                        text: "Upright here\nand a second line that is long enough to wrap".into(),
+                        font_size: 14.0,
+                        turn,
+                    },
+                    color: BLUE,
+                    opacity: 1.0,
+                    author: "Tëster".into(),
+                },
+            )
+            .unwrap();
+            let id = u32::try_from(made.xref).unwrap();
+            let find = |doc: &PdfDocument| {
+                read_page(doc, 0)
+                    .unwrap()
+                    .into_iter()
+                    .find(|a| a.id == id)
+                    .unwrap()
+            };
+
+            let obj = doc.new_indirect(made.xref, 0).unwrap();
+            let rotate = (page.rotation + turn) % 360;
+            match obj.get_dict("Rotate").unwrap() {
+                Some(r) => assert_eq!(r.as_int().unwrap(), rotate, "{case}: /Rotate"),
+                None => assert_eq!(rotate, 0, "{case}: no /Rotate"),
+            }
+            let a = find(&doc);
+            assert_eq!(a.turn, turn, "{case}");
+            assert!(a.problems.is_empty(), "{case}: {:?}", a.problems);
+            // Where it was typed, it kept its corner and its width and grew downwards.
+            let fitted = as_shown(a.bounds);
+            assert!((fitted.x0 - typed.x0).abs() < 0.01, "{case}: {fitted:?}");
+            assert!((fitted.y0 - typed.y0).abs() < 0.01, "{case}: {fitted:?}");
+            assert!(
+                (fitted.width() - typed.width()).abs() < 0.01,
+                "{case}: {fitted:?}"
+            );
+            assert!(fitted.height() > 2.5 * 1.2 * 14.0, "{case}: {fitted:?}");
+            normal_appearance(&obj, &case);
+
+            // The text is drawn upright there: its first word runs from left to right,
+            // above its lower edge.
+            let list = pdf_core::render::display_list(&doc, 0).unwrap();
+            let drawn = pdf_core::text::search_page(&list, "Upright here").unwrap();
+            let word = drawn
+                .first()
+                .and_then(|hit| hit.quads.first())
+                .unwrap_or_else(|| panic!("{case}: the box's text is not drawn"));
+            let at = |x: f32, y: f32| {
+                shown.user_to_view(page.view_to_user(Point::new(f64::from(x), f64::from(y))))
+            };
+            let (ul, ur, ll) = (
+                at(word[0], word[1]),
+                at(word[2], word[3]),
+                at(word[4], word[5]),
+            );
+            assert!(
+                ur.x > ul.x + 20.0 && (ur.y - ul.y).abs() < 0.5 && ll.y > ul.y + 5.0,
+                "{case}: the text is not upright where it was typed: {ul:?} {ur:?} {ll:?}"
+            );
+            // (The text's own box is taller than its line, so it reaches above the box,
+            // twice as far on the page whose UserUnit is 2.)
+            assert!(
+                contains(fitted.expand(14.0), Rect::bounding([ul, ur, ll])),
+                "{case}: the text is outside its box: {fitted:?} {ul:?} {ur:?} {ll:?}"
+            );
+
+            // A shorter text: one line there, the corner and the width as they were.
+            annot::edit(
+                &mut doc,
+                0,
+                id,
+                &AnnotationEdit {
+                    contents: Some("Short".into()),
+                    ..AnnotationEdit::default()
+                },
+            )
+            .unwrap();
+            let short = as_shown(find(&doc).bounds);
+            assert!(short.height() < 2.0 * 1.2 * 14.0, "{case}: {short:?}");
+            assert!((short.x0 - typed.x0).abs() < 0.01, "{case}: {short:?}");
+            assert!((short.y0 - typed.y0).abs() < 0.01, "{case}: {short:?}");
+            assert!(
+                (short.width() - typed.width()).abs() < 0.01,
+                "{case}: {short:?}"
+            );
+
+            // Moved and made larger (the frontend gives the box as the document's page
+            // has it): it is where it was put, and stays turned.
+            let target = on_page(Rect::new(40.0, 200.0, 240.0, 290.0));
+            annot::edit(
+                &mut doc,
+                0,
+                id,
+                &AnnotationEdit {
+                    bounds: Some(target),
+                    ..AnnotationEdit::default()
+                },
+            )
+            .unwrap();
+            let moved = find(&doc);
+            assert!(near(moved.bounds, target), "{case}: {:?}", moved.bounds);
+            assert_eq!(moved.turn, turn, "{case}");
+
+            let out = dir.join(format!("{case}.pdf"));
+            let doc = save_and_reopen(&doc, &src, &out);
+            qpdf_check(&out);
+            let saved = find(&doc);
+            assert_eq!(saved.turn, turn, "{case}");
+            assert!(near(saved.bounds, target), "{case}: {:?}", saved.bounds);
+            assert!(saved.problems.is_empty(), "{case}: {:?}", saved.problems);
         }
     }
 }

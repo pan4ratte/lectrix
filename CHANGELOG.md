@@ -10,7 +10,14 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ### Viewer and tabs
 
+- The rotate buttons of the Pages panel, and **Rotate page** in a thumbnail’s menu, now turn a page on screen only, as **View > Rotate view** turns them all. The file is not changed, so there is nothing to save, and a file open for reading only can be turned too.
+- Lectrix remembers which pages you turned, and the view rotation, for each file.
 - Choosing **File > Exit** right after moving a tab to a new window no longer closes that window without asking about its unsaved changes.
+
+### Annotations
+
+- A text box added to a page that is turned on screen, by **View > Rotate view** or in the Pages panel, is typed and written upright as you see the page. Before, in a rotated view it lay on its side.
+- A note or an area highlight added to such a page is placed as you see the page, too.
 
 ### Page labels
 
@@ -27,7 +34,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 - **Document > Organize pages**, and a new button after the page display, shows the document’s pages as a grid in place of the viewer and the side panes. **Done** or **Esc** goes back to reading; a double-click on a page opens it.
 - Drag pages to put them in another order, or press **Alt+Shift** with an arrow key. Links and bookmarks still lead to the same pages, and page labels stay with the places: a moved page takes the label of its new place.
-- Rotate the selected pages with the bar’s buttons, or **R** and **Shift+R**.
+- Rotate the selected pages with the bar’s buttons, or **R** and **Shift+R**. This is now the place to rotate pages in the file: **Document > Rotate pages…** is gone.
 - Point at a page to rotate or delete it alone, with the buttons that show beside its label.
 - Make the pages larger or smaller with the bar’s buttons, **Ctrl+=** and **Ctrl+-**, **Ctrl** and the mouse wheel, or a pinch on the touchpad.
 - Delete the selected pages with the bar’s button or **Del**. Lectrix asks first, deletes the links and bookmarks that led to them, and closes the page numbering up.

@@ -65,6 +65,9 @@ export interface ViewerApi {
 	fit(mode: 'fitWidth' | 'fitPage'): void;
 	/** Lays the pages out another way (section 6.1), keeping the current place. */
 	setMode(mode: ViewMode, cover: boolean): void;
+	/** Turns pages by `degrees` as they are shown (section 6.1, view rotation), keeping the
+	 * current place. */
+	turnPages(pages: readonly number[], degrees: number): void;
 	/** Goes to the top of the previous or next page, or two pages in a two-page mode,
 	 * gliding there unless Settings or the system's reduced motion say otherwise. */
 	turn(direction: 1 | -1): void;
@@ -78,8 +81,19 @@ export type AnnotationDraft =
 	| { kind: 'move'; page: number; id: number; box: Box }
 	| { kind: 'ink'; page: number; points: number[] }
 	| { kind: 'area'; page: number; box: Box }
-	/** A text box being typed: new (`id` null) or an existing one being edited. */
-	| { kind: 'text'; page: number; id: number | null; box: Box; text: string; fontSize: number; color: string };
+	/** A text box being typed: new (`id` null) or an existing one being edited. `turn`: how
+	 * far its text is turned from the page as the document has it (for a new one, as far
+	 * as the page is turned on screen, where it is typed upright). */
+	| {
+			kind: 'text';
+			page: number;
+			id: number | null;
+			box: Box;
+			turn: Rotation;
+			text: string;
+			fontSize: number;
+			color: string;
+	  };
 
 export interface AnnotationRef {
 	page: number;
@@ -188,6 +202,17 @@ class SearchState {
 	}
 }
 
+/** The turns remembered for a file's pages (none in a view stored before pages could be
+ * turned), for the pages it has now. */
+function storedTurns(stored: ViewState['pageTurns'] | undefined, pageCount: number): Map<number, Rotation> {
+	const turns = new Map<number, Rotation>();
+	for (const [page, degrees] of Object.entries(stored ?? {})) {
+		const turn = normalizeRotation(degrees);
+		if (turn !== 0 && Number(page) < pageCount) turns.set(Number(page), turn);
+	}
+	return turns;
+}
+
 function splitQuads(flat: number[]): number[][] {
 	const quads: number[][] = [];
 	for (let i = 0; i + 8 <= flat.length; i += 8) quads.push(flat.slice(i, i + 8));
@@ -254,6 +279,10 @@ export class DocTab {
 	zoom = $state(1);
 	zoomMode = $state<ZoomMode>('fitWidth');
 	rotation = $state<Rotation>(0);
+	/** The pages turned as they are shown, on top of `rotation` (section 6.1, view rotation):
+	 * a page's index and its turn. On screen only, never in the file; remembered per file
+	 * with the rest of the view. */
+	pageTurns = $state.raw<ReadonlyMap<number, Rotation>>(new Map());
 	/** How the pages are shown (section 6.1, visual adjustments): on screen only, never in
 	 * the file; remembered per file with the rest of the view. */
 	adjustments = $state<PageAdjustments>({ ...NO_ADJUSTMENTS });
@@ -311,6 +340,7 @@ export class DocTab {
 			this.zoom = clampZoom(view.zoom);
 			this.zoomMode = view.zoomMode;
 			this.rotation = normalizeRotation(view.rotation);
+			this.pageTurns = storedTurns(view.pageTurns, info.pages.length);
 			this.adjustments = normalizeAdjustments(view.adjustments);
 			const page = Math.min(view.page, Math.max(0, info.pages.length - 1));
 			this.currentPage = page;
@@ -338,7 +368,29 @@ export class DocTab {
 		this.textRequests.clear();
 		this.selection = null;
 		this.currentPage = Math.min(this.currentPage, Math.max(0, info.pages.length - 1));
+		// Turns are kept by page: one past the end of the file read anew has no page.
+		if ([...this.pageTurns.keys()].some((page) => page >= info.pages.length)) {
+			this.pageTurns = new Map([...this.pageTurns].filter(([page]) => page < info.pages.length));
+		}
 		this.organize?.pagesChanged();
+	}
+
+	/** How far page `index` is turned on screen: the view rotation and the page's own turn. */
+	shownRotation(index: number): Rotation {
+		return normalizeRotation(this.rotation + (this.pageTurns.get(index) ?? 0));
+	}
+
+	/** Turns pages by `degrees` as they are shown. The document stays as it is: nothing to
+	 * save or undo. */
+	turnPages(pages: readonly number[], degrees: number) {
+		const turns = new Map(this.pageTurns);
+		for (const page of pages) {
+			if (page < 0 || page >= this.pages.length) continue;
+			const turn = normalizeRotation((turns.get(page) ?? 0) + degrees);
+			if (turn === 0) turns.delete(page);
+			else turns.set(page, turn);
+		}
+		this.pageTurns = turns;
 	}
 
 	/** Applies what a mutating command changed (section 3: no full re-fetch). */
@@ -373,11 +425,19 @@ export class DocTab {
 	}
 
 	/** Everything kept by page index follows its page: the pages' keys, the current page,
-	 * the view (`shown`: where the viewer was before the change), the history of jumps and
-	 * the selected annotation. */
+	 * the view (`shown`: where the viewer was before the change), the pages turned on
+	 * screen, the history of jumps and the selected annotation. */
 	private pagesMoved(move: PageMove, shown: ViewPosition | null) {
 		this.pageKeys = move.keys(this.pageKeys, () => this.nextPageKey++);
 		this.currentPage = move.follow(this.currentPage);
+		if (this.pageTurns.size) {
+			const turns = new Map<number, Rotation>();
+			for (const [before, turn] of this.pageTurns) {
+				const page = move.to(before);
+				if (page !== null) turns.set(page, turn);
+			}
+			this.pageTurns = turns;
+		}
 		this.history.remap((page) => move.to(page));
 		const selected = this.selectedAnnotation;
 		if (selected) {
@@ -525,7 +585,8 @@ export class DocTab {
 			zoom: this.zoom,
 			zoomMode: this.zoomMode,
 			rotation: this.rotation,
-			adjustments: { ...this.adjustments }
+			adjustments: { ...this.adjustments },
+			pageTurns: Object.fromEntries(this.pageTurns)
 		};
 	}
 }

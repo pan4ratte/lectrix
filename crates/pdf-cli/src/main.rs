@@ -321,6 +321,10 @@ enum AnnotAction {
         text: String,
         #[arg(long, default_value_t = 12.0)]
         size: f64,
+        /// How far the page is turned on screen where the box is typed, clockwise (0, 90,
+        /// 180 or 270): the text stands upright as shown so.
+        #[arg(long, default_value_t = 0)]
+        turn: i32,
         #[command(flatten)]
         style: StyleArgs,
     },
@@ -1363,6 +1367,7 @@ fn annot_command(action: AnnotAction) -> Result<()> {
             rect,
             text,
             size,
+            turn,
             style,
         } => add(
             &input,
@@ -1372,6 +1377,7 @@ fn annot_command(action: AnnotAction) -> Result<()> {
                 rect,
                 text,
                 font_size: size,
+                turn,
             },
             style,
         ),
@@ -1443,6 +1449,9 @@ fn list_annotations(input: &Path) -> Result<()> {
             if !a.contents.is_empty() {
                 let short: String = a.contents.chars().take(40).collect();
                 line.push_str(&format!(" text {short:?}"));
+            }
+            if a.turn != 0 {
+                line.push_str(&format!(" turned {}", a.turn));
             }
             if let Some(parent) = a.reply_to {
                 line.push_str(&format!(" reply-to {parent}"));

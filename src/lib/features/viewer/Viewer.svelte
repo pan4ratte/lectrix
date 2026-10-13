@@ -37,6 +37,10 @@
 		moveBox,
 		normalizeBox,
 		resizeBox,
+		turnBox,
+		turnPoint,
+		unturnBox,
+		unturnPoint,
 		type Box,
 		type Handle
 	} from '#lib/features/annotations/geometry.ts';
@@ -56,6 +60,7 @@
 		contentWidth,
 		currentPage,
 		isShown,
+		normalizeRotation,
 		pageAt,
 		pageAtY,
 		pageLeft,
@@ -65,6 +70,7 @@
 		rowCount,
 		rowOf,
 		rowStart,
+		turnedSize,
 		type Arrangement,
 		type ViewMode
 	} from './layout.ts';
@@ -119,7 +125,9 @@
 		cover: tab.cover,
 		row: tab.continuous ? null : shownRow
 	});
-	const layout = $derived(computeLayout(tab.pages, tab.zoom, tab.rotation, arrangement));
+	/** How far a page is turned on screen: the view rotation and the page's own turn. */
+	const rotationOf = (index: number) => tab.shownRotation(index);
+	const layout = $derived(computeLayout(tab.pages, tab.zoom, rotationOf, arrangement));
 	const contentW = $derived(contentWidth(layout, viewportW));
 	/** Pages mounted: the viewport plus a quarter screen above and below. Each mounted page
 	 * holds its pixels in the webview, and a wider margin only cost memory (ADR 0002); the
@@ -286,11 +294,10 @@
 		);
 	}
 
-	/** Lays the pages out another way, keeping the current page (the one the page box shows)
-	 * and how far down it the view is, and fits the zoom again in a fit mode (two pages make
-	 * a wider row). */
-	async function setMode(mode: ViewMode, cover: boolean) {
-		if (mode === tab.mode && cover === tab.cover) return;
+	/** Lays the pages out anew, as `change` says, keeping the current page (the one the page
+	 * box shows) and how far down it the view is, and fits the zoom again in a fit mode (two
+	 * pages make a wider row, a page on its side a wider page). */
+	async function layOut(change: () => void) {
 		// Not `position()`: just after going to a page, the top of the view is in the gap
 		// above it, and that names the page before.
 		const page = tab.currentPage;
@@ -298,29 +305,34 @@
 		const at = { page, offset: box ? Math.min(1, Math.max(0, (scrollTop - box.top) / box.height)) : 0 };
 		stopScrollGlide();
 		if (stopZoomGlide()) heldRenderZoom = null;
-		tab.mode = mode;
-		tab.cover = cover;
+		change();
 		shownRow = rowOf(at.page, tab.columns, tab.cover);
 		if (tab.zoomMode !== 'custom' && viewportW > 0) tab.zoom = fitZoom(tab.zoomMode, at.page);
 		await tick();
 		await scrollToPosition(at);
 	}
 
+	/** Lays the pages out in another scroll mode (section 6.1). */
+	async function setMode(mode: ViewMode, cover: boolean) {
+		if (mode === tab.mode && cover === tab.cover) return;
+		await layOut(() => {
+			tab.mode = mode;
+			tab.cover = cover;
+		});
+	}
+
+	/** Turns pages as they are shown (section 6.1, view rotation). Only how they are laid
+	 * out changes: their pixels are the ones they have, turned with their layer. */
+	function turnPages(pages: readonly number[], degrees: number) {
+		void layOut(() => tab.turnPages(pages, degrees));
+	}
+
 	/** Maps a point in page points (unrotated) to CSS pixels in the rotated page box. */
 	function toBox(index: number, x: number, y: number): [number, number] {
 		const k = tab.zoom * CSS_PX_PER_PT;
 		const s = tab.pages[index]!;
-		const [W, H] = [s.width, s.height];
-		switch (tab.rotation) {
-			case 90:
-				return [(H - y) * k, x * k];
-			case 180:
-				return [(W - x) * k, (H - y) * k];
-			case 270:
-				return [y * k, (W - x) * k];
-			default:
-				return [x * k, y * k];
-		}
+		const [bx, by] = turnPoint(x, y, rotationOf(index), s.width, s.height);
+		return [bx * k, by * k];
 	}
 
 	/** Maps a client (screen) point to page points (unrotated) on page `index`. */
@@ -334,17 +346,7 @@
 	function boxToPage(index: number, dx: number, dy: number): [number, number] {
 		const k = tab.zoom * CSS_PX_PER_PT;
 		const s = tab.pages[index]!;
-		const [W, H] = [s.width, s.height];
-		switch (tab.rotation) {
-			case 90:
-				return [dy / k, H - dx / k];
-			case 180:
-				return [W - dx / k, H - dy / k];
-			case 270:
-				return [W - dy / k, dx / k];
-			default:
-				return [dx / k, dy / k];
-		}
+		return unturnPoint(dx / k, dy / k, rotationOf(index), s.width, s.height);
 	}
 
 	function topLeft(): { page: number; x: number; y: number } {
@@ -364,8 +366,8 @@
 		const x1 = clampX(scrollLeft + viewportW - b.left);
 		const y0 = clampY(scrollTop - b.top);
 		const y1 = clampY(scrollTop + viewportH - b.top);
-		// The visible part's top-left corner in the page's own orientation (the view may be
-		// rotated).
+		// The visible part's top-left corner in the page's own orientation (the page may be
+		// turned on screen).
 		const corners = [boxToPage(page, x0, y0), boxToPage(page, x1, y0), boxToPage(page, x0, y1), boxToPage(page, x1, y1)];
 		return {
 			page,
@@ -387,10 +389,10 @@
 		const b = pageBox(page);
 		const [bx, by] = toBox(page, x ?? 0, y ?? 0);
 		// Place the point at the top-left corner of the page's content as it appears on
-		// screen: with a rotated view, that corner is elsewhere in the box.
+		// screen: on a page turned there, that corner is elsewhere in the box.
 		let top: number;
 		let left: number | null;
-		switch (tab.rotation) {
+		switch (rotationOf(page)) {
 			case 90:
 				top = b.top + by;
 				left = y === null ? null : b.left + bx - viewportW;
@@ -512,7 +514,7 @@
 		// for the moment until the DOM caught up, they dropped the pages on screen and their
 		// pixels, and each frame of a glide or a pinch flickered blank (tests/e2e zoom).
 		const z = clampZoom(zoom);
-		const next = computeLayout(tab.pages, z, tab.rotation, arrangement);
+		const next = computeLayout(tab.pages, z, rotationOf, arrangement);
 		const nextW = contentWidth(next, viewportW);
 		const after = next.pages[page]!;
 		let toTop = after.top + fy * after.height - ay;
@@ -601,8 +603,11 @@
 	function fitZoom(mode: 'fitWidth' | 'fitPage', page = tab.currentPage): number {
 		const row = rowOf(page, tab.columns, tab.cover);
 		const first = rowStart(row, tab.columns, tab.cover);
-		const sizes = tab.pages.slice(first, rowStart(row + 1, tab.columns, tab.cover));
-		if (sizes.length === 0 && tab.pages[0]) sizes.push(tab.pages[0]);
+		const last = Math.min(tab.pages.length, rowStart(row + 1, tab.columns, tab.cover)) - 1;
+		// The row's pages as they are turned on screen; past the end, the first page.
+		const sizes = [];
+		for (let i = first; i <= last; i++) sizes.push(turnedSize(tab.pages[i]!, rotationOf(i)));
+		if (sizes.length === 0 && tab.pages[0]) sizes.push(turnedSize(tab.pages[0], rotationOf(0)));
 		if (sizes.length === 0) return 1;
 		// The largest of the row's pages, on each side of the middle in two-page modes.
 		const size = {
@@ -610,8 +615,8 @@
 			height: Math.max(...sizes.map((s) => s.height))
 		};
 		return mode === 'fitWidth'
-			? fitWidthZoom(size, viewportW, tab.rotation, tab.columns)
-			: fitPageZoom(size, viewportW, viewportH, tab.rotation, tab.columns);
+			? fitWidthZoom(size, viewportW, tab.columns)
+			: fitPageZoom(size, viewportW, viewportH, tab.columns);
 	}
 
 	function fit(mode: 'fitWidth' | 'fitPage') {
@@ -956,9 +961,14 @@
 			begin(event, { kind: 'ink', page, points: [x, y] });
 		} else if (tool === 'note') {
 			event.preventDefault();
-			// The icon's top-left corner at the click, kept on the page.
+			// The icon's top-left corner at the click, kept on the page: where the icon is as
+			// the page is shown, which on a page turned on screen is another corner of it.
 			const s = tab.pages[page]!;
-			const at = [Math.min(x, s.width - 20), Math.min(y, s.height - 20)] as const;
+			const turn = rotationOf(page);
+			const shown = turnedSize(s, turn);
+			const [sx, sy] = turnPoint(x, y, turn, s.width, s.height);
+			const corner = [Math.min(sx, shown.width - 20), Math.min(sy, shown.height - 20)] as const;
+			const at = unturnBox([corner[0], corner[1], corner[0] + 20, corner[1] + 20], turn, s.width, s.height);
 			void create(tab, 'note', [{ page, body: { tool: 'note', x: at[0], y: at[1], text: '' } }]).then((change) => {
 				if (change) {
 					tools.tool = 'select';
@@ -1032,7 +1042,9 @@
 	/** The cursor for it: the arrows along the line as it is on screen. */
 	const edgeCursor = $derived.by(() => {
 		if (!overEdge || !tab.selection) return null;
-		const turned = tab.rotation === 90 || tab.rotation === 270;
+		const [start, end] = ordered(tab.selection.anchor, tab.selection.focus);
+		const rotation = rotationOf((overEdge.side === 'start' ? start : end).page);
+		const turned = rotation === 90 || rotation === 270;
 		return overEdge.vertical !== turned ? 'ns' : 'ew';
 	});
 
@@ -1198,20 +1210,26 @@
 				tab.draft = null;
 				if (isMarkupTool(tool) && box[2] - box[0] > px(3) && box[3] - box[1] > px(3)) {
 					await createMarkup(tab, tool, [
-						{ page: g.page, body: { tool: 'markup', kind: tool, quads: boxQuad(box), note: null } }
+						{ page: g.page, body: { tool: 'markup', kind: tool, quads: boxQuad(box, rotationOf(g.page)), note: null } }
 					]);
 				}
 				break;
 			}
 			case 'textbox': {
-				const dragged = normalizeBox(tab.draft?.kind === 'area' ? tab.draft.box : [0, 0, 0, 0]);
 				const style = tools.style('freeText');
 				const s = tab.pages[g.page]!;
+				// The box is typed upright as the page is shown: worked out where a page turned
+				// on screen shows it, and brought back to the page.
+				const turn = rotationOf(g.page);
+				const shown = turnedSize(s, turn);
+				const dragged = turnBox(tab.draft?.kind === 'area' ? tab.draft.box : [0, 0, 0, 0], turn, s.width, s.height);
+				const [startX] = turnPoint(g.start[0], g.start[1], turn, s.width, s.height);
 				// A click makes a box 200 pt wide; a drag sets the width.
-				const width = dragged[2] - dragged[0] > px(16) ? dragged[2] - dragged[0] : Math.min(200, s.width - g.start[0]);
-				const x0 = Math.min(g.start[0], dragged[0]);
-				const box: Box = [x0, dragged[1], x0 + Math.max(width, px(16)), dragged[1] + style.fontSize * 1.2];
-				tab.draft = { kind: 'text', page: g.page, id: null, box, text: '', fontSize: style.fontSize, color: style.color };
+				const width = dragged[2] - dragged[0] > px(16) ? dragged[2] - dragged[0] : Math.min(200, shown.width - startX);
+				const x0 = Math.min(startX, dragged[0]);
+				const typed: Box = [x0, dragged[1], x0 + Math.max(width, px(16)), dragged[1] + style.fontSize * 1.2];
+				const box = unturnBox(typed, turn, s.width, s.height);
+				tab.draft = { kind: 'text', page: g.page, id: null, box, turn, text: '', fontSize: style.fontSize, color: style.color };
 				break;
 			}
 		}
@@ -1224,6 +1242,7 @@
 			page: a.page,
 			id: a.id,
 			box: [...a.bounds],
+			turn: normalizeRotation(a.turn),
 			text: a.contents,
 			fontSize: a.fontSize ?? 12,
 			color: a.color ?? '#000000'
@@ -1508,6 +1527,7 @@
 			zoomStep,
 			fit,
 			setMode: (mode, cover) => void setMode(mode, cover),
+			turnPages,
 			turn,
 			focus: () => scroller?.focus({ preventScroll: true })
 		};
@@ -1527,20 +1547,26 @@
 		};
 	});
 
-	// In a fit mode, re-fit when the window resizes or the view rotates. Only those: the fit
-	// is computed from the current page, and re-fitting whenever the current page or a page
-	// size changed would feed back into which page is current.
+	// In a fit mode, re-fit when the window resizes, the view rotates or a page is turned on
+	// screen. Only those: the fit is computed from the current page, and re-fitting whenever
+	// the current page or a page size changed would feed back into which page is current.
 	// Fit width ignores height changes, such as a horizontal scrollbar appearing when a wide
 	// page scrolls into view.
-	let fittedFor = { width: 0, height: 0, rotation: -1 };
+	let fittedFor: { width: number; height: number; rotation: number; turns: DocTab['pageTurns'] | null } = {
+		width: 0,
+		height: 0,
+		rotation: -1,
+		turns: null
+	};
 	$effect(() => {
-		const size = { width: viewportW, height: viewportH, rotation: tab.rotation as number };
+		const size = { width: viewportW, height: viewportH, rotation: tab.rotation as number, turns: tab.pageTurns };
 		untrack(() => {
 			const last = fittedFor;
 			fittedFor = size;
 			if (size.width === 0 || tab.zoomMode === 'custom') return;
 			const relevant =
 				size.rotation !== last.rotation ||
+				size.turns !== last.turns ||
 				size.width !== last.width ||
 				(tab.zoomMode === 'fitPage' && size.height !== last.height);
 			if (!relevant) return;
@@ -1593,7 +1619,7 @@
 								zoom={tab.zoom}
 								{renderZoom}
 								zooming={heldRenderZoom !== null}
-								rotation={tab.rotation}
+								rotation={rotationOf(index)}
 								devicePixelRatio={dpr}
 								linkHover={hoveredLink?.page === index && !dragging ? hoveredLink.rect : null}
 								visibleRect={visibleRect(index)}

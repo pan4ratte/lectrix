@@ -279,6 +279,30 @@ impl PageGeometry {
         }
     }
 
+    /// The geometry of the same page shown turned `degrees` further clockwise (a multiple
+    /// of 90): what a view turned on screen shows, where the document's `/Rotate` stays as
+    /// it is. It equals the geometry of the page with that much added to its `/Rotate`.
+    pub fn turned(&self, degrees: i32) -> PageGeometry {
+        let turn = normalize_rotation(degrees);
+        if turn == 0 {
+            return *self;
+        }
+        // View space has y down, so this rotation is clockwise as seen.
+        let rotated = self.to_view.then(&Affine::rotate_quarter_turns(turn));
+        let moved = rotated.apply_rect(self.visible_box);
+        let to_view = rotated.then(&Affine::translate(-moved.x0, -moved.y0));
+        // As in `new`: always invertible.
+        let to_user = to_view.invert().unwrap_or(Affine::IDENTITY);
+        PageGeometry {
+            to_view,
+            to_user,
+            width: moved.width(),
+            height: moved.height(),
+            rotation: normalize_rotation(self.rotation + turn),
+            visible_box: self.visible_box,
+        }
+    }
+
     pub fn view_to_user(&self, p: Point) -> Point {
         self.to_user.apply(p)
     }
@@ -453,6 +477,42 @@ mod tests {
         assert!(close(
             g.user_to_view(Point::new(612.0, 0.0)),
             Point::new(1224.0, 1584.0)
+        ));
+    }
+
+    #[test]
+    fn a_turned_view_is_the_page_rotated_that_much_further() {
+        let p = Point::new(123.25, 456.5);
+        for rotate in [0, 90, 180, 270] {
+            for crop in [None, Some(Rect::new(30.0, 40.0, 500.0, 700.0))] {
+                for unit in [1.0, 2.5] {
+                    for turn in [0, 90, 180, 270, -90, 450] {
+                        let turned = geom(rotate, crop, unit).turned(turn);
+                        let rotated = geom(rotate + turn, crop, unit);
+                        let what = format!("{rotate} {crop:?} {unit} {turn}");
+                        assert_eq!(turned.rotation, rotated.rotation, "{what}");
+                        assert_eq!(
+                            (turned.width, turned.height),
+                            (rotated.width, rotated.height),
+                            "{what}"
+                        );
+                        assert!(
+                            close(turned.user_to_view(p), rotated.user_to_view(p)),
+                            "{what}"
+                        );
+                        assert!(
+                            close(turned.view_to_user(p), rotated.view_to_user(p)),
+                            "{what}"
+                        );
+                    }
+                }
+            }
+        }
+        // Turned a quarter clockwise, the page's top-left corner is at the top right.
+        let g = geom(0, None, 1.0).turned(90);
+        assert!(close(
+            g.user_to_view(Point::new(0.0, 792.0)),
+            Point::new(792.0, 0.0)
         ));
     }
 

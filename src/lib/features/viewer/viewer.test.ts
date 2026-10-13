@@ -20,7 +20,9 @@ import {
 	pagesInRange,
 	rowCount,
 	rowOf,
-	rowStart
+	rowStart,
+	turnTransform,
+	turnedSize
 } from './layout.ts';
 import { pageBoxText, pageName, pageOf, pagePosition, resolvePageInput } from './pagebox.ts';
 import {
@@ -70,6 +72,39 @@ describe('layout', () => {
 		const layout = computeLayout([letter], 2, 90);
 		expect(layout.pages[0]!.width).toBeCloseTo(792 * CSS_PX_PER_PT * 2);
 		expect(layout.pages[0]!.height).toBeCloseTo(612 * CSS_PX_PER_PT * 2);
+	});
+
+	it('lays each page out as it is turned, when pages are turned one by one', () => {
+		const w = 612 * CSS_PX_PER_PT;
+		const h = 792 * CSS_PX_PER_PT;
+		// The second page on its side, the third upside down.
+		const turns = [0, 90, 180] as const;
+		const layout = computeLayout([letter, letter, letter], 1, (page) => turns[page]!);
+		expect(layout.pages.map((p) => [p.width, p.height])).toEqual([
+			[w, h],
+			[h, w],
+			[w, h]
+		]);
+		// The pages after it follow its new height, and the widest page sets the content's width.
+		expect(layout.pages[2]!.top).toBeCloseTo(PAGE_MARGIN + h + PAGE_GAP + w + PAGE_GAP);
+		expect(layout.maxWidth).toBeCloseTo(h);
+		// Beside an upright page, the one on its side is centred on it.
+		const row = computeLayout([letter, letter], 1, (page) => turns[page]!, { columns: 2, cover: false, row: null });
+		expect(row.rows[0]!.height).toBeCloseTo(h);
+		expect(row.pages[1]!.top).toBeCloseTo(PAGE_MARGIN + (h - w) / 2);
+		expect(row.pages[1]!.x).toBe(PAGE_GAP / 2);
+	});
+
+	it('turns a size and the layer that shows it', () => {
+		expect(turnedSize(letter, 0)).toEqual(letter);
+		expect(turnedSize(letter, 180)).toEqual(letter);
+		expect(turnedSize(letter, 90)).toEqual({ width: 792, height: 612 });
+		expect(turnedSize(letter, 270)).toEqual({ width: 792, height: 612 });
+		// A layer 60 by 80, turned about its top-left corner and moved back into its box.
+		expect(turnTransform(0, 60, 80)).toBe('none');
+		expect(turnTransform(90, 60, 80)).toBe('translate(80px, 0) rotate(90deg)');
+		expect(turnTransform(180, 60, 80)).toBe('translate(60px, 80px) rotate(180deg)');
+		expect(turnTransform(270, 60, 80)).toBe('translate(0, 60px) rotate(270deg)');
 	});
 
 	it('finds pages by position', () => {
@@ -217,20 +252,21 @@ describe('zoom', () => {
 		}
 	});
 
-	it('fits width and page, honoring view rotation', () => {
+	it('fits width and page, for a page as it is turned on screen', () => {
 		const viewport = 612 * CSS_PX_PER_PT + 2 * PAGE_MARGIN + 1;
-		expect(fitWidthZoom(letter, viewport, 0)).toBeCloseTo(1);
-		expect(fitWidthZoom(letter, viewport, 90)).toBeCloseTo(612 / 792, 2);
-		expect(fitPageZoom(letter, 10000, 792 * CSS_PX_PER_PT + 2 * PAGE_MARGIN + 1, 0)).toBeCloseTo(1);
+		expect(fitWidthZoom(letter, viewport)).toBeCloseTo(1);
+		expect(fitWidthZoom(turnedSize(letter, 90), viewport)).toBeCloseTo(612 / 792, 2);
+		expect(fitPageZoom(letter, 10000, 792 * CSS_PX_PER_PT + 2 * PAGE_MARGIN + 1)).toBeCloseTo(1);
+		expect(fitPageZoom(turnedSize(letter, 270), 10000, 612 * CSS_PX_PER_PT + 2 * PAGE_MARGIN + 1)).toBeCloseTo(1);
 		// The fitted page never needs a horizontal scrollbar.
-		expect(fitWidthZoom(letter, 1000, 0) * 612 * CSS_PX_PER_PT + 2 * PAGE_MARGIN).toBeLessThan(1000);
+		expect(fitWidthZoom(letter, 1000) * 612 * CSS_PX_PER_PT + 2 * PAGE_MARGIN).toBeLessThan(1000);
 	});
 
 	it('fits two pages side by side, and the row they make fits the view', () => {
 		const viewport = 2 * 612 * CSS_PX_PER_PT + PAGE_GAP + 2 * PAGE_MARGIN + 1;
-		expect(fitWidthZoom(letter, viewport, 0, 2)).toBeCloseTo(1);
-		expect(fitPageZoom(letter, viewport, 10000, 0, 2)).toBeCloseTo(1);
-		const zoom = fitWidthZoom(letter, 1000, 0, 2);
+		expect(fitWidthZoom(letter, viewport, 2)).toBeCloseTo(1);
+		expect(fitPageZoom(letter, viewport, 10000, 2)).toBeCloseTo(1);
+		const zoom = fitWidthZoom(letter, 1000, 2);
 		const layout = computeLayout([letter, letter], zoom, 0, { columns: 2, cover: false, row: null });
 		expect(contentWidth(layout, 1000)).toBe(1000);
 	});

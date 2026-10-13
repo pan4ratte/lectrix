@@ -223,7 +223,6 @@ class AppStore {
 	/** The page labels show beside the grid of pages being organized (section 6.7). Kept
 	 * while the app runs, for every document. */
 	labelsShown = $state(false);
-	rotateDialogOpen = $state(false);
 	/** The Combine view, while it is open (shown as a tab of its own). */
 	combine = $state<CombineState | null>(null);
 	/** The Combine view is the tab on screen. */
@@ -1201,19 +1200,6 @@ class AppStore {
 			this.showError(toAppError(e));
 			return null;
 		}
-	}
-
-	async rotatePages(tab: DocTab, pages: number[], degrees: number) {
-		if (this.refuseReadOnly(tab)) return;
-		if (!tab.flags.canAssemble) {
-			this.notify({
-				kind: 'error',
-				message: 'This document’s security settings don’t allow rotating pages.',
-				suggestion: 'Rotate the view instead (View > Rotate view); it doesn’t change the file.'
-			});
-			return;
-		}
-		await this.apply(tab, { kind: 'rotatePages', pages, degrees });
 	}
 
 	async undo(tab: DocTab) {

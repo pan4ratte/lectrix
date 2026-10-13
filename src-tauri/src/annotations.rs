@@ -108,6 +108,9 @@ pub struct Annotation {
     pub hidden: bool,
     pub width: Option<f32>,
     pub font_size: Option<f32>,
+    /// A text box: how far its text is turned from the page as the document shows it,
+    /// clockwise (0, 90, 180 or 270); 0 for every other type.
+    pub turn: u16,
     /// Empty when nothing needs repair.
     pub problems: Vec<AnnotationProblem>,
 }
@@ -177,6 +180,7 @@ impl From<AnnotationInfo> for Annotation {
             hidden: a.hidden,
             width: a.width.map(|w| w as f32),
             font_size: a.font_size.map(|s| s as f32),
+            turn: u16::try_from(a.turn).unwrap_or(0),
             problems: a.problems.into_iter().map(Into::into).collect(),
             subtype: a.subtype,
         }
@@ -232,11 +236,15 @@ pub enum AnnotationBody {
     Note { x: f32, y: f32, text: String },
     /// Strokes: x, y, x, y...
     Ink { strokes: Vec<Vec<f32>>, width: f32 },
-    /// A text box: x0, y0, x1, y1; its height grows to fit the text.
+    /// A text box: x0, y0, x1, y1; its height grows to fit the text. `turn`: how far
+    /// the page was turned on screen where it was typed (0, 90, 180 or 270), where its
+    /// text stands upright and the box grows downwards.
     FreeText {
         rect: [f32; 4],
         text: String,
         font_size: f32,
+        #[serde(default)]
+        turn: u16,
     },
 }
 
@@ -358,10 +366,12 @@ impl NewAnnotationInput {
                 rect,
                 text,
                 font_size,
+                turn,
             } => core::Body::FreeText {
                 rect: rect_from(rect),
                 text,
                 font_size: f64::from(font_size),
+                turn: i32::from(turn),
             },
         };
         Ok(core::NewAnnotation {

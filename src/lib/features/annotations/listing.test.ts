@@ -37,6 +37,7 @@ function annotation(patch: Partial<Annotation>): Annotation {
 		hidden: false,
 		width: null,
 		fontSize: null,
+		turn: 0,
 		problems: [],
 		...patch
 	};
