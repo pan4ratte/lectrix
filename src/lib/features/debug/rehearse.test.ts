@@ -60,6 +60,11 @@ describe('rehearsed update', () => {
 		await rehearseUpdate('available');
 		const stage = update.simulate.mock.calls[0]![0];
 		expect(stage.kind).toBe('available');
-		if (stage.kind === 'available') expect(stage.info.currentVersion).toBe('1.0.0');
+		// With changes under Unreleased or right after a release, the notice has the offered
+		// version's changes to show. Which versions those are depends on the changelog.
+		if (stage.kind === 'available') {
+			const { info } = stage;
+			expect(changesSince(info.notes, info.currentVersion).map((r) => r.version)).toContain(info.version);
+		}
 	});
 });
