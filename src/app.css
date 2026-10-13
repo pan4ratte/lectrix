@@ -381,6 +381,11 @@ input[type='color'],
 .icon-button:disabled {
 	opacity: 0.4;
 }
+/* In a bar that takes the place of a line of text (a page's, in the grid of pages). */
+.icon-button-small {
+	width: 22px;
+	height: 22px;
+}
 
 /* Controls (buttons, fields, dropdowns) have the same edge on every side: the theme's line,
    a step stronger under the pointer, and an even accent ring when focused or open. */
@@ -2198,36 +2203,47 @@ button.shortcut-key:hover,
 	outline-offset: 2px;
 }
 
-/* ----- combine view ----- */
+/* ----- page grid (combine view, organizing pages) ----- */
 
-.combine-grid:focus-visible {
+.page-grid:focus-visible {
 	outline: 2px solid var(--lectrix-focus);
 	outline-offset: -2px;
 }
-.combine-cell:hover {
+.page-cell:hover {
 	background: var(--lectrix-hover);
 }
-.combine-cell-selected,
-.combine-cell-selected:hover {
+.page-cell-selected,
+.page-cell-selected:hover {
 	background: var(--lectrix-row-selected);
 }
-.combine-thumb {
+.page-cell-picture {
 	box-shadow: 0 1px 2px var(--lectrix-page-shadow);
 }
-.combine-cell-selected .combine-thumb {
+.page-cell-selected .page-cell-picture {
 	outline: 2px solid var(--lectrix-accent);
 	outline-offset: 2px;
 }
-.combine-grid:focus-visible .combine-cell-focus {
+.page-grid:focus-visible .page-cell-focus {
 	box-shadow: inset 0 0 0 2px var(--lectrix-focus);
 }
-.combine-drop-line {
+.page-grid-drop-line {
 	position: absolute;
 	width: 3px;
 	border-radius: 2px;
 	background: var(--lectrix-accent);
 	pointer-events: none;
 }
+/* The rectangle drawn to select pages. */
+.page-grid-marquee {
+	position: absolute;
+	border: 1px solid var(--lectrix-accent);
+	border-radius: 2px;
+	background: var(--lectrix-row-selected);
+	pointer-events: none;
+}
+
+/* ----- combine view ----- */
+
 .progress-indeterminate {
 	animation: progress-slide 1.2s ease-in-out infinite;
 }

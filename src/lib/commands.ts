@@ -7,6 +7,7 @@ import { addBookmark } from '#lib/features/bookmarks/actions.ts';
 import { openWhatsNew } from '#lib/features/changelog/announce.ts';
 import { toggleFullScreen } from '#lib/features/fullscreen/actions.ts';
 import { showLabels, startRangeAt } from '#lib/features/labels/actions.ts';
+import { toggleOrganize } from '#lib/features/organize/actions.ts';
 import { update } from '#lib/features/update/update.svelte.ts';
 import { copySelection } from '#lib/features/viewer/actions.ts';
 import { normalizeRotation, type ViewMode } from '#lib/features/viewer/layout.ts';
@@ -18,6 +19,14 @@ function withTab(run: (tab: DocTab) => void | Promise<unknown>) {
 		const tab = app.active;
 		if (tab) void run(tab);
 	};
+}
+
+/** A command for a document being read: it does nothing while the document's pages are
+ * organized (section 6.7), where the viewer and the side panes are not on screen. */
+function reading(run: (tab: DocTab) => void | Promise<unknown>) {
+	return withTab((t) => {
+		if (!t.organize) return run(t);
+	});
 }
 
 /** Lays the active document's pages out in `mode` (section 6.1); not stored in the file. */
@@ -39,6 +48,8 @@ function layOut(tab: DocTab, mode: ViewMode, cover: boolean) {
  * and a document that can be changed: one open for reading only says how to change that. */
 function useTool(tool: Tool) {
 	return withTab((t) => {
+		// The grid of pages being organized has no annotation tools.
+		if (t.organize) return;
 		if (tool !== 'select' && (app.refuseReadOnly(t) || !t.flags.canAnnotate)) return;
 		tools.tool = tool;
 	});
@@ -78,7 +89,7 @@ export const commands = {
 		else if (app.active) void app.redo(app.active);
 	},
 	copy: withTab((t) => copySelection(t)),
-	find: withTab((t) => {
+	find: reading((t) => {
 		if (t.search.open) {
 			const input = document.querySelector<HTMLInputElement>('[data-search-input]');
 			input?.focus();
@@ -87,50 +98,56 @@ export const commands = {
 			t.search.open = true;
 		}
 	}),
-	findNext: withTab((t) => t.search.step(1)),
-	findPrevious: withTab((t) => t.search.step(-1)),
+	findNext: reading((t) => t.search.step(1)),
+	findPrevious: reading((t) => t.search.step(-1)),
 
-	zoomIn: withTab((t) => t.viewer?.zoomStep(1)),
-	zoomOut: withTab((t) => t.viewer?.zoomStep(-1)),
-	fitWidth: withTab((t) => t.viewer?.fit('fitWidth')),
-	fitPage: withTab((t) => t.viewer?.fit('fitPage')),
-	rotateViewClockwise: withTab((t) => {
+	// In the grid of pages being organized, the pictures get larger and smaller.
+	zoomIn: withTab((t) => (t.organize ? t.organize.zoomStep(1) : t.viewer?.zoomStep(1))),
+	zoomOut: withTab((t) => (t.organize ? t.organize.zoomStep(-1) : t.viewer?.zoomStep(-1))),
+	fitWidth: reading((t) => t.viewer?.fit('fitWidth')),
+	fitPage: reading((t) => t.viewer?.fit('fitPage')),
+	rotateViewClockwise: reading((t) => {
 		t.rotation = normalizeRotation(t.rotation + 90);
 	}),
-	rotateViewCounterClockwise: withTab((t) => {
+	rotateViewCounterClockwise: reading((t) => {
 		t.rotation = normalizeRotation(t.rotation - 90);
 	}),
 	/** In the two-page modes, gives the first page a row of its own, or not. */
-	toggleCoverPage: withTab((t) => layOut(t, t.mode, !t.cover)),
+	toggleCoverPage: reading((t) => layOut(t, t.mode, !t.cover)),
 	/** The pages alone, on the whole screen (section 6.1), and back. */
-	fullScreen: () => void toggleFullScreen(),
-	toggleLeftPane: () => app.togglePane('left'),
-	toggleRightPane: () => app.togglePane('right'),
+	fullScreen: () => {
+		// Full screen shows the pages alone; the grid of pages being organized is not that.
+		if (!app.active?.organize) void toggleFullScreen();
+	},
+	toggleLeftPane: reading(() => app.togglePane('left')),
+	toggleRightPane: reading(() => app.togglePane('right')),
 	goToPage: () => {
 		const box = document.querySelector<HTMLInputElement>('[data-page-box]');
 		box?.focus();
 		box?.select();
 	},
-	back: withTab((t) => {
+	back: reading((t) => {
 		const target = t.viewer && t.history.goBack(t.viewer.position());
 		if (target) t.viewer?.goTo(target, { recordHistory: false });
 	}),
-	forward: withTab((t) => {
+	forward: reading((t) => {
 		const target = t.viewer && t.history.goForward(t.viewer.position());
 		if (target) t.viewer?.goTo(target, { recordHistory: false });
 	}),
 	nextTab: () => app.cycleTab(1),
 	previousTab: () => app.cycleTab(-1),
 
+	/** The pages as a grid to organize, in place of the viewer (section 6.7), and back. */
+	organizePages: withTab((t) => toggleOrganize(t)),
 	rotatePages: withTab(() => {
 		app.rotateDialogOpen = true;
 	}),
 	insertPages: withTab((t) => app.insertFromFile(t)),
-	addBookmark: withTab((t) => addBookmark(t)),
-	showPages: () => app.showPanel('pages'),
-	showBookmarks: () => app.showPanel('bookmarks'),
-	showLabels: () => showLabels(),
-	showAnnotations: () => app.showPanel('annotations'),
+	addBookmark: reading((t) => addBookmark(t)),
+	showPages: reading(() => app.showPanel('pages')),
+	showBookmarks: reading(() => app.showPanel('bookmarks')),
+	showLabels: reading(() => showLabels()),
+	showAnnotations: reading(() => app.showPanel('annotations')),
 	repairAnnotations: withTab((t) => repair(t)),
 	toolSelect: useTool('select'),
 	toolHighlight: useTool('highlight'),
@@ -140,7 +157,7 @@ export const commands = {
 	toolNote: useTool('note'),
 	toolPen: useTool('ink'),
 	toolText: useTool('freeText'),
-	startLabelRange: withTab((t) => startRangeAt(t, t.currentPage))
+	startLabelRange: reading((t) => startRangeAt(t, t.currentPage))
 };
 
 export type CommandName = keyof typeof commands;

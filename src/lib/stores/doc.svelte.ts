@@ -23,6 +23,7 @@ import {
 import type { Box } from '#lib/features/annotations/geometry.ts';
 import { lineBreaks } from '#lib/features/annotations/tools.ts';
 import { NO_ADJUSTMENTS, normalizeAdjustments, pageFilter as filterOf } from '#lib/features/viewer/adjustments.ts';
+import type { OrganizeState } from '#lib/features/organize/organize.svelte.ts';
 import { NavHistory, type ViewPosition } from '#lib/features/viewer/history.ts';
 import {
 	columnsOf,
@@ -34,6 +35,8 @@ import {
 } from '#lib/features/viewer/layout.ts';
 import { prepareText, type Caret, type TextGeometry } from '#lib/features/viewer/selection.ts';
 import { clampZoom, type ZoomMode } from '#lib/features/viewer/zoom.ts';
+
+import { PageMove } from './pagemap.ts';
 
 /** What the viewer component exposes to menus, shortcuts and the view bar. */
 export interface ViewerApi {
@@ -265,6 +268,13 @@ export class DocTab {
 	currentPage = $state(0);
 	/** Position to show when the viewer mounts (restored view, or the tab's last place). */
 	pendingPosition: ViewPosition | null = null;
+	/** A key for each page, in page order: a page keeps its key when pages are moved,
+	 * deleted or inserted, so what is shown or selected by key follows its page. */
+	pageKeys = $state.raw<number[]>([]);
+	private nextPageKey = 1;
+	/** The pages are being organized (section 6.7): a grid of them is on screen in place of
+	 * the viewer. Null while the document is read. */
+	organize = $state<OrganizeState | null>(null);
 
 	selection = $state<{ anchor: Caret; focus: Caret } | null>(null);
 	banner = $state<BannerKind | null>(null);
@@ -313,6 +323,8 @@ export class DocTab {
 		this.name = info.name;
 		this.path = info.path;
 		this.pages = info.pages;
+		// The file was read anew: nothing says which page is which of the ones before.
+		this.pageKeys = info.pages.map(() => this.nextPageKey++);
 		this.labels = info.labels;
 		this.labelRules = info.labelRules;
 		this.previewLabels = null;
@@ -326,20 +338,25 @@ export class DocTab {
 		this.textRequests.clear();
 		this.selection = null;
 		this.currentPage = Math.min(this.currentPage, Math.max(0, info.pages.length - 1));
+		this.organize?.pagesChanged();
 	}
 
 	/** Applies what a mutating command changed (section 3: no full re-fetch). */
 	applyChange(change: DocumentChange) {
 		const revisionChanged = change.state.revision !== this.state.revision;
+		// Pages moved, deleted or inserted: where the view is, read before they change under it.
+		const move = change.pageMap ? new PageMove(change.pageMap) : null;
+		const shown = move ? (this.viewer?.position() ?? null) : null;
 		this.state = change.state;
 		if (change.changedPages.length || change.pageCount !== this.pages.length) {
-			// Inserted pages (or an undone insert) change the count; the pages that moved are
-			// listed with their sizes.
+			// Inserted or deleted pages (or either undone) change the count; the pages that
+			// moved are listed with their sizes.
 			const pages = this.pages.slice(0, change.pageCount);
 			for (const p of change.changedPages) pages[p.index] = p.size;
 			this.pages = pages;
-			this.currentPage = Math.min(this.currentPage, Math.max(0, change.pageCount - 1));
+			if (!move) this.currentPage = Math.min(this.currentPage, Math.max(0, change.pageCount - 1));
 		}
+		if (move) this.pagesMoved(move, shown);
 		if (change.labelsChanged) {
 			this.labels = change.labels;
 			this.labelRules = change.labelRules;
@@ -353,6 +370,26 @@ export class DocTab {
 			this.selection = null;
 			if (this.search.query) void this.search.start(this.search.query, this.currentPage);
 		}
+	}
+
+	/** Everything kept by page index follows its page: the pages' keys, the current page,
+	 * the view (`shown`: where the viewer was before the change), the history of jumps and
+	 * the selected annotation. */
+	private pagesMoved(move: PageMove, shown: ViewPosition | null) {
+		this.pageKeys = move.keys(this.pageKeys, () => this.nextPageKey++);
+		this.currentPage = move.follow(this.currentPage);
+		this.history.remap((page) => move.to(page));
+		const selected = this.selectedAnnotation;
+		if (selected) {
+			const page = move.to(selected.page);
+			this.selectedAnnotation = page === null ? null : { ...selected, page };
+		}
+		if (this.pendingPosition) this.pendingPosition = move.position(this.pendingPosition);
+		if (shown && this.viewer) {
+			const next = move.position(shown);
+			if (next.page !== shown.page) this.viewer.goTo(next, { recordHistory: false });
+		}
+		this.organize?.pagesChanged();
 	}
 
 	get pageCount() {

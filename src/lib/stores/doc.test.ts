@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 
-import type { DocumentInfo, PdfaLevel, SaveResult } from '#lib/ipc/index.ts';
+import type { DocumentChange, DocumentInfo, PdfaLevel, SaveResult } from '#lib/ipc/index.ts';
 
 vi.mock('#lib/ipc/index.ts', () => ({ getPageText: vi.fn(), searchText: vi.fn(), logError: vi.fn(async () => {}) }));
 
@@ -132,5 +132,88 @@ describe('visual adjustments', () => {
 		tab.adjustments.invert = true;
 		expect(tab.pageFilter).toBe('invert(1) hue-rotate(180deg)');
 		expect(tab.readOnly).toBe(true);
+	});
+});
+
+describe('pages moved, deleted or inserted', () => {
+	const size = { width: 612, height: 792, rotation: 0 };
+	const wide = { width: 792, height: 612, rotation: 0 };
+
+	/** A five-page document, shown at the middle of its third page. */
+	function five() {
+		const tab = new DocTab({ ...info(null), pages: [size, size, wide, size, size] });
+		tab.currentPage = 2;
+		tab.pendingPosition = { page: 2, offset: 0.5 };
+		return tab;
+	}
+
+	/** What Rust reports: the pages now by where they were, and the sizes that differ. */
+	function change(pageMap: (number | null)[], changedPages: DocumentChange['changedPages']): DocumentChange {
+		return {
+			state: { revision: 1, dirty: true, undoName: 'Move page', redoName: null },
+			changedPages,
+			labelsChanged: false,
+			labels: null,
+			labelRules: [],
+			outline: null,
+			created: null,
+			pageCount: pageMap.length,
+			mergeReport: null,
+			annotations: [],
+			pageMap,
+			deleted: null
+		};
+	}
+
+	it('keep their keys, and the view stays on its page', () => {
+		const tab = five();
+		const keys = [...tab.pageKeys];
+		expect(new Set(keys).size).toBe(5);
+		// The third page to the front.
+		tab.applyChange(
+			change(
+				[2, 0, 1, 3, 4],
+				[
+					{ index: 0, size: wide },
+					{ index: 2, size }
+				]
+			)
+		);
+		expect(tab.pageKeys).toEqual([keys[2], keys[0], keys[1], keys[3], keys[4]]);
+		expect(tab.pages[0]).toEqual(wide);
+		expect(tab.currentPage).toBe(0);
+		expect(tab.pendingPosition).toEqual({ page: 0, offset: 0.5 });
+	});
+
+	it('leave the view on the page that took the place of a deleted one', () => {
+		const tab = five();
+		const keys = [...tab.pageKeys];
+		tab.history.push({ page: 2, offset: 0 });
+		tab.history.push({ page: 4, offset: 0.25 });
+		// The second and third pages are deleted.
+		tab.applyChange(change([0, 3, 4], [{ index: 1, size }, { index: 2, size }]));
+		expect(tab.pageCount).toBe(3);
+		expect(tab.pageKeys).toEqual([keys[0], keys[3], keys[4]]);
+		expect(tab.currentPage).toBe(2);
+		expect(tab.pendingPosition).toEqual({ page: 2, offset: 0 });
+		// A jump to a page that is gone is forgotten; the other follows its page.
+		expect(tab.history.goBack({ page: 0, offset: 0 })).toEqual({ page: 2, offset: 0.25 });
+		expect(tab.history.canGoBack).toBe(false);
+	});
+
+	it('give new pages keys of their own, and a reloaded file all new ones', () => {
+		const tab = five();
+		const keys = [...tab.pageKeys];
+		tab.applyChange(change([0, null, 1, 2, 3, 4], [{ index: 1, size }, { index: 3, size: wide }, { index: 2, size }]));
+		expect(tab.pageKeys.length).toBe(6);
+		expect(tab.pageKeys[0]).toBe(keys[0]);
+		expect(tab.pageKeys[2]).toBe(keys[1]);
+		expect(keys).not.toContain(tab.pageKeys[1]);
+		expect(tab.currentPage).toBe(3);
+
+		const before = [...tab.pageKeys];
+		tab.update({ ...info(null), pages: [size, size] });
+		expect(tab.pageKeys.length).toBe(2);
+		expect(before).not.toContain(tab.pageKeys[0]);
 	});
 });

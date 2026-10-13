@@ -18,13 +18,13 @@ import {
 	type OpenResult,
 	type PageSize
 } from '#lib/ipc/index.ts';
+import { GridSelection } from '#lib/components/gridselection.svelte.ts';
 import type { DialogRequest, Toast } from '#lib/stores/app.svelte.ts';
 
 import {
 	History,
 	movePages,
 	nudgePages,
-	rangeKeys,
 	removePages,
 	reportDetail,
 	rotatePages,
@@ -68,14 +68,9 @@ interface Snapshot {
 	selected: number[];
 }
 
-export class CombineState {
+export class CombineState extends GridSelection {
 	sources = $state<CombineSource[]>([]);
 	pages = $state<CombinePage[]>([]);
-	/** Keys of the selected pages. */
-	selected = $state<number[]>([]);
-	selectedSet = $derived(new Set(this.selected));
-	/** The page with keyboard focus, also the anchor for Shift+click and Shift+arrows. */
-	focusKey = $state<number | null>(null);
 	bookmarks = $state<BookmarkMode>('nest');
 	labels = $state<LabelMode>('keep');
 	/** Set while combining, once the file name has been chosen. */
@@ -85,7 +80,6 @@ export class CombineState {
 	/** Set once a merge succeeded and nothing changed since. */
 	combinedAs = $state<string | null>(null);
 
-	private anchor: number | null = null;
 	private history = new History<Snapshot>();
 	/** Bumped on every change, so undo availability is reactive. */
 	private version = $state(0);
@@ -107,7 +101,13 @@ export class CombineState {
 	});
 	summary = $derived(summary(this.pages.length, this.usedSources.length));
 
-	constructor(private readonly host: CombineHost) {}
+	constructor(private readonly host: CombineHost) {
+		super();
+	}
+
+	protected keys(): number[] {
+		return this.pages.map((p) => p.key);
+	}
 
 	source(id: number): CombineSource | undefined {
 		return this.sources.find((s) => s.id === id);
@@ -251,28 +251,6 @@ export class CombineState {
 		this.selected = snapshot.selected;
 		this.combinedAs = null;
 		this.version++;
-	}
-
-	// ----- selection -----
-
-	/** Click: `single` selects one page, `toggle` (Ctrl) adds or removes it, `range` (Shift) selects from the anchor. */
-	select(key: number, mode: 'single' | 'toggle' | 'range') {
-		if (mode === 'range' && this.anchor !== null) {
-			this.selected = rangeKeys(this.pages, this.anchor, key);
-		} else if (mode === 'toggle') {
-			this.selected = this.selectedSet.has(key)
-				? this.selected.filter((k) => k !== key)
-				: [...this.selected, key];
-			this.anchor = key;
-		} else {
-			this.selected = [key];
-			this.anchor = key;
-		}
-		this.focusKey = key;
-	}
-
-	selectAll() {
-		this.selected = this.pages.map((p) => p.key);
 	}
 
 	// ----- combining -----

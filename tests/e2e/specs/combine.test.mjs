@@ -1,11 +1,14 @@
 // Stitching (AGENTS.md section 6.4): combine three files (one with bookmarks, one
 // with labels, one with a highlight) after removing, turning and moving pages, with undo;
 // then insert pages from a file into an open document, undo and redo it, and save.
+// And the grid's pointer: a rectangle drawn over it selects pages, a picture drags its page.
 
 import assert from 'node:assert/strict';
 import { existsSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
+
+import { Key } from 'webdriverio';
 
 import { OUT, launch, statusText, waitForDocument } from '../lib/app.mjs';
 import { cli, outlineLines, sample } from '../lib/pdfcli.mjs';
@@ -224,4 +227,101 @@ test('combining a signed file warns first', async () => {
 		await stop();
 	}
 	assert.match(info(out), /^pages: 3$/m);
+});
+
+/** Where cell `index` and its picture are, in viewport pixels. */
+async function cellBoxes(browser, index) {
+	return browser.execute((i) => {
+		const cell = document.querySelector(`[role=option][aria-posinset="${i + 1}"]`);
+		const box = (el) => {
+			const r = el.getBoundingClientRect();
+			return { left: r.left, right: r.right, top: r.top, bottom: r.bottom };
+		};
+		return { cell: box(cell), picture: box(cell.querySelector('[data-picture]')) };
+	}, index);
+}
+
+const middle = (r) => ({ x: Math.round((r.left + r.right) / 2), y: Math.round((r.top + r.bottom) / 2) });
+/** A point in a cell's caption: under its picture, clear of it. */
+const inCaption = ({ cell }) => ({ x: Math.round((cell.left + cell.right) / 2), y: Math.round(cell.bottom - 8) });
+
+/** The selected cells, as 0-based places in the grid. */
+async function selectedCells(browser) {
+	return browser.execute(() =>
+		[...document.querySelectorAll('[role=option][aria-selected=true]')]
+			.map((c) => Number(c.getAttribute('aria-posinset')) - 1)
+			.sort((a, b) => a - b)
+	);
+}
+
+/** Presses at `from` and moves to `to` in steps; the button stays down. */
+async function pressAndMove(browser, from, to, steps = 6) {
+	let action = browser.action('pointer').move({ ...from, origin: 'viewport' }).down();
+	for (let i = 1; i <= steps; i++) {
+		action = action.move({
+			x: Math.round(from.x + ((to.x - from.x) * i) / steps),
+			y: Math.round(from.y + ((to.y - from.y) * i) / steps),
+			origin: 'viewport',
+			duration: 20
+		});
+	}
+	await action.perform(true);
+}
+
+const release = (browser) => browser.action('pointer').up().perform();
+
+test('a rectangle selects the pages it touches, and a picture still drags its page', async () => {
+	const a = sample('grid-a.pdf', 3);
+	const b = sample('grid-b.pdf', 4);
+	const { browser, stop } = await launch([], { dialogs: [[a, b]] });
+	try {
+		await (await browser.$('button*=Combine files')).click();
+		await (await browser.$('button*=Add files')).click();
+		const names = [1, 2, 3].map((n) => `grid-a.pdf, page ${n}`).concat([1, 2, 3, 4].map((n) => `grid-b.pdf, page ${n}`));
+		await waitForCells(browser, names, 'files added');
+		assert.deepEqual(await selectedCells(browser), []);
+
+		// From the caption of the second page up into the picture of the third: both
+		// pictures are touched, their neighbours are not.
+		const second = await cellBoxes(browser, 1);
+		const third = await cellBoxes(browser, 2);
+		await pressAndMove(browser, inCaption(second), middle(third.picture));
+		assert.equal(await (await browser.$('.page-grid-marquee')).isExisting(), true, 'no rectangle is drawn');
+		await browser.saveScreenshot(join(OUT, 'combine-rectangle.png'));
+		assert.deepEqual(await selectedCells(browser), [1, 2]);
+		await release(browser);
+		assert.equal(await (await browser.$('.page-grid-marquee')).isExisting(), false);
+		assert.deepEqual(await selectedCells(browser), [1, 2]);
+
+		// With Ctrl, a rectangle adds to the selection.
+		const fifth = await cellBoxes(browser, 4);
+		await browser.action('key').down(Key.Ctrl).perform(true);
+		await pressAndMove(browser, inCaption(fifth), middle(fifth.picture));
+		await release(browser);
+		await browser.action('key').up(Key.Ctrl).perform();
+		assert.deepEqual(await selectedCells(browser), [1, 2, 4]);
+
+		// Esc while a rectangle is drawn puts the selection back as it was.
+		const first = await cellBoxes(browser, 0);
+		await pressAndMove(browser, inCaption(first), middle(first.picture));
+		assert.deepEqual(await selectedCells(browser), [0]);
+		await browser.keys('Escape');
+		assert.deepEqual(await selectedCells(browser), [1, 2, 4]);
+		await release(browser);
+		assert.deepEqual(await selectedCells(browser), [1, 2, 4]);
+
+		// A click on a caption, without a drag, selects that page alone.
+		const sixth = await cellBoxes(browser, 5);
+		await browser.action('pointer').move({ ...inCaption(sixth), origin: 'viewport' }).down().up().perform();
+		assert.deepEqual(await selectedCells(browser), [5]);
+
+		// A drag that starts on a picture moves the page: the sixth to the front.
+		await pressAndMove(browser, middle(sixth.picture), { x: Math.round(first.cell.left + 4), y: middle(first.picture).y });
+		assert.equal(await (await browser.$('.page-grid-marquee')).isExisting(), false, 'a picture started a rectangle');
+		await release(browser);
+		await waitForCells(browser, [names[5], ...names.slice(0, 5), names[6]], 'moved by dragging its picture');
+		assert.deepEqual(await selectedCells(browser), [0]);
+	} finally {
+		await stop();
+	}
 });

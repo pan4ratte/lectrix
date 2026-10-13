@@ -7,6 +7,7 @@ import { getVersion } from '@tauri-apps/api/app';
 import { showUpdated } from '#lib/features/changelog/announce.ts';
 import { changelogMarkdown, hasChanges, parseChangelog } from '#lib/features/changelog/changelog.ts';
 import { hintFullScreen } from '#lib/features/fullscreen/actions.ts';
+import { notifyDeleted } from '#lib/features/organize/notify.ts';
 import { recoveryQuestion } from '#lib/features/recovery/recovery.ts';
 import { notifyUpToDate, update } from '#lib/features/update/update.svelte.ts';
 import type { PdfaLevel, RecoveredDocument, UpdateInfo } from '#lib/ipc/index.ts';
@@ -121,6 +122,12 @@ export function rehearseBanner(kind: BannerKind) {
 /** The notification after a save that took the PDF/A claim out of a file. */
 export function rehearsePdfaRemoved() {
 	app.notifyPdfaRemoved(app.active?.name ?? 'report.pdf', { part: 1, conformance: 'B' });
+}
+
+/** The notification after pages are deleted, with what went with them. Its button does
+ * nothing here. */
+export function rehearsePagesDeleted() {
+	notifyDeleted({ pages: 3, links: 2, bookmarks: 1, fields: 0 }, () => {});
 }
 
 /** The documents shown as PDF/A files by a rehearsal, with what they really claim. */

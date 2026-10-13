@@ -44,4 +44,16 @@ export class NavHistory {
 		this.back.push(current);
 		return target;
 	}
+
+	/** After pages moved or were deleted: every place follows its page (`to` says where it
+	 * is now), and the places on pages that are gone are forgotten. */
+	remap(to: (page: number) => number | null) {
+		const follow = (list: ViewPosition[]) =>
+			list.flatMap((p) => {
+				const page = to(p.page);
+				return page === null ? [] : [{ ...p, page }];
+			});
+		this.back = follow(this.back);
+		this.forward = follow(this.forward);
+	}
 }

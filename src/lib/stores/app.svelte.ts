@@ -1030,7 +1030,7 @@ class AppStore {
 				kind: 'info',
 				message: `${name} no longer claims to be ${pdfaName(level)}.`,
 				suggestion:
-					'Annotations and inserted pages may not comply with that standard, so Lectrix removed the claim when saving. Changes to bookmarks, page labels and page rotation alone keep it.'
+					'Annotations, and pages inserted or deleted, may leave a file that no longer complies with that standard, so Lectrix removed the claim when saving. Changes to bookmarks, page labels, page rotation and the order of the pages alone keep it.'
 			},
 			20000
 		);

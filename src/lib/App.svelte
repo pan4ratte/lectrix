@@ -37,6 +37,9 @@
 	import { update } from '#lib/features/update/update.svelte.ts';
 	import { firstPagePainted, runPerf, watchPerf } from '#lib/features/viewer/perfrun.ts';
 	import { dispatchPinch } from '#lib/features/viewer/pinch.ts';
+	import { leaveOrganize } from '#lib/features/organize/actions.ts';
+	import OrganizeBar from '#lib/features/organize/OrganizeBar.svelte';
+	import OrganizeView from '#lib/features/organize/OrganizeView.svelte';
 	import RotatePagesDialog from '#lib/features/viewer/RotatePagesDialog.svelte';
 	import ViewBar from '#lib/features/viewer/ViewBar.svelte';
 	import Viewer from '#lib/features/viewer/Viewer.svelte';
@@ -121,6 +124,11 @@
 			commands[command]();
 			return;
 		}
+		if (event.key === 'Escape' && !inInput && tab?.organize) {
+			// Back to reading. (A selection in the grid goes first: the grid keeps that Esc.)
+			leaveOrganize(tab);
+			return;
+		}
 		if (event.key === 'Escape' && !inInput && tab) {
 			// One step back at a time: what is being drawn, the selection, the search, then
 			// the Select tool (section 8: Esc picks Select).
@@ -150,6 +158,9 @@
 	// its new size, once. They slide by transforms alone (`chrome-slide`, `chrome-away` in
 	// app.css), which lays nothing out.
 	const full = $derived(fullscreen.on);
+	/** The pages are being organized (section 6.7): the grid has the whole window under the
+	 * tabs, and the side panes, which are for reading, are not there. */
+	const organizing = $derived(Boolean(tab?.organize));
 	const sliding = $derived(fullscreen.stage === 'arriving' || fullscreen.stage === 'returning');
 	const away = $derived(sliding && fullscreen.chromeAway);
 	/** The annotation toolbar floats over the pages: Settings say so, or full screen does. */
@@ -303,7 +314,7 @@
      (paneButton). A pane without panels has none; while a panel is dragged, a place to drop
      it shows there instead. -->
 {#snippet paneEnd(side: PaneSide)}
-	{#if app.panels[side].length > 0 ? !app.isOpen(side) : draggedPanel() !== null}
+	{#if !organizing && (app.panels[side].length > 0 ? !app.isOpen(side) : draggedPanel() !== null)}
 		<div class="flex border-b border-line bg-chrome px-[4px]">
 			<div class="flex h-[40px] w-[32px] items-center">
 				{#if app.panels[side].length === 0}
@@ -325,7 +336,7 @@
      units (a rem is 14 px here): the pane rows and the view bar are all 40 px tall. Full
      screen, a pane lies over the pages and has its button only while it shows. -->
 {#snippet paneButton(side: PaneSide)}
-	{#if tab && app.panels[side].length > 0 && (!full || app.isOpen(side))}
+	{#if tab && !organizing && app.panels[side].length > 0 && (!full || app.isOpen(side))}
 		<div
 			class={['absolute top-[4px]', full ? 'z-30' : 'z-20', side === 'left' ? 'left-[4px]' : 'right-[4px]', sliding && 'chrome-slide']}
 			class:chrome-away={away}
@@ -369,7 +380,7 @@
 				<SidePane
 					side="left"
 					label="Left pane"
-					open={app.isOpen('left')}
+					open={app.isOpen('left') && !organizing}
 					overlay={full}
 					{sliding}
 					{away}
@@ -390,7 +401,11 @@
 							{@render paneEnd('left')}
 							<div class="min-w-0 flex-1">
 								{#key tab.id}
-									<ViewBar {tab} />
+									{#if tab.organize}
+										<OrganizeBar {tab} organize={tab.organize} />
+									{:else}
+										<ViewBar {tab} />
+									{/if}
 								{/key}
 							</div>
 							{@render paneEnd('right')}
@@ -406,6 +421,10 @@
 						{/if}
 					</div>
 					{#key tab.id}
+						{#if tab.organize}
+							<!-- The pages as a grid to organize (section 6.7), in the viewer's place. -->
+							<OrganizeView {tab} organize={tab.organize} />
+						{:else}
 						<div class="flex min-h-0 flex-1">
 							{@render toolDock('left')}
 							<div class={['flex min-h-0 min-w-0 flex-1 flex-col', sliding ? 'viewer-covers' : 'relative']}>
@@ -418,6 +437,7 @@
 							</div>
 							{@render toolDock('right')}
 						</div>
+						{/if}
 					{/key}
 				{:else}
 					<StartScreen />
@@ -427,7 +447,7 @@
 				<SidePane
 					side="right"
 					label="Right pane"
-					open={app.isOpen('right')}
+					open={app.isOpen('right') && !organizing}
 					overlay={full}
 					{sliding}
 					{away}

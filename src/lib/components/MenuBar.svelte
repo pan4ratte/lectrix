@@ -12,6 +12,9 @@
 
 	const tab = $derived(app.active);
 	const hasDoc = $derived(tab !== null);
+	/** A document is being read: its pages are not being organized (section 6.7), where the
+	 * viewer and the side panes are not on screen. */
+	const reading = $derived(tab !== null && !tab.organize);
 
 	/** A submenu's first item level with the item that opens it: up by the menu's padding
 	 * (4 px) and edge (1 px). */
@@ -108,7 +111,7 @@
 				<Menubar.Item class="menu-item" disabled={!tab?.selection} onSelect={commands.copy}>
 					Copy{@render keys('copy')}
 				</Menubar.Item>
-				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.find}>
+				<Menubar.Item class="menu-item" disabled={!reading} onSelect={commands.find}>
 					Find…{@render keys('find')}
 				</Menubar.Item>
 			</Menubar.Content>
@@ -121,8 +124,8 @@
 			<Menubar.Content class="menu-content" align="start" sideOffset={7}>
 				<Menubar.CheckboxItem
 					class="menu-item"
-					disabled={!hasDoc || app.panels.left.length === 0}
-					checked={app.isOpen('left')}
+					disabled={!reading || app.panels.left.length === 0}
+					checked={reading && app.isOpen('left')}
 					onCheckedChange={commands.toggleLeftPane}
 				>
 					{#snippet children({ checked })}
@@ -131,8 +134,8 @@
 				</Menubar.CheckboxItem>
 				<Menubar.CheckboxItem
 					class="menu-item"
-					disabled={!hasDoc || app.panels.right.length === 0}
-					checked={app.isOpen('right')}
+					disabled={!reading || app.panels.right.length === 0}
+					checked={reading && app.isOpen('right')}
 					onCheckedChange={commands.toggleRightPane}
 				>
 					{#snippet children({ checked })}
@@ -140,14 +143,14 @@
 					{/snippet}
 				</Menubar.CheckboxItem>
 				<Menubar.Separator class="menu-separator" />
-				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.showPages}>Pages{@render keys('showPages')}</Menubar.Item>
-				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.showBookmarks}>
+				<Menubar.Item class="menu-item" disabled={!reading} onSelect={commands.showPages}>Pages{@render keys('showPages')}</Menubar.Item>
+				<Menubar.Item class="menu-item" disabled={!reading} onSelect={commands.showBookmarks}>
 					Bookmarks{@render keys('showBookmarks')}
 				</Menubar.Item>
-				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.showLabels}>
+				<Menubar.Item class="menu-item" disabled={!reading} onSelect={commands.showLabels}>
 					Page labels{@render keys('showLabels')}
 				</Menubar.Item>
-				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.showAnnotations}>
+				<Menubar.Item class="menu-item" disabled={!reading} onSelect={commands.showAnnotations}>
 					Annotations{@render keys('showAnnotations')}
 				</Menubar.Item>
 				<Menubar.Separator class="menu-separator" />
@@ -157,15 +160,15 @@
 				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.zoomOut}>
 					Zoom out{@render keys('zoomOut')}
 				</Menubar.Item>
-				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.fitWidth}>
+				<Menubar.Item class="menu-item" disabled={!reading} onSelect={commands.fitWidth}>
 					Fit width{@render keys('fitWidth')}
 				</Menubar.Item>
-				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.fitPage}>
+				<Menubar.Item class="menu-item" disabled={!reading} onSelect={commands.fitPage}>
 					Fit page{@render keys('fitPage')}
 				</Menubar.Item>
 				<Menubar.Separator class="menu-separator" />
 				<Menubar.Sub>
-					<Menubar.SubTrigger class="menu-item" disabled={!hasDoc}>Page display{@render chevron()}</Menubar.SubTrigger>
+					<Menubar.SubTrigger class="menu-item" disabled={!reading}>Page display{@render chevron()}</Menubar.SubTrigger>
 					<Menubar.SubContent class="menu-content" align="start" alignOffset={SUBMENU_OFFSET}>
 						<Menubar.RadioGroup
 							value={tab?.mode ?? ''}
@@ -195,23 +198,23 @@
 						</Menubar.CheckboxItem>
 					</Menubar.SubContent>
 				</Menubar.Sub>
-				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.rotateViewClockwise}>
+				<Menubar.Item class="menu-item" disabled={!reading} onSelect={commands.rotateViewClockwise}>
 					Rotate view clockwise{@render keys('rotateViewClockwise')}
 				</Menubar.Item>
-				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.rotateViewCounterClockwise}>
+				<Menubar.Item class="menu-item" disabled={!reading} onSelect={commands.rotateViewCounterClockwise}>
 					Rotate view counter-clockwise{@render keys('rotateViewCounterClockwise')}
 				</Menubar.Item>
-				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.fullScreen}>
+				<Menubar.Item class="menu-item" disabled={!reading} onSelect={commands.fullScreen}>
 					Full screen{@render keys('fullScreen')}
 				</Menubar.Item>
 				<Menubar.Separator class="menu-separator" />
-				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.goToPage}>
+				<Menubar.Item class="menu-item" disabled={!reading} onSelect={commands.goToPage}>
 					Go to page…{@render keys('goToPage')}
 				</Menubar.Item>
-				<Menubar.Item class="menu-item" disabled={!tab?.history.canGoBack} onSelect={commands.back}>
+				<Menubar.Item class="menu-item" disabled={!reading || !tab?.history.canGoBack} onSelect={commands.back}>
 					Back{@render keys('back')}
 				</Menubar.Item>
-				<Menubar.Item class="menu-item" disabled={!tab?.history.canGoForward} onSelect={commands.forward}>
+				<Menubar.Item class="menu-item" disabled={!reading || !tab?.history.canGoForward} onSelect={commands.forward}>
 					Forward{@render keys('forward')}
 				</Menubar.Item>
 			</Menubar.Content>
@@ -222,6 +225,9 @@
 		<Menubar.Trigger class="menubar-trigger">Document</Menubar.Trigger>
 		<Menubar.Portal>
 			<Menubar.Content class="menu-content" align="start" sideOffset={7}>
+				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.organizePages}>
+					{tab?.organize ? 'Finish organizing pages' : 'Organize pages'}{@render keys('organizePages')}
+				</Menubar.Item>
 				<Menubar.Item
 					class="menu-item"
 					disabled={!hasDoc || !tab?.flags.canAssemble}
@@ -237,11 +243,11 @@
 					Insert pages from file…{@render keys('insertPages')}
 				</Menubar.Item>
 				<Menubar.Separator class="menu-separator" />
-				<Menubar.Item class="menu-item" disabled={!tab?.canEditBookmarks} onSelect={commands.addBookmark}>
+				<Menubar.Item class="menu-item" disabled={!reading || !tab?.canEditBookmarks} onSelect={commands.addBookmark}>
 					Add bookmark{@render keys('addBookmark')}
 				</Menubar.Item>
 				<Menubar.Separator class="menu-separator" />
-				<Menubar.Item class="menu-item" disabled={!tab?.canEditLabels} onSelect={commands.startLabelRange}>
+				<Menubar.Item class="menu-item" disabled={!reading || !tab?.canEditLabels} onSelect={commands.startLabelRange}>
 					New label range from this page{@render keys('startLabelRange')}
 				</Menubar.Item>
 				<Menubar.Separator class="menu-separator" />

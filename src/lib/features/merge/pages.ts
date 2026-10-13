@@ -47,48 +47,6 @@ export function removePages(pages: CombinePage[], keys: ReadonlySet<number>): Co
 	return pages.filter((p) => !keys.has(p.key));
 }
 
-/** The keys from `anchor` to `to` inclusive, in list order (shift-click). */
-export function rangeKeys(pages: CombinePage[], anchor: number, to: number): number[] {
-	const a = pages.findIndex((p) => p.key === anchor);
-	const b = pages.findIndex((p) => p.key === to);
-	if (a < 0 || b < 0) return b >= 0 ? [to] : [];
-	const [from, end] = a <= b ? [a, b] : [b, a];
-	return pages.slice(from, end + 1).map((p) => p.key);
-}
-
-/** The grid's cell geometry, in CSS pixels. */
-export interface Grid {
-	columns: number;
-	/** Distance between cell origins, horizontally and vertically. */
-	pitchX: number;
-	pitchY: number;
-	/** Padding around the cells. */
-	pad: number;
-}
-
-export function gridFor(width: number, cellWidth: number, cellHeight: number, gap: number, pad: number): Grid {
-	const columns = Math.max(1, Math.floor((width - 2 * pad + gap) / (cellWidth + gap)));
-	return { columns, pitchX: cellWidth + gap, pitchY: cellHeight + gap, pad };
-}
-
-/** A place between pages to drop dragged pages: its index (0 is before the first page)
- * and where to draw it in the grid's content. */
-export interface Gap {
-	gap: number;
-	x: number;
-	y: number;
-}
-
-/** The gap nearest a point in the grid's content, in the row under the pointer. */
-export function gapAt(grid: Grid, count: number, x: number, y: number): Gap {
-	if (count === 0) return { gap: 0, x: grid.pad, y: grid.pad };
-	const rows = Math.ceil(count / grid.columns);
-	const row = Math.max(0, Math.min(rows - 1, Math.floor((y - grid.pad) / grid.pitchY)));
-	const cellsInRow = Math.min(grid.columns, count - row * grid.columns);
-	const col = Math.max(0, Math.min(cellsInRow, Math.round((x - grid.pad) / grid.pitchX)));
-	return { gap: row * grid.columns + col, x: grid.pad + col * grid.pitchX, y: grid.pad + row * grid.pitchY };
-}
-
 /** Undo history of snapshots (the view's own; files are not changed until combining). */
 export class History<T> {
 	private past: T[] = [];

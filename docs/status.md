@@ -125,17 +125,36 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
 - **Recovery copies of large damaged files** are full copies and take 1.2 to 1.5 s for
   165 to 173 MB files. That document renders nothing new meanwhile. Copies are written at
   most every 2 minutes, and only after a change.
-- **Organizing pages** is being built (plan agreed 2026-10-13: a mode of the document's
-  tab with a page grid, where pages are selected, reordered, rotated, deleted, extracted
-  and inserted, and page labels are edited). Done so far: the engine's `MovePages` and
-  `DeletePages` operations and extracting pages into a new file (ADR 0018), reachable
-  from `pdf-cli pages move`, `pages delete` and `pages extract` only; the app has the
-  `extract_pages` command, and no interface for any of it yet. What they leave open:
+- **Organizing pages** is being built (plan agreed 2026-10-13; AGENTS.md section 6.7,
+  ADR 0018). Done: the engine (`MovePages`, `DeletePages`, extracting pages into a new
+  file), the grid shared with the Combine view, and the mode itself, where pages are
+  selected, moved, rotated and deleted. Still to come: extracting and inserting from the
+  grid (the engine and the `extract_pages` command are there; `pdf-cli pages extract`
+  reaches them), page labels edited there in place of their side panel, and rotation in
+  the viewer turning pages on screen only. What is open meanwhile:
+  - The grid has no context menu yet.
+  - The side panes are not shown while pages are organized (the user's decision,
+    2026-10-13), so page labels can be edited only while reading until their editor
+    moves into the tool.
+  - Every edit draws the pictures on screen again, since the document's revision is part
+    of what names a page image. Each page keeps its old picture until the new one is
+    there. Measured 2026-10-13 with `tests/perf/organize.mjs` (a page moved one place
+    with the keys, 30 pictures on screen at the first size): the grid shows the new order
+    11 to 33 ms after the key and the pictures are all drawn again after 68 to 95 ms, on
+    the 2,881-page dictionary, a 1,020-page scan and the 173 MB file alike.
+  - On a file with thousands of bookmarks an edit takes longer: 236 to 256 ms until the
+    grid follows on a 2,597-page book with the most bookmarks of the local corpus (the
+    pictures 50 to 70 ms later). Of that, 140 ms is the session reading the whole outline
+    again to report what differs, as it does after every change (a rotation in the viewer
+    takes as long there), and 100 ms is the move going through every link, bookmark and
+    named destination for ones written with a page number (ADR 0018). Left for the last
+    step of the feature, as the user decided on 2026-10-13.
+  - The size of the grid's pictures is not remembered.
   - **A deleted page stays in the file after an ordinary save.** Saves are incremental
     (AGENTS.md section 5.4), so the original bytes, the deleted page among them, remain
     and can be recovered. Only Save As (optimized) writes a file without it (tested).
-    Decided 2026-10-13: the notification after deleting pages says so and offers Save As
-    (optimized). It comes with the interface; nothing tells the user yet.
+    The notification after deleting pages says so and offers Save As (optimized), as the
+    user decided on 2026-10-13.
   - An extract carries every attached file of the document, whatever pages are picked,
     and nothing of its metadata (title, author, XMP), as a combined file does. While
     pages are extracted, the document renders nothing new.

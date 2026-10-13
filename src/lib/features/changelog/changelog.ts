@@ -34,6 +34,7 @@ export const SECTIONS = [
 	'Bookmarks',
 	'Page labels',
 	'Combining files',
+	'Organizing pages',
 	'Settings',
 	'Installation and updates',
 	'General'

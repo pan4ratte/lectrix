@@ -174,6 +174,26 @@ Needs an installed earlier release and a newer one published (ADR 0011,
 - [ ] With the network unplugged, Check for updates…: a plain error naming the internet
       connection.
 
+## Organizing pages
+
+- [ ] Open a book with bookmarks and a linked table of contents, and choose **Document >
+      Organize pages**. Drag a page to another place with the mouse, then drag three
+      selected pages together: a line shows where they will go, and they land there.
+- [ ] Draw a rectangle over several pages, starting between two of them: the pages it
+      touches are selected as it grows. Drag down past the edge: the grid scrolls.
+- [ ] Pinch on the touchpad over the grid, then turn the mouse wheel with Ctrl held: the
+      pictures follow the fingers and glide for the wheel, and the page under the pointer
+      stays under it. Point at a page: its label gives way to a bar with the label and
+      the buttons that rotate and delete that page.
+- [ ] Delete a chapter's first page: Lectrix asks first, then says what went with it and
+      offers Save As (optimized). Back in the viewer, the table of contents' other lines
+      still lead to their chapters, and Undo brings the page and its bookmark back.
+- [ ] Save, then open the file in Acrobat Reader, Edge and Firefox: the pages are in the
+      new order, the bookmarks lead to the right pages, and the page labels read as
+      Lectrix shows them.
+- [ ] Delete a page and choose Save As (optimized) from the notification: the new file is
+      smaller, and searching it for a phrase from the deleted page finds nothing.
+
 ## Window
 
 - [ ] Resize and move the window, close Lectrix and start it again: same size and place.

@@ -14,6 +14,7 @@
 		rehearseError,
 		rehearseFullScreen,
 		rehearseInfo,
+		rehearsePagesDeleted,
 		rehearsePdfa,
 		rehearsePdfaRemoved,
 		rehearseRecovery,
@@ -84,6 +85,7 @@
 					<Menubar.Item class="menu-item" onSelect={() => rehearseError(true)}>Error with a button</Menubar.Item>
 					<Menubar.Item class="menu-item" onSelect={rehearsePdfaRemoved}>PDF/A claim removed</Menubar.Item>
 					<Menubar.Item class="menu-item" onSelect={rehearseFullScreen}>Full screen started</Menubar.Item>
+					<Menubar.Item class="menu-item" onSelect={rehearsePagesDeleted}>Pages deleted</Menubar.Item>
 				</Menubar.SubContent>
 			</Menubar.Sub>
 			<Menubar.Sub>

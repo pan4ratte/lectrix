@@ -2,11 +2,8 @@ import { describe, expect, it } from 'vitest';
 
 import {
 	History,
-	gapAt,
-	gridFor,
 	movePages,
 	nudgePages,
-	rangeKeys,
 	removePages,
 	reportDetail,
 	rotatePages,
@@ -48,35 +45,6 @@ describe('page edits', () => {
 		const turned = rotatePages(rotatePages(list, new Set([2]), -90), new Set([2, 3]), 180);
 		expect(turned.map((p) => p.rotation)).toEqual([0, 90, 180]);
 		expect(keysOf(removePages(list, new Set([1, 3])))).toEqual([2]);
-	});
-
-	it('selects ranges in list order, in either direction', () => {
-		const list = movePages(pages(5), new Set([5]), 0); // 5 1 2 3 4
-		expect(rangeKeys(list, 1, 3)).toEqual([1, 2, 3]);
-		expect(rangeKeys(list, 2, 5)).toEqual([5, 1, 2]);
-		expect(rangeKeys(list, 99, 2)).toEqual([2]);
-	});
-});
-
-describe('grid', () => {
-	const grid = gridFor(800, 140, 180, 8, 16);
-
-	it('fits whole cells into the width', () => {
-		// 800 - 32 + 8 = 776; 776 / 148 = 5.2
-		expect(grid.columns).toBe(5);
-		expect(gridFor(50, 140, 180, 8, 16).columns).toBe(1);
-	});
-
-	it('finds the nearest gap in the row under the pointer', () => {
-		const at = (count: number, x: number, y: number) => gapAt(grid, count, x, y);
-		expect(at(12, 16, 20)).toEqual({ gap: 0, x: 16, y: 16 });
-		expect(at(12, 16 + 148 * 0.6, 20).gap).toBe(1);
-		// The end of a full row is drawn after its last cell.
-		expect(at(12, 16 + 148 * 5, 30)).toEqual({ gap: 5, x: 16 + 5 * 148, y: 16 });
-		expect(at(12, 16 + 148 * 4, 16 + 188 + 10).gap).toBe(9);
-		// Past the end: after the last page, in the last row.
-		expect(at(12, 9999, 9999)).toEqual({ gap: 12, x: 16 + 2 * 148, y: 16 + 2 * 188 });
-		expect(at(0, 40, 40).gap).toBe(0);
 	});
 });
 

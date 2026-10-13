@@ -6,6 +6,23 @@ shows this file, and each GitHub release is written from it. How to write it (th
 the wording, translations): docs/releasing.md, "The changelog".
 -->
 
+## Unreleased
+
+### Combining files
+
+- Drag a rectangle over the pages to select the ones it touches. Start anywhere but on a page’s picture, which still drags the page; hold **Ctrl** or **Shift** to add to the pages already selected.
+
+### Organizing pages
+
+- **Document > Organize pages**, and a new button after the page display, shows the document’s pages as a grid in place of the viewer and the side panes. **Done** or **Esc** goes back to reading; a double-click on a page opens it.
+- Drag pages to put them in another order, or press **Alt+Shift** with an arrow key. Links and bookmarks still lead to the same pages, and page labels stay with the places: a moved page takes the label of its new place.
+- Rotate the selected pages with the bar’s buttons, or **R** and **Shift+R**.
+- Point at a page to rotate or delete it alone, with the buttons that show beside its label.
+- Make the pages larger or smaller with the bar’s buttons, **Ctrl+=** and **Ctrl+-**, **Ctrl** and the mouse wheel, or a pinch on the touchpad.
+- Delete the selected pages with the bar’s button or **Del**. Lectrix asks first, deletes the links and bookmarks that led to them, and closes the page numbering up.
+- After deleting pages, Lectrix says that they stay inside the file until you save with **File > Save As (optimized)**, and offers to do it.
+- Every change applies to the document at once and can be undone with **Ctrl+Z**.
+
 ## 1.1.0
 
 ### Start screen
