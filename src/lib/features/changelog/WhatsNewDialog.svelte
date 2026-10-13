@@ -7,6 +7,7 @@
 	import { X } from '@lucide/svelte';
 	import { Dialog } from 'bits-ui';
 
+	import { held } from '#lib/components/held.svelte.ts';
 	import { APP_NAME, LOCALE } from '#lib/config.ts';
 	import { update } from '#lib/features/update/update.svelte.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
@@ -23,6 +24,9 @@
 	const canUpdate = $derived(
 		incoming !== null && update.stage.kind === 'available' && update.stage.info.version === incoming.version
 	);
+	/** Whether the dialog shows Update: as it was while open, so that picking it does not
+	 * take the button away from under the dialog as it closes. */
+	const offered = held(() => (app.whatsNewOpen ? canUpdate : null));
 
 	$effect(() => {
 		if (!app.whatsNewOpen || incoming || installed) return;
@@ -87,7 +91,7 @@
 					{/each}
 				{/if}
 			</div>
-			{#if canUpdate}
+			{#if offered.current}
 				<div class="whats-new-footer">
 					<button type="button" class="button button-primary" onclick={startUpdate}>Update</button>
 				</div>

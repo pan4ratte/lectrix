@@ -95,7 +95,8 @@ test('with a document open, a notification tells the update', async () => {
 		await browser.saveScreenshot(join(OUT, 'whats-new-notification.png'));
 		await (await notice.$('button=What’s new')).click();
 		await waitForChanges(browser, 'What’s new');
-		assert.equal(await notice.isExisting(), false, 'the button dismissed the notification');
+		// (It takes a moment to go: it sinks out of its place.)
+		await notice.waitForExist({ reverse: true, timeout: 2000, timeoutMsg: 'the button did not dismiss the notification' });
 	} finally {
 		await stop();
 	}

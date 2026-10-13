@@ -49,7 +49,8 @@ test('the Debug menu rehearses an update from notice to restart', async () => {
 		await (await browser.$('button=Restart now')).click();
 		const told = await browser.$('//*[@role="status"][contains(., "Rehearsal: Lectrix would restart now.")]');
 		await told.waitForDisplayed({ timeoutMsg: 'Restart now did not say what it would do' });
-		assert.equal(await title.isExisting(), false, 'the notice went away');
+		// (It takes a moment to go: it sinks out of its place.)
+		await title.waitForExist({ reverse: true, timeout: 2000, timeoutMsg: 'the notice did not go away' });
 
 		await debugMenu(browser, 'After an update', 'On the start screen');
 		await (await browser.$('.start-update')).waitForDisplayed({ timeoutMsg: 'no note beside the name' });
@@ -58,7 +59,10 @@ test('the Debug menu rehearses an update from notice to restart', async () => {
 		await browser.waitUntil(async () => !(await (await browser.$('.start-update')).isExisting()), {
 			timeoutMsg: 'Clear all left the note'
 		});
-		assert.equal((await browser.$$('[role=status]')).length, 0, 'Clear all left notifications');
+		await browser.waitUntil(async () => (await browser.$$('[role=status]')).length === 0, {
+			timeout: 2000,
+			timeoutMsg: 'Clear all left notifications'
+		});
 	} finally {
 		await stop();
 	}

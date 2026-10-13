@@ -56,6 +56,10 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ### General
 
+- Notifications grow into view and shrink away, the others making way for them, and have a slight shadow.
+- Dialogs fade in as they open and out as they close.
+- A blue or red button keeps its colour under the pointer, and its text stays readable. Before, a blue one turned pale with its text all but gone.
+- Progress bars move steadily, and a sheen runs along them while the work goes on.
 - In a book with thousands of bookmarks, a change such as a new highlight is applied at once, where it took a moment before. Such a book also opens a little sooner.
 
 ## 1.1.0

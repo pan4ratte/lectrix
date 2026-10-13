@@ -5,26 +5,32 @@
 
 	import { app } from '#lib/stores/app.svelte.ts';
 
-	const prompt = $derived(app.passwordPrompts[0] ?? null);
+	import { held } from './held.svelte.ts';
+
+	/** The password asked for now. */
+	const asked = $derived(app.passwordPrompts[0] ?? null);
+	/** What the dialog shows: the one last asked for, which stays while the dialog goes. */
+	const last = held(() => asked);
+	const prompt = $derived(last.current);
 	let password = $state('');
 
 	function submit(event: SubmitEvent) {
 		event.preventDefault();
-		if (!prompt) return;
+		if (!asked) return;
 		const value = password;
 		password = '';
-		void app.submitPassword(prompt.token, value);
+		void app.submitPassword(asked.token, value);
 	}
 
 	function cancel() {
-		if (!prompt) return;
+		if (!asked) return;
 		password = '';
-		void app.submitPassword(prompt.token, null);
+		void app.submitPassword(asked.token, null);
 	}
 </script>
 
 <Dialog.Root
-	open={prompt !== null}
+	open={asked !== null}
 	onOpenChange={(open) => {
 		if (!open) cancel();
 	}}

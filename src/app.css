@@ -72,6 +72,10 @@
 	--lectrix-line-strong: #bec5cf;
 	--lectrix-accent: #2f5daa;
 	--lectrix-accent-fg: #ffffff;
+	/* A coloured button under the pointer (the accent's, the destructive one's): a shade
+	   toward the strong text colour, which is away from the button's own text in both themes. */
+	--lectrix-accent-hover: color-mix(in srgb, var(--lectrix-accent) 80%, var(--lectrix-fg-strong));
+	--lectrix-danger-hover: color-mix(in srgb, var(--lectrix-danger) 80%, var(--lectrix-fg-strong));
 	/* The brand gradient (ADR 0010), for the start screen's tools, whose text is in it too:
 	   so both ends read at 4.5:1 on the canvas and on the wash (how much of it tints a tool
 	   under the pointer). In the light theme blue-500 deepening towards the ink; in the dark
@@ -96,6 +100,8 @@
 	--lectrix-slider-handle: var(--lectrix-handle);
 	--lectrix-slider-handle-line: var(--lectrix-accent);
 	--lectrix-slider-handle-shadow: rgb(0 0 0 / 0.3);
+	/* The sheen that runs along a progress bar's filled part (the dark theme keeps this). */
+	--lectrix-progress-sheen: rgb(255 255 255 / 0.45);
 	/* On the page, which is white in both themes: the dark theme keeps this. */
 	--lectrix-selection-handle: #2f5daa;
 	/* The link under the pointer. */
@@ -432,8 +438,13 @@ input[type='color'],
 	background: var(--lectrix-accent);
 	color: var(--lectrix-accent-fg);
 }
-.button-primary:hover {
-	background: color-mix(in srgb, var(--lectrix-accent), var(--lectrix-bg) 10%);
+/* Under the pointer a coloured button stays in its colour, a shade further from its text:
+   darker under the light theme's white text, lighter under the dark theme's dark text.
+   (With `:not(:disabled)`, as the plain button's rule has, which would otherwise win and
+   leave the button's own text on a plain button's fill.) */
+.button-primary:hover:not(:disabled) {
+	border-color: transparent;
+	background: var(--lectrix-accent-hover);
 }
 /* Something that can't be undone (restoring the default settings). */
 .button-danger {
@@ -443,7 +454,7 @@ input[type='color'],
 }
 .button-danger:hover:not(:disabled) {
 	border-color: transparent;
-	background: color-mix(in srgb, var(--lectrix-danger), var(--lectrix-bg) 12%);
+	background: var(--lectrix-danger-hover);
 }
 
 .field {
@@ -1740,6 +1751,48 @@ button.shortcut-key:hover,
 	background: var(--lectrix-surface-raised);
 	box-shadow: 0 16px 32px var(--lectrix-page-shadow);
 }
+/* A dialog comes in: the page behind it dims, and the dialog rises a little into its place
+   as it fades in. (By `translate` and `scale`, which leave the transform that centers it
+   alone.) It goes the same way back, a little quicker: bits-ui keeps a closed dialog until
+   its animations end. Meanwhile it takes no clicks, which go to what is under it. */
+.dialog-overlay {
+	animation: dialog-dim 140ms ease-out;
+}
+.dialog-content {
+	animation: dialog-in 140ms ease-out;
+}
+.dialog-overlay[data-state='closed'] {
+	animation: dialog-undim 100ms ease-in forwards;
+	pointer-events: none;
+}
+.dialog-content[data-state='closed'] {
+	animation: dialog-out 100ms ease-in forwards;
+	pointer-events: none;
+}
+@keyframes dialog-dim {
+	from {
+		opacity: 0;
+	}
+}
+@keyframes dialog-in {
+	from {
+		opacity: 0;
+		translate: 0 8px;
+		scale: 0.98;
+	}
+}
+@keyframes dialog-undim {
+	to {
+		opacity: 0;
+	}
+}
+@keyframes dialog-out {
+	to {
+		opacity: 0;
+		translate: 0 8px;
+		scale: 0.98;
+	}
+}
 
 /* Settings: the groups as tabs down the left side, in the panes' colour, and the chosen
    group's rows at the right, which scroll under the close button. Each row has
@@ -1900,10 +1953,70 @@ button.shortcut-key:hover,
 	padding: 0 10px;
 	white-space: nowrap;
 }
-/* A progress bar's filled part glides to each new value (the download reports ten times
-   a second), so it moves steadily and not in steps. */
+/* A notification, and the update notice above them: a slight shadow lifts it off the
+   pages it lies over. */
+.notice {
+	flex-shrink: 0;
+	box-shadow: 0 4px 12px var(--lectrix-page-shadow);
+}
+/* The place of a notification in their column, which opens and closes as one comes and
+   goes (`noticeMotion`): the space above it is its own, so that it closes with it. The
+   notification stays at the place's lower edge, which does not move (the column stands on
+   its lower end): so it is where it belongs from the first frame to the last, and only
+   grows or shrinks there. */
+.notice-slot {
+	display: flex;
+	flex-direction: column;
+	justify-content: flex-end;
+	margin-top: 8px;
+}
+
+/* A progress bar (`ProgressBar.svelte`): a thin track, filled in the accent. The filled
+   part glides to each new value (a download reports ten times a second), so it moves
+   steadily and not in steps, and a sheen runs along it, so the bar is seen to be at work
+   between two values too. */
+.progress {
+	height: 6px;
+	overflow: hidden;
+	border-radius: 3px;
+	background: var(--lectrix-line);
+}
+.progress-fill,
+.progress-indeterminate {
+	height: 100%;
+	border-radius: 3px;
+	background: var(--lectrix-accent);
+}
 .progress-fill {
+	position: relative;
+	overflow: hidden;
 	transition: width 140ms linear;
+}
+.progress-fill::after {
+	content: '';
+	position: absolute;
+	inset: 0;
+	background: linear-gradient(90deg, transparent, var(--lectrix-progress-sheen), transparent);
+	transform: translateX(-100%);
+	animation: progress-sheen 1.4s ease-in-out infinite;
+}
+@keyframes progress-sheen {
+	to {
+		transform: translateX(100%);
+	}
+}
+/* How far is not known: a third of the bar runs from end to end. */
+.progress-indeterminate {
+	width: 33.3%;
+	animation: progress-slide 1.2s ease-in-out infinite;
+}
+@keyframes progress-slide {
+	from {
+		transform: translateX(-100%);
+	}
+	to {
+		transform: translateX(300%);
+	}
 }
 /* A dialog's close button, in its top-right corner (Settings, About). */
 .dialog-close {
@@ -2303,18 +2416,6 @@ button.shortcut-key:hover,
 	border-radius: 1px;
 	background: var(--lectrix-accent);
 	pointer-events: none;
-}
-
-.progress-indeterminate {
-	animation: progress-slide 1.2s ease-in-out infinite;
-}
-@keyframes progress-slide {
-	from {
-		transform: translateX(-100%);
-	}
-	to {
-		transform: translateX(300%);
-	}
 }
 
 @media (prefers-reduced-motion: reduce) {

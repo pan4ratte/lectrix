@@ -162,6 +162,19 @@ describe.each([
 		expect(contrast(solid('--lectrix-slider-fill', vars), solid('--lectrix-slider-track', vars)), 'slider fill beside the track').toBeGreaterThanOrEqual(1.5);
 		// A destructive button's text on it.
 		expect(contrast(solid('--lectrix-danger-fg', vars), solid('--lectrix-danger', vars)), 'text on a destructive button').toBeGreaterThanOrEqual(4.5);
+		// The coloured buttons under the pointer: their text reads at least as well as at rest
+		// (the fill moves away from it), and the fill is seen to change.
+		for (const [fill, text] of [
+			['--lectrix-accent', '--lectrix-accent-fg'],
+			['--lectrix-danger', '--lectrix-danger-fg']
+		] as const) {
+			const rest = solid(fill, vars);
+			const hover = solid(`${fill}-hover`, vars);
+			const fg = solid(text, vars);
+			expect(contrast(fg, hover), `text on ${fill} under the pointer`).toBeGreaterThanOrEqual(4.5);
+			expect(contrast(fg, hover), `text on ${fill} under the pointer, against at rest`).toBeGreaterThan(contrast(fg, rest));
+			expect(contrast(hover, rest), `${fill} under the pointer, beside at rest`).toBeGreaterThanOrEqual(1.15);
+		}
 		// The handles of selected text, on the page (white in both themes) and on the
 		// selection's tint over it.
 		const handle = solid('--lectrix-selection-handle', vars);

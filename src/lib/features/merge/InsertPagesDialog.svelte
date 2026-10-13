@@ -7,12 +7,16 @@
 	import { untrack } from 'svelte';
 
 	import Dropdown from '#lib/components/Dropdown.svelte';
+	import { held } from '#lib/components/held.svelte.ts';
 	import { insertPlace } from '#lib/features/organize/pages.ts';
 	import { parsePageRanges } from '#lib/features/viewer/ranges.ts';
 	import type { BookmarkMode, InsertLabelMode } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 
-	const request = $derived(app.insertRequest);
+	/** The insertion asked about: the last one, which the dialog goes on showing while it
+	 * closes. `app.insertRequest` is the one that can still be answered. */
+	const last = held(() => app.insertRequest);
+	const request = $derived(last.current);
 	const tab = $derived(request ? (app.tabs.find((t) => t.id === request.tabId) ?? null) : null);
 	/** The file, when one came alone: its pages can be picked. */
 	const alone = $derived(request?.sources.length === 1 ? request.sources[0]! : null);
@@ -38,7 +42,7 @@
 
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
-		if (!request || !tab || busy) return;
+		if (!app.insertRequest || !request || !tab || busy) return;
 		let pages: number[] = [];
 		if (alone && which === 'range') {
 			const count = alone.pages.length;
@@ -57,7 +61,7 @@
 </script>
 
 <Dialog.Root
-	open={request !== null}
+	open={app.insertRequest !== null}
 	onOpenChange={(open) => {
 		if (!open && !busy) app.cancelInsert();
 	}}

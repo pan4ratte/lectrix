@@ -11,6 +11,7 @@
 	import { untrack } from 'svelte';
 
 	import Dropdown from '#lib/components/Dropdown.svelte';
+	import { held } from '#lib/components/held.svelte.ts';
 	import type { LabelStyle } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 
@@ -25,7 +26,11 @@
 		type Numbering
 	} from './rules.ts';
 
-	const request = $derived(app.labelsRequest);
+	/** The numbering asked about: the last one, which the dialog goes on showing while it
+	 * closes. `app.labelsRequest` is set only while it is open. */
+	const last = held(() => app.labelsRequest);
+	const request = $derived(last.current);
+	const asking = $derived(app.labelsRequest !== null);
 	const tab = $derived(request ? (app.tabs.find((t) => t.id === request.tabId) ?? null) : null);
 	const count = $derived(tab?.pageCount ?? 0);
 	/** The pages selected in the grid, in page order. */
@@ -92,10 +97,10 @@
 			: null
 	);
 
-	// Live preview: the grid's pages show the result under them.
+	// Live preview: the grid's pages show the result under them, while the dialog is open.
 	$effect(() => {
 		const opened = tab;
-		if (!opened) return;
+		if (!opened || !asking) return;
 		opened.previewLabels = result;
 		return () => {
 			opened.previewLabels = null;
@@ -108,7 +113,7 @@
 
 	async function submit(event: SubmitEvent) {
 		event.preventDefault();
-		if (!tab || busy || problem || pages.length === 0) return;
+		if (!asking || !tab || busy || problem || pages.length === 0) return;
 		busy = true;
 		const numbered = [...pages];
 		const done = await assign(tab, numbered, numbering);
@@ -123,7 +128,7 @@
 </script>
 
 <Dialog.Root
-	open={request !== null && tab !== null}
+	open={asking && tab !== null}
 	onOpenChange={(open) => {
 		if (!open && !busy) close();
 	}}
