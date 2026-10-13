@@ -44,6 +44,24 @@ async function until(browser, index, what, check) {
 	return seen;
 }
 
+/** Page `index`'s box in the viewer once it has stopped moving. Picking a tool that brings
+ * style controls can wrap the view bar onto a second row in a narrow window (CI's is 1028 px
+ * wide), which moves the pages down; a fitted zoom glides after a page is turned. */
+async function rested(browser, index) {
+	await browser.pause(200);
+	let last = null;
+	await browser.waitUntil(
+		async () => {
+			const now = JSON.stringify((await shown(browser, index)).page);
+			const same = now === last;
+			last = now;
+			return same;
+		},
+		{ interval: 150, timeout: 5000, timeoutMsg: 'the page did not come to rest' }
+	);
+	return JSON.parse(last);
+}
+
 const landscape = (b) => b !== null && b.width > b.height;
 const portrait = (b) => b !== null && b.height > b.width;
 const turnedBy = (b, degrees) => b !== null && b.turn.includes(`rotate(${degrees}deg)`);
@@ -184,15 +202,14 @@ test('a text box typed on a page turned on screen is upright there, and written 
 		await waitForDocument(browser);
 		await (await browser.$(CLOCKWISE)).click();
 		const turned = (await until(browser, 0, 'the page did not turn', (s) => landscape(s.page) && turnedBy(s.page, 90))).page;
-		// (A fitted zoom glides to the turned page's width.)
-		await browser.pause(300);
-		const page = (await shown(browser, 0)).page;
-		assert.ok(landscape(page), JSON.stringify({ turned, page }));
 
-		// T, a click in the empty part of the page as it lies on screen, and the text.
+		// T, a click in the empty part of the page as it lies on screen, and the text. The
+		// page is measured with the tool picked: its style controls may have moved the pages.
+		await browser.keys('t');
+		const page = await rested(browser, 0);
+		assert.ok(landscape(page), JSON.stringify({ turned, page }));
 		const k = page.width / 792;
 		const at = { x: Math.round(page.left + 200 * k), y: Math.round(page.top + 520 * k) };
-		await browser.keys('t');
 		await browser.action('pointer').move({ ...at, origin: 'viewport' }).down().up().perform();
 		await browser.waitUntil(async () => (await editor()) !== null, { timeoutMsg: 'no editor for the text box' });
 		const typing = await editor();
@@ -209,16 +226,22 @@ test('a text box typed on a page turned on screen is upright there, and written 
 			timeoutMsg: 'the text box did not change the document'
 		});
 
-		// Opened again with a double-click, it is edited as it stands.
+		// Opened again with a double-click, it is edited as it stands. Back with the Select
+		// tool, the box is where the page is now.
 		await browser.keys('Escape');
 		await browser.keys('Escape');
-		const inside = { x: Math.round(at.x + 20 * k), y: Math.round(at.y + 6 * k) };
+		const back = await rested(browser, 0);
+		const scale = back.width / page.width;
+		const box = { x: Math.round(back.left + (at.x - page.left) * scale), y: Math.round(back.top + (at.y - page.top) * scale) };
+		const inside = { x: Math.round(box.x + 20 * k * scale), y: Math.round(box.y + 6 * k * scale) };
 		await browser.action('pointer').move({ ...inside, origin: 'viewport' }).down().up().pause(60).down().up().perform();
-		await browser.waitUntil(async () => (await editor()) !== null, { timeoutMsg: 'a double-click did not open the text box' });
+		await browser.waitUntil(async () => (await editor()) !== null, {
+			timeoutMsg: `a double-click did not open the text box (at ${JSON.stringify({ inside, page, back })})`
+		});
 		const again = await editor();
 		assert.equal(again.text, 'Upright');
 		assert.ok(again.width > 4 * again.height, `the editor of the written box is not upright: ${JSON.stringify(again)}`);
-		assert.ok(Math.abs(again.left - at.x) < 3 && Math.abs(again.top - at.y) < 3, JSON.stringify({ at, again }));
+		assert.ok(Math.abs(again.left - box.x) < 3 && Math.abs(again.top - box.y) < 3, JSON.stringify({ box, again }));
 		await browser.keys('Escape');
 
 		await browser.keys(['Control', 's']);
