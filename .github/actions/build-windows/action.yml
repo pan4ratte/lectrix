@@ -1,0 +1,56 @@
+name: Build the Windows app
+description: >
+  Builds the release app with its installer, pdf-cli and tauri-driver, and uploads them as
+  the "windows-build" artifact (the files under target/release), for the jobs that test
+  them. Used by CI and by the soak run, so both test the same build. Needs a checkout.
+
+runs:
+  using: composite
+  steps:
+    - uses: dtolnay/rust-toolchain@master
+      with:
+        toolchain: 1.99.0
+
+    # One cache for every release build on Windows, whichever workflow makes it.
+    - uses: Swatinem/rust-cache@v2
+      with:
+        shared-key: windows-release
+
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 24
+        cache: npm
+
+    # LLVM (libclang for bindgen) is preinstalled on windows-latest at C:\Program Files\LLVM,
+    # which .cargo/config.toml points LIBCLANG_PATH at.
+    - name: Install JS dependencies
+      shell: pwsh
+      run: npm ci
+
+    # On Windows this is the NSIS installer alone (ADR 0020).
+    - name: Build the app and its installer
+      shell: pwsh
+      run: npm run bundle
+
+    # The end-to-end tests and the interop harness write and read their files with it.
+    - name: Build pdf-cli
+      shell: pwsh
+      run: cargo build --release -p pdf-cli
+
+    # Built here, where cargo's cache keeps it, so the jobs that drive the app need no Rust.
+    - name: Install tauri-driver
+      shell: pwsh
+      run: |
+        cargo install tauri-driver --version 2.1.0 --locked
+        Copy-Item (Join-Path $env:USERPROFILE '.cargo\bin\tauri-driver.exe') target\release\
+
+    - uses: actions/upload-artifact@v4
+      with:
+        name: windows-build
+        retention-days: 3
+        if-no-files-found: error
+        path: |
+          target/release/lectrix.exe
+          target/release/pdf-cli.exe
+          target/release/tauri-driver.exe
+          target/release/bundle/nsis/*.exe

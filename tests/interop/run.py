@@ -67,10 +67,16 @@ def exe(name: str) -> str:
 
 
 def pdf_cli() -> str:
-    path = ROOT / "target" / "debug" / ("pdf-cli.exe" if os.name == "nt" else "pdf-cli")
-    if not path.exists():
-        raise SystemExit("build pdf-cli first: cargo build -p pdf-cli")
-    return str(path)
+    """PDF_CLI, else the debug build (`cargo build -p pdf-cli`), else the release one (CI
+    hands this job the release pdf-cli its build job made)."""
+    if os.environ.get("PDF_CLI"):
+        return os.environ["PDF_CLI"]
+    name = "pdf-cli.exe" if os.name == "nt" else "pdf-cli"
+    for profile in ("debug", "release"):
+        path = ROOT / "target" / profile / name
+        if path.exists():
+            return str(path)
+    raise SystemExit("build pdf-cli first: cargo build -p pdf-cli")
 
 
 def run(args: list[str], **kw) -> subprocess.CompletedProcess:

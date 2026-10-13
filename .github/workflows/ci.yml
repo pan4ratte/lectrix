@@ -3,6 +3,12 @@ name: CI
 # Pushes that only touch documentation do not run CI. THIRD_PARTY_*.md are not in the list:
 # the installers ship them and the license check reads them. Nor is CHANGELOG.md, which the
 # app shows and the tests check.
+#
+# The Windows checks are separate jobs that run side by side: `checks` (the code by itself)
+# and `build` (the app, its installer and the tools that test them), then `interop`,
+# `installer` and `e2e` on what `build` made. Every job runs whatever the others do, so
+# one run reports every failure, and a job that failed can be run again by itself (the
+# end-to-end tests in about 9 minutes) instead of everything.
 on:
   push:
     paths-ignore:
@@ -21,7 +27,9 @@ env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  windows:
+  # The code by itself: formatting, lints, the Rust and frontend tests, licenses.
+  checks:
+    name: Windows checks
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
@@ -33,7 +41,10 @@ jobs:
           toolchain: 1.99.0
           components: rustfmt, clippy
 
+      # Shared with the soak run's Rust tests, which only read it.
       - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-debug
 
       - uses: actions/setup-node@v4
         with:
@@ -49,12 +60,9 @@ jobs:
       - name: Install qpdf
         run: choco install qpdf --no-progress -y
 
-      - name: Install JS and Python dependencies
+      - name: Install JS dependencies
         id: setup
-        run: |
-          npm ci
-          npm ci --prefix tests/interop
-          python -m pip install -r tests/interop/requirements.txt
+        run: npm ci
 
       # The checks below run even when an earlier one failed, so one run reports every
       # failure instead of hiding the later ones. Only a failed setup above stops them.
@@ -84,14 +92,74 @@ jobs:
         if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         run: npx vitest run
 
+      # The frontend build writes the list of the npm packages it bundles
+      # (target/frontend-packages.json), which the license check reads.
+      - name: Build the frontend
+        id: frontend
+        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
+        run: npm run build
+
+      # Every shipped crate and bundled npm package has an AGPL-compatible license, and
+      # THIRD_PARTY_LICENSES.md (installed with the app) is up to date.
+      - name: License check
+        if: ${{ !cancelled() && steps.frontend.outcome == 'success' }}
+        run: python tests/licenses/notices.py --check
+
+  # The release app, its installer, pdf-cli and tauri-driver, as the "windows-build"
+  # artifact the three jobs below test.
+  build:
+    name: Windows build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/build-windows
+
+      # For the manual release checklist (docs/manual-checklist.md).
+      - uses: actions/upload-artifact@v4
+        with:
+          name: installers
+          path: target/release/bundle/nsis/*.exe
+
+  # The cross-renderer harness (AGENTS.md section 9), on the pdf-cli the build job made.
+  interop:
+    name: Windows interop
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: tests/interop/package-lock.json
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.14'
+
+      - name: Install qpdf
+        run: choco install qpdf --no-progress -y
+
+      - name: Install JS and Python dependencies
+        run: |
+          npm ci --prefix tests/interop
+          python -m pip install -r tests/interop/requirements.txt
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+          path: target/release
+
       - name: Interop harness
         id: interop
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
         shell: pwsh
         run: |
           # Without this, only the last command's exit code would fail the step.
           $PSNativeCommandUseErrorActionPreference = $true
-          cargo build -p pdf-cli
           $env:PATH = "$((Get-ChildItem 'C:\Program Files\qpdf*\bin' | Select-Object -First 1).FullName);$env:PATH"
           python tests/interop/run.py phase0
           python tests/interop/run.py phase2
@@ -107,24 +175,23 @@ jobs:
           name: interop-output
           path: target/test-output/interop
 
-      # On Windows this is the NSIS installer alone (ADR 0020).
-      - name: Build the installer
-        id: build
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: npm run bundle
+  # Installs and uninstalls the installer silently, with and without the PDF file
+  # registration, and checks the registry (ADR 0007). Then it updates an install made by
+  # the 1.1.0 MSI, which it downloads from that release (ADR 0020).
+  installer:
+    name: Windows installer
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
 
-      # Every shipped crate and bundled npm package has an AGPL-compatible license, and
-      # THIRD_PARTY_LICENSES.md (installed with the app) is up to date.
-      - name: License check
-        if: ${{ !cancelled() && steps.setup.outcome == 'success' }}
-        run: python tests/licenses/notices.py --check
+      - uses: actions/download-artifact@v4
+        with:
+          name: windows-build
+          path: target/release
 
-      # Installs and uninstalls the installer silently, with and without the PDF file
-      # registration, and checks the registry (ADR 0007). Then it updates an install made
-      # by the 1.1.0 MSI, which it downloads from that release (ADR 0020).
       - name: Installer check
         id: installer
-        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
         shell: pwsh
         run: ./tests/installer/check.ps1
 
@@ -135,16 +202,19 @@ jobs:
           name: installer-logs
           path: target/test-output/installer
 
-      # End-to-end tests (section 9) against the release app built above.
+  # End-to-end tests (section 9) against the release app the build job made.
+  e2e:
+    name: Windows end-to-end
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/prepare-e2e
+
       - name: E2E tests
         id: e2e
-        if: ${{ !cancelled() && steps.build.outcome == 'success' }}
-        shell: pwsh
-        run: |
-          cargo install tauri-driver --version 2.1.0 --locked
-          ./tests/e2e/fetch-edgedriver.ps1
-          npm ci --prefix tests/e2e
-          npm test --prefix tests/e2e
+        run: npm test --prefix tests/e2e
 
       - name: Diagnose E2E failure
         if: ${{ !cancelled() && steps.e2e.outcome == 'failure' }}
@@ -157,11 +227,6 @@ jobs:
         with:
           name: e2e-output
           path: target/test-output/e2e
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: installers
-          path: target/release/bundle/nsis/*.exe
 
   # Build-only jobs for macOS and Linux (AGENTS.md section 9): the app and its tests must
   # compile there. The tests also run, without failing the job, to show what still

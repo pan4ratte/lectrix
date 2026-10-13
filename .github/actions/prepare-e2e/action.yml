@@ -1,0 +1,26 @@
+name: Prepare the end-to-end tests
+description: >
+  Fetches the app the build job made (the "windows-build" artifact) and what drives it:
+  tauri-driver from that artifact, an msedgedriver matching the runner's WebView2, and the
+  tests' own npm packages. Used by CI and by the soak run. Needs a checkout.
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v4
+      with:
+        node-version: 24
+        cache: npm
+        cache-dependency-path: tests/e2e/package-lock.json
+
+    - uses: actions/download-artifact@v4
+      with:
+        name: windows-build
+        path: target/release
+
+    - name: Fetch msedgedriver and the tests' packages
+      shell: pwsh
+      run: |
+        ./tests/e2e/fetch-edgedriver.ps1
+        npm ci --prefix tests/e2e
+        "TAURI_DRIVER=$(Join-Path $env:GITHUB_WORKSPACE 'target\release\tauri-driver.exe')" >> $env:GITHUB_ENV
