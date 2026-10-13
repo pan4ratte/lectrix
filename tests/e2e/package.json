@@ -6,7 +6,8 @@
   "description": "End-to-end tests (AGENTS.md section 9): tauri-driver + WebdriverIO against the release app. Kept out of the app's dependencies.",
   "scripts": {
     "pretest": "node lib/driverlog.mjs",
-    "test": "node --test --test-concurrency=1 \"specs/*.test.mjs\""
+    "test": "node --test --test-concurrency=1 \"specs/*.test.mjs\"",
+    "test:ci": "node lib/like-ci.mjs"
   },
   "dependencies": {
     "webdriverio": "9.32.0"

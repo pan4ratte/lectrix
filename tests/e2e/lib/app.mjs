@@ -4,11 +4,18 @@
 // tauri-driver --locked) and an msedgedriver matching the installed WebView2 runtime
 // (tests/e2e/fetch-edgedriver.ps1). LECTRIX_APP, TAURI_DRIVER and MSEDGEDRIVER override
 // the default locations.
+//
+// A Lectrix the user has open (the installed one, a development copy) is left alone: the
+// tests end only copies of the app under test, and run beside it as an instance of their
+// own (LECTRIX_EPHEMERAL).
+//
+// LECTRIX_E2E_LIKE_CI=1 (`npm run test:ci`) shows the app as CI's Windows runners do, so
+// that what only fails there fails here first: reduced motion, and a window of their size.
 
 import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { createConnection, createServer } from 'node:net';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { remote } from 'webdriverio';
@@ -22,6 +29,12 @@ const PORT = 4444;
 const app = process.env.LECTRIX_APP ?? join(ROOT, 'target', 'release', 'lectrix.exe');
 const tauriDriver = process.env.TAURI_DRIVER ?? 'tauri-driver';
 const edgeDriver = process.env.MSEDGEDRIVER ?? join(ROOT, 'target', 'e2e-tools', 'msedgedriver.exe');
+
+/** As CI's Windows runners show the app: their visual effects are off, which the webview
+ * reports as reduced motion, and their screen is 1024 x 768, where the window's page is
+ * this large. */
+const LIKE_CI = process.env.LECTRIX_E2E_LIKE_CI === '1';
+const CI_PAGE = { width: 1028, height: 779 };
 
 function waitForPort(port, timeoutMs) {
 	const deadline = Date.now() + timeoutMs;
@@ -71,17 +84,94 @@ function verboseDriver() {
 	return wrapper;
 }
 
+const IMAGE = basename(app);
+
+/** The process ids of every running copy of Lectrix, whichever file it runs. */
+function lectrixPids() {
+	const list = spawnSync('tasklist', ['/FI', `IMAGENAME eq ${IMAGE}`, '/FO', 'CSV', '/NH'], { encoding: 'utf8' });
+	return [...(list.stdout ?? '').matchAll(/^"[^"]*","(\d+)"/gm)].map((m) => Number(m[1]));
+}
+
+/** The file each running copy of Lectrix runs, by process id. (PowerShell, which takes a
+ * moment: asked only when a copy is running before a test starts.) */
+function lectrixPaths() {
+	const script = `Get-CimInstance Win32_Process -Filter "Name='${IMAGE}'" | ForEach-Object { "$($_.ProcessId)|$($_.ExecutablePath)" }`;
+	const out = spawnSync('powershell', ['-NoProfile', '-NonInteractive', '-Command', script], { encoding: 'utf8' });
+	const paths = new Map();
+	for (const line of (out.stdout ?? '').split(/\r?\n/)) {
+		const [pid, path] = line.split('|');
+		if (pid && path) paths.set(Number(pid), path.trim());
+	}
+	return paths;
+}
+
+const sameFile = (a, b) => resolve(a).toLowerCase() === resolve(b).toLowerCase();
+
+function end(pids) {
+	for (const pid of pids) spawnSync('taskkill', ['/PID', String(pid), '/F', '/T'], { stdio: 'ignore' });
+}
+
+/** Copies of Lectrix that are not the tests': the user's own. Never ended. */
+let foreign = new Set();
+/** The copy this launch started. */
+let started = [];
+
 /**
- * Ends any Lectrix still running. Lectrix is single-instance: a leftover process would take
- * over the next launch, which then exits before WebDriver can attach.
+ * Before a launch: ends what an earlier run left of the app under test, and notes every
+ * other copy of Lectrix as the user's. A copy whose file Windows won't tell is the user's.
  */
-function killStrayApps() {
-	spawnSync('taskkill', ['/IM', 'lectrix.exe', '/F', '/T'], { stdio: 'ignore' });
+function clearStrays() {
+	foreign = new Set();
+	started = [];
+	const pids = lectrixPids();
+	if (pids.length === 0) return;
+	const paths = lectrixPaths();
+	const strays = pids.filter((pid) => paths.has(pid) && sameFile(paths.get(pid), app));
+	end(strays);
+	foreign = new Set(pids.filter((pid) => !strays.includes(pid)));
+}
+
+/** The running copies that are the tests' own. */
+const ownPids = () => lectrixPids().filter((pid) => !foreign.has(pid));
+
+/** Ends the copy this launch started (before that is known: every copy that is not the
+ * user's). */
+function killApp() {
+	end(started.length > 0 ? started : ownPids());
 }
 
 function appRunning() {
-	const list = spawnSync('tasklist', ['/FI', 'IMAGENAME eq lectrix.exe', '/NH'], { encoding: 'utf8' });
-	return list.stdout.toLowerCase().includes('lectrix.exe');
+	const running = lectrixPids();
+	return (started.length > 0 ? started : ownPids()).some((pid) => running.includes(pid));
+}
+
+/** Like CI: what the app is started with. msedgedriver hands a session's arguments to
+ * Lectrix, not to its webview, so the browser's switch goes through LECTRIX_BROWSER_ARGS;
+ * LECTRIX_WINDOW_SIZE sizes a window that has no remembered place (a test that brings a
+ * state file with one keeps it, as on CI). */
+const LIKE_CI_ENV = {
+	LECTRIX_BROWSER_ARGS: '--force-prefers-reduced-motion',
+	LECTRIX_WINDOW_SIZE: `${CI_PAGE.width}x${CI_PAGE.height}`
+};
+
+let saidLikeCi = false;
+
+/** Like CI: checks that the app is shown as asked, and says so once. A screen too small
+ * for the window is said, not failed: the tests still run. */
+async function checkLikeCi(browser) {
+	const seen = await browser.execute(() => ({
+		reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
+		width: innerWidth,
+		height: innerHeight
+	}));
+	if (!seen.reduced) throw new Error('LECTRIX_E2E_LIKE_CI: the webview does not report reduced motion');
+	if (saidLikeCi) return;
+	saidLikeCi = true;
+	const sized = Math.abs(seen.width - CI_PAGE.width) <= 2 && Math.abs(seen.height - CI_PAGE.height) <= 2;
+	console.error(
+		`like CI: reduced motion, page ${seen.width} x ${seen.height}` +
+			(sized ? '' : ` (CI's is ${CI_PAGE.width} x ${CI_PAGE.height}: the window did not get that size here)`)
+	);
 }
 
 /**
@@ -110,7 +200,7 @@ export async function launch(files = [], { dialogs, env = {} } = {}) {
 		if (!existsSync(path)) throw new Error(`${what} not found at ${path}`);
 	}
 	mkdirSync(OUT, { recursive: true });
-	killStrayApps();
+	clearStrays();
 	const nativePort = await freePort();
 	const driverArgs = ['--port', String(PORT), '--native-port', String(nativePort), '--native-driver', verboseDriver()];
 	const driver = spawn(tauriDriver, driverArgs, {
@@ -119,6 +209,7 @@ export async function launch(files = [], { dialogs, env = {} } = {}) {
 			LECTRIX_EPHEMERAL: '1',
 			LECTRIX_OPEN: files.join(';'),
 			...(dialogs ? { LECTRIX_DIALOG: dialogs.map((a) => [a ?? []].flat().join('|')).join(';') } : {}),
+			...(LIKE_CI ? LIKE_CI_ENV : {}),
 			...env
 		},
 		stdio: ['ignore', 'inherit', 'inherit']
@@ -137,18 +228,20 @@ export async function launch(files = [], { dialogs, env = {} } = {}) {
 				'tauri:options': { application: app }
 			}
 		});
+		started = ownPids();
 		await ensureAppPage(browser);
+		if (LIKE_CI) await checkLikeCi(browser);
 		const stop = async () => {
 			try {
 				await browser.deleteSession();
 			} finally {
 				await killDriver(driver, exited);
-				killStrayApps();
+				killApp();
 			}
 		};
 		/** Ends Lectrix the way a crash would: no chance to clean up. */
 		const crash = async () => {
-			killStrayApps();
+			killApp();
 			await browser.deleteSession().catch(() => {});
 			await killDriver(driver, exited);
 		};
@@ -162,13 +255,13 @@ export async function launch(files = [], { dialogs, env = {} } = {}) {
 			const quit = !appRunning();
 			await browser.deleteSession().catch(() => {});
 			await killDriver(driver, exited);
-			killStrayApps();
+			killApp();
 			return quit;
 		};
 		return { browser, stop, crash, exitedByItself };
 	} catch (e) {
 		await killDriver(driver, exited);
-		killStrayApps();
+		killApp();
 		throw e;
 	}
 }

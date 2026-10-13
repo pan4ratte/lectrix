@@ -138,9 +138,22 @@ impl Platform for Windows {
     /// runtimes then ignore `WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS`, which is how
     /// msedgedriver turns on remote debugging (tests/e2e; seen on WebView2 153). When the
     /// variable is set, pass both, merged.
+    ///
+    /// LECTRIX_BROWSER_ARGS adds arguments of the tests' own, which msedgedriver has no way
+    /// to pass: it sets the variable above itself, and hands a session's arguments to
+    /// Lectrix, not to the browser (`--force-prefers-reduced-motion`, to show the app as
+    /// CI's runners do).
     fn webview_browser_args(&self) -> Option<String> {
-        let extra = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").ok()?;
-        Some(merge_browser_args(TAURI_DEFAULT_ARGS, &extra))
+        let driver = std::env::var("WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS").ok();
+        let tests = std::env::var("LECTRIX_BROWSER_ARGS").ok();
+        if driver.is_none() && tests.is_none() {
+            return None;
+        }
+        let with_driver = merge_browser_args(TAURI_DEFAULT_ARGS, driver.as_deref().unwrap_or(""));
+        Some(merge_browser_args(
+            &with_driver,
+            tests.as_deref().unwrap_or(""),
+        ))
     }
 
     fn file_key(&self, path: &Path) -> String {

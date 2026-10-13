@@ -269,17 +269,22 @@ pub fn run() {
         ));
     }
 
-    let result = tauri::Builder::default()
-        // Must be the first plugin: a second launch (for example double-clicking another
-        // PDF) hands its arguments to this instance and exits.
-        .plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
+    let mut builder = tauri::Builder::default();
+    // Must be the first plugin: a second launch (for example double-clicking another
+    // PDF) hands its arguments to this instance and exits. Test and measurement runs
+    // (LECTRIX_EPHEMERAL) are instances of their own: they neither hand their files to a
+    // Lectrix the user has open, nor take the files of one started meanwhile.
+    if std::env::var_os("LECTRIX_EPHEMERAL").is_none() {
+        builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
             let paths = pdf_args(args.into_iter().skip(1), Path::new(&cwd));
             // In the window used last, which comes to the front.
             if let Some(label) = windows::for_new_files(app) {
                 open_in_background(app, paths, false, label.clone());
                 windows::focus(app, &label);
             }
-        }))
+        }));
+    }
+    let result = builder
         .plugin(tauri_plugin_dialog::init())
         // Updates from GitHub releases (ADR 0011). Only Rust uses it: the webview has no
         // updater permission and goes through Lectrix's own commands in update.rs.

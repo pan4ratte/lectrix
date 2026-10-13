@@ -219,6 +219,8 @@ pub fn create(app: &AppHandle, label: &str, place: Place) -> tauri::Result<Webvi
     };
     if let Some((x, y, width, height)) = bounds {
         builder = builder.position(x, y).inner_size(width, height);
+    } else if let Some((width, height)) = size_for_tests() {
+        builder = builder.inner_size(width, height);
     }
     if maximized {
         builder = builder.maximized(true);
@@ -233,6 +235,21 @@ pub fn create(app: &AppHandle, label: &str, place: Place) -> tauri::Result<Webvi
         .unwrap_or_default();
     crate::apply_appearance_to(&window, appearance);
     Ok(window)
+}
+
+/// LECTRIX_WINDOW_SIZE=<width>x<height>, in logical pixels: the size of a window that has
+/// no place of its own (none remembered, none given), instead of the default one. For test
+/// runs that show the app as CI's runners do, whose screen leaves the window less room
+/// (tests/e2e, `npm run test:ci`).
+fn size_for_tests() -> Option<(f64, f64)> {
+    parse_size(&std::env::var("LECTRIX_WINDOW_SIZE").ok()?)
+}
+
+fn parse_size(text: &str) -> Option<(f64, f64)> {
+    let (width, height) = text.split_once('x')?;
+    let width = width.trim().parse::<f64>().ok()?;
+    let height = height.trim().parse::<f64>().ok()?;
+    (width >= 1.0 && height >= 1.0).then_some((width, height))
 }
 
 /// Where a window made for a tab of `from` goes: with its title bar under the cursor (the
@@ -380,6 +397,15 @@ pub fn destroyed(app: &AppHandle, label: &str) {
 mod tests {
     use super::*;
     use crate::ipc::ScrollMode;
+
+    #[test]
+    fn a_window_size_for_tests_is_two_numbers() {
+        assert_eq!(parse_size("1028x779"), Some((1028.0, 779.0)));
+        assert_eq!(parse_size(" 800 x 600.5 "), Some((800.0, 600.5)));
+        for wrong in ["", "1028", "1028x", "x779", "0x779", "wide x tall"] {
+            assert_eq!(parse_size(wrong), None, "{wrong:?}");
+        }
+    }
 
     #[test]
     fn documents_belong_to_one_window_and_move_between_them() {
