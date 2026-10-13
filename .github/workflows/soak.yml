@@ -1,0 +1,117 @@
+name: Soak
+
+# The tests many times over, to find the ones that fail only some of the time (AGENTS.md
+# section 9). CI runs every test once, so it shows such a test only on the day it happens to
+# fail, one at a time, and each costs a run. This runs the end-to-end tests and the Rust
+# tests several times to their end and lists, on the run's page, every test that failed in
+# any pass, with how often and why (tests/soak/run.mjs). Fix those in one commit, run it
+# again, and CI stops tripping on them.
+#
+# By hand (Actions > Soak > Run workflow), and every night when main changed that day. Not
+# part of CI: it gates nothing and no push waits for it.
+on:
+  workflow_dispatch:
+    inputs:
+      passes:
+        description: How many times each suite runs
+        default: '10'
+      suite:
+        description: Which tests
+        type: choice
+        default: all
+        options: [all, e2e, rust]
+  schedule:
+    - cron: '17 2 * * *'
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+  PASSES: ${{ inputs.passes || '10' }}
+
+jobs:
+  # At night: only when main got a commit in the last day.
+  changed:
+    runs-on: ubuntu-24.04
+    outputs:
+      run: ${{ steps.look.outputs.run }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Look for a commit of the last day
+        id: look
+        run: |
+          if [ "${{ github.event_name }}" != "schedule" ] || [ -n "$(git log -1 --since='25 hours ago' --format=%H)" ]; then
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "Nothing new on main since the last nightly run."
+            echo "run=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    name: Windows build
+    needs: changed
+    if: needs.changed.outputs.run == 'true' && inputs.suite != 'rust'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/build-windows
+
+  e2e:
+    name: End-to-end tests, many times
+    needs: build
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: ./.github/actions/prepare-e2e
+
+      - name: Soak
+        run: node tests/soak/run.mjs --suite e2e --passes $env:PASSES
+
+      - name: Upload every pass's output
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: soak-e2e
+          path: target/test-output/soak
+
+  rust:
+    name: Rust tests, many times
+    needs: changed
+    if: needs.changed.outputs.run == 'true' && inputs.suite != 'e2e'
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          lfs: true
+
+      - uses: dtolnay/rust-toolchain@master
+        with:
+          toolchain: 1.99.0
+
+      # CI's cache of the debug build (its `checks` job writes it).
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: windows-debug
+          save-if: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+
+      # The structural check of every file the tests write (AGENTS.md section 9).
+      - name: Install qpdf
+        run: choco install qpdf --no-progress -y
+
+      - name: Soak
+        run: node tests/soak/run.mjs --suite rust --passes $env:PASSES
+
+      - name: Upload every pass's output
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v4
+        with:
+          name: soak-rust
+          path: target/test-output/soak

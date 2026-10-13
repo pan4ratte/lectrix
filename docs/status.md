@@ -453,13 +453,26 @@ Nothing has been run interactively there.
   no prompt. Updating `1.0.0-beta.1`, which installed per user without recording it,
   keeps it in `%LOCALAPPDATA%\Lectrix`.
 - **The MSI is gone after 1.1.0** (ADR 0020, 2026-10-13). A copy installed from it
-  updates through the setup program, which removes the MSI install first. Written but
-  not yet run anywhere: this machine's Lectrix is an NSIS install and its shell is not
-  elevated, so only the template's compilation was checked here. CI's installer check
-  runs the takeover from its next run on; an update started inside an MSI-installed
-  1.1.0 waits for the next release (`docs/manual-checklist.md`). Its limits (a silent
-  install over an MSI, an MSI in a folder of the user's choosing, a user without
-  administrator rights) are in the ADR.
+  updates through the setup program, which removes the MSI install first. CI's installer
+  check runs the takeover on the released 1.1.0 MSI, with and without the PDF
+  registration, and it passed in every run of 2026-10-13. Not yet done: an update started
+  from inside an MSI-installed 1.1.0, now that 1.2.0 is out
+  (`docs/manual-checklist.md`). Its limits (a silent install over an MSI, an MSI in a
+  folder of the user's choosing, a user without administrator rights) are in the ADR.
+- **Tests that failed only on CI, or only sometimes** (2026-10-13: 1.2.0 took five tries on CI).
+  The first run failed four end-to-end tests that had only ever run on the author's
+  screen: CI's runners ask for reduced motion and their window is 1028 px wide. The
+  next three each failed one test that passes most of the time (a click that closes the
+  window before the driver answers; a wheel over a page the grid has no cell for; a
+  Rust test writing a file a session had closed a moment before), and once GitHub gave
+  the macOS job no runner. All were faults of the tests. Since then:
+  `npm run test:ci --prefix tests/e2e` shows the app as CI does (it fails the four tests
+  as they were, with CI's messages), the tests run beside an open Lectrix, the soak run
+  lists the tests that fail only sometimes (`.github/workflows/soak.yml`), and CI's
+  Windows checks are separate jobs, so one that failed is run again alone. Known and
+  left: `recovery.test.mjs` ends with a click that quits Lectrix, as
+  `window-placement.test.mjs` did; no soak run has been done yet, so other such tests
+  are likely.
 
 ## Upstream work
 

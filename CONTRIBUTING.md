@@ -68,6 +68,16 @@ cargo install tauri-driver --version 2.1.0 --locked
 ./tests/e2e/fetch-edgedriver.ps1
 npm ci --prefix tests/e2e
 npm test --prefix tests/e2e
+npm run test:ci --prefix tests/e2e     # the same, with the app shown as CI's runners show it
+```
+
+Run `test:ci` before you push a change to these tests or to what they cover. CI's Windows runners ask for reduced motion and have a small screen (the window's page is 1028 px wide there), and a test can pass on your screen and fail on theirs. To run some test files only, name them after `--`: `npm run test:ci --prefix tests/e2e -- specs/motion.test.mjs`. The tests leave a Lectrix you have open alone, and need `pdf-cli` too (`cargo build -p pdf-cli`).
+
+A test that fails only some of the time shows in CI one run at a time. The **soak run** finds them together: it runs the end-to-end tests and the Rust tests many times and lists every test that failed in any pass. Start it in GitHub (Actions > Soak > Run workflow), or run it yourself:
+
+```
+node tests/soak/run.mjs --passes 5 --like-ci             # both suites
+node tests/soak/run.mjs --passes 10 --suite rust
 ```
 
 Tests write to `target/test-output/` and nowhere else. Never weaken a test or a threshold to get a green run: say what the conflict is in the pull request instead.
