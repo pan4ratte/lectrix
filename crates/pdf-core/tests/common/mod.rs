@@ -135,6 +135,24 @@ pub fn assemble(objects: &[String]) -> Vec<u8> {
     out
 }
 
+/// Replaces the contents of a file a session has just closed. `Session::close` only tells
+/// the document's thread to stop, so the file may still be open for a moment, and Windows
+/// then refuses to open it for writing (a sharing violation); the write is tried again for
+/// up to two seconds.
+pub fn overwrite(path: &Path, bytes: &[u8]) {
+    let started = std::time::Instant::now();
+    loop {
+        match std::fs::write(path, bytes) {
+            Ok(()) => return,
+            Err(e) if started.elapsed() < std::time::Duration::from_secs(2) => {
+                eprintln!("{} is still in use ({e}); trying again", path.display());
+                std::thread::sleep(std::time::Duration::from_millis(20));
+            }
+            Err(e) => panic!("could not write {}: {e}", path.display()),
+        }
+    }
+}
+
 /// The number written after the last `keyword` in `bytes` (`startxref`, `/Prev`).
 pub fn last_number_after(bytes: &[u8], keyword: &[u8]) -> Option<usize> {
     let at = bytes.windows(keyword.len()).rposition(|w| w == keyword)? + keyword.len();

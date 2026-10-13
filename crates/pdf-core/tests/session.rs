@@ -301,7 +301,7 @@ fn a_file_whose_last_section_follows_itself_is_repaired_on_open() {
     let mut bytes = good[..digits].to_vec();
     bytes.extend_from_slice(own.to_string().as_bytes());
     bytes.extend_from_slice(&good[end..]);
-    fs::write(&path, &bytes).unwrap();
+    common::overwrite(&path, &bytes);
     assert_eq!(
         open(&path).page_count().unwrap(),
         0,
