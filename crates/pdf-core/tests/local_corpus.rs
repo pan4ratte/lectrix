@@ -437,6 +437,32 @@ fn page_marks(session: &Session) -> Result<Vec<PageMark>, String> {
         .collect())
 }
 
+/// The session keeps its bookmarks up to date after moves and rotations without reading
+/// the outline again. They must be what reading the document gives: a recovery copy of it
+/// (the document as it is now, with the same object numbers), opened afresh.
+fn bookmarks_are_as_read_afresh(session: &Session, out: &Path, what: &str) -> Result<(), String> {
+    let copy = out.join("afresh.pdf");
+    writing(|| session.write_recovery(&copy, None)).map_err(|e| format!("copy {what}: {e}"))?;
+    let (fresh, read) = Session::open(&copy, None).map_err(|e| format!("open copy: {e}"))?;
+    fresh.close();
+    let held = session.info().map_err(|e| format!("info: {e}"))?.outline;
+    if held != read.outline {
+        return Err(format!("the bookmarks kept {what} are not the file's"));
+    }
+    Ok(())
+}
+
+/// The page the first bookmark that leads to one leads to.
+fn bookmarked_page(outline: &outline::Outline) -> Option<usize> {
+    let mut found = None;
+    outline.for_each(|b| {
+        if let outline::Target::Page { page, .. } = b.target {
+            found.get_or_insert(page);
+        }
+    });
+    found
+}
+
 /// Moves pages of `file` (the last one to the front, then the first half to the end),
 /// extracts three into a new file, deletes one, and checks after each step that every page looks as it did, wherever it is
 /// now: pages take their size and rotation from the nodes above them, and real files have
@@ -538,11 +564,35 @@ fn rearrange_file(file: &Path, out: &Path) -> Result<Vec<String>, String> {
         "{n} pages; one page {one_ms:.0} ms, {} pages {half_ms:.0} ms",
         n / 2
     ));
+    bookmarks_are_as_read_afresh(&session, out, "after two moves")?;
+    // A page a bookmark leads to is turned, and turned back.
+    let outline = session.info().map_err(|e| format!("info: {e}"))?.outline;
+    if let Some(page) = bookmarked_page(&outline) {
+        let started = std::time::Instant::now();
+        session
+            .apply(Operation::RotatePages {
+                pages: vec![page],
+                degrees: 90,
+            })
+            .map_err(|e| format!("rotate: {e}"))?;
+        notes.push(format!(
+            "rotate {:.0} ms",
+            started.elapsed().as_secs_f64() * 1000.0
+        ));
+        bookmarks_are_as_read_afresh(&session, out, "after a rotation")?;
+        session.undo().map_err(|e| format!("undo: {e}"))?;
+        if session.info().map_err(|e| format!("info: {e}"))?.outline != outline {
+            return Err("the bookmarks are not back after undoing a rotation".into());
+        }
+    }
 
     session.undo().map_err(|e| format!("undo: {e}"))?;
     session.undo().map_err(|e| format!("undo: {e}"))?;
     if page_marks(&session)? != before {
         return Err("undo did not bring the pages back".into());
+    }
+    if session.info().map_err(|e| format!("info: {e}"))?.outline != info.outline {
+        return Err("undo did not bring the bookmarks back".into());
     }
     session.redo().map_err(|e| format!("redo: {e}"))?;
     session.redo().map_err(|e| format!("redo: {e}"))?;

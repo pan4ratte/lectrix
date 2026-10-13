@@ -12,6 +12,7 @@ use mupdf::pdf::{PdfDocument, PdfObject};
 use super::names::{lookup_dest, name_bytes};
 use crate::error::Result;
 use crate::geometry::{PageGeometry, Point, read_page_boxes};
+use crate::merge::names::DestIndex;
 use crate::objects;
 
 /// Deepest nesting read; deeper items are left out and the outline is marked damaged.
@@ -98,6 +99,66 @@ impl Outline {
             walk(&mut self.items, states);
         }
         self
+    }
+
+    /// Gives every bookmark that leads to a page the number that page has now, after
+    /// pages changed places: `now[p]` is where the page that was number `p` is. Returns
+    /// whether a bookmark changed, or `None` if a bookmark's page has no place in `now`
+    /// (the outline has to be read again then; some bookmarks may already be changed).
+    pub(crate) fn follow_pages(&mut self, now: &[Option<usize>]) -> Option<bool> {
+        fn walk(items: &mut [Bookmark], now: &[Option<usize>], changed: &mut bool) -> Option<()> {
+            for item in items {
+                if let Target::Page { page, .. } = &mut item.target {
+                    let moved = (*now.get(*page)?)?;
+                    *changed |= moved != *page;
+                    *page = moved;
+                }
+                walk(&mut item.children, now, changed)?;
+            }
+            Some(())
+        }
+        let mut changed = false;
+        walk(&mut self.items, now, &mut changed)?;
+        Some(changed)
+    }
+
+    /// Reads again what the bookmarks that lead to `pages` do: the point a destination
+    /// names is given in view space, which changes with the page's rotation and boxes.
+    /// Returns whether a bookmark changed. Not for a damaged outline, whose items may not
+    /// be objects of their own.
+    pub(crate) fn refresh_on_pages(
+        &mut self,
+        doc: &PdfDocument,
+        pages: &HashSet<usize>,
+    ) -> Result<bool> {
+        fn walk(
+            items: &mut [Bookmark],
+            doc: &PdfDocument,
+            pages: &HashSet<usize>,
+            resolver: &mut Resolver,
+            changed: &mut bool,
+        ) -> Result<()> {
+            for item in items {
+                if let Target::Page { page, .. } = &item.target
+                    && pages.contains(page)
+                    && let Ok(num) = i32::try_from(item.id)
+                    && num > 0
+                {
+                    let target = resolver.target(&doc.new_indirect(num, 0)?)?;
+                    if target != item.target {
+                        item.target = target;
+                        *changed = true;
+                    }
+                }
+                walk(&mut item.children, doc, pages, resolver, changed)?;
+            }
+            Ok(())
+        }
+        // Each page is looked up by itself: these are the bookmarks of a few pages.
+        let mut resolver = Resolver::for_a_few(doc);
+        let mut changed = false;
+        walk(&mut self.items, doc, pages, &mut resolver, &mut changed)?;
+        Ok(changed)
     }
 }
 
@@ -293,8 +354,10 @@ pub(crate) struct Resolver<'a> {
     doc: &'a PdfDocument,
     /// Page object number to page index, built on first use.
     pages: Option<HashMap<i32, usize>>,
-    /// For a handful of destinations: each page is looked up by itself, without listing
-    /// every page of the document first.
+    /// The document's named destinations, read on first use.
+    names: Option<DestIndex>,
+    /// For a handful of destinations: each page and each name is looked up by itself,
+    /// without listing every page and every name of the document first.
     few: bool,
     geometry: HashMap<usize, PageGeometry>,
     page_count: usize,
@@ -306,6 +369,7 @@ impl<'a> Resolver<'a> {
         Resolver {
             doc,
             pages: None,
+            names: None,
             few: false,
             geometry: HashMap::new(),
             page_count: doc
@@ -364,10 +428,23 @@ impl<'a> Resolver<'a> {
             return Ok(Target::Broken { named: None });
         };
         let named = Some(String::from_utf8_lossy(&name).into_owned());
-        match lookup_dest(self.doc, &name)? {
+        match self.named(&name)? {
             Some(array) => self.explicit(&array, named),
             None => Ok(Target::Broken { named }),
         }
+    }
+
+    /// The explicit destination a name stands for.
+    fn named(&mut self, name: &[u8]) -> Result<Option<PdfObject>> {
+        if self.few {
+            return lookup_dest(self.doc, name);
+        }
+        // Finding a name in a name tree means searching the tree, and an outline can use
+        // thousands of names: they are all read once, the first time one is asked for.
+        if self.names.is_none() {
+            self.names = Some(DestIndex::new(self.doc)?);
+        }
+        Ok(self.names.as_ref().and_then(|n| n.array(name)).cloned())
     }
 
     fn explicit(&mut self, dest: &PdfObject, named: Option<String>) -> Result<Target> {

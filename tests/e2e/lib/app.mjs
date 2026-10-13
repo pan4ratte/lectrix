@@ -13,6 +13,8 @@ import { fileURLToPath } from 'node:url';
 
 import { remote } from 'webdriverio';
 
+import { DRIVER_LOG, trimDriverLog } from './driverlog.mjs';
+
 export const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 export const OUT = join(ROOT, 'target', 'test-output', 'e2e');
 const PORT = 4444;
@@ -58,12 +60,13 @@ function freePort() {
 /**
  * tauri-driver cannot pass arguments to msedgedriver, but it runs any executable: a small
  * wrapper adds a verbose log of every session (target/test-output/e2e/driver-session.log,
- * uploaded by CI when the tests fail).
+ * uploaded by CI when the tests fail; `npm test` starts it afresh, `driverlog.mjs`).
  */
 function verboseDriver() {
 	const wrapper = join(dirname(edgeDriver), 'msedgedriver-verbose.cmd');
-	const log = join(OUT, 'driver-session.log');
-	writeFileSync(wrapper, `@"${edgeDriver}" %* --verbose --append-log "--log-path=${log}"
+	// The driver only ever appends: a log that has grown large is dropped first.
+	trimDriverLog();
+	writeFileSync(wrapper, `@"${edgeDriver}" %* --verbose --append-log "--log-path=${DRIVER_LOG}"
 `);
 	return wrapper;
 }

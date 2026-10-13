@@ -92,6 +92,15 @@ function Wait-For([string]$Log, [string]$Pattern, [int]$Seconds, $Stopwatch) {
 
 Get-Process lectrix -ErrorAction SilentlyContinue | Stop-Process -Force
 
+# The conditions of the run, to keep with the numbers: the same build gives other numbers
+# on battery, and a page is fitted to the window at another scale on another display
+# (docs/status.md, "Performance"). The scale itself is in the -Perf run (format_scale_x1000).
+$video = Get-CimInstance Win32_VideoController | Where-Object { $_.CurrentHorizontalResolution } | Select-Object -First 1
+$battery = Get-CimInstance Win32_Battery -ErrorAction SilentlyContinue | Select-Object -First 1
+$power = if (-not $battery) { 'mains, no battery' } elseif ($battery.BatteryStatus -eq 1) { 'on battery' } else { 'on mains' }
+$plan = (powercfg /getactivescheme | Out-String).Trim()
+"Conditions: display {0}x{1} at {2} Hz; {3}; {4}" -f $video.CurrentHorizontalResolution, $video.CurrentVerticalResolution, $video.CurrentRefreshRate, $power, $plan
+
 $results = @()
 for ($i = 1; $i -le $Runs; $i++) {
     $log = Join-Path $out "run-$i.log"

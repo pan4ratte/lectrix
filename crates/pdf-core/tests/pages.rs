@@ -15,9 +15,9 @@ use common::{
 use mupdf::pdf::{PdfDocument, PdfObject};
 use pdf_core::Error;
 use pdf_core::ops::Operation;
-use pdf_core::outline::{Bookmark, Target, lookup_dest};
+use pdf_core::outline::{Bookmark, Outline, Target, lookup_dest};
 use pdf_core::save::SaveKind;
-use pdf_core::session::{ExtractStep, Session};
+use pdf_core::session::{ExtractStep, RecoveryWrite, Session};
 use pdf_core::testgen::SampleSpec;
 
 fn content(text: &str) -> String {
@@ -567,6 +567,178 @@ fn a_page_listed_twice_is_not_rearranged() {
     assert_eq!(after.pages.len(), 3);
     assert!(!after.state.dirty);
     session.close();
+}
+
+/// The bookmarks as reading the whole document gives them: from a recovery copy, which is
+/// the document as it is now, with the same object numbers (`copy`), or from its file
+/// when it has no unsaved changes.
+fn bookmarks_read_afresh(session: &Session, file: &Path, copy: &Path) -> Outline {
+    let written = writing(|| session.write_recovery(copy, None)).unwrap();
+    let source = match written {
+        RecoveryWrite::Written { .. } => copy,
+        RecoveryWrite::Clean | RecoveryWrite::Unchanged => file,
+    };
+    let (fresh, info) = Session::open(source, None).unwrap();
+    fresh.close();
+    info.outline
+}
+
+/// The session reads the whole outline again only after a step that can have changed
+/// anything in it. After the others it works out what the bookmarks show, which must be
+/// what reading them again would give.
+#[test]
+fn bookmarks_are_kept_up_to_date_without_being_read_again() {
+    let dir = out_dir("pages-outline-kept");
+    let path = book_file(&dir);
+    let (session, info) = Session::open(&path, None).unwrap();
+    let place = |outline: &Outline| match outline.items[0].children[0].target {
+        Target::Page { page, x, y, .. } => (page, x, y),
+        ref other => panic!("{other:?}"),
+    };
+    // "Two again" names a point on page 2, which is turned 90 degrees.
+    let at_first = place(&info.outline);
+    let mut step = 0;
+    let mut check = |what: &str, outline: Option<Outline>, changes: bool| {
+        step += 1;
+        let held = session.info().unwrap().outline;
+        let copy = dir.join(format!("afresh-{step}.pdf"));
+        let fresh = bookmarks_read_afresh(&session, &path, &copy);
+        assert_eq!(held, fresh, "{what}");
+        assert_eq!(outline.is_some(), changes, "{what}");
+        if let Some(outline) = outline {
+            assert_eq!(outline, fresh, "{what}");
+        }
+        held
+    };
+
+    // Turning page 2 moves the point its bookmark names, and no other bookmark.
+    let turn = |page: usize| Operation::RotatePages {
+        pages: vec![page],
+        degrees: 90,
+    };
+    let change = session.apply(turn(1)).unwrap();
+    let turned = check("page 2 turned", change.outline, true);
+    assert_ne!(place(&turned), at_first);
+    assert_eq!(place(&turned).0, 1);
+    // No bookmark leads to page 5.
+    let change = session.apply(turn(4)).unwrap();
+    check("page 5 turned", change.outline, false);
+
+    // Pages 1 and 2 to between pages 5 and 6: every bookmark's page has another number.
+    let change = session.apply(move_pages(&[1, 0], 5)).unwrap();
+    let moved = check("pages moved", change.outline, true);
+    assert_eq!(
+        titles(&moved.items),
+        [
+            ("Part".to_string(), Some(4), 2),
+            ("Two by name".to_string(), Some(4), 0),
+            ("Six".to_string(), Some(5), 0)
+        ]
+    );
+    assert_eq!(place(&moved), (4, place(&turned).1, place(&turned).2));
+    // The last two pages change places: only "Six" follows.
+    let change = session.apply(move_pages(&[5], 4)).unwrap();
+    let swapped = check("last pages swapped", change.outline, true);
+    assert_eq!(titles(&swapped.items)[2].1, Some(4));
+    assert_eq!(titles(&swapped.items)[0].1, Some(5));
+
+    // Page labels and annotations are no part of a bookmark.
+    let change = session
+        .apply(Operation::SetPageLabels { rules: Vec::new() })
+        .unwrap();
+    check("labels removed", change.outline, false);
+
+    // Back through every step, and forward again.
+    for (what, changes) in [
+        ("labels back", false),
+        ("swap undone", true),
+        ("move undone", true),
+        ("page 5 turned back", false),
+        ("page 2 turned back", true),
+    ] {
+        let change = session.undo().unwrap();
+        check(what, change.outline, changes);
+    }
+    assert_eq!(session.info().unwrap().outline, info.outline);
+    for (what, changes) in [
+        ("page 2 turned again", true),
+        ("page 5 turned again", false),
+        ("moved again", true),
+        ("swapped again", true),
+    ] {
+        let change = session.redo().unwrap();
+        check(what, change.outline, changes);
+    }
+    assert_eq!(session.info().unwrap().outline, swapped);
+
+    // Deleting pages takes bookmarks out: that is read from the document.
+    let change = session
+        .apply(Operation::DeletePages { pages: vec![5] })
+        .unwrap();
+    let deleted = check("page deleted", change.outline, true);
+    assert_eq!(
+        titles(&deleted.items),
+        [
+            ("Part".to_string(), None, 1),
+            ("Six".to_string(), Some(4), 0)
+        ]
+    );
+    let change = session.undo().unwrap();
+    check("deletion undone", change.outline, true);
+    session.close();
+}
+
+/// A destination written with a page number gets a reference in its place when pages
+/// move, and a document gone through once is not gone through again. Undoing brings the
+/// numbers back, and the next move has to find them.
+#[test]
+fn destinations_by_page_number_are_found_again_after_undo() {
+    let dir = out_dir("pages-numbered-dests");
+    let path = book_file(&dir);
+    let (session, _) = Session::open(&path, None).unwrap();
+    // The page the link on `page` leads to (page 5's link names page 2 by its number).
+    let leads_to = |page: usize| -> usize {
+        let (links, _) = session.page_links(page).unwrap();
+        match links[0].target {
+            Target::Page { page, .. } => page,
+            ref other => panic!("{other:?}"),
+        }
+    };
+    assert_eq!(leads_to(4), 1);
+
+    // Page 3 to the front: 3 1 2 4 5 6. The link gets its reference.
+    session.apply(move_pages(&[2], 0)).unwrap();
+    assert_eq!(leads_to(4), 2);
+    // Page 3 to the end: 1 2 4 5 6 3. Nothing is looked for now, and nothing needs to be.
+    session.apply(move_pages(&[0], 6)).unwrap();
+    assert_eq!(leads_to(3), 1);
+
+    session.undo().unwrap();
+    assert_eq!(leads_to(4), 2);
+    session.undo().unwrap();
+    assert_eq!(leads_to(4), 1);
+    // The link is a number again. Page 1 to the end: 2 3 4 5 6 1.
+    session.apply(move_pages(&[0], 6)).unwrap();
+    assert_eq!(leads_to(3), 0);
+
+    // Redone after an undo, the same.
+    session.undo().unwrap();
+    session.redo().unwrap();
+    assert_eq!(leads_to(3), 0);
+    session.apply(move_pages(&[5], 0)).unwrap();
+    assert_eq!(leads_to(4), 1);
+
+    // What was learned holds across a save: 2 1 3 4 5 6 after it.
+    let out = dir.join("moved.pdf");
+    writing(|| session.save(SaveKind::Incremental, Some(out.clone()))).unwrap();
+    session.apply(move_pages(&[1], 0)).unwrap();
+    assert_eq!(leads_to(4), 0);
+    writing(|| session.save(SaveKind::Incremental, None)).unwrap();
+    session.close();
+    qpdf_check(&out);
+    let doc = open(&out);
+    assert_eq!(order(&doc), [2, 1, 3, 4, 5, 6]);
+    assert_eq!(link_pages(&doc, 4), [Some(0)]);
 }
 
 #[test]

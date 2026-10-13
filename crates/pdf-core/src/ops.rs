@@ -48,6 +48,50 @@ pub(crate) struct Applied {
     pub repairs: Option<Vec<RepairChange>>,
     /// What deleting pages took out with them.
     pub deleted: Option<DeleteReport>,
+    /// What it found out about destinations written with a page number.
+    pub numbered_dests: NumberedDests,
+}
+
+/// What an operation can have done to the bookmarks as the panel shows them. The session
+/// reads the outline again only as far as this says: reading all of it takes a tenth of a
+/// second in a file with thousands of bookmarks, and most edits cannot have touched it.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum OutlineEffect {
+    /// Nothing.
+    None,
+    /// The pages they lead to have other numbers: pages changed places.
+    PageOrder,
+    /// The places they name on the pages that changed (a destination's point is given in
+    /// view space, which turns with the page).
+    PageGeometry,
+    /// Anything: the outline is read again.
+    Any,
+}
+
+impl OutlineEffect {
+    /// The effect of two steps taken as one. Different kinds are not worked out together.
+    pub(crate) fn and(self, other: OutlineEffect) -> OutlineEffect {
+        match (self, other) {
+            (OutlineEffect::None, e) | (e, OutlineEffect::None) => e,
+            (a, b) if a == b => a,
+            _ => OutlineEffect::Any,
+        }
+    }
+}
+
+/// What an operation found out about destinations written with a page number, which
+/// moving pages has to look for unless the document is known to have none (`pages.rs`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub(crate) enum NumberedDests {
+    /// Nothing new.
+    #[default]
+    AsBefore,
+    /// The document had none before the operation, and has none now.
+    NoneBefore,
+    /// It has none now.
+    NoneNow,
+    /// It may have some now.
+    Unknown,
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -263,6 +307,29 @@ impl Operation {
         }
     }
 
+    /// What the operation can do to the bookmarks as the panel shows them.
+    pub(crate) fn outline_effect(&self) -> OutlineEffect {
+        match self {
+            Operation::RotatePages { .. } => OutlineEffect::PageGeometry,
+            Operation::MovePages { .. } => OutlineEffect::PageOrder,
+            // Deleted pages take bookmarks with them, and inserted ones bring theirs.
+            Operation::DeletePages { .. }
+            | Operation::InsertPages { .. }
+            | Operation::AddBookmark { .. }
+            | Operation::RenameBookmark { .. }
+            | Operation::MoveBookmark { .. }
+            | Operation::DeleteBookmark { .. }
+            | Operation::SetBookmarkDestination { .. } => OutlineEffect::Any,
+            Operation::SetPageLabels { .. }
+            | Operation::AddAnnotation { .. }
+            | Operation::AddAnnotations { .. }
+            | Operation::UpdateAnnotation { .. }
+            | Operation::DeleteAnnotation { .. }
+            | Operation::AddReply { .. }
+            | Operation::RepairAnnotations => OutlineEffect::None,
+        }
+    }
+
     /// Checks the operation against the document before anything is changed.
     pub(crate) fn validate(&self, page_count: usize) -> Result<()> {
         match self {
@@ -357,8 +424,10 @@ impl Operation {
         }
     }
 
-    /// Applies the operation. The caller wraps this in a journal step.
-    pub(crate) fn apply(&self, doc: &mut PdfDocument) -> Result<Applied> {
+    /// Applies the operation. With `by_reference`, the caller knows that no destination in
+    /// the document is written with a page number (`pages.rs`). The caller wraps this in a
+    /// journal step.
+    pub(crate) fn apply(&self, doc: &mut PdfDocument, by_reference: bool) -> Result<Applied> {
         if let Operation::InsertPages {
             source,
             at,
@@ -369,12 +438,27 @@ impl Operation {
             let report = merge::insert_pages(doc, *at, &from, &source.pages, *options)?;
             return Ok(Applied {
                 report: Some(report),
+                // What comes from another file was not gone through.
+                numbered_dests: NumberedDests::Unknown,
                 ..Applied::default()
             });
         }
         if let Operation::DeletePages { pages } = self {
             return Ok(Applied {
                 deleted: Some(pages::delete_pages(doc, pages)?),
+                // Not `NoneBefore`: the links on the deleted pages were not looked at.
+                numbered_dests: NumberedDests::NoneNow,
+                ..Applied::default()
+            });
+        }
+        if let Operation::MovePages { pages, to } = self {
+            let report = pages::move_pages(doc, pages, *to, by_reference)?;
+            return Ok(Applied {
+                numbered_dests: match report.renumbered {
+                    Some(0) => NumberedDests::NoneBefore,
+                    Some(_) => NumberedDests::NoneNow,
+                    None => NumberedDests::AsBefore,
+                },
                 ..Applied::default()
             });
         }
@@ -403,7 +487,6 @@ impl Operation {
                 }
                 Ok(None)
             }
-            Operation::MovePages { pages, to } => pages::move_pages(doc, pages, *to).map(|_| None),
             Operation::AddBookmark {
                 parent,
                 index,
@@ -450,6 +533,7 @@ impl Operation {
             }
             // Handled by `apply`.
             Operation::InsertPages { .. }
+            | Operation::MovePages { .. }
             | Operation::DeletePages { .. }
             | Operation::RepairAnnotations => Ok(None),
         }

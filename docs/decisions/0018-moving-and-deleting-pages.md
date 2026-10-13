@@ -112,6 +112,40 @@ The user decided the behaviour:
     and before it takes its name, so a stopped extraction leaves nothing behind and an
     existing file of that name stays as it was.
 
+### Speed in files with thousands of bookmarks
+
+Measured on the local corpus's file with the most bookmarks (2,597 pages, 5,023
+bookmarks, 4,999 of them by name), an edit took 0.22 to 0.26 s: 110 ms for the session to
+read the whole outline again, as it did after every change of any kind, and 70 ms for a
+move to go through every link, bookmark and named destination (decision 9).
+
+18. **A document is gone through for destinations by page number once.** A move or a
+    deletion that has gone through them leaves none, and nothing Lectrix writes adds one.
+    The session keeps the journal position from which that holds
+    (`Actor::by_reference_since`), and a move while it holds changes the page tree and
+    looks at nothing else. Undoing to before that position forgets it, since the numbers
+    are back; so does inserting pages, whose links and bookmarks come from another file.
+    A save keeps it: the file holds what the document did.
+19. **The session reads the whole outline again only after a step that can have changed
+    anything in it** (`OutlineEffect` in `ops.rs`): bookmark edits, and pages deleted or
+    inserted. After a move, the bookmarks it holds take their pages' new numbers from the
+    page map of decision 11, which is right because the destinations in the file name
+    the pages themselves. After a rotation, only the bookmarks that lead to the turned
+    pages are read again (the point a destination names is kept in view space, which
+    turns with the page). Annotations and page labels are no part of a bookmark. Undo and
+    redo do the same for the step they cross, which the session records per journal
+    position. A damaged outline, which no edit touches, is always read again.
+20. **Reading an outline looks its names up in one index** of the document's named
+    destinations, built on first use, in place of a search of the name tree for each
+    bookmark (links on one page are still looked up one by one). On the local corpus the
+    bookmarks read are the same either way (5,333 of them use names).
+
+With these, rotating a page there takes 26 to 34 ms, moving pages 29 to 36 ms (the first
+move, which goes through the destinations, 80 to 100 ms), and undoing either 27 to 32 ms:
+what is left is the session reading every page's size, label and annotations again, as in
+any file of that length. Deleting a page there still takes 0.19 s, 44 ms of it writing
+the name tree again without the names that led to the page.
+
 ## Consequences
 
 - An incremental save after a move appends a few small objects. After moving many pages
@@ -173,9 +207,19 @@ and stopping. The interop suite `pages` (`tests/interop/run.py`) has PDFium and 
 read the pages, labels, bookmarks and links of a moved file, a file with pages deleted and
 an extract, and checks that a highlight on a moved page shows in all three engines.
 
+For decisions 18 and 19, in the same file: after each of a rotation, two moves, a change
+of labels, the undo and the redo of them all, and a deletion, the bookmarks the session
+holds are the ones a fresh reading of the document gives (a recovery copy of it, opened),
+and a change reports them exactly when they differ; a link written with a page number
+leads to its page through a move that rewrites it, a second move that looks for nothing,
+both undone, and a third move that has to find it again (the test fails if undoing does
+not forget), and across a save.
+
 On the local corpus (`local_corpus_pages_move_and_are_deleted_as_they_are`, 30 real
 files, run on demand): the last page moved to the front, three pages extracted from the
-document with that move unsaved, the first half moved to the end, undo and redo, a save,
+document with that move unsaved, the first half moved to the end, a bookmarked page
+turned and turned back, undo and redo, a save,
 a page deleted and a second save. Every page keeps its size,
-rotation and number of annotations wherever it is, no file is refused, and `qpdf --check`
-finds nothing it did not find in the original.
+rotation and number of annotations wherever it is, the bookmarks the session holds after
+the moves and after the rotation are the ones a fresh reading gives, no file is refused,
+and `qpdf --check` finds nothing it did not find in the original.

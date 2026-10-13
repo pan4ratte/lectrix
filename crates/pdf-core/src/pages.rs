@@ -18,7 +18,16 @@
 //! removed, and so are the form fields whose widgets were on those pages. Page labels
 //! belong to positions: moving pages leaves the rules alone, and deleting pages moves the
 //! rules after them up, so the numbering stays continuous.
+//!
+//! Some producers write a destination with a page number where the format wants a
+//! reference to the page, and MuPDF follows those: once pages change places they would
+//! lead to whatever page has that number. So both edits give every such destination the
+//! reference in its place, which means going through every link, bookmark and named
+//! destination of the document. A document that has been gone through has none left, and
+//! the caller can say so the next time ([`move_pages`]), which then moves its pages and
+//! looks at nothing else.
 
+use std::cell::Cell;
 use std::collections::HashSet;
 
 use mupdf::pdf::{PdfDocument, PdfObject};
@@ -50,11 +59,31 @@ pub struct DeleteReport {
     pub fields: usize,
 }
 
+/// What moving pages did.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct MoveReport {
+    /// False, with nothing written, if the move leaves every page where it is.
+    pub moved: bool,
+    /// How many destinations written with a page number got a reference to their page in
+    /// its place; `None` if they were not looked for.
+    pub renumbered: Option<usize>,
+}
+
 /// Moves `pages` (0-based; they keep their order in the document) into the gap `to` of the
-/// current order: 0 is before the first page, the page count after the last. Returns false,
-/// with nothing written, if that leaves every page where it is. The caller wraps this in
-/// one journal step.
-pub fn move_pages(doc: &mut PdfDocument, pages: &[usize], to: usize) -> Result<bool> {
+/// current order: 0 is before the first page, the page count after the last. With
+/// `by_reference`, the caller knows that no destination in the document is written with a
+/// page number (an earlier move or deletion went through them all), and none is looked
+/// for. The caller wraps this in one journal step.
+pub fn move_pages(
+    doc: &mut PdfDocument,
+    pages: &[usize],
+    to: usize,
+    by_reference: bool,
+) -> Result<MoveReport> {
+    let unmoved = MoveReport {
+        moved: false,
+        renumbered: None,
+    };
     let mut tree = PageTree::load(doc)?;
     let count = tree.leaves.len();
     let moved = checked(pages, count)?;
@@ -70,7 +99,7 @@ pub fn move_pages(doc: &mut PdfDocument, pages: &[usize], to: usize) -> Result<b
         .chain(&rest[before..])
         .copied();
     if order.eq(0..count) {
-        return Ok(false);
+        return Ok(unmoved);
     }
     tree.detach(&picked);
     // The pages go into the node of the page they land next to: before the page that
@@ -80,7 +109,7 @@ pub fn move_pages(doc: &mut PdfDocument, pages: &[usize], to: usize) -> Result<b
         None => match rest.last() {
             Some(&last) => (last, true),
             // Every page was picked, which leaves the order as it is (handled above).
-            None => return Ok(false),
+            None => return Ok(unmoved),
         },
     };
     let node = tree.leaves[neighbour].node;
@@ -107,15 +136,24 @@ pub fn move_pages(doc: &mut PdfDocument, pages: &[usize], to: usize) -> Result<b
     }
     tree.write(doc)?;
 
-    // Destinations written with a page number instead of a page reference (some
-    // producers do) would now lead to whatever page has that number.
-    let targets = Targets::new(doc, &tree, HashSet::new())?;
-    targets.fix(doc, tree.leaves.iter().map(|l| &l.obj))?;
-    Ok(true)
+    // Destinations written with a page number would now lead to whatever page has that
+    // number (see the module documentation).
+    let renumbered = if by_reference {
+        None
+    } else {
+        let targets = Targets::new(doc, &tree, HashSet::new())?;
+        targets.fix(doc, tree.leaves.iter().map(|l| &l.obj))?;
+        Some(targets.renumbered.get())
+    };
+    Ok(MoveReport {
+        moved: true,
+        renumbered,
+    })
 }
 
 /// Deletes `pages` (0-based) with what leads to them (see the module documentation). At
-/// least one page must stay. The caller wraps this in one journal step.
+/// least one page must stay. Afterwards no destination in the document is written with a
+/// page number. The caller wraps this in one journal step.
 pub fn delete_pages(doc: &mut PdfDocument, pages: &[usize]) -> Result<DeleteReport> {
     let mut tree = PageTree::load(doc)?;
     let count = tree.leaves.len();
@@ -451,20 +489,34 @@ fn empty_page(page: &PdfObject) -> Result<()> {
 
 /// Decides what happens to destinations after pages moved or were deleted.
 struct Targets<'a> {
-    /// The document's named destinations, as they were before the change.
+    /// The document's named destinations with their values, as they were before the
+    /// change.
+    names: Vec<(Vec<u8>, PdfObject)>,
+    /// The same by name, to tell where a link or bookmark that uses a name leads. Empty
+    /// when no page was deleted: none of them leads to a page that is gone then.
     dests: DestIndex,
     /// The pages by their index before the change.
     old_pages: &'a [Leaf],
     /// Object numbers of the deleted pages.
     gone: HashSet<i32>,
+    /// Destinations written with a page number that got a reference in its place.
+    renumbered: Cell<usize>,
 }
 
 impl<'a> Targets<'a> {
     fn new(doc: &PdfDocument, tree: &'a PageTree, gone: HashSet<i32>) -> Result<Targets<'a>> {
+        let names = names::collect(doc)?;
+        let dests = if gone.is_empty() {
+            DestIndex::empty()
+        } else {
+            DestIndex::from_entries(&names)?
+        };
         Ok(Targets {
-            dests: DestIndex::new(doc)?,
+            names,
+            dests,
             old_pages: &tree.leaves,
             gone,
+            renumbered: Cell::new(0),
         })
     }
 
@@ -507,16 +559,16 @@ impl<'a> Targets<'a> {
             Err(e) => return Err(e),
         };
         let mut gone_names = HashSet::new();
-        for (name, value) in names::collect(doc)? {
+        for (name, value) in &self.names {
             let array = if value.is_dict()? {
                 value.get_dict("D")?
             } else {
-                Some(value)
+                Some(value.clone())
             };
             if let Some(mut array) = array.filter(|a| a.is_array().unwrap_or(false))
                 && self.dead_array(&mut array)?
             {
-                gone_names.insert(name);
+                gone_names.insert(name.clone());
             }
         }
         names::remove_dests(doc, &gone_names)?;
@@ -550,6 +602,7 @@ impl<'a> Targets<'a> {
                 Some(page) if self.gone.contains(&page.num) => Ok(true),
                 Some(page) => {
                     dest.array_put(0, page.obj.clone())?;
+                    self.renumbered.set(self.renumbered.get() + 1);
                     Ok(false)
                 }
                 None => Ok(false),

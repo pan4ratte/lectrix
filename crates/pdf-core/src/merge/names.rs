@@ -115,19 +115,29 @@ impl DestIndex {
     }
 
     pub fn new(doc: &PdfDocument) -> Result<DestIndex> {
-        let mut map = HashMap::new();
-        for (name, value) in collect(doc)? {
+        DestIndex::from_entries(&collect(doc)?)
+    }
+
+    /// The index of named destinations already read with [`collect`].
+    pub fn from_entries(entries: &[(Vec<u8>, PdfObject)]) -> Result<DestIndex> {
+        let mut map = HashMap::with_capacity(entries.len());
+        for (name, value) in entries {
             // A named destination is an array, or a dictionary whose /D is the array.
             let array = if value.is_dict()? {
                 value.get_dict("D")?
             } else {
-                Some(value)
+                Some(value.clone())
             };
             if let Some(array) = array.filter(|a| a.is_array().unwrap_or(false)) {
-                map.insert(name, array);
+                map.insert(name.clone(), array);
             }
         }
         Ok(DestIndex(map))
+    }
+
+    /// The explicit destination (an array) that `name` stands for.
+    pub fn array(&self, name: &[u8]) -> Option<&PdfObject> {
+        self.0.get(name)
     }
 
     /// Where a destination value (an array, a name or string, or a dictionary with `/D`)

@@ -32,7 +32,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ### Organizing pages
 
-- **Document > Organize pages**, and a new button after the page display, shows the document’s pages as a grid in place of the viewer and the side panes. **Done** or **Esc** goes back to reading; a double-click on a page opens it.
+- **Document > Organize pages**, and a new button beside the visual adjustments, shows the document’s pages as a grid in place of the viewer and the side panes. **Done** or **Esc** goes back to reading; a double-click on a page opens it.
 - Drag pages to put them in another order, or press **Alt+Shift** with an arrow key. Links and bookmarks still lead to the same pages, and page labels stay with the places: a moved page takes the label of its new place.
 - Rotate the selected pages with the bar’s buttons, or **R** and **Shift+R**. This is now the place to rotate pages in the file: **Document > Rotate pages…** is gone.
 - Point at a page to rotate or delete it alone, with the buttons that show beside its label.
@@ -43,6 +43,10 @@ the wording, translations): docs/releasing.md, "The changelog".
 - Extract the selected pages into a new file with the bar’s button or a right click. The new file opens in a tab, with the pages’ annotations, bookmarks and page labels; the document keeps its pages.
 - A right click on a page, or **Shift+F10**, offers everything that can be done with the selected pages.
 - Every change applies to the document at once and can be undone with **Ctrl+Z**.
+
+### General
+
+- In a book with thousands of bookmarks, a change such as a new highlight is applied at once, where it took a moment before. Such a book also opens a little sooner.
 
 ## 1.1.0
 

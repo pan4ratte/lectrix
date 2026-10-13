@@ -205,6 +205,10 @@ Needs an installed earlier release and a newer one published (ADR 0011,
       Lectrix shows them.
 - [ ] Delete a page and choose Save As (optimized) from the notification: the new file is
       smaller, and searching it for a phrase from the deleted page finds nothing.
+- [ ] In the largest book you have with a long list of bookmarks (thousands), select a
+      page in the grid and hold Alt+Shift+Right: the page moves along without the grid
+      falling behind the key. Press Ctrl+Z as many times, then go back to reading: the
+      bookmarks lead to the same pages as before.
 
 ## Window
 

@@ -24,7 +24,7 @@
 //! neither dirties the document nor adds an undo step. The actor keeps
 //! the panel's states and writes them into the outline when the document is next saved.
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::{HashMap, HashSet, VecDeque};
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
@@ -44,7 +44,7 @@ use crate::geometry::{PageGeometry, read_page_boxes};
 use crate::labels::{self, LabelRule};
 use crate::links::{self, PageLink};
 use crate::merge::{self, MergeReport};
-use crate::ops::Operation;
+use crate::ops::{NumberedDests, Operation, OutlineEffect};
 use crate::outline::{self, Outline};
 use crate::pages::DeleteReport;
 use crate::render::{self, PixelRect, RgbaImage};
@@ -535,8 +535,12 @@ struct Actor {
     /// Each page's object number: what tells a page from another when their order changes.
     page_ids: Vec<i32>,
     labels: Option<PageLabels>,
-    /// The outline as the document has it.
+    /// The outline as the document has it, kept up to date after each change as far as
+    /// the change can have touched it ([`Actor::refresh_outline`]).
     outline: Outline,
+    /// The outline was written without being read again (the bookmarks' expanded states,
+    /// for a save that then failed), so the next change reads all of it.
+    outline_stale: bool,
     /// Every page's annotations as last read (index = page).
     annotations: Vec<Vec<AnnotationInfo>>,
     /// Bookmarks expanded or collapsed in the panel since the last save (id to open).
@@ -546,6 +550,14 @@ struct Actor {
     /// Whether the step that led to each journal position may have broken a PDF/A claim
     /// (index 0: the changes a restored document came with, which are not known).
     breaks_pdfa: Vec<bool>,
+    /// What the step that led to each journal position can have done to the bookmarks
+    /// (index 0 stands for no step). A position the session did not make counts as
+    /// anything.
+    effects: Vec<OutlineEffect>,
+    /// The journal position from which on no destination in the document is written with
+    /// a page number, once a move or a deletion has gone through them all (`pages.rs`);
+    /// moves skip that while it holds. Undoing to before it forgets it.
+    by_reference_since: Option<usize>,
     position: usize,
     saved_revision: u64,
     next_revision: u64,
@@ -706,10 +718,13 @@ impl Actor {
             page_ids,
             labels,
             outline,
+            outline_stale: false,
             annotations,
             open_states: HashMap::new(),
             history,
             breaks_pdfa: vec![restored],
+            effects: vec![OutlineEffect::Any],
+            by_reference_since: None,
             position: 0,
             saved_revision: 0,
             next_revision,
@@ -847,7 +862,7 @@ impl Actor {
         let before = Journal::new(&mut self.doc).state()?.current;
         let name = op.step_name(&self.doc);
         self.doc.begin_operation(&name)?;
-        let applied = match op.apply(&mut self.doc) {
+        let applied = match op.apply(&mut self.doc, self.by_reference_since.is_some()) {
             Ok(applied) => {
                 self.doc.end_operation()?;
                 applied
@@ -858,6 +873,13 @@ impl Actor {
             }
         };
         let after = Journal::new(&mut self.doc).state()?.current;
+        // After steps the session did not make, the outline it holds may not be the
+        // document's.
+        let mut effect = if before < self.effects.len() {
+            op.outline_effect()
+        } else {
+            OutlineEffect::Any
+        };
         if after != before {
             let revision = self.next_revision;
             self.next_revision += 1;
@@ -865,9 +887,26 @@ impl Actor {
             self.history.resize(after + 1, revision);
             self.breaks_pdfa.truncate(before + 1);
             self.breaks_pdfa.resize(after + 1, op.may_break_pdfa());
+            // One operation is one step; any others between are not known.
+            if after != before + 1 {
+                effect = OutlineEffect::Any;
+            }
+            self.effects.truncate(before + 1);
+            self.effects.resize(after, OutlineEffect::Any);
+            self.effects.push(effect);
             self.position = after;
+            match applied.numbered_dests {
+                NumberedDests::AsBefore => {}
+                NumberedDests::NoneBefore => {
+                    self.by_reference_since.get_or_insert(before);
+                }
+                NumberedDests::NoneNow => {
+                    self.by_reference_since.get_or_insert(after);
+                }
+                NumberedDests::Unknown => self.by_reference_since = None,
+            }
         }
-        let mut change = self.changed()?;
+        let mut change = self.changed(effect)?;
         change.created = applied.created;
         change.merge_report = applied.report;
         change.repairs = applied.repairs;
@@ -879,6 +918,7 @@ impl Actor {
     fn step(&mut self, forward: bool) -> Result<DocumentChange> {
         let mut journal = Journal::new(&mut self.doc);
         let state = journal.state()?;
+        let from = state.current;
         if forward {
             if state.current >= state.steps {
                 return Err(Error::NothingToRedo);
@@ -903,14 +943,23 @@ impl Actor {
             self.breaks_pdfa.resize(current + 1, true);
         }
         self.position = current;
-        self.changed()
+        if self.by_reference_since.is_some_and(|since| current < since) {
+            self.by_reference_since = None;
+        }
+        // The steps undone or redone are the ones that led to the positions between.
+        let effect = (from.min(current) + 1..=from.max(current))
+            .map(|p| self.effects.get(p).copied().unwrap_or(OutlineEffect::Any))
+            .fold(OutlineEffect::None, OutlineEffect::and);
+        self.changed(effect)
     }
 
-    /// Re-reads page geometry and labels after a change and reports the differences.
-    fn changed(&mut self) -> Result<DocumentChange> {
+    /// Re-reads page geometry, labels and annotations after a change, and the bookmarks
+    /// as far as `effect` says the change can have touched them, and reports the
+    /// differences.
+    fn changed(&mut self, effect: OutlineEffect) -> Result<DocumentChange> {
         self.lists.clear();
         let pages = page_sizes(&self.doc)?;
-        let changed_pages = pages
+        let changed_pages: Vec<(usize, PageSize)> = pages
             .iter()
             .enumerate()
             .filter(|(i, p)| self.pages.get(*i) != Some(p))
@@ -935,14 +984,7 @@ impl Actor {
         } else {
             None
         };
-        let outline = outline::read_bookmarks(&self.doc)?;
-        let outline = if outline != self.outline {
-            self.outline = outline;
-            self.prune_open_states();
-            Some(self.outline_view())
-        } else {
-            None
-        };
+        let outline = self.refresh_outline(effect, page_map.as_deref(), &changed_pages)?;
         let annotations = self.reread_annotations()?;
         Ok(DocumentChange {
             state: self.state(),
@@ -957,6 +999,69 @@ impl Actor {
             page_map,
             deleted: None,
         })
+    }
+
+    /// Brings the bookmarks up to date after a change, and returns them if they differ.
+    /// Reading the whole outline takes a tenth of a second in a file with thousands of
+    /// bookmarks, so that is done only after a step that can have changed anything in it.
+    /// After pages changed places, the bookmarks take their pages' new numbers from
+    /// `page_map` (the destinations in the file name the pages themselves, `pages.rs`).
+    /// After pages were turned, the bookmarks that lead to `changed_pages` are read again.
+    fn refresh_outline(
+        &mut self,
+        effect: OutlineEffect,
+        page_map: Option<&[Option<usize>]>,
+        changed_pages: &[(usize, PageSize)],
+    ) -> Result<Option<Outline>> {
+        // A damaged outline is shown as far as it can be read, and never edited: it does
+        // not follow its pages, and its items may not be objects of their own.
+        if self.outline.damaged || self.outline_stale {
+            return self.reread_outline();
+        }
+        let changed = match (effect, page_map) {
+            (OutlineEffect::None, _) | (OutlineEffect::PageOrder, None) => false,
+            (OutlineEffect::PageOrder, Some(map)) => {
+                let mut now = Vec::new();
+                for (to, from) in map.iter().enumerate() {
+                    if let Some(from) = *from {
+                        if now.len() <= from {
+                            now.resize(from + 1, None);
+                        }
+                        now[from] = Some(to);
+                    }
+                }
+                let mut outline = self.outline.clone();
+                match outline.follow_pages(&now) {
+                    Some(true) => {
+                        self.outline = outline;
+                        true
+                    }
+                    Some(false) => false,
+                    // A page that is gone: not what moving pages does.
+                    None => return self.reread_outline(),
+                }
+            }
+            (OutlineEffect::PageGeometry, None) => {
+                let pages: HashSet<usize> = changed_pages.iter().map(|(page, _)| *page).collect();
+                !pages.is_empty() && self.outline.refresh_on_pages(&self.doc, &pages)?
+            }
+            (OutlineEffect::PageGeometry, Some(_)) | (OutlineEffect::Any, _) => {
+                return self.reread_outline();
+            }
+        };
+        Ok(changed.then(|| self.outline_view()))
+    }
+
+    /// Reads the whole outline again, and returns the bookmarks if they differ.
+    fn reread_outline(&mut self) -> Result<Option<Outline>> {
+        let outline = outline::read_bookmarks(&self.doc)?;
+        self.outline_stale = false;
+        if outline == self.outline {
+            return Ok(None);
+        }
+        self.outline = outline;
+        self.prune_open_states();
+        Ok(Some(self.outline_view()))
     }
 
     /// Reads every page's annotations again and returns the pages whose list differs from
@@ -984,6 +1089,8 @@ impl Actor {
         } else {
             kind
         };
+        // Until the saved file is read back, the outline held is not the one written.
+        self.outline_stale |= !self.open_states.is_empty();
         self.write_open_states()?;
         let claim = self.remove_broken_pdfa_claim()?;
         let saved = if kind == SaveKind::Optimized {
@@ -1006,7 +1113,7 @@ impl Actor {
         let pdfa_removed = claim.map(|claim| claim.level);
         let revision = self.revision();
         self.saved_revision = revision;
-        let mut outline_changed = None;
+        let mut outline = None;
         let mut annotations = Vec::new();
         // The saved file is now the document's file. Reopen it so later incremental saves
         // append to the right bytes (ADR 0003).
@@ -1019,15 +1126,13 @@ impl Actor {
                 self.lists.clear();
                 self.history = vec![revision];
                 self.breaks_pdfa = vec![false];
+                self.effects = vec![OutlineEffect::Any];
+                // The file holds what the document did: what was known of it still is.
+                self.by_reference_since = self.by_reference_since.map(|_| 0);
                 self.position = 0;
                 // An optimized save numbers the objects anew.
                 self.page_ids = page_ids(&self.doc)?;
-                let outline = outline::read_bookmarks(&self.doc)?;
-                if outline != self.outline {
-                    self.outline = outline;
-                    self.prune_open_states();
-                    outline_changed = Some(self.outline_view());
-                }
+                outline = self.reread_outline()?;
                 annotations = self.reread_annotations()?;
             }
             // The file is saved; keep working on the old in-memory document.
@@ -1045,7 +1150,7 @@ impl Actor {
             state: self.state(),
             outcome,
             path: self.path.clone(),
-            outline: outline_changed,
+            outline,
             annotations,
             pdfa_removed,
         })
@@ -1176,6 +1281,7 @@ impl Actor {
         self.page_ids = page_ids(&self.doc)?;
         self.labels = page_labels(&self.doc, self.pages.len())?;
         self.outline = outline::read_bookmarks(&self.doc)?;
+        self.outline_stale = false;
         self.annotations = read_annotations(&self.doc)?;
         self.open_states.clear();
         self.lists.clear();
@@ -1185,6 +1291,8 @@ impl Actor {
         self.next_revision += 1;
         self.history = vec![revision];
         self.breaks_pdfa = vec![false];
+        self.effects = vec![OutlineEffect::Any];
+        self.by_reference_since = None;
         self.position = 0;
         self.saved_revision = revision;
         Ok(())

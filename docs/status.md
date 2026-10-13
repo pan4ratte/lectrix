@@ -31,21 +31,63 @@ into another window, with its document as it is. Full screen (F11): the pages al
 the toolbar floating and the side panes brought by the pointer or by Alt held. Visual
 adjustments (brightness, contrast, inverted colours, greyscale) for a document's pages,
 on screen only and remembered per file. The pages next to those on screen are rendered
-ahead, so that pages slow to render (scans) are there when scrolled to.
+ahead, so that pages slow to render (scans) are there when scrolled to. Organizing pages
+(AGENTS.md section 6.7, ADR 0018): a document's pages as a grid in the viewer's place,
+where they are moved, rotated, deleted, inserted from other files and extracted into a
+new one, and where the page labels are edited, in place of their side panel. Rotating in
+the viewer turns a page on screen only, remembered per file.
 
 ## Performance
 
-Last measured 2026-10-04: release build, PNG page images, a mid-range laptop.
+Last measured 2026-10-13, with the page organizing tool in: release build, PNG page
+images, a mid-range laptop on battery (Balanced power plan) with its own display,
+2560 x 1600 at 120 Hz and 1.5x scaling (page images at 2.28 px per point).
 
 | Target (AGENTS.md section 2) | Measured | Met? |
 | --- | --- | --- |
-| Window visible < 1 s | 30 to 99 ms | Yes |
-| First page visible < 1 s | 1,000-page file 73 to 80 ms; 2,881-page dictionary 137 ms; a 33-megapixel JPEG 2000 scan 376 to 382 ms | Yes |
-| No blank page > 200 ms while scrolling | 1,000-page file: none at steady speed, worst 18 ms fast, 46 to 54 ms jumping | Yes, except JPEG 2000 scans (below) |
-| `lectrix.exe` < 200 MB idle (ADR 0002) | 63 to 64 MB with the 1,000-page file, 101 MB with a JPEG 2000 book | Yes |
-| WebView2 growth rule (ADR 0002) | Whole process tree 635 to 647 MB idle; the growth limits held when last checked | Yes |
+| Window visible < 1 s | 38 to 106 ms; 146 to 224 ms for the first start of a series | Yes |
+| First page visible < 1 s | 1,000-page file 96 to 139 ms; 2,881-page dictionary 133 to 136 ms; the 2,597-page book with 5,023 bookmarks 360 to 364 ms; a 33-megapixel JPEG 2000 scan 627 to 639 ms | Yes |
+| No blank page > 200 ms while scrolling | 1,000-page file: none at steady speed, worst 22 to 26 ms fast, 104 to 125 ms jumping | Yes, except JPEG 2000 scans (below) |
+| `lectrix.exe` < 200 MB idle (ADR 0002) | 58 to 59 MB with the 1,000-page file, 63 to 64 MB with the dictionary, 98 to 99 MB with the 5,023 bookmarks, 115 MB with the JPEG 2000 scan | Yes |
+| WebView2 growth rule (ADR 0002) | Whole process tree 525 to 545 MB idle with the 1,000-page file, 530 to 533 MB with a one-page document (the document's size adds nothing), 418 to 446 MB for an empty window. The three rounds of scrolling were not run again | Yes, as far as checked |
 
-Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
+Version 1.1.0, installed and measured the same way on the same day, gives the same
+numbers (first page of the 1,000-page file 101 to 153 ms, worst blank after a jump
+107 ms, the JPEG 2000 scan 606 to 630 ms, the dictionary 136 to 140 ms), so the
+organizing tool changed none of them. One differs for the better: the book with 5,023
+bookmarks showed its first page after 413 to 417 ms, since its bookmarks' names were
+looked up one by one (ADR 0018).
+
+Three numbers are higher than in the table of 2026-10-04. Looked into on 2026-10-13 with
+the release build of that evening (`folio.exe`, still in `target/release`), measured
+again with that day's script:
+
+- **The 1,000-page file's first page (73 to 80 ms then) and a jump's worst blank (46 to
+  54 ms then) moved with the conditions of the run, not with the code.** The old build
+  gives today's numbers today: 93 to 134 ms and 103 ms. Today's run was on battery, on
+  the Balanced power plan, on the laptop's own display (2560 x 1600 at 120 Hz); what
+  the run of 2026-10-04 had was not recorded, beyond 1.5x display scaling. Which
+  condition makes the difference was not found out. `measure.ps1` prints the display
+  and the power state from now on.
+- **The JPEG 2000 scan's first page (376 to 382 ms then, 372 to 406 ms in the old build
+  today) takes 606 to 639 ms in 1.1.0 and now, and that is the page being shown once,
+  fitted, where it was shown twice.** Until 2026-10-05 (d93e588) the first page was
+  requested at 100% before the viewer knew its size, shown, then fitted and rendered
+  again, a visible jump on every open; the number was the time to the 100% page. At
+  1.5x display scaling 100% is 2.0 px per point, and fit width in the window is about
+  2.3 (2.28 for the 1,000-page file's pages).
+  This scan's image decodes at a quarter of its resolution up to 2.05 px per point
+  and at half from 2.1 on (ADR 0008: the resolution drawn, in halvings), which takes
+  230 ms and 455 ms (`pdf-cli bench --scale`). So the page that used to show first was
+  the cheaper one, and the fitted page came after another render of about 0.46 s; now
+  the fitted page is the first and only one. Nothing was lost, and by these numbers the
+  fitted page is there sooner than it was (that was worked out, not timed in the old
+  build), but the number is the higher one from now on. It could be
+  brought down only by showing the coarser decode first and the finer one after it,
+  which is a change to rendering that has not been asked for.
+
+Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`; for the grid of
+pages, `tests/perf/organize.mjs` (its numbers are under "Organizing pages" below).
 
 ## Known gaps
 
@@ -125,33 +167,55 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
 - **Recovery copies of large damaged files** are full copies and take 1.2 to 1.5 s for
   165 to 173 MB files. That document renders nothing new meanwhile. Copies are written at
   most every 2 minutes, and only after a change.
-- **Organizing pages** is being built (plan agreed 2026-10-13; AGENTS.md section 6.7,
-  ADR 0018). Done: the engine (`MovePages`, `DeletePages`, extracting pages into a new
-  file), the grid shared with the Combine view, and the mode itself, where pages are
-  selected, moved, rotated, deleted, inserted from files and extracted into a new one,
-  and page labels, edited beside the grid in place of their side panel. Rotation in the
-  viewer (the Pages panel's buttons, a thumbnail's menu) turns a page on screen only,
-  remembered for its file (`ViewState.page_turns`), and Document > Rotate pages… is gone:
-  the grid alone rotates pages in the document.
-
-  **Left to do** (this list is removed when the feature is complete, and this entry then
-  keeps only the gaps that remain):
-  - *Edits in files with thousands of bookmarks* (step 8): the 0.24 s an edit takes there
-    (measured below), by not reading the whole outline again after a change that cannot
-    have touched it, and by keeping what the move learns about destinations written with
-    a page number.
-  - *Measurements at the end* (step 8): the performance table above taken again with the
-    feature in, and the grid's numbers below on the 1,000-page and the 2,881-page file.
-  - *Last pass over the documents* (step 8): AGENTS.md sections 6.1, 6.3, 6.4, 6.7 and 8
-    read against the app, the changelog's wording, the manual checklist, and this entry
-    turned into plain gaps.
-  - *By hand, by the user*: PDFs dropped from File Explorer on the grid (the gap under
-    the pointer, at more than one display scale), a touchpad pinch over the grid, and
-    files with pages moved, deleted and extracted opened in Acrobat Reader, Edge and
-    Firefox (`docs/manual-checklist.md`, "Organizing pages"); pages turned on screen in a
-    real scan (the same file, "Pages turned on screen").
-
-  What is open meanwhile:
+- **Organizing pages** (AGENTS.md section 6.7, ADR 0018).
+  - **After a save that wrote many objects, every edit in a large file is slower**, until
+    the file is saved with Save As (optimized), and again each time it is opened. Found
+    and measured 2026-10-13 on the 2,597-page book with the most bookmarks of the local
+    corpus: with half its pages moved to the end (each of the 1,298 gets another parent
+    node, so the save appends 1,310 objects) and saved, a rotation or a move takes 160 to
+    180 ms where it took 26 to 36, and a deletion 1.1 s where it took 0.19. Rendering is
+    no slower (5 to 13 ms a page either way). The cause is in MuPDF: the cross-reference
+    table of such an update has a run for every object or two, and `pdf_get_xref_entry`
+    goes through a section's runs one by one for every object it looks up, without using
+    the index it keeps of where each object was found. It is neither new nor the
+    organizing tool's alone: 1.1.0 does the same, and any save with many scattered changes
+    writes such a table (every page rotated, hundreds of annotations repaired; only the
+    move was measured). Not fixed. A workaround in Lectrix would make such a section one
+    table after loading, which changes the shape MuPDF takes its snapshot fingerprint
+    from, and recovery copies are snapshots: it needs the user's go-ahead and tests of
+    its own. See "Upstream work".
+  - Edits in a file with thousands of bookmarks (ADR 0018, "Speed in files with thousands
+    of bookmarks"). Measured 2026-10-13 on that book (5,023 bookmarks, 4,999 of them by
+    name), release build, the session's own re-reading included: rotating a page takes 26
+    to 34 ms, moving pages 29 to 36 ms and undoing either 27 to 32 ms, where each took
+    0.14 to 0.26 s. What is left is the session reading every page's size, label and
+    annotations again after each change, as in any file (13 to 20 ms in the 2,881-page
+    dictionary). Still slower there: the first move in a document, which goes through
+    every link, bookmark and named destination once (80 to 100 ms); deleting pages, which
+    reads the whole outline again and writes the name tree without the names that led to
+    the pages (0.19 s); and every bookmark edit, which reads the whole outline again
+    (about 40 ms of it, where it was 110).
+  - Every edit draws the pictures on screen again, since the document's revision is part
+    of what names a page image. Each page keeps its old picture until the new one is
+    there. Measured 2026-10-13 with `tests/perf/organize.mjs` (a page moved one place
+    with the keys, 36 pictures on screen at the first size): the grid shows the new order
+    11 to 35 ms after the key and the pictures are all drawn again after 84 to 113 ms, on
+    the generated 1,000-page file, the 2,881-page dictionary and a 1,020-page scan alike;
+    15 to 45 ms and 115 to 154 ms on the 173 MB file. On the book with 5,023 bookmarks,
+    44 to 62 ms and 136 to 142 ms (96 and 186 ms for the first move), where the grid
+    followed after 236 to 256 ms before: there the bookmarks, whose pages have other
+    numbers after a move, are sent to the window again.
+  - Not yet checked by a person (`docs/manual-checklist.md`, "Organizing pages" and
+    "Pages turned on screen"): PDFs dropped from File Explorer on the grid, which the
+    test driver cannot do (the gap under the pointer is worked out from the position
+    Tauri reports, in device pixels, so it wants trying at more than one display scale);
+    a touchpad pinch over the grid; files with pages moved, deleted and extracted opened
+    in Acrobat Reader, Edge and Firefox; pages turned on screen in a real scan.
+  - **A deleted page stays in the file after an ordinary save.** Saves are incremental
+    (AGENTS.md section 5.4), so the original bytes, the deleted page among them, remain
+    and can be recovered. Only Save As (optimized) writes a file without it (tested).
+    The notification after deleting pages says so and offers Save As (optimized), as the
+    user decided on 2026-10-13.
   - Annotations made on a page turned on screen are placed upright as seen there, as on
     a page the document rotates (AGENTS.md section 6.5; decided by the user on
     2026-10-13): a text box carries the page's `/Rotate` plus the turn. What is left: a
@@ -160,7 +224,7 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
     outline, and its handles are named for the page, not for the box as it is read;
     Acrobat itself has not been tried with such a box (the manual checklist has the
     files, `turned-normal.pdf` and `turned-rot90.pdf`).
-  - A text box is now fitted to its text by its own `/Rotate` when edited. For another
+  - A text box is fitted to its text by its own `/Rotate` when edited. For another
     app's box whose `/Rotate` is not the page's (none at all on a rotated page, say) that
     is a change: it was fitted as if its text stood upright on the page, which is not how
     MuPDF draws it. No file of the local corpus has such a box.
@@ -173,32 +237,11 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
   - No command, so no shortcut, turns the current page; the Pages panel does. The buttons
     there keep their names ("Rotate current page clockwise"), which do not say that the
     file stays as it is; the changelog and the tab's missing dot do.
-  - A file dragged in from another program is tested by hand only (the manual checklist):
-    the test driver cannot drag from File Explorer. The gap under it is worked out from
-    the position Tauri reports, in device pixels.
   - Inserting pages shows no progress and cannot be stopped (one operation on the
     document, as before); the dialog says "Inserting…" meanwhile.
   - Whether the page labels show beside the grid is kept only while Lectrix runs, and
-    their section has one width (288 px).
-  - Every edit draws the pictures on screen again, since the document's revision is part
-    of what names a page image. Each page keeps its old picture until the new one is
-    there. Measured 2026-10-13 with `tests/perf/organize.mjs` (a page moved one place
-    with the keys, 30 pictures on screen at the first size): the grid shows the new order
-    11 to 33 ms after the key and the pictures are all drawn again after 68 to 95 ms, on
-    the 2,881-page dictionary, a 1,020-page scan and the 173 MB file alike.
-  - On a file with thousands of bookmarks an edit takes longer: 236 to 256 ms until the
-    grid follows on a 2,597-page book with the most bookmarks of the local corpus (the
-    pictures 50 to 70 ms later). Of that, 140 ms is the session reading the whole outline
-    again to report what differs, as it does after every change (a rotation in the grid
-    takes as long there), and 100 ms is the move going through every link, bookmark and
-    named destination for ones written with a page number (ADR 0018). Left for the last
-    step of the feature, as the user decided on 2026-10-13.
-  - The size of the grid's pictures is not remembered.
-  - **A deleted page stays in the file after an ordinary save.** Saves are incremental
-    (AGENTS.md section 5.4), so the original bytes, the deleted page among them, remain
-    and can be recovered. Only Save As (optimized) writes a file without it (tested).
-    The notification after deleting pages says so and offers Save As (optimized), as the
-    user decided on 2026-10-13.
+    their section has one width (288 px). The size of the grid's pictures is not
+    remembered.
   - An extract carries every attached file of the document, whatever pages are picked,
     and nothing of its metadata (title, author, XMP), as a combined file does. While
     pages are extracted, the document renders nothing new.
@@ -208,11 +251,6 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
   - A page tree that MuPDF and Lectrix read differently, or one with a page listed twice,
     is refused (`Error::DamagedPageTree`) and not mended. None of the 30 local corpus
     files is refused.
-  - Measured 2026-10-13 on the local corpus, release build, the session's own re-reading
-    included: moving or deleting pages takes 15 to 20 ms in the 2,881-page dictionary and
-    under 35 ms in most files. The 2,597-page file with the most bookmarks takes 0.19 to
-    0.25 s, where rotating a page (an edit v1 has) takes 0.15 s: nearly all of it is the
-    session reading the outline and the named destinations again after every edit.
 - **Combining** does not carry over the structure tree (the result is not tagged),
   article threads, document-level JavaScript, open actions, viewer preferences or XMP
   metadata. Signatures from signed sources are invalid in the result. Lectrix warns
@@ -415,6 +453,14 @@ Nothing has been run interactively there.
   WebKit bug 199376 (https://bugs.webkit.org/show_bug.cgi?id=199376). Texts in
   `docs/upstream/`. When GTK fixes it, measure again with `tests/perf/wheel-linux.py` on a
   120 Hz screen.
+- `pdf_get_xref_entry_aux` (`pdf-xref.c`, MuPDF 1.27.2) reads the section an object was
+  last found in from `doc->xref_index` and then starts at section 0 all the same (`else
+  j = 0`), going through every run of every section before it. A file whose last update
+  has a thousand runs (1,310 objects scattered over 77,000) makes every lookup of an
+  older object a thousand steps: edits in Lectrix are five times slower after such a
+  save (the gap is under "Organizing pages" above). Using the index, or keeping a
+  section's runs in an order that can be searched by halves, would mend it; this could
+  be reported, with a file made by `pdf-cli pages move` and a save.
 - The vendored `mupdf` crate's patches (`third_party/mupdf-rs/LECTRIX_PATCHES.md`) could be
   offered to mupdf-rs as a pull request, if the user wants.
 
