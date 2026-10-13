@@ -111,11 +111,17 @@ test('controls show the app’s own tooltips, with a tail', async () => {
 		const highlight = await hover(browser, tool);
 		assertPointsAt(await shown(browser, 'Highlight (H)'), highlight, 'highlight tool');
 
-		// A disabled field says why: the first range's start can't be changed.
-		await (await browser.$('button[role="tab"][aria-label="Page labels"]')).click();
+		// A disabled field says why: the first range's start can't be changed. (The page
+		// labels are beside the grid of pages.)
+		await (await browser.$('button[aria-label="Organize pages"]')).click();
+		await (await browser.$('button[aria-label="Page labels"]')).click();
 		const why = 'The first range always starts at page 1.';
 		const field = `input[data-tip="${why}"]`;
 		await (await browser.$(field)).waitForDisplayed({ timeoutMsg: 'the first range is not shown' });
+		// (Once the labels have slid in: the field is measured where it stays.)
+		await browser.waitUntil(() => browser.execute(() => document.getAnimations().every((a) => a.playState !== 'running')), {
+			timeoutMsg: 'the page labels kept sliding'
+		});
 		assert.equal(await browser.execute((sel) => document.querySelector(sel).disabled, field), true);
 		const start = await hover(browser, field);
 		assertPointsAt(await shown(browser, why), start, 'disabled field');

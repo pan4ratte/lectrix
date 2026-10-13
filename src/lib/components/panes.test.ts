@@ -44,34 +44,36 @@ describe('side panes', () => {
 
 	it('makes a remembered arrangement whole', () => {
 		expect(normalizeArrangement([], [])).toEqual(DEFAULT_ARRANGEMENT);
+		// Unknown and repeated panels go: among them the Page labels panel that versions up
+		// to 1.1 had.
 		expect(normalizeArrangement(['annotations', 'pages', 'pages', 'outline'], ['labels'])).toEqual({
 			left: ['annotations', 'pages', 'bookmarks'],
-			right: ['labels']
+			right: []
 		});
 		// A panel in both panes stays in the first one met.
 		expect(normalizeArrangement(['bookmarks'], ['bookmarks', 'pages', 'labels', 'annotations'])).toEqual({
 			left: ['bookmarks'],
-			right: ['pages', 'labels', 'annotations']
+			right: ['pages', 'annotations']
 		});
 	});
 
 	it('moves panels along a row and between the panes', () => {
-		const start = { left: ['pages', 'bookmarks', 'labels'], right: ['annotations'] } as const;
+		const start = { left: ['pages', 'bookmarks'], right: ['annotations'] } as const;
 		const a = { left: [...start.left], right: [...start.right] };
-		expect(movePanel(a, 'pages', 'left', 2)).toEqual({ left: ['bookmarks', 'labels', 'pages'], right: ['annotations'] });
-		expect(movePanel(a, 'labels', 'right', 0)).toEqual({ left: ['pages', 'bookmarks'], right: ['labels', 'annotations'] });
-		expect(movePanel(a, 'annotations', 'left', 99)).toEqual({ left: ['pages', 'bookmarks', 'labels', 'annotations'], right: [] });
+		expect(movePanel(a, 'pages', 'left', 1)).toEqual({ left: ['bookmarks', 'pages'], right: ['annotations'] });
+		expect(movePanel(a, 'bookmarks', 'right', 0)).toEqual({ left: ['pages'], right: ['bookmarks', 'annotations'] });
+		expect(movePanel(a, 'annotations', 'left', 99)).toEqual({ left: ['pages', 'bookmarks', 'annotations'], right: [] });
 		expect(a).toEqual(start);
 		expect(paneOf(a, 'annotations')).toBe('right');
-		expect(paneOf(a, 'labels')).toBe('left');
+		expect(paneOf(a, 'bookmarks')).toBe('left');
 	});
 
 	it('steps panels with Ctrl+Shift+arrows, across the panes at their inner ends', () => {
-		const a = { left: ['pages', 'bookmarks'], right: ['labels', 'annotations'] } as PanelArrangementInput;
+		const a = { left: ['pages', 'bookmarks'], right: ['annotations'] } as PanelArrangementInput;
 		expect(stepPanel(a, 'pages', 1)).toEqual({ side: 'left', index: 1 });
 		expect(stepPanel(a, 'pages', -1)).toBeNull();
 		expect(stepPanel(a, 'bookmarks', 1)).toEqual({ side: 'right', index: 0 });
-		expect(stepPanel(a, 'labels', -1)).toEqual({ side: 'left', index: 2 });
+		expect(stepPanel(a, 'annotations', -1)).toEqual({ side: 'left', index: 2 });
 		expect(stepPanel(a, 'annotations', 1)).toBeNull();
 	});
 });

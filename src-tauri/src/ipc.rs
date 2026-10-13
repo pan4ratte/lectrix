@@ -1260,7 +1260,7 @@ impl Default for PaneLayout {
             left_width: 240,
             right_open: false,
             right_width: 300,
-            left_panels: vec![PanelId::Pages, PanelId::Bookmarks, PanelId::Labels],
+            left_panels: vec![PanelId::Pages, PanelId::Bookmarks],
             right_panels: vec![PanelId::Annotations],
             left_active: None,
             right_active: None,
@@ -1272,14 +1272,14 @@ impl Default for PaneLayout {
     }
 }
 
-/// A panel the side panes hold; the user moves them between the two panes.
+/// A panel the side panes hold; the user moves them between the two panes. (Page labels
+/// had one up to 1.1; they are edited in the page organizing tool now, section 6.7.)
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub enum PanelId {
     Pages,
     Bookmarks,
-    Labels,
     Annotations,
 }
 

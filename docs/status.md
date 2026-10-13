@@ -128,17 +128,48 @@ Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`.
 - **Organizing pages** is being built (plan agreed 2026-10-13; AGENTS.md section 6.7,
   ADR 0018). Done: the engine (`MovePages`, `DeletePages`, extracting pages into a new
   file), the grid shared with the Combine view, and the mode itself, where pages are
-  selected, moved, rotated, deleted, inserted from a file and extracted into a new one.
-  Still to come: page labels edited there in place of their side panel, and rotation in
-  the viewer turning pages on screen only. What is open meanwhile:
+  selected, moved, rotated, deleted, inserted from files and extracted into a new one,
+  and page labels, edited beside the grid in place of their side panel.
+
+  **Left to do** (this list is removed when the feature is complete, and this entry then
+  keeps only the gaps that remain):
+  - *Rotation in the viewer turns pages on screen only* (step 7 of the plan). The Pages
+    panel's rotate buttons and the thumbnail's context menu still change the document
+    (`RotatePages`); they are to turn one page as it is shown, on top of View > Rotate
+    view, never written to the PDF, without an undo step, and available in a file open
+    for reading only. The turn of each page is to be remembered for its file with its
+    view position, in app data (a field of the stored view in `src-tauri/src/store.rs`
+    and of `remember_view`). The viewer lays each page out with its own turn, and the
+    text selection, links, search hits and annotation overlays follow it through
+    `geometry.rs`. Only the page organizing tool then rotates pages in the document.
+  - *Document > Rotate pages… goes* (step 7): the command `rotatePages` with its entry in
+    `src/lib/shortcuts.ts`, `RotatePagesDialog.svelte`, `app.rotateDialogOpen`, and
+    `app.rotatePages` once the Pages panel no longer calls it. AGENTS.md sections 6.1
+    (View rotation, Pages panel toolbar) and 7, and the end-to-end tests that rotate a
+    page from the viewer (`open-save-reopen.test.mjs`, and `rotate-page.test.mjs`, where
+    a turned page is never shown squeezed), change with it.
+  - *Edits in files with thousands of bookmarks* (step 8): the 0.24 s an edit takes there
+    (measured below), by not reading the whole outline again after a change that cannot
+    have touched it, and by keeping what the move learns about destinations written with
+    a page number.
+  - *Measurements at the end* (step 8): the performance table above taken again with the
+    feature in, and the grid's numbers below on the 1,000-page and the 2,881-page file.
+  - *Last pass over the documents* (step 8): AGENTS.md sections 6.1, 6.3, 6.4, 6.7 and 8
+    read against the app, the changelog's wording, the manual checklist, and this entry
+    turned into plain gaps.
+  - *By hand, by the user*: PDFs dropped from File Explorer on the grid (the gap under
+    the pointer, at more than one display scale), a touchpad pinch over the grid, and
+    files with pages moved, deleted and extracted opened in Acrobat Reader, Edge and
+    Firefox (`docs/manual-checklist.md`, "Organizing pages").
+
+  What is open meanwhile:
   - A file dragged in from another program is tested by hand only (the manual checklist):
     the test driver cannot drag from File Explorer. The gap under it is worked out from
     the position Tauri reports, in device pixels.
   - Inserting pages shows no progress and cannot be stopped (one operation on the
     document, as before); the dialog says "Inserting…" meanwhile.
-  - The side panes are not shown while pages are organized (the user's decision,
-    2026-10-13), so page labels can be edited only while reading until their editor
-    moves into the tool.
+  - Whether the page labels show beside the grid is kept only while Lectrix runs, and
+    their section has one width (288 px).
   - Every edit draws the pictures on screen again, since the document's revision is part
     of what names a page image. Each page keeps its old picture until the new one is
     there. Measured 2026-10-13 with `tests/perf/organize.mjs` (a page moved one place

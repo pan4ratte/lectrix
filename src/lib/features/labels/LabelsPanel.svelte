@@ -1,15 +1,18 @@
 <script lang="ts">
-	// Page labels panel (section 6.3): the label rules as a list (one row per range, its
-	// pages and labels), and an editor for the selected rule below it. While a field is
-	// being edited, thumbnails, the page box and the page position show the result (live
-	// preview); Enter, leaving the field or picking a style applies it as one undo step, and
-	// Escape reverts it. Rows are virtualized: some files store a rule for every page.
-	import { Ellipsis, Plus, Trash, TriangleAlert } from '@lucide/svelte';
+	// Page labels (section 6.3), beside the grid of pages being organized (section 6.7): the
+	// label rules as a list (one row per range, its pages and labels), and an editor for
+	// the selected rule below it. While a field is being edited, the grid's pages show the
+	// result under them (live preview); Enter, leaving the field or picking a style applies
+	// it as one undo step, and Escape reverts it. "This page" is the first selected page of
+	// the grid; a range picked in the list selects its pages there. Rows are virtualized:
+	// some files store a rule for every page.
+	import { Ellipsis, Plus, Trash, TriangleAlert, X } from '@lucide/svelte';
 	import { DropdownMenu } from 'bits-ui';
-	import { tick } from 'svelte';
+	import { tick, untrack } from 'svelte';
 
 	import Dropdown from '#lib/components/Dropdown.svelte';
 	import type { LabelRule, LabelStyle } from '#lib/ipc/index.ts';
+	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
 	import { deleteRule, removeLabels, romanFrontMatter, setRules, startRangeAt } from './actions.ts';
@@ -37,15 +40,26 @@
 	const editable = $derived(tab.canEditLabels);
 	const shown = $derived(editableRules(tab.labelRules, tab.pageCount));
 	const rules = $derived(shown.rules);
-	/** The selected rule; without a selection (or when it is gone), the current page's range. */
+	/** The page "this page" means: the first one selected in the grid (the one with the
+	 * keyboard focus when none is). */
+	const thisPage = $derived(tab.organize?.anchorPage ?? tab.currentPage);
+	/** The selected rule; without a selection (or when it is gone), the range of this page. */
 	const selectedIndex = $derived.by(() => {
 		const selected = rules.findIndex((r) => r.startPage === tab.selectedLabelRule);
 		if (selected >= 0) return selected;
-		const current = tab.currentPage;
+		const current = thisPage;
 		return Math.max(0, rules.findLastIndex((r) => r.startPage <= current));
 	});
 
-	/** Editing pins the shown range, so scrolling the document doesn't swap it. */
+	// Other pages selected in the grid: the range shown is theirs again.
+	$effect(() => {
+		void tab.organize?.selected;
+		untrack(() => {
+			tab.selectedLabelRule = null;
+		});
+	});
+
+	/** Editing pins the shown range, so that it stays while its start is changed. */
 	function pin() {
 		const rule = rules[selectedIndex];
 		if (rule) tab.selectedLabelRule = rule.startPage;
@@ -157,12 +171,15 @@
 		void tick().then(() => ensureVisible(index));
 	});
 
-	/** Selects a range and shows its first page. */
+	/** Selects a range: its pages are selected in the grid, the first of them in view. */
 	function select(index: number) {
-		const rule = rules[Math.max(0, Math.min(rules.length - 1, index))];
+		const at = Math.max(0, Math.min(rules.length - 1, index));
+		const rule = rules[at];
 		if (!rule) return;
-		tab.selectedLabelRule = rule.startPage;
-		tab.viewer?.goTo({ page: rule.startPage, offset: 0 });
+		const end = rangeEnds(rules, tab.pageCount)[at] ?? tab.pageCount;
+		tab.organize?.showRange(rule.startPage, end - rule.startPage);
+		// (After the grid's selection, which lets go of the range selected before.)
+		void tick().then(() => (tab.selectedLabelRule = rule.startPage));
 	}
 
 	function onListClick(event: MouseEvent) {
@@ -213,10 +230,10 @@
 		<button
 			type="button"
 			class="icon-button"
-			aria-label="New range from the current page"
-			data-tip="New range from the current page"
+			aria-label="New range from the selected page"
+			data-tip="New range from the selected page"
 			disabled={!editable}
-			onclick={() => void startRangeAt(tab, tab.currentPage)}
+			onclick={() => void startRangeAt(tab, thisPage)}
 		>
 			<Plus size={16} aria-hidden="true" />
 		</button>
@@ -228,10 +245,10 @@
 				<DropdownMenu.Content class="menu-content" align="end" sideOffset={4}>
 					<DropdownMenu.Item
 						class="menu-item"
-						disabled={!editable || tab.currentPage === 0}
-						onSelect={() => void romanFrontMatter(tab, tab.currentPage)}
+						disabled={!editable || thisPage === 0}
+						onSelect={() => void romanFrontMatter(tab, thisPage)}
 					>
-						Roman front matter, then 1, 2, 3 from this page
+						Roman front matter, then 1, 2, 3 from the selected page
 					</DropdownMenu.Item>
 					<DropdownMenu.Item
 						class="menu-item"
@@ -243,6 +260,15 @@
 				</DropdownMenu.Content>
 			</DropdownMenu.Portal>
 		</DropdownMenu.Root>
+		<button
+			type="button"
+			class="icon-button"
+			aria-label="Hide page labels"
+			data-tip="Hide page labels"
+			onclick={() => (app.labelsShown = false)}
+		>
+			<X size={16} aria-hidden="true" />
+		</button>
 	</div>
 
 	<!-- Open for reading only (PDF/A), the banner over the pages says why and how to change it. -->
@@ -254,7 +280,8 @@
 	{/if}
 	{#if tab.labels === null}
 		<p class="px-3 pb-2 text-xs text-fg-muted">
-			No page labels yet: pages are numbered 1, 2, 3. Change the rule below, or start a new range at a page.
+			No page labels yet: pages are numbered 1, 2, 3. Change the rule below, or select a page and start a new range
+			from it.
 		</p>
 	{/if}
 	{#if shown.hidden > 0}

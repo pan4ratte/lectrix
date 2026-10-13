@@ -271,6 +271,7 @@ test('pages come from files where the menu says, and go into a new file', async 
 				'Extract page into a new file…',
 				'Insert pages from file before…',
 				'Insert pages from file after…',
+				'New label range from this page',
 				'Read from this page'
 			]
 		);

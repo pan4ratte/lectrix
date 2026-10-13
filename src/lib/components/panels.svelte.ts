@@ -2,7 +2,7 @@
 // other pane's row, or onto a closed or empty pane's place in the view bar row. Pointer
 // events, not HTML drag and drop, which the webview keeps for files dropped from Explorer.
 
-import { Bookmark, GalleryVertical, MessagesSquare, Tag } from '@lucide/svelte';
+import { Bookmark, GalleryVertical, MessagesSquare } from '@lucide/svelte';
 
 import type { PanelId } from '#lib/ipc/index.ts';
 import { app } from '#lib/stores/app.svelte.ts';
@@ -12,7 +12,6 @@ import type { PaneSide } from './panes.ts';
 export const PANEL_INFO = {
 	pages: { label: 'Pages', icon: GalleryVertical },
 	bookmarks: { label: 'Bookmarks', icon: Bookmark },
-	labels: { label: 'Page labels', icon: Tag },
 	annotations: { label: 'Annotations', icon: MessagesSquare }
 } as const satisfies Record<PanelId, { label: string; icon: unknown }>;
 

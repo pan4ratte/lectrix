@@ -3,16 +3,21 @@
 	// shared page grid, with each page's label under it. Under the pointer, the label has
 	// the buttons that turn or delete its page after it, in a bar in the label's place.
 	// A right click (or Shift+F10) offers what can be done with the selected pages. A file
-	// dragged in from another program shows the gap its pages would go into.
+	// dragged in from another program shows the gap its pages would go into. The page
+	// labels (section 6.3) show beside the grid when asked for.
 	// Selecting, dragging and the keys are the grid's (`PageGrid.svelte`); what they do to
 	// the document is the state's (`organize.svelte.ts`). The pictures show the pages as the
 	// file has them: without the document's visual adjustments, as the Combine view does.
 	import { RotateCcw, RotateCw, Trash } from '@lucide/svelte';
 	import { ContextMenu } from 'bits-ui';
 	import { onMount } from 'svelte';
+	import { cubicOut } from 'svelte/easing';
 
 	import PageGrid from '#lib/components/PageGrid.svelte';
 	import type { GridPicture } from '#lib/components/pagegrid.ts';
+	import { PANE_MOTION_MS, motionMs } from '#lib/components/panes.ts';
+	import { startRangeAt } from '#lib/features/labels/actions.ts';
+	import LabelsPanel from '#lib/features/labels/LabelsPanel.svelte';
 	import CopyProgress from '#lib/features/merge/CopyProgress.svelte';
 	import { pageUrl } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
@@ -45,142 +50,174 @@
 	const focused = $derived(organize.focusKey === null ? [] : organize.indexes([organize.focusKey]));
 	const many = $derived(picked.length > 1);
 
+	/** The labels slide in from the right, as a side pane does; their content keeps its
+	 * width meanwhile, clipped, so it does not reflow on every frame. */
+	const LABELS_WIDTH = 288;
+	function slide(node: HTMLElement) {
+		const width = node.getBoundingClientRect().width;
+		return { duration: motionMs(PANE_MOTION_MS), easing: cubicOut, css: (t: number) => `width: ${t * width}px; opacity: ${t};` };
+	}
+
 	// The keys are the grid's from the start.
 	onMount(() => host?.querySelector<HTMLElement>('[role=listbox]')?.focus({ preventScroll: true }));
 </script>
 
-<ContextMenu.Root>
-	<ContextMenu.Trigger>
-		{#snippet child({ props })}
-			<div {...props} bind:this={host} class="relative flex min-h-0 min-w-0 flex-1 flex-col" data-organize-view>
-				{#if organize.filePoint}
-					<div
-						class="pointer-events-none absolute top-3 left-1/2 z-20 -translate-x-1/2 rounded-control border border-line bg-surface-raised px-3 py-1.5 text-sm"
-						role="status"
+<div class="flex min-h-0 min-w-0 flex-1">
+	<ContextMenu.Root>
+		<ContextMenu.Trigger>
+			{#snippet child({ props })}
+				<div {...props} bind:this={host} class="relative flex min-h-0 min-w-0 flex-1 flex-col" data-organize-view>
+					{#if organize.filePoint}
+						<div
+							class="pointer-events-none absolute top-3 left-1/2 z-20 -translate-x-1/2 rounded-control border border-line bg-surface-raised px-3 py-1.5 text-sm"
+							role="status"
+						>
+							{organize.editable ? 'Drop a PDF between two pages to insert its pages there' : 'This document’s pages can’t be changed'}
+						</div>
+					{/if}
+					<PageGrid
+						items={organize.items}
+						model={organize}
+						{picture}
+						describe={(page) => describePage(page.index, tab.pageCount, tab.displayLabels)}
+						label="Pages of {tab.name}"
+						idPrefix="organize-page"
+						thumb={organize.thumb}
+						renderThumb={organize.renderThumb}
+						onzoom={(factor, notch) => (notch ? organize.zoomNotch(factor) : organize.zoomPinch(factor))}
+						captionHeight={32}
+						editable={organize.editable}
+						reveal={organize.reveal}
+						onopen={(page) => leaveOrganize(tab, page.index)}
+						dropPoint={organize.filePoint}
+						ondropgap={(gap) => (organize.fileGap = gap)}
 					>
-						{organize.editable ? 'Drop a PDF between two pages to insert its pages there' : 'This document’s pages can’t be changed'}
-					</div>
-				{/if}
-				<PageGrid
-					items={organize.items}
-					model={organize}
-					{picture}
-					describe={(page) => describePage(page.index, tab.pageCount, tab.displayLabels)}
-					label="Pages of {tab.name}"
-					idPrefix="organize-page"
-					thumb={organize.thumb}
-					renderThumb={organize.renderThumb}
-					onzoom={(factor, notch) => (notch ? organize.zoomNotch(factor) : organize.zoomPinch(factor))}
-					captionHeight={32}
-					editable={organize.editable}
-					reveal={organize.reveal}
-					onopen={(page) => leaveOrganize(tab, page.index)}
-					dropPoint={organize.filePoint}
-					ondropgap={(gap) => (organize.fileGap = gap)}
+						{#snippet tools(page: GridPage)}
+							<!-- (At most a little wider than the cell, so the bar never reaches out of the grid.) -->
+							<span class="truncate px-1.5 text-xs tabular-nums" style:max-width="{organize.thumb - 40}px" aria-hidden="true">
+								{captionOf(page.index, tab.displayLabels)}
+							</span>
+							<button
+								type="button"
+								class="icon-button icon-button-small"
+								tabindex="-1"
+								aria-label="Rotate counter-clockwise"
+								data-tip="Rotate counter-clockwise (Shift+R)"
+								onclick={() => organize.rotate(new Set([page.key]), -90)}
+							>
+								<RotateCcw size={14} aria-hidden="true" />
+							</button>
+							<button
+								type="button"
+								class="icon-button icon-button-small"
+								tabindex="-1"
+								aria-label="Rotate clockwise"
+								data-tip="Rotate clockwise (R)"
+								onclick={() => organize.rotate(new Set([page.key]), 90)}
+							>
+								<RotateCw size={14} aria-hidden="true" />
+							</button>
+							<button
+								type="button"
+								class="icon-button icon-button-small"
+								tabindex="-1"
+								aria-label="Delete"
+								data-tip="Delete (Del)"
+								onclick={() => organize.remove(new Set([page.key]))}
+							>
+								<Trash size={14} aria-hidden="true" />
+							</button>
+						{/snippet}
+						{#snippet caption(page: GridPage)}
+							<!-- Under the pointer its bar shows in its place, with the same words. -->
+							<span
+								class={[
+									'h-[24px] max-w-full shrink-0 truncate px-1 text-xs leading-[24px] tabular-nums',
+									organize.editable && 'group-hover:invisible'
+								]}
+								data-page-caption
+							>
+								{captionOf(page.index, tab.displayLabels)}
+							</span>
+						{/snippet}
+					</PageGrid>
+				</div>
+			{/snippet}
+		</ContextMenu.Trigger>
+		<ContextMenu.Portal>
+			<ContextMenu.Content class="menu-content">
+				<ContextMenu.Item
+					class="menu-item"
+					disabled={!organize.editable || !picked.length}
+					onSelect={() => organize.rotate(organize.selectedSet, 90)}
 				>
-					{#snippet tools(page: GridPage)}
-						<!-- (At most a little wider than the cell, so the bar never reaches out of the grid.) -->
-						<span class="truncate px-1.5 text-xs tabular-nums" style:max-width="{organize.thumb - 40}px" aria-hidden="true">
-							{captionOf(page.index, tab.displayLabels)}
-						</span>
-						<button
-							type="button"
-							class="icon-button icon-button-small"
-							tabindex="-1"
-							aria-label="Rotate counter-clockwise"
-							data-tip="Rotate counter-clockwise (Shift+R)"
-							onclick={() => organize.rotate(new Set([page.key]), -90)}
-						>
-							<RotateCcw size={14} aria-hidden="true" />
-						</button>
-						<button
-							type="button"
-							class="icon-button icon-button-small"
-							tabindex="-1"
-							aria-label="Rotate clockwise"
-							data-tip="Rotate clockwise (R)"
-							onclick={() => organize.rotate(new Set([page.key]), 90)}
-						>
-							<RotateCw size={14} aria-hidden="true" />
-						</button>
-						<button
-							type="button"
-							class="icon-button icon-button-small"
-							tabindex="-1"
-							aria-label="Delete"
-							data-tip="Delete (Del)"
-							onclick={() => organize.remove(new Set([page.key]))}
-						>
-							<Trash size={14} aria-hidden="true" />
-						</button>
-					{/snippet}
-					{#snippet caption(page: GridPage)}
-						<!-- Under the pointer its bar shows in its place, with the same words. -->
-						<span
-							class={[
-								'h-[24px] max-w-full shrink-0 truncate px-1 text-xs leading-[24px] tabular-nums',
-								organize.editable && 'group-hover:invisible'
-							]}
-						>
-							{captionOf(page.index, tab.displayLabels)}
-						</span>
-					{/snippet}
-				</PageGrid>
+					Rotate clockwise<span class="menu-shortcut">R</span>
+				</ContextMenu.Item>
+				<ContextMenu.Item
+					class="menu-item"
+					disabled={!organize.editable || !picked.length}
+					onSelect={() => organize.rotate(organize.selectedSet, -90)}
+				>
+					Rotate counter-clockwise<span class="menu-shortcut">Shift+R</span>
+				</ContextMenu.Item>
+				<ContextMenu.Item
+					class="menu-item"
+					disabled={!organize.editable || !picked.length}
+					onSelect={() => organize.remove(organize.selectedSet)}
+				>
+					{many ? `Delete ${picked.length.toLocaleString()} pages…` : 'Delete page…'}<span class="menu-shortcut">Del</span>
+				</ContextMenu.Item>
+				<ContextMenu.Separator class="menu-separator" />
+				<ContextMenu.Item class="menu-item" disabled={!picked.length} onSelect={() => organize.extract(organize.selectedSet)}>
+					{many ? `Extract ${picked.length.toLocaleString()} pages into a new file…` : 'Extract page into a new file…'}
+				</ContextMenu.Item>
+				<ContextMenu.Item
+					class="menu-item"
+					disabled={!organize.editable || !picked.length}
+					onSelect={() => void insertFromFile(tab, picked[0])}
+				>
+					Insert pages from file before…
+				</ContextMenu.Item>
+				<ContextMenu.Item
+					class="menu-item"
+					disabled={!organize.editable}
+					onSelect={() => void insertFromFile(tab, picked.length ? picked[picked.length - 1]! + 1 : undefined)}
+				>
+					Insert pages from file after…{#if app.shortcut('insertPages')}<span class="menu-shortcut">{app.shortcut('insertPages')}</span>{/if}
+				</ContextMenu.Item>
+				<ContextMenu.Separator class="menu-separator" />
+				<ContextMenu.Item
+					class="menu-item"
+					disabled={!tab.canEditLabels || !picked.length}
+					onSelect={() => picked[0] !== undefined && void startRangeAt(tab, picked[0])}
+				>
+					New label range from this page{#if app.shortcut('startLabelRange')}<span class="menu-shortcut">{app.shortcut('startLabelRange')}</span>{/if}
+				</ContextMenu.Item>
+				<ContextMenu.Separator class="menu-separator" />
+				<ContextMenu.Item
+					class="menu-item"
+					disabled={focused.length === 0}
+					onSelect={() => focused[0] !== undefined && leaveOrganize(tab, focused[0])}
+				>
+					Read from this page<span class="menu-shortcut">Enter</span>
+				</ContextMenu.Item>
+			</ContextMenu.Content>
+		</ContextMenu.Portal>
+	</ContextMenu.Root>
+	{#if app.labelsShown}
+		<aside
+			class="flex shrink-0 overflow-hidden border-l border-line bg-chrome"
+			style:width="{LABELS_WIDTH}px"
+			aria-label="Page labels"
+			data-organize-labels
+			transition:slide
+		>
+			<div class="flex min-h-0 shrink-0 flex-col" style:width="{LABELS_WIDTH - 1}px">
+				<LabelsPanel {tab} />
 			</div>
-		{/snippet}
-	</ContextMenu.Trigger>
-	<ContextMenu.Portal>
-		<ContextMenu.Content class="menu-content">
-			<ContextMenu.Item
-				class="menu-item"
-				disabled={!organize.editable || !picked.length}
-				onSelect={() => organize.rotate(organize.selectedSet, 90)}
-			>
-				Rotate clockwise<span class="menu-shortcut">R</span>
-			</ContextMenu.Item>
-			<ContextMenu.Item
-				class="menu-item"
-				disabled={!organize.editable || !picked.length}
-				onSelect={() => organize.rotate(organize.selectedSet, -90)}
-			>
-				Rotate counter-clockwise<span class="menu-shortcut">Shift+R</span>
-			</ContextMenu.Item>
-			<ContextMenu.Item
-				class="menu-item"
-				disabled={!organize.editable || !picked.length}
-				onSelect={() => organize.remove(organize.selectedSet)}
-			>
-				{many ? `Delete ${picked.length.toLocaleString()} pages…` : 'Delete page…'}<span class="menu-shortcut">Del</span>
-			</ContextMenu.Item>
-			<ContextMenu.Separator class="menu-separator" />
-			<ContextMenu.Item class="menu-item" disabled={!picked.length} onSelect={() => organize.extract(organize.selectedSet)}>
-				{many ? `Extract ${picked.length.toLocaleString()} pages into a new file…` : 'Extract page into a new file…'}
-			</ContextMenu.Item>
-			<ContextMenu.Item
-				class="menu-item"
-				disabled={!organize.editable || !picked.length}
-				onSelect={() => void insertFromFile(tab, picked[0])}
-			>
-				Insert pages from file before…
-			</ContextMenu.Item>
-			<ContextMenu.Item
-				class="menu-item"
-				disabled={!organize.editable}
-				onSelect={() => void insertFromFile(tab, picked.length ? picked[picked.length - 1]! + 1 : undefined)}
-			>
-				Insert pages from file after…{#if app.shortcut('insertPages')}<span class="menu-shortcut">{app.shortcut('insertPages')}</span>{/if}
-			</ContextMenu.Item>
-			<ContextMenu.Separator class="menu-separator" />
-			<ContextMenu.Item
-				class="menu-item"
-				disabled={focused.length === 0}
-				onSelect={() => focused[0] !== undefined && leaveOrganize(tab, focused[0])}
-			>
-				Read from this page<span class="menu-shortcut">Enter</span>
-			</ContextMenu.Item>
-		</ContextMenu.Content>
-	</ContextMenu.Portal>
-</ContextMenu.Root>
+		</aside>
+	{/if}
+</div>
 
 <CopyProgress
 	heading="Extracting pages"

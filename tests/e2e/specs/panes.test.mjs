@@ -54,7 +54,7 @@ test('pane buttons keep their place; panels move between the panes', async () =>
 	const { browser, stop } = await launch([sample('panes.pdf', 3)]);
 	try {
 		await waitForDocument(browser);
-		assert.deepEqual(await rows(browser), { left: ['Pages', 'Bookmarks', 'Page labels'], right: [] });
+		assert.deepEqual(await rows(browser), { left: ['Pages', 'Bookmarks'], right: [] });
 
 		// The left pane's button is in its panel row, before the tabs, and stays in the same
 		// place, in the view bar's row, once the pane is closed: also on every frame while the
@@ -79,41 +79,41 @@ test('pane buttons keep their place; panels move between the panes', async () =>
 		}
 		await (await browser.$(tabSelector('Pages'))).waitForDisplayed();
 
-		// Page labels dropped on the closed right pane's button: the pane opens with it.
-		await drag(browser, await box(browser, tabSelector('Page labels')), await box(browser, 'button[aria-label="Show right pane"]'));
+		// Bookmarks dropped on the closed right pane's button: the pane opens with it.
+		await drag(browser, await box(browser, tabSelector('Bookmarks')), await box(browser, 'button[aria-label="Show right pane"]'));
 		await browser.waitUntil(async () => (await rows(browser)).right.length === 2, { timeoutMsg: 'the drop did not move the panel' });
 		await settled(browser);
-		assert.deepEqual(await rows(browser), { left: ['Pages', 'Bookmarks'], right: ['Annotations', 'Page labels'] });
+		assert.deepEqual(await rows(browser), { left: ['Pages'], right: ['Annotations', 'Bookmarks'] });
 		assert.equal(
-			await browser.execute((s) => document.querySelector(s)?.getAttribute('aria-selected'), tabSelector('Page labels')),
+			await browser.execute((s) => document.querySelector(s)?.getAttribute('aria-selected'), tabSelector('Bookmarks')),
 			'true',
 			'the moved panel is shown'
 		);
 
 		// Along a row: Annotations dropped before Pages in the left pane. The right pane keeps
-		// Page labels.
+		// Bookmarks.
 		await drag(browser, await box(browser, tabSelector('Annotations')), {
 			x: (await box(browser, tabSelector('Pages'))).left + 2,
 			y: (await box(browser, tabSelector('Pages'))).y
 		});
-		await browser.waitUntil(async () => (await rows(browser)).left.length === 3, {
+		await browser.waitUntil(async () => (await rows(browser)).left.length === 2, {
 			timeoutMsg: 'Annotations did not move left'
 		}).catch(async (e) => {
 			throw new Error(`${e.message}: ${JSON.stringify(await rows(browser))}`);
 		});
-		assert.deepEqual(await rows(browser), { left: ['Annotations', 'Pages', 'Bookmarks'], right: ['Page labels'] });
+		assert.deepEqual(await rows(browser), { left: ['Annotations', 'Pages'], right: ['Bookmarks'] });
 
 		// From the keyboard: Ctrl+Shift+Left at the right pane's start goes to the left pane's
 		// end; the pane left empty closes and its button goes.
-		await (await browser.$(tabSelector('Page labels'))).click();
+		await (await browser.$(tabSelector('Bookmarks'))).click();
 		await browser.keys(['Control', 'Shift', 'ArrowLeft']);
 		await browser.waitUntil(async () => (await rows(browser)).right.length === 0, { timeoutMsg: 'Ctrl+Shift+Left did not move the panel' });
-		assert.deepEqual((await rows(browser)).left, ['Annotations', 'Pages', 'Bookmarks', 'Page labels']);
-		assert.equal((await focused(browser)).name, 'Page labels', 'the moved tab keeps focus');
+		assert.deepEqual((await rows(browser)).left, ['Annotations', 'Pages', 'Bookmarks']);
+		assert.equal((await focused(browser)).name, 'Bookmarks', 'the moved tab keeps focus');
 		assert.equal(await (await browser.$('button[aria-label="Show right pane"]')).isExisting(), false);
 
 		// Dragged, a panel finds a place to drop at the empty pane's end.
-		await drag(browser, await box(browser, tabSelector('Bookmarks')), { x: 0, y: 0 }, {
+		await drag(browser, await box(browser, tabSelector('Pages')), { x: 0, y: 0 }, {
 			atTarget: async () => {
 				const slot = await box(browser, '[data-panel-drop="right"]');
 				assert.ok(slot, 'a drop place shows for the empty right pane');
@@ -121,7 +121,7 @@ test('pane buttons keep their place; panels move between the panes', async () =>
 			}
 		});
 		await browser.waitUntil(async () => (await rows(browser)).right.length === 1, { timeoutMsg: 'the drop on the empty pane did not move the panel' });
-		assert.deepEqual(await rows(browser), { left: ['Annotations', 'Pages', 'Page labels'], right: ['Bookmarks'] });
+		assert.deepEqual(await rows(browser), { left: ['Annotations', 'Bookmarks'], right: ['Pages'] });
 	} finally {
 		await stop();
 	}

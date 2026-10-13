@@ -8,6 +8,15 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ## Unreleased
 
+### Viewer and tabs
+
+- Choosing **File > Exit** right after moving a tab to a new window no longer closes that window without asking about its unsaved changes.
+
+### Page labels
+
+- Page labels are now edited in **Organize pages**, beside the grid of pages, where every page shows its label as you type. **Document > Page labels** opens it; the Page labels side panel is gone.
+- Select a page in the grid to start a new range there, and click a range in the list to see its pages selected.
+
 ### Combining files
 
 - Drag a rectangle over the pages to select the ones it touches. Start anywhere but on a page’s picture, which still drags the page; hold **Ctrl** or **Shift** to add to the pages already selected.

@@ -192,6 +192,10 @@ Needs an installed earlier release and a newer one published (ADR 0011,
       a password: the dialog comes after the password and lists both, and both go in.
 - [ ] Select a chapter's pages and extract them: the new file opens in a tab with their
       bookmarks, annotations and page labels, and opens the same in Acrobat Reader.
+- [ ] Choose **Document > Page labels** while reading: the grid shows with the labels at
+      its right. Select the first page of the body, choose the roman front matter preset,
+      then type a prefix for the body: every page's label under it follows as you type.
+      Narrator reads the list of ranges and the fields.
 - [ ] Delete a chapter's first page: Lectrix asks first, then says what went with it and
       offers Save As (optimized). Back in the viewer, the table of contents' other lines
       still lead to their chapters, and Undo brings the page and its bookmark back.

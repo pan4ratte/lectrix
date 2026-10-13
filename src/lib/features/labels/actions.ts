@@ -1,7 +1,8 @@
-// Page label actions shared by the panel, the menus and the thumbnails (section 6.3).
-// The panel edits a list of rules; every applied change sends the whole list to Rust as
-// one operation, so it is one undo step.
+// Page label actions shared by the labels' section of the page organizing tool, the menus
+// and the thumbnails (sections 6.3 and 6.7). The section edits a list of rules; every
+// applied change sends the whole list to Rust as one operation, so it is one undo step.
 
+import { organizePages } from '#lib/features/organize/actions.ts';
 import type { LabelRule } from '#lib/ipc/index.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -38,8 +39,16 @@ function queued<T>(run: () => Promise<T>): Promise<T> {
 	return next;
 }
 
-export function showLabels() {
-	app.showPanel('labels');
+/** Shows the page labels: beside the grid of the document's pages, which is shown for it
+ * if the document is being read. */
+export async function showLabels(tab: DocTab) {
+	app.labelsShown = true;
+	await organizePages(tab);
+}
+
+/** The page labels' button in the grid's bar: shows them, or puts them away. */
+export function toggleLabels() {
+	app.labelsShown = !app.labelsShown;
 }
 
 /**
@@ -68,12 +77,14 @@ async function applyRules(tab: DocTab, rules: LabelRule[]): Promise<boolean> {
 	return change !== null;
 }
 
-/** Starts a new label range (1, 2, 3 from 1) at `page` and selects it in the panel. */
+/** Starts a new label range (1, 2, 3 from 1) at `page` and shows it among the labels,
+ * with its page selected in the grid. */
 export function startRangeAt(tab: DocTab, page: number) {
-	showLabels();
 	return queued(async () => {
+		await showLabels(tab);
 		const rules = shownRules(tab);
 		if (rules.some((r) => r.startPage === page) || (await applyRules(tab, withRuleAt(rules, page)))) {
+			tab.organize?.show(page);
 			tab.selectedLabelRule = page;
 		}
 	});
@@ -94,8 +105,8 @@ export function deleteRule(tab: DocTab, page: number) {
 /** "Roman front matter, then arabic from this page": replaces every rule. */
 export function romanFrontMatter(tab: DocTab, page: number) {
 	if (page <= 0) return Promise.resolve();
-	showLabels();
 	return queued(async () => {
+		await showLabels(tab);
 		if (await applyRules(tab, romanThenArabic(page))) tab.selectedLabelRule = page;
 	});
 }

@@ -147,9 +147,6 @@
 				<Menubar.Item class="menu-item" disabled={!reading} onSelect={commands.showBookmarks}>
 					Bookmarks{@render keys('showBookmarks')}
 				</Menubar.Item>
-				<Menubar.Item class="menu-item" disabled={!reading} onSelect={commands.showLabels}>
-					Page labels{@render keys('showLabels')}
-				</Menubar.Item>
 				<Menubar.Item class="menu-item" disabled={!reading} onSelect={commands.showAnnotations}>
 					Annotations{@render keys('showAnnotations')}
 				</Menubar.Item>
@@ -247,7 +244,10 @@
 					Add bookmark{@render keys('addBookmark')}
 				</Menubar.Item>
 				<Menubar.Separator class="menu-separator" />
-				<Menubar.Item class="menu-item" disabled={!reading || !tab?.canEditLabels} onSelect={commands.startLabelRange}>
+				<Menubar.Item class="menu-item" disabled={!hasDoc} onSelect={commands.showLabels}>
+					Page labels{@render keys('showLabels')}
+				</Menubar.Item>
+				<Menubar.Item class="menu-item" disabled={!tab?.canEditLabels} onSelect={commands.startLabelRange}>
 					New label range from this page{@render keys('startLabelRange')}
 				</Menubar.Item>
 				<Menubar.Separator class="menu-separator" />

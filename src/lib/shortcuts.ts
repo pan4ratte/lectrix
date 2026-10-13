@@ -65,7 +65,6 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 			{ command: 'toggleRightPane', label: 'Show or hide the right pane', keys: [], inInputs: true },
 			{ command: 'showPages', label: 'Show the Pages panel', keys: [], inInputs: true },
 			{ command: 'showBookmarks', label: 'Show the Bookmarks panel', keys: [], inInputs: true },
-			{ command: 'showLabels', label: 'Show the Page labels panel', keys: [], inInputs: true },
 			{ command: 'showAnnotations', label: 'Show the Annotations panel', keys: [], inInputs: true }
 		]
 	},
@@ -86,6 +85,7 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 			{ command: 'organizePages', label: 'Organize pages', keys: [] },
 			{ command: 'rotatePages', label: 'Rotate pages', keys: [] },
 			{ command: 'insertPages', label: 'Insert pages from file', keys: [] },
+			{ command: 'showLabels', label: 'Page labels', keys: [], inInputs: true },
 			{ command: 'startLabelRange', label: 'New label range from this page', keys: [] },
 			{ command: 'repairAnnotations', label: 'Repair annotations', keys: [] }
 		]

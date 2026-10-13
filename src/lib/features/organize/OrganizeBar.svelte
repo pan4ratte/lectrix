@@ -1,9 +1,11 @@
 <script lang="ts">
 	// The bar above the page grid while a document's pages are organized (section 6.7): in
 	// the view bar's place and of its look. Done goes back to reading; the buttons act on the
-	// selected pages; then pages from a file and into one, the size of the pictures, and how
-	// many pages are selected.
-	import { FileOutput, FilePlus, RotateCcw, RotateCw, Trash, ZoomIn, ZoomOut } from '@lucide/svelte';
+	// selected pages; then pages from a file and into one, the page labels, the size of the
+	// pictures, and how many pages are selected.
+	import { FileOutput, FilePlus, RotateCcw, RotateCw, Tag, Trash, ZoomIn, ZoomOut } from '@lucide/svelte';
+
+	import { toggleLabels } from '#lib/features/labels/actions.ts';
 
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -90,6 +92,17 @@
 		onclick={() => organize.extract(organize.selectedSet)}
 	>
 		<FileOutput size={16} aria-hidden="true" />
+	</button>
+	{@render rule()}
+	<button
+		type="button"
+		class="icon-button tool-button"
+		aria-label="Page labels"
+		data-tip={app.hint('Page labels', 'showLabels')}
+		aria-pressed={app.labelsShown}
+		onclick={toggleLabels}
+	>
+		<Tag size={16} aria-hidden="true" />
 	</button>
 	{@render rule()}
 	<button

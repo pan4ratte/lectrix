@@ -12,7 +12,6 @@
 	import AnnotationsPanel from '#lib/features/annotations/AnnotationsPanel.svelte';
 	import { toolMark } from '#lib/features/annotations/toolMark.ts';
 	import BookmarksPanel from '#lib/features/bookmarks/BookmarksPanel.svelte';
-	import LabelsPanel from '#lib/features/labels/LabelsPanel.svelte';
 	import Thumbnails from '#lib/features/viewer/Thumbnails.svelte';
 	import type { PanelId } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
@@ -139,8 +138,6 @@
 					<Thumbnails {tab} />
 				{:else if panel === 'bookmarks'}
 					<BookmarksPanel {tab} />
-				{:else if panel === 'labels'}
-					<LabelsPanel {tab} />
 				{:else}
 					<AnnotationsPanel {tab} />
 				{/if}

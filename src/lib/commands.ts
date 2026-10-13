@@ -146,7 +146,6 @@ export const commands = {
 	addBookmark: reading((t) => addBookmark(t)),
 	showPages: reading(() => app.showPanel('pages')),
 	showBookmarks: reading(() => app.showPanel('bookmarks')),
-	showLabels: reading(() => showLabels()),
 	showAnnotations: reading(() => app.showPanel('annotations')),
 	repairAnnotations: withTab((t) => repair(t)),
 	toolSelect: useTool('select'),
@@ -157,7 +156,11 @@ export const commands = {
 	toolNote: useTool('note'),
 	toolPen: useTool('ink'),
 	toolText: useTool('freeText'),
-	startLabelRange: reading((t) => startRangeAt(t, t.currentPage))
+	/** The page labels, beside the grid of pages (sections 6.3 and 6.7). */
+	showLabels: withTab((t) => showLabels(t)),
+	/** A new range of labels from the page the document is at; in the grid of pages, from
+	 * the first selected page. */
+	startLabelRange: withTab((t) => startRangeAt(t, t.organize ? t.organize.anchorPage : t.currentPage))
 };
 
 export type CommandName = keyof typeof commands;

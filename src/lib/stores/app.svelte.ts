@@ -218,6 +218,11 @@ class AppStore {
 	toasts = $state<Toast[]>([]);
 	/** Shown while files are dragged over the window. */
 	dropTarget = $state(false);
+	/** The tabs Rust has for this window are being taken in (`adoptTabs`). */
+	private adopting: Promise<void> = Promise.resolve();
+	/** The page labels show beside the grid of pages being organized (section 6.7). Kept
+	 * while the app runs, for every document. */
+	labelsShown = $state(false);
 	rotateDialogOpen = $state(false);
 	/** The Combine view, while it is open (shown as a tab of its own). */
 	combine = $state<CombineState | null>(null);
@@ -472,14 +477,18 @@ class AppStore {
 	 * moved here from another window comes with its page display, and opens where the user
 	 * was. The last one is shown.
 	 */
-	async adoptTabs() {
-		let shown: number | null = null;
-		for (const { document, handoff } of await listOpenDocuments()) {
-			if (this.tabs.some((t) => t.id === document.id)) continue;
-			this.tabs = [...this.tabs, new DocTab(document, this.settings?.scrollMode, handoff)];
-			shown = document.id;
-		}
-		if (shown !== null) this.activate(shown);
+	adoptTabs(): Promise<void> {
+		const adopted = (async () => {
+			let shown: number | null = null;
+			for (const { document, handoff } of await listOpenDocuments()) {
+				if (this.tabs.some((t) => t.id === document.id)) continue;
+				this.tabs = [...this.tabs, new DocTab(document, this.settings?.scrollMode, handoff)];
+				shown = document.id;
+			}
+			if (shown !== null) this.activate(shown);
+		})();
+		this.adopting = adopted.catch(() => {});
+		return adopted;
 	}
 
 	/** Tabs were moved into this window while it was open. */
@@ -1049,6 +1058,10 @@ class AppStore {
 			while (combine.running) await new Promise((r) => setTimeout(r, 50));
 		}
 		await this.settled();
+		// Tabs Rust has just handed this window are in before it answers: asked to close a
+		// moment after it was made for a tab (File > Exit in another window), it would
+		// otherwise see no unsaved changes and close with them.
+		await this.adopting;
 		const dirty = this.tabs.filter((t) => t.state.dirty);
 		if (dirty.length === 1) {
 			if (!(await this.confirmDiscard(dirty[0]!))) return false;

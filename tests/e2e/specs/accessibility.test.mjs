@@ -70,12 +70,27 @@ test('every Tab stop is named and shows focus, in every panel and dialog', async
 		}
 		await assertAllNamed(browser, 'document');
 
-		for (const panel of ['Bookmarks', 'Page labels']) {
+		for (const panel of ['Bookmarks']) {
 			await (await browser.$(`button[role="tab"][aria-label="${panel}"]`)).click();
 			await browser.pause(200);
 			assertStops(await tabWalk(browser, { max: 80 }), `${panel} panel`);
 			await assertAllNamed(browser, `${panel} panel`);
 		}
+
+		// The grid of pages being organized, with the page labels beside it.
+		await (await browser.$('button[aria-label="Organize pages"]')).click();
+		await (await browser.$('[data-organize-view]')).waitForDisplayed();
+		await (await browser.$('button[aria-label="Page labels"]')).click();
+		await (await browser.$('[data-organize-labels]')).waitForDisplayed();
+		await browser.pause(300);
+		const organizing = assertStops(await tabWalk(browser, { max: 80 }), 'organize pages');
+		for (const name of ['Done', 'Insert pages from file', 'Page labels', 'Label ranges', 'New range from the selected page']) {
+			assert.ok(organizing.includes(name), `organizing pages reaches ${name}: ${JSON.stringify(organizing)}`);
+		}
+		await assertAllNamed(browser, 'organize pages');
+		await (await browser.$('button[aria-label="Page labels"]')).click();
+		await (await browser.$('button=Done')).click();
+		await waitForDocument(browser);
 
 		// The annotation pane on the right, and the edges that resize both panes.
 		await (await browser.$('button[aria-label="Show right pane"]')).click();

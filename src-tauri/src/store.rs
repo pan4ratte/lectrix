@@ -59,8 +59,9 @@ struct Data {
 }
 
 /// The pane layout, reading files from before panels could move, which named the left
-/// pane the sidebar and the right one the annotation pane. A layout that cannot be read
-/// gives the default.
+/// pane the sidebar and the right one the annotation pane, and files that name a panel
+/// this version does not have (the Page labels panel of versions up to 1.1), which is
+/// left out. A layout that cannot be read gives the default.
 fn panes_with_old_names<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> Result<PaneLayout, D::Error> {
@@ -74,6 +75,19 @@ fn panes_with_old_names<'de, D: serde::Deserializer<'de>>(
         ] {
             if let Some(v) = map.remove(old) {
                 map.entry(new).or_insert(v);
+            }
+        }
+        let known = |panel: &serde_json::Value| {
+            serde_json::from_value::<crate::ipc::PanelId>(panel.clone()).is_ok()
+        };
+        for panels in ["leftPanels", "rightPanels"] {
+            if let Some(serde_json::Value::Array(list)) = map.get_mut(panels) {
+                list.retain(known);
+            }
+        }
+        for active in ["leftActive", "rightActive"] {
+            if map.get(active).is_some_and(|p| !p.is_null() && !known(p)) {
+                map.remove(active);
             }
         }
     }
@@ -615,7 +629,7 @@ mod tests {
             right_open: true,
             right_width: 400,
             left_panels: vec![PanelId::Annotations, PanelId::Pages],
-            right_panels: vec![PanelId::Labels, PanelId::Bookmarks],
+            right_panels: vec![PanelId::Bookmarks],
             left_active: Some(PanelId::Pages),
             right_active: None,
             thumbnail_width: 184,
@@ -646,7 +660,7 @@ mod tests {
             br#"{"panes":{"sidebarOpen":false,"sidebarWidth":200,"annotationsOpen":true,"annotationsWidth":350}}"#,
         )
         .unwrap();
-        let old = Store::load(Some(file)).panes();
+        let old = Store::load(Some(file.clone())).panes();
         assert_eq!(
             (
                 old.left_open,
@@ -657,6 +671,21 @@ mod tests {
             (false, 200, true, 350)
         );
         assert_eq!(old.left_panels, PaneLayout::default().left_panels);
+        // From when page labels had a panel: it is left out, and the rest stays.
+        fs::write(
+            &file,
+            br#"{"panes":{"leftWidth":310,"leftPanels":["pages","labels"],"rightPanels":["labels","annotations","bookmarks"],"leftActive":"labels","rightActive":"bookmarks"}}"#,
+        )
+        .unwrap();
+        let before = Store::load(Some(file)).panes();
+        assert_eq!(before.left_width, 310);
+        assert_eq!(before.left_panels, vec![PanelId::Pages]);
+        assert_eq!(
+            before.right_panels,
+            vec![PanelId::Annotations, PanelId::Bookmarks]
+        );
+        assert_eq!(before.left_active, None);
+        assert_eq!(before.right_active, Some(PanelId::Bookmarks));
     }
 
     #[test]

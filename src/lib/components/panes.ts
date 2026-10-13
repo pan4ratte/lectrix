@@ -72,7 +72,7 @@ export interface PanelArrangement {
 }
 
 export const DEFAULT_ARRANGEMENT: Readonly<PanelArrangement> = {
-	left: ['pages', 'bookmarks', 'labels'],
+	left: ['pages', 'bookmarks'],
 	right: ['annotations']
 };
 

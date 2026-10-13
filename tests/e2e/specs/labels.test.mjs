@@ -1,11 +1,13 @@
-// Page labels (AGENTS.md section 6.3): the roman front matter preset, a prefix
-// shown live before it is applied, a new range with another style, undo and redo, save,
-// reopen, and the page box finding a page by its label.
+// Page labels (AGENTS.md section 6.3), beside the grid of pages being organized (section
+// 6.7): the roman front matter preset, a prefix shown live before it is applied, a new
+// range with another style, the list and the grid selecting for each other, undo and
+// redo, save, reopen, and the page box finding a page by its label.
 
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { launch, statusText, waitForDocument } from '../lib/app.mjs';
+import { OUT, launch, statusText, waitForDocument } from '../lib/app.mjs';
 import { cli, sample } from '../lib/pdfcli.mjs';
 
 async function waitForStatus(browser, text, message) {
@@ -31,12 +33,33 @@ async function waitForRows(browser, expected, message) {
 	});
 }
 
-async function goToPage(browser, page) {
-	await browser.keys(['Control', 'g']);
-	await browser.keys([...String(page), 'Enter']);
-	await browser.waitUntil(async () => (await statusText(browser)).includes(`${page} of`), {
-		timeoutMsg: `did not reach page ${page}`
+/** What the grid of pages says under page `page` (1-based): its label and its place. */
+async function caption(browser, page) {
+	return browser.execute(
+		(n) => document.querySelector(`[data-organize-view] [role=option][aria-posinset="${n}"] [data-page-caption]`)?.textContent.trim(),
+		page
+	);
+}
+
+async function waitForCaption(browser, page, text, message) {
+	await browser.waitUntil(async () => (await caption(browser, page)) === text, {
+		timeout: 5000,
+		timeoutMsg: `${message}: page ${page} says ${JSON.stringify(await caption(browser, page))}`
 	});
+}
+
+/** Selects page `page` (1-based) in the grid: what "the selected page" then means. */
+async function selectPage(browser, page) {
+	await (await browser.$(`[data-organize-view] [role=option][aria-posinset="${page}"] [data-picture]`)).click();
+}
+
+const selectedCount = async (browser) => (await browser.$('[data-organize-count]')).getText();
+
+/** Document > Page labels: the grid of pages, with the labels beside it. */
+async function showLabels(browser) {
+	await (await browser.$('button=Document')).click();
+	await (await browser.$('div*=Page labels')).click();
+	await (await browser.$('[data-organize-labels]')).waitForDisplayed({ timeoutMsg: 'the page labels did not show' });
 }
 
 async function field(browser, label) {
@@ -63,46 +86,76 @@ test('set, preview, undo, save and reopen page labels', async () => {
 	let { browser, stop } = await launch([path]);
 	try {
 		await waitForDocument(browser);
-		await (await browser.$('button[aria-label="Page labels"]')).click();
+		// The labels are beside the grid of pages, which the command shows.
+		await showLabels(browser);
+		assert.equal(await browser.execute(() => document.querySelector('.viewer-scroll') !== null), false, 'still reading');
 		await (await browser.$('p*=No page labels yet')).waitForDisplayed();
 		await waitForRows(browser, ['1–8 1 – 8'], 'no labels');
+		await waitForCaption(browser, 4, '4', 'no labels');
 
-		// Roman front matter, then 1, 2, 3 from page 4.
-		await goToPage(browser, 4);
+		// Roman front matter, then 1, 2, 3 from page 4: the page selected in the grid.
+		await selectPage(browser, 4);
 		await (await browser.$('button[aria-label="More label actions"]')).click();
 		await (await browser.$('div*=Roman front matter')).click();
 		await waitForRows(browser, ['1–3 i – iii', '4–8 1 – 5'], 'preset');
-		await waitForStatus(browser, '1 (4 of 8)', 'preset');
+		await waitForCaption(browser, 4, '1 (4)', 'preset');
+		await waitForCaption(browser, 2, 'ii (2)', 'preset');
 		assert.match(await statusText(browser), /Unsaved changes/);
 
-		// A prefix shows in the status bar while typing, before it is applied.
+		// A prefix shows under the pages while typing, before it is applied.
 		const prefix = await field(browser, 'Prefix');
 		await prefix.click();
 		await browser.keys([...'Ch-']);
-		await waitForStatus(browser, 'Ch-1 (4 of 8)', 'live preview');
+		await waitForCaption(browser, 4, 'Ch-1 (4)', 'live preview');
 		await waitForRows(browser, ['1–3 i – iii', '4–8 Ch-1 – Ch-5'], 'preview in the list');
-		// Escape cancels it...
+		// Escape cancels it (and does not leave the grid)...
 		await browser.keys('Escape');
-		await waitForStatus(browser, '1 (4 of 8)', 'cancelled preview');
+		await waitForCaption(browser, 4, '1 (4)', 'cancelled preview');
+		assert.equal(await (await browser.$('[data-organize-view]')).isExisting(), true, 'Esc in a field left the grid');
 		// ...and Enter applies it.
 		await browser.keys([...'Ch-', 'Enter']);
 		await waitForRows(browser, ['1–3 i – iii', '4–8 Ch-1 – Ch-5'], 'prefix applied');
+		await waitForCaption(browser, 4, 'Ch-1 (4)', 'prefix applied');
 
 		// A new range at page 7, lettered A, B.
-		await goToPage(browser, 7);
-		await (await browser.$('button[aria-label="New range from the current page"]')).click();
+		await selectPage(browser, 7);
+		await (await browser.$('button[aria-label="New range from the selected page"]')).click();
 		await waitForRows(browser, ['1–3 i – iii', '4–6 Ch-1 – Ch-3', '7–8 1 – 2'], 'new range');
 		await choose(browser, 'Style', 'A, B, C');
 		await waitForRows(browser, ['1–3 i – iii', '4–6 Ch-1 – Ch-3', '7–8 A – B'], 'lettered');
-		await waitForStatus(browser, 'A (7 of 8)', 'lettered');
+		await waitForCaption(browser, 7, 'A (7)', 'lettered');
+		await browser.saveScreenshot(join(OUT, 'labels-organize.png'));
 
-		// Undo and redo the style (focus on the page: Ctrl+Z in a field undoes typing).
-		await (await browser.$('.page')).click();
+		// A range picked in the list selects its pages in the grid, and the pages selected
+		// in the grid decide the range the editor shows.
+		await (await browser.$('[aria-label="Label ranges"] [role=option][data-start="3"]')).click();
+		await browser.waitUntil(async () => (await selectedCount(browser)) === '3 of 8 pages selected', {
+			timeoutMsg: `the range's pages are not selected: ${await selectedCount(browser)}`
+		});
+		assert.equal(await (await field(browser, 'Prefix')).getValue(), 'Ch-');
+		await selectPage(browser, 2);
+		await browser.waitUntil(async () => (await (await field(browser, 'Prefix')).getValue()) === '', {
+			timeoutMsg: 'the editor did not follow the page selected in the grid'
+		});
+
+		// Undo and redo the style (focus on the grid: Ctrl+Z in a field undoes typing).
 		await browser.keys(['Control', 'z']);
 		await waitForRows(browser, ['1–3 i – iii', '4–6 Ch-1 – Ch-3', '7–8 1 – 2'], 'undo');
 		await browser.keys(['Control', 'y']);
 		await waitForRows(browser, ['1–3 i – iii', '4–6 Ch-1 – Ch-3', '7–8 A – B'], 'redo');
 
+		// The bar's button puts the labels away and shows them again.
+		const toggle = await browser.$('[data-organize-bar] button[aria-label="Page labels"]');
+		assert.equal(await toggle.getAttribute('aria-pressed'), 'true');
+		await toggle.click();
+		await (await browser.$('[data-organize-labels]')).waitForExist({ reverse: true, timeoutMsg: 'the labels stayed' });
+		await toggle.click();
+		await (await browser.$('[data-organize-labels]')).waitForDisplayed();
+
+		// Back to reading: the page box shows the label.
+		await (await browser.$('button=Done')).click();
+		await waitForDocument(browser);
+		await waitForStatus(browser, 'i (1 of 8)', 'back to reading');
 		await browser.keys(['Control', 's']);
 		await waitForStatus(browser, 'All changes saved', 'saving');
 	} finally {
@@ -118,12 +171,14 @@ test('set, preview, undo, save and reopen page labels', async () => {
 	({ browser, stop } = await launch([path]));
 	try {
 		await waitForDocument(browser);
-		await (await browser.$('button[aria-label="Page labels"]')).click();
-		await waitForRows(browser, ['1–3 i – iii', '4–6 Ch-1 – Ch-3', '7–8 A – B'], 'reopened');
 		// The page box takes a label.
 		await browser.keys(['Control', 'g']);
 		await browser.keys([...'Ch-2', 'Enter']);
 		await waitForStatus(browser, 'Ch-2 (5 of 8)', 'page box by label');
+		// The labels as stored; the grid opens at the page the document is at.
+		await showLabels(browser);
+		await waitForRows(browser, ['1–3 i – iii', '4–6 Ch-1 – Ch-3', '7–8 A – B'], 'reopened');
+		await waitForCaption(browser, 5, 'Ch-2 (5)', 'reopened');
 	} finally {
 		await stop();
 	}

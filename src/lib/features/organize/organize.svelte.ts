@@ -107,6 +107,13 @@ export class OrganizeState extends GridSelection {
 		this.reveal = { key: keys[0]! };
 	}
 
+	/** The page that "this page" means in the grid (a new label range from this page): the
+	 * first selected one, or the one with the keyboard focus. */
+	get anchorPage(): number {
+		const focused = this.focusKey === null ? undefined : this.places.get(this.focusKey);
+		return this.indexes(this.selected)[0] ?? focused ?? 0;
+	}
+
 	/** Where pages from a file go unless a gap is pointed at: after the last selected
 	 * page, or after the page with the keyboard focus. */
 	insertGap(): number {
