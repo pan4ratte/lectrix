@@ -27,6 +27,7 @@ const STORED: Settings = {
 	pdfaReadOnly: true,
 	highlightLinks: true,
 	linkPreviews: true,
+	pageAdjustments: { brightness: 100, contrast: 100, invert: false, grayscale: false, sepia: 0 },
 	colorPanelOnHover: true,
 	presetColors: { 2: '#12ab34' },
 	shortcuts: { save: ['Ctrl+Alt+S'], copy: [] }

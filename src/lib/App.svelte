@@ -254,7 +254,7 @@
 		void current.zoom;
 		void current.rotation;
 		void current.pageTurns;
-		void current.pageFilter;
+		void current.ownAdjustments;
 		clearTimeout(rememberTimer);
 		rememberTimer = setTimeout(() => app.rememberView(current), 1500);
 	});

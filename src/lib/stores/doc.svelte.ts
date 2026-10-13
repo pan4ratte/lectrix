@@ -22,7 +22,13 @@ import {
 } from '#lib/ipc/index.ts';
 import type { Box } from '#lib/features/annotations/geometry.ts';
 import { lineBreaks } from '#lib/features/annotations/tools.ts';
-import { NO_ADJUSTMENTS, normalizeAdjustments, pageFilter as filterOf } from '#lib/features/viewer/adjustments.ts';
+import { pageDefaults } from '#lib/features/viewer/adjustments.svelte.ts';
+import {
+	normalizeAdjustments,
+	pageFilter as filterOf,
+	pageTone as toneOf,
+	sameAdjustments
+} from '#lib/features/viewer/adjustments.ts';
 import type { OrganizeState } from '#lib/features/organize/organize.svelte.ts';
 import { NavHistory, type ViewPosition } from '#lib/features/viewer/history.ts';
 import {
@@ -285,11 +291,16 @@ export class DocTab {
 	 * a page's index and its turn. On screen only, never in the file; remembered per file
 	 * with the rest of the view. */
 	pageTurns = $state.raw<ReadonlyMap<number, Rotation>>(new Map());
-	/** How the pages are shown (section 6.1, visual adjustments): on screen only, never in
-	 * the file; remembered per file with the rest of the view. */
-	adjustments = $state<PageAdjustments>({ ...NO_ADJUSTMENTS });
+	/** The visual adjustments this document has of its own (section 6.1), or null while it
+	 * has the ones Settings give every document. On screen only, never in the file;
+	 * remembered per file with the rest of the view. */
+	ownAdjustments = $state.raw<PageAdjustments | null>(null);
+	/** How the pages are shown: the document's own adjustments, else those of Settings. */
+	adjustments = $derived(this.ownAdjustments ?? pageDefaults.value);
 	/** The CSS filter that shows a page so, or null for the pages as they are. */
 	pageFilter = $derived(filterOf(this.adjustments));
+	/** How much of the sepia paper tone lies over a page (0 to 1), or null for none. */
+	pageTone = $derived(toneOf(this.adjustments));
 	/** How the pages are laid out (section 6.1, scroll modes); not stored in the file. */
 	mode = $state<ViewMode>('singlePageContinuous');
 	/** In the two-page modes, the first page has a row of its own (a book's cover). */
@@ -343,7 +354,7 @@ export class DocTab {
 			this.zoomMode = view.zoomMode;
 			this.rotation = normalizeRotation(view.rotation);
 			this.pageTurns = storedTurns(view.pageTurns, info.pages.length);
-			this.adjustments = normalizeAdjustments(view.adjustments);
+			this.ownAdjustments = view.ownAdjustments ? normalizeAdjustments(view.ownAdjustments) : null;
 			const page = Math.min(view.page, Math.max(0, info.pages.length - 1));
 			this.currentPage = page;
 			this.pendingPosition = { page, offset: view.offset };
@@ -580,6 +591,18 @@ export class DocTab {
 		return { scrollMode: this.mode, cover: this.cover, signedWarningAccepted: this.signedWarningAccepted };
 	}
 
+	/** Changes how this document's pages are shown: it has adjustments of its own from here
+	 * on, unless the change brings it back to the ones Settings give every document. */
+	adjust(change: Partial<PageAdjustments>) {
+		const next = normalizeAdjustments({ ...this.adjustments, ...change });
+		this.ownAdjustments = sameAdjustments(next, pageDefaults.value) ? null : next;
+	}
+
+	/** Back to the adjustments Settings give every document. */
+	resetAdjustments() {
+		this.ownAdjustments = null;
+	}
+
 	viewState(): ViewState {
 		const position = this.viewer?.position() ?? this.pendingPosition ?? { page: this.currentPage, offset: 0 };
 		return {
@@ -588,7 +611,7 @@ export class DocTab {
 			zoom: this.zoom,
 			zoomMode: this.zoomMode,
 			rotation: this.rotation,
-			adjustments: { ...this.adjustments },
+			ownAdjustments: this.ownAdjustments ? { ...this.ownAdjustments } : null,
 			pageTurns: Object.fromEntries(this.pageTurns)
 		};
 	}

@@ -595,6 +595,7 @@ fn settings_of(stored: &StoredSettings, platform: &dyn Platform) -> Settings {
         pdfa_read_only: stored.pdfa_read_only,
         highlight_links: stored.highlight_links,
         link_previews: stored.link_previews,
+        page_adjustments: stored.page_adjustments,
         color_panel_on_hover: stored.color_panel_on_hover,
         preset_colors: stored.preset_colors.clone(),
         shortcuts: stored.shortcuts.clone(),
@@ -654,6 +655,7 @@ pub fn set_settings(
         pdfa_read_only: settings.pdfa_read_only,
         highlight_links: settings.highlight_links,
         link_previews: settings.link_previews,
+        page_adjustments: settings.page_adjustments.clamped(),
         color_panel_on_hover: settings.color_panel_on_hover,
         // Only colours of presets the panel has, written one way.
         preset_colors: settings

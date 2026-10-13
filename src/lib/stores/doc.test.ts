@@ -98,39 +98,81 @@ describe('any other file', () => {
 });
 
 describe('visual adjustments', () => {
-	const view = { page: 0, offset: 0, zoom: 1, zoomMode: 'custom' as const, rotation: 0, pageTurns: {} };
+	const view = { page: 0, offset: 0, zoom: 1, zoomMode: 'custom' as const, rotation: 0, ownAdjustments: null, pageTurns: {} };
+	const NONE = { brightness: 100, contrast: 100, invert: false, grayscale: false, sepia: 0 };
 
 	it('start with none, and with the ones remembered for the file', () => {
 		const fresh = new DocTab(info(null));
 		expect(fresh.pageFilter).toBeNull();
-		expect(fresh.viewState().adjustments).toEqual({ brightness: 100, contrast: 100, invert: false, grayscale: false });
+		expect(fresh.pageTone).toBeNull();
+		expect(fresh.adjustments).toEqual(NONE);
+		expect(fresh.viewState().ownAdjustments).toBeNull();
 
-		const adjustments = { brightness: 80, contrast: 100, invert: true, grayscale: false };
-		const tab = new DocTab({ ...info(null), view: { ...view, adjustments } });
-		expect(tab.adjustments).toEqual(adjustments);
+		const ownAdjustments = { brightness: 80, contrast: 100, invert: true, grayscale: false, sepia: 0 };
+		const tab = new DocTab({ ...info(null), view: { ...view, ownAdjustments } });
+		expect(tab.adjustments).toEqual(ownAdjustments);
 		expect(tab.pageFilter).toBe('invert(1) hue-rotate(180deg) brightness(0.8)');
 	});
 
 	it('go back to Rust with the view, for the next time the file opens', () => {
 		const tab = new DocTab(info(null));
-		tab.adjustments.grayscale = true;
-		tab.adjustments.contrast = 120;
+		tab.adjust({ grayscale: true });
+		tab.adjust({ contrast: 120, sepia: 35 });
 		expect(tab.pageFilter).toBe('grayscale(1) contrast(1.2)');
-		const remembered = tab.viewState().adjustments;
-		expect(remembered).toEqual({ brightness: 100, contrast: 120, invert: false, grayscale: true });
+		// Sepia is not in the filter: it is the paper's tone over the page.
+		expect(tab.pageTone).toBe(0.35);
+		const remembered = tab.viewState().ownAdjustments;
+		expect(remembered).toEqual({ brightness: 100, contrast: 120, invert: false, grayscale: true, sepia: 35 });
 		// A copy: what the tab changes later is not what was sent.
-		tab.adjustments.grayscale = false;
-		expect(remembered.grayscale).toBe(true);
+		tab.adjust({ grayscale: false });
+		expect(remembered?.grayscale).toBe(true);
 	});
 
-	it('are none for a view remembered before there were any', () => {
+	it('are none for a view remembered without any', () => {
 		const old = { ...view } as DocumentInfo['view'];
-		expect(new DocTab({ ...info(null), view: old }).adjustments).toEqual({ brightness: 100, contrast: 100, invert: false, grayscale: false });
+		expect(new DocTab({ ...info(null), view: old }).adjustments).toEqual(NONE);
+	});
+
+	it('are the ones Settings give every document, until the document has its own', async () => {
+		const { pageDefaults } = await import('#lib/features/viewer/adjustments.svelte.ts');
+		const tab = new DocTab(info(null));
+		const other = new DocTab(info(null));
+		try {
+			pageDefaults.value = { ...NONE, sepia: 40 };
+			expect(tab.adjustments.sepia).toBe(40);
+			expect(tab.pageTone).toBe(0.4);
+			// Following Settings is not something of its own to remember.
+			expect(tab.viewState().ownAdjustments).toBeNull();
+
+			// Adjusted by itself, it starts from what it showed, and no longer follows.
+			tab.adjust({ invert: true });
+			expect(tab.ownAdjustments).toEqual({ ...NONE, sepia: 40, invert: true });
+			pageDefaults.value = { ...NONE, sepia: 70 };
+			expect(tab.adjustments.sepia).toBe(40);
+			expect(other.adjustments.sepia).toBe(70);
+
+			// Reset goes back to the ones of Settings, and so does a change that makes it
+			// look as Settings say.
+			tab.resetAdjustments();
+			expect(tab.ownAdjustments).toBeNull();
+			expect(tab.adjustments).toEqual({ ...NONE, sepia: 70 });
+			tab.adjust({ sepia: 20 });
+			expect(tab.ownAdjustments).toEqual({ ...NONE, sepia: 20 });
+			tab.adjust({ sepia: 70 });
+			expect(tab.ownAdjustments).toBeNull();
+
+			// A document can be as its file is while Settings adjust the others.
+			tab.adjust({ sepia: 0 });
+			expect(tab.ownAdjustments).toEqual(NONE);
+			expect(tab.viewState().ownAdjustments).toEqual(NONE);
+		} finally {
+			pageDefaults.value = { ...NONE };
+		}
 	});
 
 	it('have nothing to do with a file open for reading only', () => {
 		const tab = new DocTab(info(PDFA_1B));
-		tab.adjustments.invert = true;
+		tab.adjust({ invert: true });
 		expect(tab.pageFilter).toBe('invert(1) hue-rotate(180deg)');
 		expect(tab.readOnly).toBe(true);
 	});
@@ -138,8 +180,7 @@ describe('visual adjustments', () => {
 
 describe('pages turned as they are shown', () => {
 	const size = { width: 612, height: 792, rotation: 0 };
-	const adjustments = { brightness: 100, contrast: 100, invert: false, grayscale: false };
-	const view = { page: 0, offset: 0, zoom: 1, zoomMode: 'custom' as const, rotation: 0, adjustments, pageTurns: {} };
+	const view = { page: 0, offset: 0, zoom: 1, zoomMode: 'custom' as const, rotation: 0, ownAdjustments: null, pageTurns: {} };
 	const three = () => new DocTab({ ...info(null), pages: [size, size, size] });
 
 	it('turn by quarters on top of the view rotation, and back to none', () => {

@@ -280,6 +280,7 @@
 <div
 	class="page absolute overflow-hidden shadow-[0_1px_3px_var(--color-page-shadow)]"
 	class:bg-white={!tab.pageFilter}
+	class:isolate={tab.pageTone !== null}
 	style:left="{left}px"
 	style:top="{top}px"
 	style:width="{width}px"
@@ -457,4 +458,8 @@
 			></textarea>
 		{/if}
 	</div>
+	<!-- Sepia (section 6.1): the paper's tone, multiplied into the page as it is seen. -->
+	{#if tab.pageTone !== null}
+		<div class="page-tone" style:opacity={tab.pageTone} data-page-tone aria-hidden="true"></div>
+	{/if}
 </div>

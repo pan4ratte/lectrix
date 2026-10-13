@@ -10,8 +10,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 use crate::ipc::{
-    Appearance, PaneLayout, QuickTool, ScrollMode, ToolbarDock, ToolbarPosition, ToolbarStyle,
-    ToolbarVisibility, ViewState,
+    Appearance, PageAdjustments, PaneLayout, QuickTool, ScrollMode, ToolbarDock, ToolbarPosition,
+    ToolbarStyle, ToolbarVisibility, ViewState,
 };
 use crate::placement::WindowPlacement;
 
@@ -150,6 +150,9 @@ pub struct StoredSettings {
     /// Whether a tooltip on the link under the pointer says where it leads.
     #[serde(default = "yes")]
     pub link_previews: bool,
+    /// The visual adjustments every document is shown with, unless it has its own.
+    #[serde(default)]
+    pub page_adjustments: PageAdjustments,
     /// Whether a colour button opens its panel when the pointer rests on it, without a
     /// click.
     #[serde(default = "yes")]
@@ -211,6 +214,7 @@ impl Default for StoredSettings {
             pdfa_read_only: true,
             highlight_links: true,
             link_previews: true,
+            page_adjustments: PageAdjustments::default(),
             color_panel_on_hover: true,
             preset_colors: BTreeMap::new(),
             shortcuts: BTreeMap::new(),
@@ -362,7 +366,12 @@ impl Store {
     }
 
     pub fn view(&self, key: &str) -> Option<ViewState> {
-        self.data.views.get(key).map(|v| v.view.clone())
+        // (Normalized on the way out too: a view stored up to 1.1 has its adjustments
+        // under their old name.)
+        self.data
+            .views
+            .get(key)
+            .map(|v| v.view.clone().normalized())
     }
 
     pub fn set_view(&mut self, key: String, view: ViewState) {
@@ -443,12 +452,14 @@ mod tests {
             zoom: 1.5,
             zoom_mode: ZoomMode::Custom,
             rotation: 90,
-            adjustments: PageAdjustments {
+            own_adjustments: Some(PageAdjustments {
                 brightness: 85,
                 contrast: 120,
                 invert: true,
                 grayscale: false,
-            },
+                sepia: 40,
+            }),
+            adjustments: None,
             page_turns: BTreeMap::from([(2, 90), (40, 270)]),
         }
     }
@@ -489,11 +500,62 @@ mod tests {
             r#"{"views":{"c:/docs/a.pdf":{"view":{"page":3,"offset":0.5,"zoom":1.25,"zoomMode":"custom","rotation":0},"saved_at":1}}}"#,
         )
         .unwrap();
-        let store = Store::load(Some(file));
+        let store = Store::load(Some(file.clone()));
         let stored = store.view("c:/docs/a.pdf").expect("the view was read");
         assert_eq!(stored.page, 3);
-        assert_eq!(stored.adjustments, PageAdjustments::default());
-        // One with some of them (a later version may add more) keeps what it has.
+        assert_eq!(stored.own_adjustments, None);
+        // Up to 1.1 a view had its adjustments as `adjustments`, whether anything was
+        // adjusted or not. What was adjusted is the document's own now; a view with the
+        // pages as they are follows the adjustments Settings give every document.
+        fs::write(
+            &file,
+            r#"{"views":{
+                "c:/docs/dark.pdf":{"view":{"page":0,"offset":0,"zoom":1,"zoomMode":"custom","rotation":0,"adjustments":{"brightness":90,"contrast":100,"invert":true,"grayscale":false}},"saved_at":1},
+                "c:/docs/plain.pdf":{"view":{"page":0,"offset":0,"zoom":1,"zoomMode":"custom","rotation":0,"adjustments":{"brightness":100,"contrast":100,"invert":false,"grayscale":false}},"saved_at":1},
+                "c:/docs/new.pdf":{"view":{"page":0,"offset":0,"zoom":1,"zoomMode":"custom","rotation":0,"ownAdjustments":{"sepia":30}},"saved_at":1}
+            }}"#,
+        )
+        .unwrap();
+        let store = Store::load(Some(file.clone()));
+        let dark = store.view("c:/docs/dark.pdf").expect("the view was read");
+        assert_eq!(
+            dark.own_adjustments,
+            Some(PageAdjustments {
+                brightness: 90,
+                invert: true,
+                ..PageAdjustments::default()
+            })
+        );
+        assert_eq!(dark.adjustments, None);
+        assert_eq!(
+            store
+                .view("c:/docs/plain.pdf")
+                .and_then(|v| v.own_adjustments),
+            None
+        );
+        assert_eq!(
+            store
+                .view("c:/docs/new.pdf")
+                .and_then(|v| v.own_adjustments),
+            Some(PageAdjustments {
+                sepia: 30,
+                ..PageAdjustments::default()
+            })
+        );
+        // The old name is not written again.
+        let mut store = store;
+        store.set_view(
+            "c:/docs/dark.pdf".to_string(),
+            ViewState { page: 1, ..dark },
+        );
+        let written = fs::read_to_string(&file).unwrap();
+        let dark: serde_json::Value = serde_json::from_str::<serde_json::Value>(&written).unwrap()
+            ["views"]["c:/docs/dark.pdf"]["view"]
+            .clone();
+        assert!(dark.get("adjustments").is_none(), "{dark}");
+        assert_eq!(dark["ownAdjustments"]["invert"], true);
+        // One with some of them (sepia came later; a later version may add more) keeps what
+        // it has.
         let partial: PageAdjustments = serde_json::from_str(r#"{"invert":true}"#).unwrap();
         assert_eq!(
             partial,
@@ -511,6 +573,7 @@ mod tests {
             contrast: 900,
             invert: true,
             grayscale: true,
+            sepia: 250,
         };
         assert_eq!(
             wild.clamped(),
@@ -519,6 +582,7 @@ mod tests {
                 contrast: PageAdjustments::MAX,
                 invert: true,
                 grayscale: true,
+                sepia: PageAdjustments::SEPIA_MAX,
             }
         );
         assert_eq!(
@@ -586,6 +650,11 @@ mod tests {
             pdfa_read_only: false,
             highlight_links: false,
             link_previews: false,
+            page_adjustments: PageAdjustments {
+                sepia: 45,
+                contrast: 110,
+                ..PageAdjustments::default()
+            },
             color_panel_on_hover: false,
             preset_colors: BTreeMap::from([
                 (2, "#12ab34".to_string()),

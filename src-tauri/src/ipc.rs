@@ -158,6 +158,8 @@ pub struct PageAdjustments {
     /// Dark pages with light text.
     pub invert: bool,
     pub grayscale: bool,
+    /// How far the pages are toned sepia, percent: 0 as the pages are.
+    pub sepia: u16,
 }
 
 impl PageAdjustments {
@@ -165,12 +167,15 @@ impl PageAdjustments {
     /// `ADJUST_MIN` and `ADJUST_MAX` in src/lib/features/viewer/adjustments.ts).
     pub const MIN: u16 = 50;
     pub const MAX: u16 = 150;
+    /// The most sepia, percent (`SEPIA_MAX` there).
+    pub const SEPIA_MAX: u16 = 100;
 
-    /// With brightness and contrast inside their range.
+    /// With brightness, contrast and sepia inside their ranges.
     pub fn clamped(self) -> Self {
         Self {
             brightness: self.brightness.clamp(Self::MIN, Self::MAX),
             contrast: self.contrast.clamp(Self::MIN, Self::MAX),
+            sepia: self.sepia.min(Self::SEPIA_MAX),
             ..self
         }
     }
@@ -183,6 +188,7 @@ impl Default for PageAdjustments {
             contrast: 100,
             invert: false,
             grayscale: false,
+            sepia: 0,
         }
     }
 }
@@ -202,9 +208,16 @@ pub struct ViewState {
     pub zoom_mode: ZoomMode,
     /// View rotation in degrees (0, 90, 180, 270). Does not change the document.
     pub rotation: u16,
-    /// Views stored before there were adjustments have none.
+    /// The visual adjustments this document has of its own. Without them it is shown with
+    /// the ones Settings give every document (`Settings::page_adjustments`).
     #[serde(default)]
-    pub adjustments: PageAdjustments,
+    pub own_adjustments: Option<PageAdjustments>,
+    /// Up to 1.1 every view had adjustments under this name, the pages as they are
+    /// included. Read from such a view, and made the document's own if anything was
+    /// adjusted (`normalized`); never written, and not the frontend's to send.
+    #[serde(default, skip_serializing)]
+    #[ts(skip)]
+    pub adjustments: Option<PageAdjustments>,
     /// The pages turned as they are shown, on top of the view rotation: a page's index and
     /// its turn in degrees (90, 180 or 270). Never in the document either.
     #[serde(default)]
@@ -212,10 +225,15 @@ pub struct ViewState {
 }
 
 impl ViewState {
-    /// The view as it is stored: adjustments within their range, and only turns that are
-    /// quarter turns.
+    /// The view as it is stored and handed out: the document's own adjustments within
+    /// their range (those of a view stored up to 1.1 among them, if anything was adjusted
+    /// there), and only turns that are quarter turns.
     pub fn normalized(mut self) -> Self {
-        self.adjustments = self.adjustments.clamped();
+        let before = self.adjustments.take().map(PageAdjustments::clamped);
+        self.own_adjustments = self
+            .own_adjustments
+            .map(PageAdjustments::clamped)
+            .or(before.filter(|old| *old != PageAdjustments::default()));
         self.page_turns
             .retain(|_, degrees| matches!(*degrees, 90 | 180 | 270));
         self
@@ -1452,6 +1470,9 @@ pub struct Settings {
     pub highlight_links: bool,
     /// Whether a tooltip on the link under the pointer says where it leads (section 6.1).
     pub link_previews: bool,
+    /// The visual adjustments every document is shown with, unless it has its own
+    /// (section 6.1): the pages as they are until changed in Settings.
+    pub page_adjustments: PageAdjustments,
     /// Whether a colour button opens its panel when the pointer rests on it (section
     /// 6.5); otherwise only when it is clicked.
     pub color_panel_on_hover: bool,
@@ -1490,6 +1511,7 @@ pub struct SettingsInput {
     pub pdfa_read_only: bool,
     pub highlight_links: bool,
     pub link_previews: bool,
+    pub page_adjustments: PageAdjustments,
     pub color_panel_on_hover: bool,
     pub preset_colors: BTreeMap<u8, String>,
     pub shortcuts: BTreeMap<String, Vec<String>>,

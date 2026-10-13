@@ -13,12 +13,13 @@
 	import { untrack } from 'svelte';
 
 	import { toolMark } from '#lib/features/annotations/toolMark.ts';
+	import { NO_ADJUSTMENTS } from '#lib/features/viewer/adjustments.ts';
 	import { getSettings, resetSettings, setSettings, toAppError } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 
 	import { applySettings } from './apply.ts';
 	import SettingRow from './SettingRow.svelte';
-	import { RESET_COLORS_ROW, RESET_ROW, SETTING_GROUPS, toDraft, toInput, type Draft } from './schema.ts';
+	import { RESET_ADJUSTMENTS_ROW, RESET_COLORS_ROW, RESET_ROW, SETTING_GROUPS, toDraft, toInput, type Draft } from './schema.ts';
 	import ShortcutsPanel from './ShortcutsPanel.svelte';
 
 	let draft = $state<Draft | null>(null);
@@ -96,6 +97,9 @@
 		if (id === RESET_ROW) void restoreDefaults();
 		else if (id === RESET_COLORS_ROW && draft) {
 			draft.presetColors = {};
+			commit();
+		} else if (id === RESET_ADJUSTMENTS_ROW && draft) {
+			draft.pageAdjustments = { ...NO_ADJUSTMENTS };
 			commit();
 		}
 	}

@@ -24,9 +24,10 @@ zoom: number, zoomMode: ZoomMode,
  */
 rotation: number, 
 /**
- * Views stored before there were adjustments have none.
+ * The visual adjustments this document has of its own. Without them it is shown with
+ * the ones Settings give every document (`Settings::page_adjustments`).
  */
-adjustments: PageAdjustments, 
+ownAdjustments: PageAdjustments | null, 
 /**
  * The pages turned as they are shown, on top of the view rotation: a page's index and
  * its turn in degrees (90, 180 or 270). Never in the document either.

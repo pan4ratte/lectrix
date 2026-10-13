@@ -13,8 +13,10 @@ import type { Component } from 'svelte';
 import { APP_NAME } from '#lib/config.ts';
 import { MAX_TIP_DELAY_MS } from '#lib/features/annotations/bars.ts';
 import { QUICK_TOOLS } from '#lib/features/annotations/tools.ts';
+import { ADJUST_MAX, ADJUST_MIN, ADJUST_STEP, SEPIA_MAX, isAdjusted } from '#lib/features/viewer/adjustments.ts';
 import type {
 	Appearance,
+	PageAdjustments,
 	QuickTool,
 	ScrollMode,
 	Settings,
@@ -199,8 +201,40 @@ const docked = (d: Draft) => d.toolbarStyle === 'panel';
 /** Said of the floating toolbar's options while it is docked: full screen still floats it. */
 const IN_FULL_SCREEN = 'Used in full screen, where the toolbar floats.';
 
+/** A slider for one of the visual adjustments every document is shown with. */
+function adjustment(part: 'brightness' | 'contrast' | 'sepia', label: string, min: number, max: number, extra: Extra = {}): SettingRow {
+	return {
+		kind: 'range',
+		id: `pageAdjustments-${part}`,
+		key: 'pageAdjustments',
+		label,
+		...extra,
+		min,
+		max,
+		step: ADJUST_STEP,
+		format: (value) => `${value}%`,
+		read: (d) => d.pageAdjustments[part],
+		write: (d, value) => (d.pageAdjustments = { ...d.pageAdjustments, [part]: value })
+	};
+}
+
+/** A switch for one of them. */
+function adjustmentSwitch(part: 'invert' | 'grayscale', label: string, extra: Extra = {}): SettingRow {
+	return {
+		kind: 'switch',
+		id: `pageAdjustments-${part}`,
+		key: 'pageAdjustments',
+		label,
+		...extra,
+		read: (d) => d.pageAdjustments[part],
+		write: (d, on) => (d.pageAdjustments = { ...d.pageAdjustments, [part]: on })
+	};
+}
+
 /** The id of the row that restores the defaults. */
 export const RESET_ROW = 'resetSettings';
+/** The id of the row that shows every document as it is again. */
+export const RESET_ADJUSTMENTS_ROW = 'resetPageAdjustments';
 /** The id of the row that puts the default preset colours back. */
 export const RESET_COLORS_ROW = 'resetPresetColors';
 
@@ -324,6 +358,26 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 					toggle('smoothBookmarkScroll', 'Smooth scrolling to bookmarks and links', {
 						description: 'The view glides to the place a bookmark or a link in the text leads to.'
 					})
+				]
+			},
+			{
+				title: 'Visual adjustments',
+				description:
+					'How the pages of every document look. A document you adjust by itself, with the Visual adjustments button above its pages, keeps its own. Files are never changed.',
+				rows: [
+					adjustment('brightness', 'Brightness', ADJUST_MIN, ADJUST_MAX),
+					adjustment('contrast', 'Contrast', ADJUST_MIN, ADJUST_MAX),
+					adjustment('sepia', 'Sepia', 0, SEPIA_MAX, { description: 'The tone of old paper, as in an e-book.' }),
+					adjustmentSwitch('invert', 'Invert colours', { description: 'Dark pages with light text. Colours keep their hue.' }),
+					adjustmentSwitch('grayscale', 'Greyscale'),
+					{
+						kind: 'action',
+						id: RESET_ADJUSTMENTS_ROW,
+						label: 'Reset visual adjustments',
+						description: 'Documents are shown as they are again, except the ones adjusted by themselves.',
+						button: 'Reset',
+						disabled: (d) => !isAdjusted(d.pageAdjustments)
+					}
 				]
 			}
 		]
@@ -474,6 +528,7 @@ export function toInput(d: Draft): SettingsInput {
 		pdfaReadOnly: d.pdfaReadOnly,
 		highlightLinks: d.highlightLinks,
 		linkPreviews: d.linkPreviews,
+		pageAdjustments: { ...d.pageAdjustments } satisfies PageAdjustments,
 		colorPanelOnHover: d.colorPanelOnHover,
 		presetColors: { ...d.presetColors },
 		shortcuts: copyShortcuts(d.shortcuts)
@@ -486,6 +541,7 @@ export function toDraft(s: Settings): Draft {
 		...s,
 		quickTools: [...s.quickTools],
 		presetColors: { ...s.presetColors },
+		pageAdjustments: { ...s.pageAdjustments },
 		shortcuts: copyShortcuts(s.shortcuts),
 		author: s.author === s.defaultAuthor ? '' : s.author
 	};

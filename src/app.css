@@ -100,6 +100,9 @@
 	--lectrix-slider-handle: var(--lectrix-handle);
 	--lectrix-slider-handle-line: var(--lectrix-accent);
 	--lectrix-slider-handle-shadow: rgb(0 0 0 / 0.3);
+	/* Sepia (visual adjustments): the tone of old paper, multiplied into the pages, which are
+	   white in both themes (the dark theme keeps this). */
+	--lectrix-sepia-paper: #f0e0bd;
 	/* The sheen that runs along a progress bar's filled part (the dark theme keeps this). */
 	--lectrix-progress-sheen: rgb(255 255 255 / 0.45);
 	/* On the page, which is white in both themes: the dark theme keeps this. */
@@ -1025,6 +1028,16 @@ button.shortcut-key:hover,
 	color: var(--lectrix-fg-muted);
 	font-size: 12px;
 	line-height: 1.35;
+}
+/* Sepia: the paper's tone over a page or its thumbnail, multiplied into what is under it
+   (white takes the tone, black stays black), as far as the slider says (its opacity). */
+.page-tone {
+	position: absolute;
+	inset: 0;
+	display: block;
+	background: var(--lectrix-sepia-paper);
+	mix-blend-mode: multiply;
+	pointer-events: none;
 }
 /* Something is adjusted (on the button, which is smaller than the list's Filter button). */
 .adjust-dot {

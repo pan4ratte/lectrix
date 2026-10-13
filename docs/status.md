@@ -29,7 +29,7 @@ open for reading only until Enable editing, with a Settings switch, and lose the
 when a save may have broken it. Several windows: a tab moves into a window of its own or
 into another window, with its document as it is. Full screen (F11): the pages alone, with
 the toolbar floating and the side panes brought by the pointer or by Alt held. Visual
-adjustments (brightness, contrast, inverted colours, greyscale) for a document's pages,
+adjustments (brightness, contrast, sepia, inverted colours, greyscale) for a document's pages,
 on screen only and remembered per file. The pages next to those on screen are rendered
 ahead, so that pages slow to render (scans) are there when scrolled to. Organizing pages
 (AGENTS.md section 6.7, ADR 0018): a document's pages as a grid in the viewer's place,
@@ -156,7 +156,10 @@ pages, `tests/perf/organize.mjs` (its numbers are under "Organizing pages" below
   adjustment on or off; the panel does. The start screen's previews and the Combine view
   show pages as they are. Scrolling with adjustments on has not been measured
   (`tests/perf/measure.ps1` runs without them); the filter is applied by the compositor,
-  and the pages are rendered and cached as before.
+  and the pages are rendered and cached as before. Sepia is a layer blended into each page
+  (`mix-blend-mode: multiply`), which the compositor does too; not measured either, and
+  not looked at on macOS and Linux (WebKit). The sliders in Settings apply when let go, or
+  at each key: the pages do not follow a drag there as they do in the viewer's panel.
 - **Links.** A link is followed by its `/Rect`: one that covers several lines by
   `/QuadPoints` also answers between them, and is tinted as one block. Links are followed
   with the pointer only (the keyboard does not reach them), so their tooltips need a

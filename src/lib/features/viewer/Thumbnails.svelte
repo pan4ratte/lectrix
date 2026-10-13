@@ -300,6 +300,7 @@
 							>
 								<span
 									class="relative block shadow-[0_1px_2px_var(--color-page-shadow)]"
+									class:isolate={tab.pageTone !== null}
 									style:width="{thumbW}px"
 									style:height="{item.imageH}px"
 								>
@@ -323,6 +324,9 @@
 											rotation={tab.pages[index]?.rotation ?? 0}
 										/>
 									</span>
+									{#if tab.pageTone !== null}
+										<span class="page-tone" style:opacity={tab.pageTone} data-page-tone aria-hidden="true"></span>
+									{/if}
 								</span>
 								<!-- A page without a label keeps the caption's line, empty. -->
 								<span class="text-xs text-fg-muted tabular-nums">

@@ -276,6 +276,17 @@ Needs an installed earlier release and a newer one published (ADR 0011,
       is as it was. Select text, search, and type a text box: all show on the dark page.
 - [ ] Move Brightness and Contrast, turn on Greyscale: the pages follow at once. The tab
       shows no unsaved changes, and the file opens unchanged in Acrobat.
+- [ ] Move Sepia in a document with photographs: the paper takes the tone of old paper,
+      the more the further; the text stays black and the photographs keep their colours,
+      warmed. With Invert colours on too, the paper stays dark and the light text is warm.
+      Scroll quickly with Sepia on: as smooth as without.
+- [ ] Settings > Appearance > Visual adjustments: move Sepia and turn on Greyscale. Every
+      open document follows, in every window, and so does a file opened next. Adjust one
+      document in its own panel: it keeps that when Settings change again, and Reset in
+      its panel puts it back to what Settings say. Reset in Settings: the documents are as
+      their files have them, except any still adjusted by itself.
+- [ ] With a state file from 1.1 (a file left inverted there, and one never adjusted): the
+      first opens inverted, the second follows Settings.
 - [ ] Scroll a long document quickly with adjustments on: as smooth as without.
 - [ ] Close Lectrix and open the file again: adjusted as it was; another file is not.
 

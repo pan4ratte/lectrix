@@ -14,6 +14,8 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ### Viewer and tabs
 
+- Visual adjustments have a **Sepia** slider: the paper takes the tone of old paper, as in an e-book, as much as you like, and the text stays black. It is on screen only and remembered for the file, as the other adjustments are.
+- After **Reset** in Visual adjustments, **Esc** closes the panel. Before, it did nothing until you clicked elsewhere.
 - The rotate buttons of the Pages panel, and **Rotate page** in a thumbnail’s menu, now turn a page on screen only, as **View > Rotate view** turns them all. The file is not changed, so there is nothing to save, and a file open for reading only can be turned too.
 - Lectrix remembers which pages you turned, and the view rotation, for each file.
 - Choosing **File > Exit** right after moving a tab to a new window no longer closes that window without asking about its unsaved changes.
@@ -53,6 +55,10 @@ the wording, translations): docs/releasing.md, "The changelog".
 - Extract the selected pages into a new document with **Extract** or a right click. It opens in a tab of its own with its pages as a grid, and is not a file until you save it: **Save** asks where. The pages’ annotations, bookmarks and page labels come along; the document keeps its pages.
 - A right click on a page, or **Shift+F10**, offers everything that can be done with the selected pages.
 - Every change applies to the document at once and can be undone with **Ctrl+Z**.
+
+### Settings
+
+- **Appearance** has a **Visual adjustments** section: brightness, contrast, sepia, inverted colours and greyscale for the pages of every document, with **Reset**. A document you adjust by itself keeps its own adjustments; **Reset** in its Visual adjustments panel goes back to the ones in Settings.
 
 ### General
 

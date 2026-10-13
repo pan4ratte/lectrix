@@ -16,4 +16,8 @@ contrast: number,
 /**
  * Dark pages with light text.
  */
-invert: boolean, grayscale: boolean, };
+invert: boolean, grayscale: boolean, 
+/**
+ * How far the pages are toned sepia, percent: 0 as the pages are.
+ */
+sepia: number, };
