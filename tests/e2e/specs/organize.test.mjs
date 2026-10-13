@@ -45,17 +45,27 @@ const panes = (browser) =>
 const cellWidth = (browser) =>
 	browser.execute(() => document.querySelector('[data-organize-view] [role=option]').getBoundingClientRect().width);
 
-/** Ctrl+wheel over the middle of page `index` (a touchpad pinch arrives the same way). */
+/** Ctrl+wheel over the middle of page `index` (a touchpad pinch arrives the same way). With
+ * `index` null, over the page nearest the middle of the view: the grid has cells only for
+ * the pages near its view, and at the largest size, with a page to a row, which pages
+ * those are depends on where the view came to rest. */
 async function wheelOver(browser, index, deltaY) {
 	await browser.execute(
 		(position, d) => {
-			const cell = document.querySelector(`[data-organize-view] [role=option][aria-posinset="${position}"]`);
+			const cells = [...document.querySelectorAll('[data-organize-view] [role=option]')];
+			const view = document.querySelector('[data-organize-view] [role=listbox]').getBoundingClientRect();
+			const off = (c) => {
+				const box = c.getBoundingClientRect();
+				return Math.abs((box.top + box.bottom) / 2 - (view.top + view.bottom) / 2);
+			};
+			const cell = position === null ? cells.sort((a, b) => off(a) - off(b))[0] : cells.find((c) => c.getAttribute('aria-posinset') === String(position));
+			if (!cell) throw new Error(`the grid has no cell for page ${position ?? 'in view'}; it has ${cells.map((c) => c.getAttribute('aria-posinset')).join(', ')}`);
 			const r = cell.getBoundingClientRect();
 			const x = r.left + r.width / 2;
 			const y = r.top + r.height / 2;
 			cell.dispatchEvent(new WheelEvent('wheel', { deltaY: d, ctrlKey: true, clientX: x, clientY: y, bubbles: true, cancelable: true }));
 		},
-		index + 1,
+		index === null ? null : index + 1,
 		deltaY
 	);
 }
@@ -222,7 +232,7 @@ test('pages are moved, turned and deleted in the grid, and the document follows'
 		assert.ok(Math.abs(one.left - one.right) <= 1.5, `the page is not centered: ${JSON.stringify(one)}`);
 		// The wheel goes no further.
 		const largest = await cellWidth(browser);
-		await wheelOver(browser, 1, -120);
+		await wheelOver(browser, null, -120);
 		assert.equal(await waitForWidth(browser, () => true, 'past the largest size'), largest);
 		await browser.saveScreenshot(join(OUT, 'organize-one-page.png'));
 		const smallerButton = await browser.$('button[aria-label="Smaller pages"]');
