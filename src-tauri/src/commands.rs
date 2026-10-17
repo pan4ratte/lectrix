@@ -21,10 +21,10 @@ use crate::annotations::RepairSummary;
 use crate::combine::{self, Progress};
 use crate::ipc::{
     AppError, DocumentChange, DocumentInfo, DocumentSaved, ImageFormat, LabelMode, LinkPlace,
-    MergeOutcome, MergePlan, MergeProgress, MergeRequest, MergeStage, MoveTarget, OpenResult,
-    OperationInput, PageHits, PageText, PaneLayout, RecentFile, RecoveredDocument, SaveResult,
-    SearchChunk, Settings, SettingsInput, StartupInfo, TabHandoff, UnsavedSource, ViewState,
-    WebPage, WindowDocument, WindowEntry,
+    MenuEntry, MergeOutcome, MergePlan, MergeProgress, MergeRequest, MergeStage, MoveTarget,
+    OpenResult, OperationInput, PageHits, PageText, PaneLayout, RecentFile, RecoveredDocument,
+    SaveResult, SearchChunk, Settings, SettingsInput, StartupInfo, TabHandoff, UnsavedSource,
+    ViewState, WebPage, WindowChrome, WindowDocument, WindowEntry,
 };
 use crate::platform::Platform;
 use crate::store::StoredSettings;
@@ -1253,6 +1253,20 @@ pub fn open_web_page(page: WebPage) -> Result<(), AppError> {
             Some(&format!("Go to {shown} in your browser.")),
         )
     })
+}
+
+/// The window buttons the title bar draws, and where (section 8). Synchronous, so it runs
+/// on the main thread, where GTK's settings are read on Linux.
+#[tauri::command]
+pub fn window_chrome() -> WindowChrome {
+    crate::platform::current().window_chrome()
+}
+
+/// The window's menus, for the system's menu bar on macOS (section 8, `menu.rs`). Off the
+/// main thread, since building menus waits for it.
+#[tauri::command(async)]
+pub fn set_menu(app: AppHandle, window: WebviewWindow, menus: Vec<MenuEntry>) {
+    crate::menu::set(&app, window.label(), menus);
 }
 
 /// Records a frontend error in the app log (the user sees a plain message instead).

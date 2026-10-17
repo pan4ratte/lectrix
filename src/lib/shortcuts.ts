@@ -1,8 +1,11 @@
 // Keyboard shortcuts (sections 6.6 and 8): the commands that can have one, the keys each
 // comes with, and the keys in use once the changes made in Settings are applied. A shortcut
-// is written as Settings shows it: "Ctrl+Shift+S", "Alt+Left", "F3".
+// is written as Settings shows it: "Ctrl+Shift+S", "Alt+Left", "F3". On macOS, Ctrl in a
+// shortcut is the Command key (either answers to it), some commands come with the keys Mac
+// apps use (`mac`), and shortcuts are shown as the system shows them: "⇧⌘S" (`displayShortcut`).
 
 import type { CommandName } from './commands.ts';
+import { PLATFORM, type Platform } from './platform.ts';
 
 export interface ShortcutCommand {
 	command: CommandName;
@@ -10,6 +13,8 @@ export interface ShortcutCommand {
 	label: string;
 	/** The shortcuts it comes with. */
 	keys: readonly string[];
+	/** The shortcuts it comes with on macOS, where they differ: those Mac apps use. */
+	mac?: readonly string[];
 	/** More shortcuts that work while `keys` are unchanged and are not listed: the same key
 	 * elsewhere on a keyboard (the keypad's plus), or a mouse's back button. */
 	aliases?: readonly string[];
@@ -33,21 +38,21 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 			{ command: 'saveAs', label: 'Save as', keys: ['Ctrl+Shift+S'], inInputs: true },
 			{ command: 'saveAsOptimized', label: 'Save as (optimized)', keys: [], inInputs: true },
 			{ command: 'reload', label: 'Reload from disk', keys: [], inInputs: true },
-			{ command: 'closeTab', label: 'Close tab', keys: ['Ctrl+W', 'Ctrl+F4'], inInputs: true },
+			{ command: 'closeTab', label: 'Close tab', keys: ['Ctrl+W', 'Ctrl+F4'], mac: ['Ctrl+W'], inInputs: true },
 			{ command: 'moveTabToNewWindow', label: 'Move tab to new window', keys: [], inInputs: true },
 			{ command: 'settings', label: 'Settings', keys: ['Ctrl+,'], inInputs: true },
-			{ command: 'exit', label: 'Exit', keys: [], inInputs: true }
+			{ command: 'exit', label: 'Exit', keys: [], mac: ['Ctrl+Q'], inInputs: true }
 		]
 	},
 	{
 		title: 'Edit',
 		commands: [
 			{ command: 'undo', label: 'Undo', keys: ['Ctrl+Z'] },
-			{ command: 'redo', label: 'Redo', keys: ['Ctrl+Y', 'Ctrl+Shift+Z'] },
+			{ command: 'redo', label: 'Redo', keys: ['Ctrl+Y', 'Ctrl+Shift+Z'], mac: ['Ctrl+Shift+Z', 'Ctrl+Y'] },
 			{ command: 'copy', label: 'Copy selected text', keys: ['Ctrl+C'] },
 			{ command: 'find', label: 'Find', keys: ['Ctrl+F'], inInputs: true },
-			{ command: 'findNext', label: 'Find next', keys: ['F3'], inInputs: true },
-			{ command: 'findPrevious', label: 'Find previous', keys: ['Shift+F3'], inInputs: true }
+			{ command: 'findNext', label: 'Find next', keys: ['F3'], mac: ['Ctrl+G', 'F3'], inInputs: true },
+			{ command: 'findPrevious', label: 'Find previous', keys: ['Shift+F3'], mac: ['Ctrl+Shift+G', 'Shift+F3'], inInputs: true }
 		]
 	},
 	{
@@ -60,7 +65,7 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 			{ command: 'rotateViewClockwise', label: 'Rotate view clockwise', keys: [], inInputs: true },
 			{ command: 'rotateViewCounterClockwise', label: 'Rotate view counter-clockwise', keys: [], inInputs: true },
 			{ command: 'toggleCoverPage', label: 'Cover page alone', keys: [], inInputs: true },
-			{ command: 'fullScreen', label: 'Full screen', keys: ['F11'], inInputs: true },
+			{ command: 'fullScreen', label: 'Full screen', keys: ['F11'], mac: ['Ctrl+Shift+F'], inInputs: true },
 			{ command: 'toggleLeftPane', label: 'Show or hide the left pane', keys: [], inInputs: true },
 			{ command: 'toggleRightPane', label: 'Show or hide the right pane', keys: [], inInputs: true },
 			{ command: 'showPages', label: 'Show the Pages panel', keys: [], inInputs: true },
@@ -71,9 +76,9 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 	{
 		title: 'Go to',
 		commands: [
-			{ command: 'goToPage', label: 'Go to page', keys: ['Ctrl+G'], inInputs: true },
-			{ command: 'back', label: 'Back', keys: ['Alt+Left'], aliases: ['BrowserBack'] },
-			{ command: 'forward', label: 'Forward', keys: ['Alt+Right'], aliases: ['BrowserForward'] },
+			{ command: 'goToPage', label: 'Go to page', keys: ['Ctrl+G'], mac: ['Ctrl+Alt+G'], inInputs: true },
+			{ command: 'back', label: 'Back', keys: ['Alt+Left'], mac: ['Ctrl+[', 'Alt+Left'], aliases: ['BrowserBack'] },
+			{ command: 'forward', label: 'Forward', keys: ['Alt+Right'], mac: ['Ctrl+]', 'Alt+Right'], aliases: ['BrowserForward'] },
 			{ command: 'nextTab', label: 'Next tab', keys: ['Ctrl+Tab', 'Ctrl+Page Down'], inInputs: true },
 			{ command: 'previousTab', label: 'Previous tab', keys: ['Ctrl+Shift+Tab', 'Ctrl+Page Up'], inInputs: true }
 		]
@@ -113,6 +118,17 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 
 const COMMANDS: readonly ShortcutCommand[] = SHORTCUT_GROUPS.flatMap((g) => g.commands);
 const BY_NAME = new Map(COMMANDS.map((c) => [c.command, c]));
+
+/** The shortcuts a command comes with on the platform. */
+export function defaultKeys(c: ShortcutCommand, platform: Platform = PLATFORM): readonly string[] {
+	return platform === 'macos' ? (c.mac ?? c.keys) : c.keys;
+}
+
+/** The shortcuts the command named comes with on the platform. */
+function defaultsOf(command: CommandName, platform: Platform = PLATFORM): readonly string[] {
+	const c = BY_NAME.get(command);
+	return c ? defaultKeys(c, platform) : [];
+}
 
 /** Keys that work where the focus is and can't be changed, listed in Settings with the rest. */
 export const FIXED_KEYS: readonly { keys: string; label: string }[] = [
@@ -215,10 +231,14 @@ const FOCUS_KEYS = ['Esc', 'Enter', 'Tab', 'Space', 'Backspace', 'Del', 'Insert'
  * Why a shortcut can't be given to a command: null if it can. Keys with a fixed use stay
  * out (`FIXED_KEYS`, the keys that move the focus or edit text, Alt+F4).
  */
-export function reservedReason(text: string): string | null {
+export function reservedReason(text: string, platform: Platform = PLATFORM): string | null {
 	const chord = parse(text);
 	if (!chord) return 'That key can’t be used in a shortcut.';
 	const { key, ctrl, alt, shift } = chord;
+	// macOS's own: Hide, Hide others and Minimize, in every app's menus.
+	if (platform === 'macos' && ctrl && !shift && (key === 'H' || (key === 'M' && !alt))) {
+		return `${displayShortcut(text, platform)} belongs to macOS, so it can’t be a shortcut.`;
+	}
 	const fixed =
 		(!ctrl && !alt && FOCUS_KEYS.includes(key)) ||
 		key === 'Enter' ||
@@ -229,7 +249,7 @@ export function reservedReason(text: string): string | null {
 		(key === 'F4' && alt) ||
 		(key === 'Tab' && alt) ||
 		(ctrl && !alt && !shift && ['A', 'V', 'X'].includes(key));
-	return fixed ? `${text} already has a fixed use, so it can’t be a shortcut.` : null;
+	return fixed ? `${displayShortcut(text, platform)} already has a fixed use, so it can’t be a shortcut.` : null;
 }
 
 /** Shortcuts that edit text in a field, whatever command has them elsewhere. */
@@ -242,6 +262,64 @@ function editsText({ key, ctrl, alt }: Chord): boolean {
  * or Alt, or a function key, so nothing that types. */
 function worksInInputs(chord: Chord): boolean {
 	return (chord.ctrl || chord.alt || /^F\d{1,2}$/.test(chord.key)) && !editsText(chord);
+}
+
+// ----- how a shortcut is shown -----
+
+/** Keys as macOS shows them in menus. */
+const MAC_KEYS: Record<string, string> = {
+	Left: '←',
+	Right: '→',
+	Up: '↑',
+	Down: '↓',
+	'Page Up': '⇞',
+	'Page Down': '⇟',
+	Home: '↖',
+	End: '↘',
+	Esc: '⎋',
+	Del: '⌦',
+	Backspace: '⌫',
+	Enter: '↩',
+	Tab: '⇥'
+};
+
+/**
+ * A shortcut as the platform shows it: as written on Windows and Linux; on macOS with the
+ * system's symbols, the modifiers in its order (⌃⌥⇧⌘) before the key, Ctrl as ⌘ (as it
+ * answers to the Command key), except with Tab, where Command switches apps and the
+ * Control key it answers to is meant: "Ctrl+Shift+S" is ⇧⌘S, "Ctrl+Tab" ⌃⇥. Text that is
+ * not one shortcut (the fixed keys' "Ctrl+Shift+Left, Right") has its modifiers shown so.
+ */
+export function displayShortcut(text: string, platform: Platform = PLATFORM): string {
+	if (platform !== 'macos' || !text) return text;
+	const m = /^((?:(?:Ctrl|Alt|Shift)\+)*)(.+)$/.exec(text);
+	if (!m) return text;
+	const mods = m[1]!;
+	let key = m[2]!;
+	let alt = mods.includes('Alt+');
+	if (!mods && /^Alt\b/.test(key)) {
+		alt = true;
+		key = key.slice(3);
+	}
+	const ctrl = mods.includes('Ctrl+');
+	const control = ctrl && key === 'Tab';
+	const symbols = `${control ? '⌃' : ''}${alt ? '⌥' : ''}${mods.includes('Shift+') ? '⇧' : ''}${ctrl && !control ? '⌘' : ''}`;
+	return symbols + (MAC_KEYS[key] ?? key);
+}
+
+/** Keys as muda's accelerators name them, where Lectrix writes them otherwise. */
+const ACCELERATOR_KEYS: Record<string, string> = { 'Page Up': 'PageUp', 'Page Down': 'PageDown', Del: 'Delete', Esc: 'Escape' };
+
+/**
+ * A shortcut as the system's menu bar on macOS takes it (muda's accelerators: "Cmd+Shift+S"),
+ * with Ctrl as Command but with Tab (see `displayShortcut`); null for one it can't show.
+ */
+export function menuAccelerator(text: string): string | null {
+	const chord = parse(text);
+	if (!chord) return null;
+	const { key, ctrl, alt, shift } = chord;
+	const mods = [ctrl && (key === 'Tab' ? 'Ctrl' : 'Cmd'), alt && 'Alt', shift && 'Shift'].filter(Boolean);
+	return [...mods, ACCELERATOR_KEYS[key] ?? key].join('+');
 }
 
 // ----- the keys in use -----
@@ -259,19 +337,19 @@ function clean(keys: readonly string[]): string[] {
 }
 
 /** A command's shortcuts: Settings' own, or the ones it comes with. */
-export function keysOf(command: CommandName, overrides?: ShortcutOverrides | null): readonly string[] {
+export function keysOf(command: CommandName, overrides?: ShortcutOverrides | null, platform: Platform = PLATFORM): readonly string[] {
 	const own = overrides?.[command];
-	return own ? clean(own) : (BY_NAME.get(command)?.keys ?? []);
+	return own ? clean(own) : defaultsOf(command, platform);
 }
 
 /** A command's first shortcut, for menus and tooltips; '' without one. */
-export function shortcutOf(command: CommandName, overrides?: ShortcutOverrides | null): string {
-	return keysOf(command, overrides)[0] ?? '';
+export function shortcutOf(command: CommandName, overrides?: ShortcutOverrides | null, platform: Platform = PLATFORM): string {
+	return keysOf(command, overrides, platform)[0] ?? '';
 }
 
 /** Every shortcut a command answers to, the unlisted ones included while it has its own keys. */
 function allKeys(c: ShortcutCommand, overrides?: ShortcutOverrides | null): readonly string[] {
-	return overrides?.[c.command] ? keysOf(c.command, overrides) : [...c.keys, ...(c.aliases ?? [])];
+	return overrides?.[c.command] ? keysOf(c.command, overrides) : [...defaultKeys(c), ...(c.aliases ?? [])];
 }
 
 /** The command that has a shortcut, other than `except`; null if it is free. */
@@ -287,7 +365,7 @@ export function withKeys(overrides: ShortcutOverrides | null | undefined, comman
 	const next: Record<string, string[]> = {};
 	for (const [name, own] of Object.entries(overrides ?? {})) if (own && name !== command) next[name] = [...own];
 	const cleaned = clean(keys);
-	const defaults = BY_NAME.get(command)?.keys ?? [];
+	const defaults = defaultsOf(command);
 	if (cleaned.length !== defaults.length || cleaned.some((k, i) => k !== defaults[i])) next[command] = cleaned;
 	return next;
 }

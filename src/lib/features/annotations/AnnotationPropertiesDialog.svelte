@@ -5,6 +5,7 @@
 	import { Dialog } from 'bits-ui';
 	import { untrack } from 'svelte';
 
+	import { PLATFORM } from '#lib/platform.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -54,7 +55,11 @@
 						<dd>{formatDate(a.modified)}</dd>
 					</dl>
 					<div class="mt-2 flex justify-end gap-2">
-						{#if editable}
+						{#if editable && PLATFORM === 'macos'}
+							<!-- macOS: the main button at the right, as its dialogs have it. -->
+							<Dialog.Close class="button">Cancel</Dialog.Close>
+							<button type="submit" class="button button-primary">Save</button>
+						{:else if editable}
 							<button type="submit" class="button button-primary">Save</button>
 							<Dialog.Close class="button">Cancel</Dialog.Close>
 						{:else}

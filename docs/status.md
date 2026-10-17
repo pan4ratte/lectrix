@@ -327,8 +327,15 @@ Nothing has been run interactively there.
 - **Fonts:** no index of installed fonts (ADR 0005). Non-embedded fonts other than the
   base 14 render with MuPDF's substitutes, and non-embedded CJK text has no glyphs. This
   needs fontconfig (Linux) and Core Text (macOS) behind the existing `SystemFonts` trait.
-- **Window:** the title bar's window buttons follow Windows (macOS puts them on the
-  left). A tab dropped where two Lectrix windows overlap goes by the windows' frames, not
+- **Window:** the title bar follows each platform (ADR 0021): the system's traffic lights
+  over its left end on macOS, GTK's button layout in Adwaita's style on Linux, and sheets and
+  alerts for dialogs on macOS. None of it has been looked at on a Mac or a Linux desktop:
+  the traffic lights' place in the 35 px bar, the alert on macOS 26 (whose alerts changed
+  alignment) and the buttons under KDE (Adwaita's look in Breeze's place) need a look. The
+  menus are in macOS's menu bar and shortcuts use Command there; neither has been tried on
+  a Mac, nor has ⌘Z undoing a text field's typing through the menu bar
+  (`document.execCommand`). Edit > Copy in the menu bar can't copy the document's selected
+  text (⌘C and the selection's bar can). A tab dropped where two Lectrix windows overlap goes by the windows' frames, not
   by which one is on top (only the Windows build asks the system for the window under the
   cursor), and moving tabs between windows has not been run there. Nor has full screen
   (on macOS the system's own, with its animation and its menu bar at the top edge).

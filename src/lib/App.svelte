@@ -13,6 +13,7 @@
 	import FileBanner from '#lib/components/FileBanner.svelte';
 	import PdfaBanner from '#lib/components/PdfaBanner.svelte';
 	import PasswordDialog from '#lib/components/PasswordDialog.svelte';
+	import NativeMenus from '#lib/components/NativeMenus.svelte';
 	import PaneToggle from '#lib/components/PaneToggle.svelte';
 	import PanelDragGhost from '#lib/components/PanelDragGhost.svelte';
 	import PanelPane from '#lib/components/PanelPane.svelte';
@@ -62,6 +63,7 @@
 		setPaneLayout,
 		toAppError
 	} from '#lib/ipc/index.ts';
+	import { PLATFORM } from '#lib/platform.ts';
 	import { COMMIT_FIELD_FIRST, commandFor, isBlocked, isBrowserZoomKey, isTextInput } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 
@@ -287,6 +289,7 @@
 			onSettingsChanged(applySettings),
 			onRecentChanged(() => void app.loadRecent()),
 			onTouchpadPinch(dispatchPinch),
+			getCurrentWindow().onResized(() => void fullscreen.windowResized().catch(() => {})),
 			getCurrentWindow().onCloseRequested(async (event) => {
 				if (await app.confirmExit()) return;
 				event.preventDefault();
@@ -382,6 +385,11 @@
 		</div>
 	{/if}
 {/snippet}
+
+<!-- macOS: the menus in the system's menu bar, whatever shows in the window. -->
+{#if PLATFORM === 'macos'}
+	<NativeMenus />
+{/if}
 
 <div class="flex h-full flex-col" bind:this={shell}>
 	{#if !full}

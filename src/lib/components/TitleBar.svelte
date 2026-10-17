@@ -1,16 +1,47 @@
 <script lang="ts">
-	// Custom title bar (window decorations are off): the app's icon and name, the menus, the
-	// document tabs, a drag region, and the window buttons. The side panes' buttons are in
-	// their own rows (PaneToggle).
+	// Custom title bar: the app's icon and name, the menus (not on macOS, where they are in the
+	// system's menu bar), the document tabs, a drag region, and the window buttons, placed as
+	// the platform's own apps have them (section 8): drawn by the app at the right on Windows;
+	// at the end and in the order the desktop gives on Linux (GNOME: close alone, at the
+	// right); the system's own at the left on macOS, where the bar leaves room for them. The
+	// side panes' buttons are in their own rows (PaneToggle).
 	import { getCurrentWindow } from '@tauri-apps/api/window';
+	import { onMount } from 'svelte';
 
 	import iconUrl from '#lib/assets/lectrix-icon.svg';
 	import { APP_NAME } from '#lib/config.ts';
+	import { getWindowChrome, type WindowChrome } from '#lib/ipc/index.ts';
+	import { PLATFORM } from '#lib/platform.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 
 	import MenuBar from './MenuBar.svelte';
 	import Tabs from './Tabs.svelte';
 	import WindowControls from './WindowControls.svelte';
+
+	/** Until Rust says: Windows' buttons on Windows, none elsewhere (none drawn rather than
+	 * the wrong ones, for the moment it takes). */
+	let chrome = $state<WindowChrome>(
+		PLATFORM === 'windows' ? { left: [], right: ['minimize', 'maximize', 'close'] } : { left: [], right: [] }
+	);
+	/** macOS: the window is in a full-screen space of its own (its green button), where the
+	 * system hides its buttons, so the bar needs no room for them. */
+	let nativeFullscreen = $state(false);
+
+	onMount(() => {
+		void getWindowChrome()
+			.then((c) => (chrome = c))
+			.catch(() => {});
+		if (PLATFORM !== 'macos') return;
+		const appWindow = getCurrentWindow();
+		const follow = () =>
+			void appWindow
+				.isFullscreen()
+				.then((f) => (nativeFullscreen = f))
+				.catch(() => {});
+		follow();
+		const unlisten = appWindow.onResized(follow);
+		return () => void unlisten.then((f) => f());
+	});
 
 	/** Something is open, so the start screen can be shown over it (and left again). */
 	const canShowStart = $derived(app.tabs.length > 0 || app.combine !== null);
@@ -49,6 +80,14 @@
 <header class="flex h-[35px] shrink-0 items-stretch bg-chrome" data-tauri-drag-region>
 	<!-- The bar is 35 px tall, as VS Code's. The app's icon and name are measured as there too:
 	     the 16 px icon centred in a 35 px box, the name in 12 px like its window title. -->
+	{#if PLATFORM === 'macos' && !nativeFullscreen}
+		<!-- Under the system's buttons (placed in windows.rs: 13 px in, 20 px apart, 14 px
+		     wide), with as much room after them as before. -->
+		<div class="w-[80px] shrink-0" data-tauri-drag-region></div>
+	{/if}
+	{#if chrome.left.length > 0}
+		<WindowControls buttons={chrome.left} side="left" />
+	{/if}
 	<button
 		type="button"
 		class="app-home flex shrink-0 items-center pr-[8px] select-none"
@@ -69,14 +108,19 @@
 		</span>
 		<span class="text-[12px]">{APP_NAME}</span>
 	</button>
-	<div class="flex items-center">
-		<MenuBar />
-	</div>
+	<!-- macOS has the menus in the system's menu bar (NativeMenus). -->
+	{#if PLATFORM !== 'macos'}
+		<div class="flex items-center">
+			<MenuBar />
+		</div>
+	{/if}
 	<div class="ml-2 flex min-w-0 flex-1 items-center" data-tauri-drag-region>
 		<Tabs />
 		<div class="h-full min-w-12 flex-1" data-tauri-drag-region></div>
 	</div>
-	<WindowControls />
+	{#if chrome.right.length > 0}
+		<WindowControls buttons={chrome.right} side="right" />
+	{/if}
 </header>
 
 <style>

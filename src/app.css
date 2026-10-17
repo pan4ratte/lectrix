@@ -90,6 +90,10 @@
 	--lectrix-info-bg: #eef4fd;
 	--lectrix-page-shadow: rgb(0 0 0 / 0.14);
 	--lectrix-overlay: rgb(0 0 0 / 0.5);
+	/* macOS: what dims the window behind a sheet, much less than elsewhere, as the system's
+	   own sheets do; and the sheet's shadow. */
+	--lectrix-sheet-overlay: rgb(0 0 0 / 0.1);
+	--lectrix-sheet-shadow: rgb(0 0 0 / 0.28);
 	--lectrix-selection: color-mix(in srgb, var(--lectrix-accent) 32%, transparent);
 	/* The thumb of a switch that is on, and a slider's handle: white in both themes (the
 	   dark theme keeps this). */
@@ -159,6 +163,8 @@
 		--lectrix-info-bg: #181f29;
 		--lectrix-page-shadow: rgb(0 0 0 / 0.5);
 		--lectrix-overlay: rgb(0 0 0 / 0.6);
+		--lectrix-sheet-overlay: rgb(0 0 0 / 0.25);
+		--lectrix-sheet-shadow: rgb(0 0 0 / 0.6);
 		--lectrix-source-1: #7ab0f7;
 		--lectrix-source-2: #ff97cf;
 		--lectrix-source-3: #22d0a2;
@@ -199,6 +205,8 @@
 	--lectrix-info-bg: #181f29;
 	--lectrix-page-shadow: rgb(0 0 0 / 0.5);
 	--lectrix-overlay: rgb(0 0 0 / 0.6);
+	--lectrix-sheet-overlay: rgb(0 0 0 / 0.25);
+	--lectrix-sheet-shadow: rgb(0 0 0 / 0.6);
 	--lectrix-source-1: #7ab0f7;
 	--lectrix-source-2: #ff97cf;
 	--lectrix-source-3: #22d0a2;
@@ -1822,6 +1830,81 @@ button.shortcut-key:hover,
 		translate: 0 8px;
 		scale: 0.98;
 	}
+}
+
+/* macOS (section 8): a dialog is a sheet, as the system's own: it comes down from under the
+   title bar, centred across the window, into its place just below the bar, and goes back up
+   (the same 140 ms and 100 ms); the window behind dims only a little; it is more rounded,
+   with a deeper, softer shadow; and its buttons have the system's size and corners. */
+:root[data-platform='macos'] .dialog-overlay {
+	background: var(--lectrix-sheet-overlay);
+}
+:root[data-platform='macos'] .dialog-content {
+	top: 43px;
+	transform: translateX(-50%);
+	border-radius: 12px;
+	box-shadow:
+		0 0 0 0.5px var(--lectrix-sheet-shadow),
+		0 18px 48px var(--lectrix-sheet-shadow);
+	animation-name: sheet-in;
+}
+:root[data-platform='macos'] .dialog-content[data-state='closed'] {
+	animation-name: sheet-out;
+}
+:root[data-platform='macos'] .dialog-content .button {
+	height: 28px;
+	min-width: 72px;
+	border-radius: 6px;
+}
+@keyframes sheet-in {
+	from {
+		opacity: 0;
+		translate: 0 -16px;
+	}
+}
+@keyframes sheet-out {
+	to {
+		opacity: 0;
+		translate: 0 -16px;
+	}
+}
+/* Tall dialogs keep within the window below the title bar. */
+:root[data-platform='macos'] .settings-dialog {
+	height: min(540px, calc(100vh - 51px));
+}
+:root[data-platform='macos'] .whats-new {
+	max-height: min(620px, calc(100vh - 51px));
+}
+/* A question (DialogHost) is an alert: narrow, the app's icon over the title and the
+   message, all centred, and buttons as wide as the alert, side by side or stacked
+   (alert.ts). */
+.mac-alert {
+	width: 280px;
+	padding: 20px 16px 16px;
+	text-align: center;
+}
+.mac-alert-title {
+	margin-top: 12px;
+	font-size: 13px;
+	font-weight: 600;
+}
+.mac-alert-message {
+	margin-top: 6px;
+	font-size: 12px;
+}
+.mac-alert-buttons {
+	display: grid;
+	margin-top: 18px;
+	grid-auto-columns: 1fr;
+	grid-auto-flow: column;
+	gap: 8px;
+}
+.mac-alert-stacked {
+	grid-auto-flow: row;
+}
+.mac-alert-buttons .button {
+	min-width: 0;
+	padding: 0 8px;
 }
 
 /* Settings: the groups as tabs down the left side, in the panes' colour, and the chosen

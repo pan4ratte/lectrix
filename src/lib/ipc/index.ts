@@ -66,6 +66,10 @@ export type { BookmarkMode } from './generated/BookmarkMode';
 export type { InsertLabelMode } from './generated/InsertLabelMode';
 export type { LabelMode } from './generated/LabelMode';
 export type { WebPage } from './generated/WebPage';
+export type { WindowButton } from './generated/WindowButton';
+export type { MenuEntry } from './generated/MenuEntry';
+export type { SystemMenuItem } from './generated/SystemMenuItem';
+export type { WindowChrome } from './generated/WindowChrome';
 export type { MergePage } from './generated/MergePage';
 export type { MergeReport } from './generated/MergeReport';
 export type { DeleteReport } from './generated/DeleteReport';
@@ -111,6 +115,8 @@ export type { ToolbarVisibility } from './generated/ToolbarVisibility';
 import type { RepairSummary } from './generated/RepairSummary';
 import type { Settings } from './generated/Settings';
 import type { WebPage } from './generated/WebPage';
+import type { WindowChrome } from './generated/WindowChrome';
+import type { MenuEntry } from './generated/MenuEntry';
 import type { SettingsInput } from './generated/SettingsInput';
 
 export function isAppError(value: unknown): value is AppError {
@@ -239,6 +245,10 @@ export const logMetric = (name: string, ms: number) => invoke<void>('log_metric'
 export const logError = (message: string) => invoke<void>('log_error', { message });
 /** Opens Lectrix's source code page or its author's profile in the default browser. */
 export const openWebPage = (page: WebPage) => invoke<void>('open_web_page', { page });
+/** The window buttons the title bar draws, and at which end (section 8). */
+export const getWindowChrome = () => invoke<WindowChrome>('window_chrome');
+/** This window's menus, for the system's menu bar (macOS). */
+export const setMenu = (menus: MenuEntry[]) => invoke<void>('set_menu', { menus });
 
 /** Listens to events for this window. (The plain `listen` of the event API would also
  * hear the ones Rust sends to Lectrix's other windows.) */
@@ -293,6 +303,10 @@ export const onFileChanged = (handler: (event: FileChangedEvent) => void): Promi
 /** A touchpad pinch the webview would have applied to the whole app (Linux). */
 export const onTouchpadPinch = (handler: (event: TouchpadPinch) => void): Promise<UnlistenFn> =>
 	listen<TouchpadPinch>('touchpad-pinch', (e) => handler(e.payload));
+
+/** An item of this window's menus was chosen in the system's menu bar (macOS): its id. */
+export const onMenuCommand = (handler: (id: string) => void): Promise<UnlistenFn> =>
+	listen<string>('menu-command', (e) => handler(e.payload));
 
 export interface TileRect {
 	x: number;

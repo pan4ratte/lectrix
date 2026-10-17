@@ -8,10 +8,13 @@ import {
 	chordOf,
 	commandFor,
 	commandUsing,
+	defaultKeys,
+	displayShortcut,
 	isBlocked,
 	isBrowserZoomKey,
 	isChanged,
 	keysOf,
+	menuAccelerator,
 	reservedReason,
 	setShortcuts,
 	shortcutOf,
@@ -241,5 +244,55 @@ describe('shortcuts changed in Settings', () => {
 		// A command that leaves text fields alone still does, whatever its key.
 		expect(commandFor(key('p', { ctrl: true, alt: true }), false)).toBe('toolPen');
 		expect(commandFor(key('p', { ctrl: true, alt: true }), true)).toBeNull();
+	});
+});
+
+describe('shortcuts on macOS', () => {
+	const all = SHORTCUT_GROUPS.flatMap((g) => g.commands);
+
+	it('come with keys that are written as shown, free to use there, and each once', () => {
+		const seen = new Map<string, string>();
+		for (const c of all) {
+			const keys = defaultKeys(c, 'macos');
+			expect(keys.length, c.command).toBeLessThanOrEqual(MAX_KEYS);
+			for (const k of [...keys, ...(c.aliases ?? [])]) {
+				expect(reservedReason(k, 'macos'), `${c.command} ${k}`).toBeNull();
+				expect(menuAccelerator(k) ?? (c.aliases?.includes(k) ? 'alias' : null), `${c.command} ${k}`).not.toBeNull();
+				expect(seen.get(k), `${k} for ${c.command}`).toBeUndefined();
+				seen.set(k, c.command);
+			}
+		}
+		const byName = new Map(all.map((c) => [c.command, c]));
+		expect(defaultKeys(byName.get('redo')!, 'macos')[0]).toBe('Ctrl+Shift+Z');
+		expect(defaultKeys(byName.get('redo')!, 'windows')[0]).toBe('Ctrl+Y');
+	});
+
+	it('leave the keys of the system’s own menu items alone', () => {
+		expect(reservedReason('Ctrl+H', 'macos')).toMatch(/belongs to macOS/);
+		expect(reservedReason('Ctrl+Alt+H', 'macos')).toMatch(/belongs to macOS/);
+		expect(reservedReason('Ctrl+M', 'macos')).toMatch(/belongs to macOS/);
+		expect(reservedReason('Ctrl+H', 'windows')).toBeNull();
+	});
+
+	it('are shown as the system shows them', () => {
+		expect(displayShortcut('Ctrl+Shift+S', 'macos')).toBe('⇧⌘S');
+		expect(displayShortcut('Ctrl+Alt+G', 'macos')).toBe('⌥⌘G');
+		expect(displayShortcut('Alt+Left', 'macos')).toBe('⌥←');
+		expect(displayShortcut('Ctrl+Tab', 'macos')).toBe('⌃⇥');
+		expect(displayShortcut('Ctrl+Shift+Tab', 'macos')).toBe('⌃⇧⇥');
+		expect(displayShortcut('Ctrl+Page Down', 'macos')).toBe('⌘⇟');
+		expect(displayShortcut('F3', 'macos')).toBe('F3');
+		expect(displayShortcut('Ctrl+Shift+Left, Right', 'macos')).toBe('⇧⌘Left, Right');
+		expect(displayShortcut('Alt (held)', 'macos')).toBe('⌥ (held)');
+		expect(displayShortcut('Ctrl+Shift+S', 'windows')).toBe('Ctrl+Shift+S');
+	});
+
+	it('are given to the menu bar as muda reads them', () => {
+		expect(menuAccelerator('Ctrl+Shift+S')).toBe('Cmd+Shift+S');
+		expect(menuAccelerator('Ctrl+Tab')).toBe('Ctrl+Tab');
+		expect(menuAccelerator('Ctrl+Page Down')).toBe('Cmd+PageDown');
+		expect(menuAccelerator('Ctrl+=')).toBe('Cmd+=');
+		expect(menuAccelerator('Alt+Left')).toBe('Alt+Left');
+		expect(menuAccelerator('Shift+F3')).toBe('Shift+F3');
 	});
 });

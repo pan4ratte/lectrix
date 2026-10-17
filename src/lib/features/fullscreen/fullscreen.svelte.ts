@@ -118,6 +118,19 @@ class FullScreen {
 		await (this.on ? this.leave() : this.enter());
 	}
 
+	/**
+	 * The window changed size. If it left full screen by itself (on macOS, by its green
+	 * button in the bar the system shows at the top of the screen), the bars and panes come
+	 * back, as F11 brings them.
+	 */
+	async windowResized() {
+		if (this.stage !== 'full' || this.switching) return;
+		const stillFull = await getCurrentWindow()
+			.isFullscreen()
+			.catch(() => true);
+		if (!stillFull && this.stage === 'full' && !this.switching) await this.leave();
+	}
+
 	/** How long before the window is asked to switch: the slide, less the time the window
 	 * takes to answer (`lead`). */
 	#slide(lead: number): Promise<void> {

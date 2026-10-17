@@ -7,6 +7,7 @@ mod combine;
 mod commands;
 mod documents;
 mod ipc;
+mod menu;
 mod placement;
 mod platform;
 mod protocol;
@@ -327,6 +328,7 @@ pub fn run() {
                 merge_cancel: Mutex::new(None),
                 updates: update::Updates::default(),
             });
+            app.manage(menu::Menus::default());
             // Working copies of documents an earlier run never saved, and that no recovery
             // copy waits to bring back.
             app.state::<AppState>().documents.sweep_working_copies();
@@ -338,6 +340,8 @@ pub fn run() {
             windows::create(app.handle(), windows::MAIN, windows::Place::Remembered)?;
             Ok(())
         })
+        // The system's menu bar (macOS): a choice goes to the window whose menus it shows.
+        .on_menu_event(|app, event| menu::chosen(app, &event))
         .on_window_event(|window, event| match event {
             WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) => {
                 let app = window.app_handle();
@@ -381,8 +385,12 @@ pub fn run() {
                     .windows
                     .set_focused(window.label());
                 remember_placement(window, false);
+                menu::focused(window.app_handle(), window.label());
             }
-            WindowEvent::Destroyed => windows::destroyed(window.app_handle(), window.label()),
+            WindowEvent::Destroyed => {
+                menu::forget(window.app_handle(), window.label());
+                windows::destroyed(window.app_handle(), window.label());
+            }
             // The system switched between light and dark (with Settings on System).
             WindowEvent::ThemeChanged(_) => {
                 if let Some(webview) = window.app_handle().get_webview_window(window.label()) {
@@ -442,6 +450,8 @@ pub fn run() {
             commands::log_metric,
             commands::log_error,
             commands::open_web_page,
+            commands::window_chrome,
+            commands::set_menu,
             commands::open_link,
             commands::move_document,
             commands::list_windows,

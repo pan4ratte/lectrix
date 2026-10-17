@@ -70,7 +70,7 @@ import { clampThumbWidth, DEFAULT_THUMB_WIDTH } from '#lib/features/viewer/thumb
 import { pdfaName } from '#lib/format.ts';
 import { discardQuestion, recoveryQuestion } from '#lib/features/recovery/recovery.ts';
 import type { CommandName } from '#lib/commands.ts';
-import { shortcutOf } from '#lib/shortcuts.ts';
+import { displayShortcut, shortcutOf } from '#lib/shortcuts.ts';
 
 import { DocTab } from './doc.svelte.ts';
 
@@ -185,9 +185,10 @@ class AppStore {
 	/** The stored settings, once loaded. */
 	settings = $state<Settings | null>(null);
 
-	/** A command's first shortcut as Settings has it, for menus; '' without one. */
+	/** A command's first shortcut as Settings has it, shown as the platform shows shortcuts
+	 * (⇧⌘S on macOS), for menus and tooltips; '' without one. */
 	shortcut(command: CommandName): string {
-		return shortcutOf(command, this.settings?.shortcuts);
+		return displayShortcut(shortcutOf(command, this.settings?.shortcuts));
 	}
 
 	/** A control's name with its command's shortcut, for tooltips: "Zoom in (Ctrl+=)". */
@@ -224,6 +225,20 @@ class AppStore {
 	updatedTo = $state<string | null>(null);
 	dialog = $state<DialogRequest | null>(null);
 	passwordPrompts = $state<PasswordRequest[]>([]);
+	/** A dialog is open. The system's menu bar on macOS, which a dialog does not cover as it
+	 * covers the title bar's menus, offers nothing that acts on the window meanwhile. */
+	get modalOpen(): boolean {
+		return (
+			this.dialog !== null ||
+			this.passwordPrompts.length > 0 ||
+			this.settingsOpen ||
+			this.aboutOpen ||
+			this.whatsNewOpen ||
+			this.annotationPropertiesOpen ||
+			this.labelsRequest !== null ||
+			this.insertRequest !== null
+		);
+	}
 	toasts = $state<Toast[]>([]);
 	/** Shown while files are dragged over the window. */
 	dropTarget = $state(false);

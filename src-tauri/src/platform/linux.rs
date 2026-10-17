@@ -13,7 +13,7 @@ use tauri::Emitter;
 use webkit2gtk::{LoadEvent, WebViewExt};
 
 use super::Platform;
-use crate::ipc::TouchpadPinch;
+use crate::ipc::{TouchpadPinch, WindowButton, WindowChrome};
 
 /// Event carrying `TouchpadPinch`.
 const TOUCHPAD_PINCH: &str = "touchpad-pinch";
@@ -25,6 +25,27 @@ const COVER_DELAY: Duration = Duration::from_millis(500);
 pub struct Linux;
 
 impl Platform for Linux {
+    /// The buttons and the side the desktop puts them on (GNOME: close alone, at the
+    /// right), as GTK's own title bars have them. Windows' three at the right where GTK
+    /// has no layout to give.
+    fn window_chrome(&self) -> WindowChrome {
+        gtk::Settings::default()
+            .and_then(|s| {
+                s.try_property::<Option<String>>("gtk-decoration-layout")
+                    .ok()
+                    .flatten()
+            })
+            .and_then(|layout| super::parse_decoration_layout(&layout))
+            .unwrap_or_else(|| WindowChrome {
+                left: Vec::new(),
+                right: vec![
+                    WindowButton::Minimize,
+                    WindowButton::Maximize,
+                    WindowButton::Close,
+                ],
+            })
+    }
+
     /// WebKitGTK turns a touchpad pinch into page magnification, which scales the whole
     /// app, and gives the page no event for it. Its zoom gesture is a bubble-phase GTK
     /// gesture on the webview, and GTK 3 emits the widget's `event` signal for a touchpad

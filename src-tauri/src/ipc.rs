@@ -553,6 +553,74 @@ impl WebPage {
     }
 }
 
+/// A window button the app draws in its title bar (section 8).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum WindowButton {
+    Minimize,
+    Maximize,
+    Close,
+}
+
+/// The window buttons the app draws at each end of its title bar, in order from left to
+/// right. Empty where the system draws them itself (macOS).
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct WindowChrome {
+    pub left: Vec<WindowButton>,
+    pub right: Vec<WindowButton>,
+}
+
+/// An entry of the app's menus, as the frontend lays them out (`src/lib/menus.svelte.ts`),
+/// for the system's menu bar on macOS (section 8, `menu.rs`). The menus themselves are
+/// submenus at the top level.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, TS)]
+#[serde(tag = "kind", rename_all = "camelCase")]
+#[ts(export)]
+pub enum MenuEntry {
+    /// Runs the frontend's item `id` when chosen. With `checked`, it has a check mark that
+    /// shows when true. `accelerator` is the shortcut it shows, as muda reads one
+    /// ("Cmd+Shift+S").
+    Item {
+        id: String,
+        label: String,
+        enabled: bool,
+        checked: Option<bool>,
+        accelerator: Option<String>,
+    },
+    Separator,
+    Submenu {
+        label: String,
+        enabled: bool,
+        items: Vec<MenuEntry>,
+    },
+    /// An item the system provides and runs itself.
+    System {
+        item: SystemMenuItem,
+    },
+}
+
+/// Items of macOS's own (`MenuEntry::System`): text editing in the focused field, and the
+/// app and window commands every Mac app has.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum SystemMenuItem {
+    Cut,
+    Copy,
+    Paste,
+    SelectAll,
+    Services,
+    Hide,
+    HideOthers,
+    ShowAll,
+    Minimize,
+    Zoom,
+    BringAllToFront,
+}
+
 /// Page labels of a combined file.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]

@@ -13,6 +13,8 @@
 		SHORTCUT_GROUPS,
 		chordOf,
 		commandUsing,
+		defaultKeys,
+		displayShortcut,
 		keysOf,
 		reservedReason,
 		withKeys,
@@ -48,10 +50,13 @@
 	const groups = $derived(
 		SHORTCUT_GROUPS.map((g) => ({
 			title: g.title,
-			commands: g.commands.filter((c) => matches(`${g.title} ${c.label} ${keysOf(c.command, draft.shortcuts).join(' ')}`))
+			commands: g.commands.filter((c) => {
+				const keys = keysOf(c.command, draft.shortcuts);
+				return matches(`${g.title} ${c.label} ${keys.join(' ')} ${keys.map((k) => displayShortcut(k)).join(' ')}`);
+			})
 		})).filter((g) => g.commands.length > 0)
 	);
-	const fixed = $derived(FIXED_KEYS.filter((f) => matches(`fixed keys ${f.label} ${f.keys}`)));
+	const fixed = $derived(FIXED_KEYS.filter((f) => matches(`fixed keys ${f.label} ${f.keys} ${displayShortcut(f.keys)}`)));
 	const changed = $derived(Object.keys(draft.shortcuts).length > 0);
 
 	function set(c: ShortcutCommand, keys: readonly string[]) {
@@ -108,7 +113,7 @@
 		}
 		const other = commandUsing(pressed, draft.shortcuts, c.command);
 		if (other) {
-			problem = `${pressed} is already the shortcut for “${other.label}”. Change or remove it there first.`;
+			problem = `${displayShortcut(pressed)} is already the shortcut for “${other.label}”. Change or remove it there first.`;
 			return;
 		}
 		stop();
@@ -174,7 +179,7 @@
 										type="button"
 										class="shortcut-key"
 										data-slot={i}
-										aria-label={active === i ? `Press the shortcut for ${c.label}` : `${c.label}: ${k}. Change`}
+										aria-label={active === i ? `Press the shortcut for ${c.label}` : `${c.label}: ${displayShortcut(k ?? '')}. Change`}
 										data-tip={active === i ? undefined : 'Change'}
 										onclick={() => record(c, i)}
 										onkeydown={(e) => onKey(e, c, i)}
@@ -182,14 +187,14 @@
 											if (active === i) stop();
 										}}
 									>
-										{active === i ? 'Press keys…' : k}
+										{active === i ? 'Press keys…' : displayShortcut(k ?? '')}
 									</button>
 									<!-- One that was added (not one the command came with) can be taken away. -->
-									{#if k !== undefined && active !== i && !c.keys.includes(k)}
+									{#if k !== undefined && active !== i && !defaultKeys(c).includes(k)}
 										<button
 											type="button"
 											class="shortcut-remove"
-											aria-label="Remove {k} from {c.label}"
+											aria-label="Remove {displayShortcut(k)} from {c.label}"
 											data-tip="Remove"
 											onclick={() => {
 												stop();
@@ -232,7 +237,7 @@
 				{#each fixed as f (f.keys)}
 					<div class="shortcut-row">
 						<span class="min-w-0 flex-1 text-[13px]">{f.label}</span>
-						<span class="shortcut-chip shortcut-chip-fixed"><span class="shortcut-key">{f.keys}</span></span>
+						<span class="shortcut-chip shortcut-chip-fixed"><span class="shortcut-key">{displayShortcut(f.keys)}</span></span>
 					</div>
 				{/each}
 			</div>

@@ -120,6 +120,11 @@ impl Windows {
         }
     }
 
+    /// The window used last, if one has had the focus.
+    pub fn focused(&self) -> Option<String> {
+        self.focused.lock().ok().and_then(|f| f.clone())
+    }
+
     pub fn set_drop_to_combine(&self, label: &str, combine: bool) {
         if let Ok(mut set) = self.drop_to_combine.lock() {
             if combine {
@@ -207,6 +212,17 @@ pub fn create(app: &AppHandle, label: &str, place: Place) -> tauri::Result<Webvi
     // The same for every window: webviews that share a data folder must agree on them.
     if let Some(args) = platform.webview_browser_args() {
         builder = builder.additional_browser_args(&args);
+    }
+    // On macOS the window keeps the system's frame (its shadow, rounded corners and
+    // resizing) and buttons, which lie over the app's title bar at its left end, centred in
+    // its 35 px (TitleBar.svelte leaves room for them). Elsewhere the app draws its own.
+    #[cfg(target_os = "macos")]
+    {
+        builder = builder
+            .decorations(true)
+            .title_bar_style(tauri::TitleBarStyle::Overlay)
+            .hidden_title(true)
+            .traffic_light_position(tauri::LogicalPosition::new(13.0, 17.0));
     }
     let state = app.state::<AppState>();
     let (bounds, maximized) = match place {

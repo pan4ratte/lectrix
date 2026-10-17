@@ -43,6 +43,8 @@ const COMMANDS: &[&str] = &[
     "log_metric",
     "log_error",
     "open_web_page",
+    "window_chrome",
+    "set_menu",
     "open_link",
     "move_document",
     "list_windows",
