@@ -118,6 +118,11 @@ pub fn range_quads(list: &DisplayList, ranges: &[TextRange]) -> Result<Vec<Marku
 /// last one ends at, so every corner keeps its name (upper and lower as the glyphs stand,
 /// left to right as they advance).
 ///
+/// The quad is a band square to the line, as high as all the run's characters together.
+/// Its corners were the first character's left corners and the last one's right corners,
+/// so a run that ended on a superscript (raised and smaller) or a subscript gave a quad
+/// that slanted up or down along the line.
+///
 /// MuPDF lists a line's characters in reading order, each with an upright quad of its
 /// own. In left-to-right text the range is one run from its first character to its last.
 /// In right-to-left text the characters run leftwards, so the run goes from the range's
@@ -134,6 +139,17 @@ fn run_quads(chars: &[MarkupQuad], start: usize, end: usize) -> Vec<MarkupQuad> 
         .find(|(x, y)| x.hypot(*y) > 1e-6)
         .map_or((1.0, 0.0), |(x, y)| (x / x.hypot(y), y / x.hypot(y)));
     let along = |p: Point| p.x * dx + p.y * dy;
+    // Square to that, towards the glyphs' tops: a quarter turn from the advance, to the
+    // side their upper corners are on (view space has y down).
+    let (ux, uy) = {
+        let side = chars
+            .iter()
+            .map(|q| (q.ul.x - q.ll.x) * dy - (q.ul.y - q.ll.y) * dx)
+            .find(|s| s.abs() > 1e-6)
+            .unwrap_or(1.0);
+        if side < 0.0 { (-dy, dx) } else { (dy, -dx) }
+    };
+    let rise = |p: Point| p.x * ux + p.y * uy;
     let span = |q: &MarkupQuad| {
         let (a, b) = (along(q.ll), along(q.lr));
         (a.min(b), a.max(b))
@@ -142,25 +158,43 @@ fn run_quads(chars: &[MarkupQuad], start: usize, end: usize) -> Vec<MarkupQuad> 
     by_place.sort_by(|a, b| span(&chars[*a]).0.total_cmp(&span(&chars[*b]).0));
 
     let whole = |members: &[usize]| -> Option<MarkupQuad> {
-        let first = *members
+        // Characters of no width (a space MuPDF put in) have no place to mark, and their
+        // boxes need not stand on the line.
+        let wide: Vec<usize> = members
             .iter()
-            .min_by(|a, b| span(&chars[**a]).0.total_cmp(&span(&chars[**b]).0))?;
-        let last = *members
+            .copied()
+            .filter(|i| {
+                let (from, to) = span(&chars[*i]);
+                to - from > 1e-6
+            })
+            .collect();
+        let members = if wide.is_empty() { members } else { &wide };
+        if members.is_empty() {
+            return None;
+        }
+        let corners: Vec<Point> = members
             .iter()
-            .max_by(|a, b| span(&chars[**a]).1.total_cmp(&span(&chars[**b]).1))?;
-        let (first, last) = (&chars[first], &chars[last]);
-        // A glyph with a negative advance starts at its right edge.
-        let (ul, ll) = if along(first.ll) <= along(first.lr) {
-            (first.ul, first.ll)
-        } else {
-            (first.ur, first.lr)
+            .flat_map(|i| {
+                let q = &chars[*i];
+                [q.ul, q.ur, q.ll, q.lr]
+            })
+            .collect();
+        let extent = |f: &dyn Fn(Point) -> f64| {
+            corners
+                .iter()
+                .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| {
+                    (lo.min(f(*p)), hi.max(f(*p)))
+                })
         };
-        let (ur, lr) = if along(last.lr) >= along(last.ll) {
-            (last.ur, last.lr)
-        } else {
-            (last.ul, last.ll)
-        };
-        Some(MarkupQuad { ul, ur, ll, lr })
+        let (left, right) = extent(&along);
+        let (bottom, top) = extent(&rise);
+        let at = |a: f64, r: f64| Point::new(a * dx + r * ux, a * dy + r * uy);
+        Some(MarkupQuad {
+            ul: at(left, top),
+            ur: at(right, top),
+            ll: at(left, bottom),
+            lr: at(right, bottom),
+        })
     };
 
     // A character outside the range ends a run only if it stands between two of the
@@ -368,6 +402,40 @@ mod tests {
         let space = [glyph(0.0, 5.0), glyph(5.0, 5.0), glyph(5.0, 10.0)];
         assert_eq!(run_quads(&space, 0, 3), [glyph(0.0, 10.0)]);
         assert!(!run_quads(&space, 1, 2)[0].is_valid());
+    }
+
+    #[test]
+    fn a_range_ending_on_a_superscript_stays_square_to_the_line() {
+        // "x²": a raised, smaller glyph after one on the line.
+        let sup = MarkupQuad {
+            ul: Point::new(5.0, 6.0),
+            ur: Point::new(8.0, 6.0),
+            ll: Point::new(5.0, 13.0),
+            lr: Point::new(8.0, 13.0),
+        };
+        let line = [glyph(0.0, 5.0), sup];
+        let band = MarkupQuad {
+            ul: Point::new(0.0, 6.0),
+            ur: Point::new(8.0, 6.0),
+            ll: Point::new(0.0, 20.0),
+            lr: Point::new(8.0, 20.0),
+        };
+        assert_eq!(run_quads(&line, 0, 2), [band]);
+        // A subscript at the start is the same, below the line.
+        let sub = MarkupQuad {
+            ul: Point::new(0.0, 15.0),
+            ur: Point::new(3.0, 15.0),
+            ll: Point::new(0.0, 23.0),
+            lr: Point::new(3.0, 23.0),
+        };
+        let line = [sub, glyph(3.0, 8.0)];
+        let band = MarkupQuad {
+            ul: Point::new(0.0, 10.0),
+            ur: Point::new(8.0, 10.0),
+            ll: Point::new(0.0, 23.0),
+            lr: Point::new(8.0, 23.0),
+        };
+        assert_eq!(run_quads(&line, 0, 2), [band]);
     }
 
     #[test]

@@ -12,6 +12,10 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 - On macOS and Linux, clicking **Open…**, **Combine files…** or **Organize pages…** while recent files are listed as a table opened one of the recent files instead. The tools now do what they say.
 
+### Annotations
+
+- Marking text that starts or ends on a superscript or a subscript (a footnote number, a squared x) gives a straight highlight, underline or strikeout along the line. Before, it slanted up or down towards the raised or lowered character.
+
 ### General
 
 - On macOS, the window has the system’s own buttons at the top left, with its shadow, rounded corners and full screen. Dialogs come down from under the title bar as sheets, and questions look like the system’s alerts, with the main button where macOS puts it: press Return to choose it.
