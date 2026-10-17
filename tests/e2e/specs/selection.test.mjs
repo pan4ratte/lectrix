@@ -206,6 +206,101 @@ test('Shift and the arrow keys extend and reduce the selection', async () => {
 	}
 });
 
+test('a drag from a double-click selects whole words; a click puts a text cursor in the text', async () => {
+	const path = sample('selection-caret.pdf', 2);
+	const { browser, stop } = await launch([path]);
+	try {
+		await waitForDocument(browser);
+		const x = async (pt) => (await pagePoint(browser, 0, pt, 92)).x;
+		const caretX = () =>
+			browser.execute(() => {
+				const el = document.querySelector('.page [data-text-caret]');
+				if (!el) return null;
+				const r = el.getBoundingClientRect();
+				return (r.left + r.right) / 2;
+			});
+		const outlined = () => browser.execute(() => document.querySelector('.page rect.annotation-outline') !== null);
+
+		// "quick" double-clicked (60 to 88 pt) and held, then dragged into the middle of "brown"
+		// (91.3 to 124): the selection takes in the whole of "brown".
+		const inQuick = await pagePoint(browser, 0, 80, 92);
+		const inBrown = await pagePoint(browser, 0, 105, 92);
+		await browser
+			.action('pointer')
+			.move({ ...inQuick, origin: 'viewport' })
+			.down()
+			.up()
+			.pause(60)
+			.down()
+			.move({ ...inBrown, origin: 'viewport', duration: 60 })
+			.up()
+			.perform();
+		await browser.waitUntil(
+			async () => {
+				const now = await selected(browser);
+				return now.length === 1 && Math.abs(now[0].left - (await x(60))) <= 2 && Math.abs(now[0].right - (await x(124))) <= 2;
+			},
+			{ timeoutMsg: `the drag did not select whole words: ${JSON.stringify(await selected(browser))}` }
+		);
+		await browser.keys('Escape');
+
+		// The Highlight tool: a click in the text puts the text cursor there, before "quick".
+		await browser.keys('h');
+		await browser.pause(600);
+		await browser.action('pointer').move({ ...(await pagePoint(browser, 0, 61, 92)), origin: 'viewport' }).down().up().perform();
+		await browser.waitUntil(async () => (await caretX()) !== null, { timeoutMsg: 'a click in the text put no text cursor there' });
+		assert.ok(Math.abs((await caretX()) - (await x(60))) <= 2, `the text cursor is at ${await caretX()}`);
+		assert.deepEqual(await selected(browser), [], 'a click selected text');
+
+		// Ctrl+Shift+Right selects "quick", and letting Shift go highlights it; the text cursor
+		// is then after it, and the arrow keys move it on.
+		await browser.keys(['Control', 'Shift', 'ArrowRight']);
+		await browser.waitUntil(async () => (await caretX()) !== null && Math.abs((await caretX()) - (await x(88))) <= 2, {
+			timeoutMsg: `the text cursor did not come back after the word: ${await caretX()}`
+		});
+		assert.deepEqual(await selected(browser), [], 'the selection was not marked');
+		const after = await caretX();
+		await browser.keys('ArrowRight');
+		await browser.waitUntil(async () => (await caretX()) > after + 1, { timeoutMsg: 'Right did not move the text cursor' });
+
+		// Another tool takes the text cursor away.
+		await browser.keys('Escape');
+		await browser.keys('Escape');
+		await browser.waitUntil(async () => (await caretX()) === null, { timeoutMsg: 'the text cursor stayed' });
+
+		// With the Select tool, a click on the highlight selects it; a drag from it selects the
+		// text under it instead.
+		await browser.pause(600);
+		await browser.action('pointer').move({ ...(await pagePoint(browser, 0, 75, 92)), origin: 'viewport' }).down().up().perform();
+		await browser.waitUntil(outlined, { timeoutMsg: 'a click on the highlight did not select it' });
+		await browser.keys('Escape');
+		await browser.waitUntil(async () => !(await outlined()), { timeoutMsg: 'Esc left the highlight selected' });
+		await browser.pause(600);
+		await drag(browser, await pagePoint(browser, 0, 70, 92), await pagePoint(browser, 0, 115, 92));
+		await browser.waitUntil(async () => (await selected(browser)).length === 1, { timeoutMsg: 'a drag from the highlight selected no text' });
+		assert.equal(await outlined(), false, 'the drag selected the highlight');
+
+		// The Select tool has the text cursor too: a click after "quick" (away from the
+		// highlight), then Ctrl+Shift+Right selects "brown", with the quick tools over it.
+		await browser.keys('Escape');
+		await browser.pause(600);
+		await browser.action('pointer').move({ ...(await pagePoint(browser, 0, 90.5, 92)), origin: 'viewport' }).down().up().perform();
+		await browser.waitUntil(async () => (await caretX()) !== null, { timeoutMsg: 'a click with the Select tool put no text cursor' });
+		await browser.keys(['Control', 'Shift', 'ArrowRight']);
+		await browser.waitUntil(
+			async () => {
+				const now = await selected(browser);
+				return now.length === 1 && Math.abs(now[0].right - (await x(124))) <= 2;
+			},
+			{ timeoutMsg: `Ctrl+Shift+Right from the text cursor did not select "brown": ${JSON.stringify(await selected(browser))}` }
+		);
+		await (await browser.$('[role=toolbar][aria-label="Quick tools"]')).waitForDisplayed({ timeoutMsg: 'no quick tools over the selection' });
+		assert.equal(await caretX(), null, 'the text cursor shows beside the selection');
+	} finally {
+		await stop();
+	}
+});
+
 test('Settings puts handles on the sides of the selection, to drag it from', async () => {
 	const path = sample('selection-handles.pdf', 2);
 	const { browser, stop } = await launch([path]);

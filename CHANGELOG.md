@@ -12,8 +12,15 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 - On macOS and Linux, clicking **Open…**, **Combine files…** or **Organize pages…** while recent files are listed as a table opened one of the recent files instead. The tools now do what they say.
 
+### Viewer and tabs
+
+- After a double-click on a word, keeping the button down and dragging selects whole words, as in a word processor. Before, the drag went on letter by letter. The same goes for whole lines after a triple-click.
+- A click in the text puts a blinking text cursor there. The arrow keys move it, and Shift with them (Ctrl+Shift for whole words) selects text from it, so you can select without the mouse.
+
 ### Annotations
 
+- With the Select tool, a click on a highlight (or another text markup) selects it, and a drag that starts on it now selects the text under it, as a drag anywhere else does.
+- The text cursor works with the Highlight, Underline, Strikeout and Squiggly tools too: select from it with Shift and the arrow keys, let go of **Shift**, and what you selected is marked.
 - Marking text that starts or ends on a superscript or a subscript (a footnote number, a squared x) gives a straight highlight, underline or strikeout along the line. Before, it slanted up or down towards the raised or lowered character.
 
 ### General

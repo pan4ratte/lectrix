@@ -21,6 +21,7 @@ export async function organizePages(tab: DocTab) {
 	tools.tool = 'select';
 	tab.draft = null;
 	tab.selection = null;
+	tab.caret = null;
 	tab.selectedAnnotation = null;
 	if (tab.search.open) {
 		tab.search.open = false;

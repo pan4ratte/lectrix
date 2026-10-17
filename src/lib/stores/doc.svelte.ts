@@ -319,6 +319,9 @@ export class DocTab {
 	organize = $state<OrganizeState | null>(null);
 
 	selection = $state<{ anchor: Caret; focus: Caret } | null>(null);
+	/** The text cursor a click with the Select tool or a markup tool put in the text (section
+	 * 6.1), while nothing is selected: Shift with the arrow keys selects from there. */
+	caret = $state<Caret | null>(null);
 	banner = $state<BannerKind | null>(null);
 	saving = $state(false);
 	/** The signed-document warning was accepted for this session. */
@@ -381,6 +384,7 @@ export class DocTab {
 		this.texts.clear();
 		this.textRequests.clear();
 		this.selection = null;
+		this.caret = null;
 		this.currentPage = Math.min(this.currentPage, Math.max(0, info.pages.length - 1));
 		// Turns are kept by page: one past the end of the file read anew has no page.
 		if ([...this.pageTurns.keys()].some((page) => page >= info.pages.length)) {
@@ -434,6 +438,7 @@ export class DocTab {
 		}
 		if (revisionChanged) {
 			this.selection = null;
+			this.caret = null;
 			if (this.search.query) void this.search.start(this.search.query, this.currentPage);
 		}
 	}
@@ -508,6 +513,7 @@ export class DocTab {
 	selectAnnotation(page: number, id: number) {
 		this.selectedAnnotation = { page, id };
 		this.selection = null;
+		this.caret = null;
 	}
 
 	/**

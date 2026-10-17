@@ -138,8 +138,10 @@
 			if (tab.draft) {
 				if (tab.draft.kind === 'text') cancelTextDraft(tab);
 				else tab.draft = null;
-			} else if (tab.selection) tab.selection = null;
-			else if (tab.selectedAnnotation) tab.selectedAnnotation = null;
+			} else if (tab.selection || tab.caret) {
+				tab.selection = null;
+				tab.caret = null;
+			} else if (tab.selectedAnnotation) tab.selectedAnnotation = null;
 			else if (tools.tool !== 'select') tools.tool = 'select';
 			else if (tab.search.open) {
 				tab.search.open = false;

@@ -20,7 +20,7 @@
 	import { blankTracker } from './perf.ts';
 	import { markPageDrawn } from './perfrun.ts';
 	import RenderedImage from './RenderedImage.svelte';
-	import { ordered, selectionHandles, selectionRects } from './selection.ts';
+	import { caretBar, ordered, selectionHandles, selectionRects, type Caret } from './selection.ts';
 	import { TILE_SIZE, isTiled, pixelSize, renderScale, wholePageScale } from './zoom.ts';
 
 	interface Props {
@@ -48,6 +48,8 @@
 		/** Whether any of the page is in the viewport itself (for blank tracking). */
 		onscreen: boolean;
 		priority: number;
+		/** The text cursor, when it is on this page and shows. */
+		caret: Caret | null;
 	}
 
 	let {
@@ -66,7 +68,8 @@
 		linkHover,
 		visibleRect,
 		onscreen,
-		priority
+		priority,
+		caret
 	}: Props = $props();
 
 	const k = $derived(zoom * CSS_PX_PER_PT);
@@ -223,6 +226,14 @@
 		return selectionHandles(text, start, end);
 	});
 
+	/** Where the text cursor is drawn, and a key that starts its blink again as it moves. */
+	const cursor = $derived.by(() => {
+		void tab.textVersion;
+		const text = tab.text(index);
+		const bar = caret && text ? caretBar(text, caret) : null;
+		return bar && caret ? { bar, key: `${caret.line}:${caret.offset}` } : null;
+	});
+
 	/** The area of the link under the pointer, tinted unless Settings turn that off. */
 	const linkTint = $derived(app.settings?.highlightLinks === false ? null : linkHover);
 
@@ -328,7 +339,7 @@
 			/>
 		{/each}
 
-		{#if selection.length || hits.length || showSelected || linkTint || (draft && draft.kind !== 'text')}
+		{#if selection.length || hits.length || showSelected || linkTint || cursor || (draft && draft.kind !== 'text')}
 			<svg
 				class="pointer-events-none absolute inset-0"
 				width={innerW}
@@ -372,6 +383,19 @@
 					/>
 					<circle cx={s.knob[0]} cy={s.knob[1]} r={4.5 / k} class="selection-handle-knob" />
 				{/each}
+				{#if cursor}
+					{#key cursor.key}
+						<line
+							x1={cursor.bar[0]}
+							y1={cursor.bar[1]}
+							x2={cursor.bar[2]}
+							y2={cursor.bar[3]}
+							class="text-caret"
+							data-text-caret
+							vector-effect="non-scaling-stroke"
+						/>
+					{/key}
+				{/if}
 				{#if showSelected && selected}
 					{@const b = selected.bounds}
 					<rect

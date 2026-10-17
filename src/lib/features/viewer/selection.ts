@@ -153,6 +153,30 @@ export function lineAt(text: TextGeometry, caret: Caret): [Caret, Caret] {
 	];
 }
 
+/** What a double-click (a word) or a triple-click (a line) selected. */
+export type SelectionUnit = 'word' | 'line';
+
+/**
+ * The selection a drag makes after a double- or triple-click: the word or line it selected
+ * (`unit`) stays whole, and from its far side the drag selects whole words (or lines) up to
+ * the one at `focus`. `text` is the text of `focus`'s page.
+ */
+export function extendByUnit(
+	text: TextGeometry,
+	unit: readonly [Caret, Caret],
+	focus: Caret,
+	by: SelectionUnit
+): { anchor: Caret; focus: Caret } {
+	const [from, to] = unit;
+	const around = by === 'word' ? wordAt(text, focus) : lineAt(text, focus);
+	if (compareCarets(focus, from) < 0) return { anchor: to, focus: around[0] };
+	if (compareCarets(focus, to) > 0) {
+		// Past the end of a line, the caret is after its last character: that word or line.
+		return { anchor: from, focus: compareCarets(around[1], to) > 0 ? around[1] : focus };
+	}
+	return { anchor: from, focus: to };
+}
+
 /** Orders two carets into [start, end]. */
 export function ordered(a: Caret, b: Caret): [Caret, Caret] {
 	return compareCarets(a, b) <= 0 ? [a, b] : [b, a];
@@ -313,6 +337,17 @@ export function caretPoint(line: Line, offset: number): [number, number] {
 	// Before character `i`, or after the last one.
 	const half = offset < n ? -along / 2 : along / 2;
 	return [cx + dx * half, cy + dy * half];
+}
+
+/** The text cursor at a caret: a line across its line of text, between two characters, as
+ * high as the character there is ([x0, y0, x1, y1] in page points). */
+export function caretBar(text: TextGeometry, caret: Caret): [number, number, number, number] | null {
+	const line = text.lines[caret.line];
+	const box = caretBox(text, caret);
+	if (!line || !box) return null;
+	const [x, y] = caretPoint(line, caret.offset);
+	const [dx, dy] = line.dir;
+	return Math.abs(dx) >= Math.abs(dy) ? [x, box[1]!, x, box[3]!] : [box[0]!, y, box[2]!, y];
 }
 
 /** The end of the word at or after `offset` (forward), or the start of the one at or

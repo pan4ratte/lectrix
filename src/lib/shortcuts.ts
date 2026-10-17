@@ -136,6 +136,7 @@ export const FIXED_KEYS: readonly { keys: string; label: string }[] = [
 	{ keys: 'Del', label: 'Delete the selected annotation, bookmark or pages' },
 	{ keys: 'F2', label: 'Rename the selected bookmark' },
 	{ keys: 'Shift+F10', label: 'Open the context menu' },
+	{ keys: 'Arrows, Ctrl+Arrows', label: 'Move the text cursor a click put in the text' },
 	{ keys: 'Shift+Arrows', label: 'Select more or less text, by a character or a line' },
 	{ keys: 'Ctrl+Shift+Arrows', label: 'Select more or less text, by a word or a paragraph' },
 	{ keys: 'Ctrl+Shift+Left, Right', label: 'Move the focused tab or panel along its row' },

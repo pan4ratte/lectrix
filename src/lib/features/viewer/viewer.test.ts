@@ -26,7 +26,9 @@ import {
 } from './layout.ts';
 import { pageBoxText, pageName, pageOf, pagePosition, resolvePageInput } from './pagebox.ts';
 import {
+	caretBar,
 	edgeAt,
+	extendByUnit,
 	hitTest,
 	lineAt,
 	moveCaret,
@@ -574,6 +576,31 @@ describe('selection', () => {
 		expect(selectionText(new Map([[0, p0]]), ws, we)).toBe('world');
 		const [ls, le] = lineAt(p0, { page: 0, line: 1, offset: 3 });
 		expect(selectionText(new Map([[0, p0]]), ls, le)).toBe('second line');
+	});
+
+	it('goes on by whole words or lines from a double- or triple-click', () => {
+		const at = (line: number, offset: number) => ({ page: 0, line, offset });
+		const texts = new Map([[0, p0]]);
+		const shown = (s: { anchor: ReturnType<typeof at>; focus: ReturnType<typeof at> }) =>
+			selectionText(texts, ...ordered(s.anchor, s.focus));
+		// "second" double-clicked, then dragged into the middle of "line" and of "world".
+		const word = wordAt(p0, at(1, 2));
+		expect(shown(extendByUnit(p0, word, at(1, 9), 'word'))).toBe('second line');
+		expect(shown(extendByUnit(p0, word, at(0, 8), 'word'))).toBe('world\nsecond');
+		// Back within the word, the word alone; onto the space after a word, that word.
+		expect(shown(extendByUnit(p0, word, at(1, 3), 'word'))).toBe('second');
+		expect(extendByUnit(p0, wordAt(p0, at(0, 1)), at(0, 5), 'word').focus).toEqual(at(0, 5));
+		// A triple-clicked line goes on by lines.
+		const whole = lineAt(p0, at(1, 4));
+		expect(shown(extendByUnit(p0, whole, at(2, 2), 'line'))).toBe('second line\n\nNext para');
+		expect(shown(extendByUnit(p0, whole, at(0, 7), 'line'))).toBe('Hello world\nsecond line');
+	});
+
+	it('draws the text cursor between two characters, as high as they are', () => {
+		expect(caretBar(p0, { page: 0, line: 0, offset: 3 })).toEqual([30, 0, 30, 12]);
+		// At the end of a line, after its last character.
+		expect(caretBar(p0, { page: 0, line: 1, offset: 11 })).toEqual([110, 20, 110, 32]);
+		expect(caretBar(p0, { page: 0, line: 7, offset: 0 })).toBeNull();
 	});
 });
 

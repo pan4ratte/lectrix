@@ -111,6 +111,8 @@
 	--lectrix-progress-sheen: rgb(255 255 255 / 0.45);
 	/* On the page, which is white in both themes: the dark theme keeps this. */
 	--lectrix-selection-handle: #2f5daa;
+	/* The text cursor a markup tool puts in the page's text (the dark theme keeps this too). */
+	--lectrix-text-caret: #000000;
 	/* The link under the pointer. */
 	--lectrix-link-hover: rgb(47 93 170 / 0.16);
 	--lectrix-search-hit: rgb(255 196 0 / 0.38);
@@ -328,6 +330,23 @@ input[type='color'],
 }
 .selection-handle-knob {
 	fill: var(--lectrix-selection-handle);
+}
+/* Blinks as Windows' text cursor does (530 ms on, 530 off), and starts again shown wherever
+   it moves; steady with reduced motion. */
+.text-caret {
+	stroke: var(--lectrix-text-caret);
+	stroke-width: 1.5px;
+	animation: text-caret-blink 1060ms step-end infinite;
+}
+@keyframes text-caret-blink {
+	50% {
+		opacity: 0;
+	}
+}
+@media (prefers-reduced-motion: reduce) {
+	.text-caret {
+		animation: none;
+	}
 }
 .fill-link-hover {
 	fill: var(--lectrix-link-hover);

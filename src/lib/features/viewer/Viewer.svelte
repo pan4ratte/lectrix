@@ -82,6 +82,7 @@
 		caretPoint,
 		compareCarets,
 		edgeAt,
+		extendByUnit,
 		hitTest,
 		isOverText,
 		lineAt,
@@ -92,7 +93,8 @@
 		wordAt,
 		type Caret,
 		type CaretStep,
-		type SelectionEdge
+		type SelectionEdge,
+		type SelectionUnit
 	} from './selection.ts';
 	import {
 		ZOOM_GLIDE_MS,
@@ -752,8 +754,18 @@
 	type Gesture =
 		// `grabbed`: where a side of the selection was taken (client pixels), until the pointer
 		// moves from there.
-		// `unit`: the word or line a double- or triple-click selected, which stays selected.
-		| { kind: 'text'; anchor: Caret; grabbed?: { x: number; y: number } | null; unit?: [Caret, Caret] }
+		// `unit`: the word or line a double- or triple-click selected, which stays selected, and
+		// `by` what it is: the drag selects on by whole words or lines.
+		| {
+				kind: 'text';
+				anchor: Caret;
+				grabbed?: { x: number; y: number } | null;
+				unit?: [Caret, Caret];
+				by?: SelectionUnit;
+		  }
+		// An annotation that doesn't move, pressed with the Select tool where there is text
+		// (`caret`): let go there, it is selected; dragged, the text is (section 6.5).
+		| { kind: 'press'; page: number; hit: Annotation; caret: Caret; at: { x: number; y: number } }
 		| { kind: 'move'; page: number; id: number; start: [number, number]; box: Box; handle: Handle | null; moved: boolean }
 		| { kind: 'ink'; page: number; points: number[] }
 		| { kind: 'area'; page: number; start: [number, number] }
@@ -813,6 +825,9 @@
 	 * a triple-click a line. */
 	function beginText(event: PointerEvent, clicks: number): boolean {
 		const caret = caretAt(event.clientX, event.clientY, false);
+		// Shift extends what is selected, or selects from the text cursor.
+		const from = tab.selection?.anchor ?? tab.caret;
+		tab.caret = null;
 		if (!caret) {
 			tab.selection = null;
 			return false;
@@ -820,17 +835,19 @@
 		const text = tab.text(caret.page)!;
 		let anchor = caret;
 		let unit: [Caret, Caret] | undefined;
+		let by: SelectionUnit | undefined;
 		if (clicks === 2 || clicks === 3) {
-			unit = clicks === 2 ? wordAt(text, caret) : lineAt(text, caret);
+			by = clicks === 2 ? 'word' : 'line';
+			unit = by === 'word' ? wordAt(text, caret) : lineAt(text, caret);
 			tab.selection = { anchor: unit[0], focus: unit[1] };
 			anchor = unit[0];
-		} else if (event.shiftKey && tab.selection) {
-			anchor = tab.selection.anchor;
+		} else if (event.shiftKey && from) {
+			anchor = from;
 			tab.selection = { anchor, focus: caret };
 		} else {
 			tab.selection = { anchor: caret, focus: caret };
 		}
-		begin(event, { kind: 'text', anchor, unit });
+		begin(event, { kind: 'text', anchor, unit, by });
 		return true;
 	}
 
@@ -868,6 +885,14 @@
 		return true;
 	}
 
+	/** Selects an annotation the Select tool clicked. A click shows the comment panel of one
+	 * with a comment (again, after Esc closed it); without one, its bar. While the annotation
+	 * list shows the annotation, its row there has both, and the page neither. */
+	function pickAnnotation(page: number, hit: Annotation, clicks: number) {
+		tab.selectAnnotation(page, hit.id);
+		if (clicks !== 2 && showsComment(hit)) setPanel(tab, true);
+	}
+
 	const clickCounter = new ClickCounter();
 
 	// ----- links (section 6.1) -----
@@ -889,6 +914,7 @@
 		const target = event.target as HTMLElement;
 		if (target.closest('[data-annotation-editor], [data-floating-bar], [data-annotation-panel]')) return;
 		const clicks = clickCounter.count(event);
+		keyMade = false;
 		if (tab.draft?.kind === 'text') {
 			// A click outside the text box being typed finishes it.
 			void commitTextDraft(tab);
@@ -897,6 +923,7 @@
 		}
 		if (!target.closest('.page')) {
 			tab.selection = null;
+			tab.caret = null;
 			tab.selectedAnnotation = null;
 			return;
 		}
@@ -918,12 +945,15 @@
 			if (beginEdge(event, page, x, y, clicks)) return;
 			const hit = annotationAt(targets(page), x, y, px(4));
 			if (hit) {
-				tab.selectAnnotation(page, hit.id);
-				// A click shows the comment panel of an annotation with a comment (again, after
-				// Esc closed it); without one, its bar. While the annotation list shows the
-				// annotation, its row there has both, and the page neither.
-				if (clicks !== 2 && showsComment(hit)) setPanel(tab, true);
 				const caps = capabilities(hit, tab.flags.canAnnotate);
+				// One that doesn't move, over text: a click selects it, a drag selects the text
+				// (decided once the pointer moves or is let go).
+				const caret = clicks === 1 && !caps.move && !event.shiftKey ? caretAt(event.clientX, event.clientY, false) : null;
+				if (caret) {
+					begin(event, { kind: 'press', page, hit, caret, at: { x: event.clientX, y: event.clientY } });
+					return;
+				}
+				pickAnnotation(page, hit, clicks);
 				if (clicks === 2) {
 					// A double-click opens what the annotation says for editing: a text box's
 					// text in place, anything else's note in the annotation list when that shows
@@ -984,8 +1014,15 @@
 
 	/** Follows the pointer during a drag. */
 	function dragTo(clientX: number, clientY: number) {
-		const g = gesture;
+		let g = gesture;
 		if (!g) return;
+		if (g.kind === 'press') {
+			// Pressed on an annotation that doesn't move: dragged from there, it selects text.
+			if (Math.hypot(clientX - g.at.x, clientY - g.at.y) < 3) return;
+			tab.selectedAnnotation = null;
+			tab.selection = { anchor: g.caret, focus: g.caret };
+			g = gesture = { kind: 'text', anchor: g.caret };
+		}
 		if (g.kind === 'text') {
 			if (g.grabbed) {
 				// A side taken and let go where it was leaves the selection as it is.
@@ -994,12 +1031,11 @@
 			}
 			const focus = caretAt(clientX, clientY, true);
 			if (!focus) return;
-			if (g.unit) {
-				// The word or line stays whole; a drag out of it selects on from its far side.
-				const [from, to] = g.unit;
-				if (compareCarets(focus, from) < 0) tab.selection = { anchor: to, focus };
-				else if (compareCarets(focus, to) > 0) tab.selection = { anchor: from, focus };
-				else tab.selection = { anchor: from, focus: to };
+			const text = tab.text(focus.page);
+			if (g.unit && g.by && text) {
+				// The word or line stays whole; a drag out of it selects on from its far side, by
+				// whole words or lines.
+				tab.selection = extendByUnit(text, g.unit, focus, g.by);
 				return;
 			}
 			tab.selection = { anchor: g.anchor, focus };
@@ -1026,6 +1062,8 @@
 
 	let cursorFrame = 0;
 	let overText = $state(false);
+	/** The view has the keyboard focus: the text cursor shows only then, as in a text field. */
+	let focused = $state(false);
 	/** What the pointer is over with the Select tool: an annotation that moves, or one that doesn't. */
 	let overAnnotation = $state<'move' | 'select' | null>(null);
 	/** The link the pointer is on, which the Select tool would follow: it shows the hand,
@@ -1162,12 +1200,13 @@
 			pressed && event.type === 'pointerup' && Math.hypot(event.clientX - pressed.x, event.clientY - pressed.y) < 3
 				? pressed
 				: null;
-		const g = gesture;
-		if (!g) {
+		if (!gesture) {
 			if (followed) follow(tab, followed.link.target, { kind: 'page', page: followed.page });
 			return;
 		}
 		dragTo(event.clientX, event.clientY);
+		// Read after the drag's last move, which can turn a press into a text selection.
+		const g = gesture as Gesture;
 		gesture = null;
 		dragging = false;
 		cancelAnimationFrame(autoScroll);
@@ -1179,6 +1218,8 @@
 				const sel = tab.selection;
 				if (followed || (sel && compareCarets(sel.anchor, sel.focus) === 0)) {
 					tab.selection = null;
+					// A click in the text puts the text cursor there.
+					if (!followed && sel && caretTool(tool) && event.type === 'pointerup') tab.caret = sel.anchor;
 				} else if (sel) {
 					// The selection bar goes above this point.
 					const page = pageUnder(event.clientX, event.clientY);
@@ -1186,6 +1227,11 @@
 					release = { anchor: sel.anchor, focus: sel.focus, page, x, y };
 					if (isMarkupTool(tool)) await markSelection(tab, tool);
 				}
+				break;
+			}
+			case 'press': {
+				// Let go where it was pressed: a click on the annotation.
+				if (event.type === 'pointerup') pickAnnotation(g.page, g.hit, 1);
 				break;
 			}
 			case 'move': {
@@ -1339,7 +1385,7 @@
 		const rect = scroller.getBoundingClientRect();
 		const edge = 32;
 		// A side of the selection pressed near the top or bottom scrolls nothing until it moves.
-		const pressed = gesture.kind === 'text' && !!gesture.grabbed;
+		const pressed = (gesture.kind === 'text' && !!gesture.grabbed) || gesture.kind === 'press';
 		let dy = 0;
 		if (!pressed && lastPointer.y < rect.top + edge) dy = -Math.min(40, rect.top + edge - lastPointer.y);
 		else if (!pressed && lastPointer.y > rect.bottom - edge) dy = Math.min(40, lastPointer.y - (rect.bottom - edge));
@@ -1393,26 +1439,41 @@
 	 * with Ctrl too, by a word and by a paragraph. True if the key was taken.
 	 */
 	function extendOnKey(event: KeyboardEvent): boolean {
-		if (!event.shiftKey || event.altKey || event.metaKey || !tab.selection) return false;
+		if (event.altKey || event.metaKey || !(tab.selection || tab.caret)) return false;
+		// Without Shift, the keys move the text cursor; they scroll while text is selected.
+		if (!event.shiftKey && tab.selection) return false;
 		const sideways = event.key === 'ArrowLeft' || event.key === 'ArrowRight';
 		if (!sideways && event.key !== 'ArrowUp' && event.key !== 'ArrowDown') return false;
 		const direction = event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : -1;
 		const step: CaretStep = sideways ? (event.ctrlKey ? 'word' : 'character') : event.ctrlKey ? 'paragraph' : 'line';
-		keySteps = keySteps.then(() => extendSelection(direction, step));
+		const extend = event.shiftKey;
+		keySteps = keySteps.then(() => (extend ? extendSelection(direction, step) : moveTextCaret(direction, step)));
 		return true;
 	}
 
+	/** The selection as it is, or the text cursor as a selection of nothing. */
+	function selectionOrCaret(): { anchor: Caret; focus: Caret } | null {
+		return tab.selection ?? (tab.caret ? { anchor: tab.caret, focus: tab.caret } : null);
+	}
+
+	/** Where Shift+Up and Shift+Down (or Up and Down, for the text cursor) head from `from`. */
+	function lineGoalFrom(from: Caret, step: CaretStep): [number, number] | undefined {
+		if (step !== 'line') return undefined;
+		if (lineGoal && compareCarets(lineGoal.focus, from) === 0) return lineGoal.point;
+		const line = tab.text(from.page)?.lines[from.line];
+		return line ? caretPoint(line, from.offset) : undefined;
+	}
+
+	/** True if a selection made by the keys with a markup tool waits to be marked: that
+	 * happens when Shift is let go, as a drag is marked when the pointer is (section 6.5). */
+	let keyMade = false;
+
 	async function extendSelection(direction: 1 | -1, step: CaretStep) {
-		const sel = tab.selection;
+		const sel = selectionOrCaret();
 		if (!sel) return;
 		const { anchor, focus: from } = sel;
 		const source = (page: number) => tab.loadText(page);
-		let goal: [number, number] | undefined;
-		if (step === 'line') {
-			const line = tab.text(from.page)?.lines[from.line];
-			if (lineGoal && compareCarets(lineGoal.focus, from) === 0) goal = lineGoal.point;
-			else if (line) goal = caretPoint(line, from.offset);
-		}
+		const goal = lineGoalFrom(from, step);
 		// Never nothing selected: a step that would end on the other side goes on past it, and
 		// the selection turns over.
 		const empty = (c: Caret) => selectionIsEmpty(tab.textMap(), ...ordered(anchor, c));
@@ -1422,14 +1483,67 @@
 			if (empty(focus)) return;
 		}
 		// Something else changed the selection while a page's text was read.
-		const now = tab.selection;
+		const now = selectionOrCaret();
 		if (!now || compareCarets(now.anchor, anchor) !== 0 || compareCarets(now.focus, from) !== 0) return;
 		tab.selection = { anchor, focus };
+		tab.caret = null;
+		if (isMarkupTool(tools.tool)) keyMade = true;
 		lineGoal = goal ? { focus, point: goal } : null;
 		const text = tab.text(focus.page);
 		const box = text ? caretBox(text, focus) : null;
 		if (box) await keepInView(focus.page, box);
 	}
+
+	/** Moves the text cursor as the arrow keys do in a text: Left and Right by a character
+	 * (the end of a line and the start of the next are two places here), Up and Down by a
+	 * line, and with Ctrl, by a word and by a paragraph. */
+	async function moveTextCaret(direction: 1 | -1, step: CaretStep) {
+		const from = tab.caret;
+		if (!from) return;
+		const goal = lineGoalFrom(from, step);
+		let to = await moveCaret((page) => tab.loadText(page), tab.pageCount, from, direction, step, goal);
+		if (step === 'character' && (to.page !== from.page || to.line !== from.line)) {
+			const length = tab.text(to.page)?.lines[to.line]?.chars.length ?? 0;
+			to = { ...to, offset: direction > 0 ? 0 : length };
+		}
+		if (!tab.caret || compareCarets(tab.caret, from) !== 0 || tab.selection) return;
+		tab.caret = to;
+		lineGoal = goal ? { focus: to, point: goal } : null;
+		const text = tab.text(to.page);
+		const box = text ? caretBox(text, to) : null;
+		if (box) await keepInView(to.page, box);
+	}
+
+	/** Shift let go: a markup tool marks what the keys selected, and the text cursor stays
+	 * where they left it, so the keys can go on from there. */
+	function onKeyUp(event: KeyboardEvent) {
+		if (event.key !== 'Shift' || !keyMade) return;
+		keyMade = false;
+		const tool = tools.tool;
+		keySteps = keySteps.then(async () => {
+			const sel = tab.selection;
+			if (!isMarkupTool(tool) || tools.tool !== tool || !sel || compareCarets(sel.anchor, sel.focus) === 0) return;
+			const at = sel.focus;
+			await markSelection(tab, tool);
+			// Unless the new markup opened its comment (Settings).
+			if (!tab.selection && !tab.selectedAnnotation) tab.caret = at;
+		});
+	}
+
+	/** The tools that select text, and so have a text cursor: Select and the markup tools. */
+	function caretTool(tool: typeof tools.tool): boolean {
+		return tool === 'select' || isMarkupTool(tool);
+	}
+
+	// Another tool takes the text cursor away; a selection made by the keys is marked only
+	// by the markup tool it was made with.
+	$effect(() => {
+		const tool = tools.tool;
+		untrack(() => {
+			keyMade = false;
+			if (!caretTool(tool)) tab.caret = null;
+		});
+	});
 
 	/** Scrolls just far enough to show a rectangle of page `index` (page points). */
 	async function keepInView(index: number, rect: readonly number[]) {
@@ -1599,6 +1713,9 @@
 					onscroll={onScroll}
 					onpointerdown={chain(props, 'onpointerdown', onPointerDown)}
 					onkeydown={onKeyDown}
+					onkeyup={onKeyUp}
+					onfocus={() => (focused = true)}
+					onblur={() => (focused = false)}
 					onpointermove={chain(props, 'onpointermove', onPointerMove)}
 					onpointerup={chain(props, 'onpointerup', onPointerUp)}
 					onpointercancel={chain(props, 'onpointercancel', onPointerUp)}
@@ -1625,6 +1742,7 @@
 								visibleRect={visibleRect(index)}
 								onscreen={isOnscreen(index)}
 								priority={priority(index)}
+								caret={focused && tab.caret?.page === index && !tab.selection && !dragging ? tab.caret : null}
 							/>
 						{/each}
 						{#if selectionAnchor}
