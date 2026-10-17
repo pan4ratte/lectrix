@@ -115,6 +115,21 @@ test('the title bar shows the start screen over open documents, which stay open'
 		// open goes to its tab.
 		await start.click();
 		await (await browser.$('h2=Recent files')).waitForDisplayed();
+		// A row opens its file wherever it is clicked, and its button reaches no further: the
+		// tools above stay theirs (in WebKit, an overlay on the row covered the whole screen).
+		const hits = await browser.execute(() => {
+			const hit = (/** @type {Element | null} */ el) => {
+				const box = el?.getBoundingClientRect();
+				return box ? document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2) : null;
+			};
+			const row = document.querySelector('.recent-row');
+			return {
+				size: hit(row?.querySelector('td:nth-child(3)') ?? null) === row?.querySelector('.recent-open'),
+				tool: hit(document.querySelector('[data-tool="open"]'))?.closest('[data-tool]')?.getAttribute('data-tool') ?? null
+			};
+		});
+		assert.equal(hits.size, true, 'a click on a recent file’s size does not open it');
+		assert.equal(hits.tool, 'open', 'something covers the Open tile');
 		await (await browser.$('button[aria-label="Close start-b.pdf"]')).click();
 		await browser.waitUntil(async () => (await browser.$$('[role=tablist][aria-label="Open documents"] [role=tab]')).length === 1, {
 			timeoutMsg: 'the tab did not close'

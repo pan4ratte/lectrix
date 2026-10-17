@@ -1614,10 +1614,22 @@ button.shortcut-key:hover,
 
 /* The table: lines between the rows and small capitals over the columns. */
 .recent-table {
+	--recent-opened-w: 168px;
+	--recent-size-w: 104px;
+	--recent-remove-w: 40px;
 	width: 100%;
 	table-layout: fixed;
 	border-collapse: collapse;
 	font-size: 13px;
+}
+.recent-col-opened {
+	width: var(--recent-opened-w);
+}
+.recent-col-size {
+	width: var(--recent-size-w);
+}
+.recent-col-remove {
+	width: var(--recent-remove-w);
 }
 .recent-table th {
 	height: 32px;
@@ -1640,14 +1652,19 @@ button.shortcut-key:hover,
 	color: var(--lectrix-fg-muted);
 	white-space: nowrap;
 }
+/* The name's button is stretched over the row from its cell, not from the row: WebKit
+   (macOS, Linux) does not position against a table row (WebKit bug 240961), and an overlay
+   on the row there covered the whole start screen, so a click on a tool opened a recent
+   file. The columns after the name have fixed widths, so the overlay reaches past them. */
 .recent-table td:first-child {
+	position: relative;
 	color: var(--lectrix-fg);
+}
+.recent-table .recent-open::after {
+	right: calc(-1 * (var(--recent-opened-w) + var(--recent-size-w) + var(--recent-remove-w)));
 }
 .recent-table td:last-child {
 	padding: 0 6px;
-}
-.recent-row {
-	position: relative;
 }
 .recent-row:hover {
 	background: var(--lectrix-hover);

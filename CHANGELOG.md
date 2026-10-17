@@ -6,6 +6,12 @@ shows this file, and each GitHub release is written from it. How to write it (th
 the wording, translations): docs/releasing.md, "The changelog".
 -->
 
+## Unreleased
+
+### Start screen
+
+- On macOS and Linux, clicking **Open…**, **Combine files…** or **Organize pages…** while recent files are listed as a table opened one of the recent files instead. The tools now do what they say.
+
 ## 1.2.0
 
 ### Start screen

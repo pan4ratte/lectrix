@@ -283,9 +283,9 @@
 				<table class="recent-table" class:recent-enter={switched} aria-labelledby="recent-heading">
 					<colgroup>
 						<col />
-						<col class="w-[168px]" />
-						<col class="w-[104px]" />
-						<col class="w-[40px]" />
+						<col class="recent-col-opened" />
+						<col class="recent-col-size" />
+						<col class="recent-col-remove" />
 					</colgroup>
 					<thead>
 						<tr>
