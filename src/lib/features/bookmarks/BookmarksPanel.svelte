@@ -6,13 +6,14 @@
 	//
 	// Dragging uses pointer events: with Tauri's file drop enabled, the webview gets no
 	// HTML5 drag-and-drop events.
-	import { BookmarkPlus, ChevronRight, TriangleAlert } from '@lucide/svelte';
+	import { Bookmark, BookmarkPlus, ChevronRight, TriangleAlert } from '@lucide/svelte';
 	import { ContextMenu } from 'bits-ui';
 	import { tick } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 
 	import { chain } from '#lib/components/chain.ts';
 	import { ClickCounter } from '#lib/components/clicks.ts';
+	import PanelEmpty from '#lib/components/PanelEmpty.svelte';
 	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -344,10 +345,24 @@
 		</p>
 	{/if}
 
+	{#snippet addAction()}
+		<button type="button" class="button h-7 gap-1 text-xs" onclick={() => void addBookmark(tab)}>
+			<BookmarkPlus size={14} aria-hidden="true" />Add bookmark
+			{#if app.shortcut('addBookmark')}<kbd class="keycap">{app.shortcut('addBookmark')}</kbd>{/if}
+		</button>
+	{/snippet}
+
 	{#if rows.length === 0}
-		<p class="px-3 py-2 text-sm text-fg-muted">
-			No bookmarks yet. {app.shortcut('addBookmark') ? `Press ${app.shortcut('addBookmark')}` : 'Use the button above'} to add one for the current page.
-		</p>
+		<!-- A damaged outline's banner above says why nothing can be added. -->
+		<PanelEmpty icon={Bookmark} heading="No bookmarks" action={editable ? addAction : undefined}>
+			{#if tab.readOnly}
+				This document is open for reading only.
+			{:else if !tab.flags.canAssemble}
+				This document’s security settings don’t allow adding bookmarks.
+			{:else if !tab.outline.damaged}
+				Mark the pages you return to, and jump to them from here.
+			{/if}
+		</PanelEmpty>
 	{:else}
 		<ContextMenu.Root>
 			<ContextMenu.Trigger>

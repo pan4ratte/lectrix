@@ -140,7 +140,7 @@ test('create, edit, delete, undo, save and reopen annotations', async () => {
 	try {
 		await waitForDocument(browser);
 		await showAnnotations(browser);
-		await (await browser.$('p*=No annotations yet')).waitForDisplayed();
+		await (await browser.$('p=No annotations')).waitForDisplayed();
 
 		// Highlight: H, then select text on the marker line (sample pages put it 96 pt from
 		// the top, from 36 pt in).

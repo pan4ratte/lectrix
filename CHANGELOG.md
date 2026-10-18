@@ -46,12 +46,14 @@ the wording, translations): docs/releasing.md, "The changelog".
 - The colour button is always in the annotation toolbar, before the tools, so you can pick a colour before choosing a tool. It is also the first button over selected text, so you can pick the colour before marking the text.
 - The number keys **1** to **9** pick the first nine preset colours for new annotations. The presets now start with yellow, green, red and blue, the colours used most for marking text, with each light colour under its brighter colour. Preset colours you changed in Settings keep their colours.
 - When the floating toolbar is set to show only near its edge, it now stays while one of its colour panels or lists is open. Before, it disappeared and left the panel or list floating on its own.
+- An empty annotation list shows how to start: highlight text with **H** or add a note with **N**. When the search or the filters leave nothing in the list, a button clears them.
 - The tail of a comment panel, a bookmark's panel and a tooltip now grows out of its border, so the two read as one shape. Before, the tail sat over the border like a separate piece.
 - Selecting an annotation in the annotation list slides its tools open, instead of making them appear at once. They rise out from under the comment, which stays where it is. The selected row also has the same room on every side, so its tools and comment sit evenly in it.
 - With **Add a comment after marking text** on, **Ctrl+Z** in the new annotation’s empty comment removes the annotation itself, and so it does in a new sticky note. Before, it did nothing there. Text you typed in the comment is undone first.
 
 ### Bookmarks
 
+- An empty Bookmarks panel is clearer: it says what bookmarks are for and has an **Add bookmark** button. A document that can't have bookmarks added says why.
 - **Rename** in a bookmark’s menu now works. Before, the title field closed as soon as it opened.
 - A bookmark’s properties open beside the bookmark in the Bookmarks panel, pointing at it. Before, they opened at the top right of the pages.
 - A bookmark can be given a colour in its properties, with the same colours as annotations, or set back to the default. Its title shows in that colour, as in other PDF readers; a colour from another app showed as a dot before.

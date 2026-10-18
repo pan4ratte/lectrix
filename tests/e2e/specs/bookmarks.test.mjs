@@ -51,7 +51,7 @@ test('add, rename, nest, undo, save and reopen bookmarks', async () => {
 	try {
 		await waitForDocument(browser);
 		await (await browser.$('button[aria-label="Bookmarks"]')).click();
-		await (await browser.$('p*=No bookmarks yet')).waitForDisplayed();
+		await (await browser.$('p=No bookmarks')).waitForDisplayed();
 
 		// Ctrl+B with no text selected: titled after the page, open for renaming. (No click
 		// on the page first: WebDriver would scroll it, and the bookmark records the view.)

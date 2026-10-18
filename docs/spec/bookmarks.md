@@ -4,6 +4,7 @@ Part of the Lectrix specification. [AGENTS.md](../../AGENTS.md) holds the rules 
 
 - A panel (section 8) with the outline as a tree. Expanded/collapsed state is read from and written to the outline.
 - **Add bookmark** (Ctrl+B) at the current page and scroll position; if text is selected, use it as the title.
+- With no bookmarks, the panel says so (section 8.2): "No bookmarks", "Mark the pages you return to, and jump to them from here." and an **Add bookmark** button with its shortcut. A document that can't have bookmarks added says why instead, with no button: "This document is open for reading only." or "This document’s security settings don’t allow adding bookmarks." (a damaged outline's banner already says why).
 - **Edit:** rename inline (F2 or double-click), drag to reorder and nest, delete (with children, after confirmation), "Set destination to current view," and a color for the title (`/C`), from the inspector.
 - New and retargeted bookmarks get explicit destinations: page reference, `/XYZ`, left and top of the current view, null zoom (keeps the reader's zoom).
 - Existing bookmarks the user did not edit keep their original destination or action exactly, including named destinations and URI actions.

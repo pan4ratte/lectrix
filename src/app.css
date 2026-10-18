@@ -1153,6 +1153,78 @@ button.shortcut-key:hover,
 	border-left: 2px solid var(--lectrix-line);
 	list-style: none;
 }
+/* A side panel with nothing to list (PanelEmpty.svelte): centred, a third of the way down
+   what is free (the spacers above and below it share the height one to two), scrolling when
+   the panel is too short for it. */
+.panel-empty {
+	display: flex;
+	min-height: 0;
+	flex: 1;
+	flex-direction: column;
+	overflow-y: auto;
+	padding: 16px;
+}
+.panel-empty::before,
+.panel-empty::after {
+	flex: 1;
+	content: '';
+}
+.panel-empty::after {
+	flex-grow: 2;
+}
+.panel-empty-body {
+	display: flex;
+	flex-direction: column;
+	align-items: center;
+	text-align: center;
+}
+.panel-empty-icon {
+	display: inline-flex;
+	width: 40px;
+	height: 40px;
+	align-items: center;
+	justify-content: center;
+	margin-bottom: 12px;
+	border-radius: 50%;
+	background: var(--lectrix-hover);
+	color: var(--lectrix-fg-muted);
+}
+.panel-empty-title {
+	font-size: 13px;
+	font-weight: 500;
+}
+.panel-empty-line {
+	max-width: 220px;
+	margin-top: 4px;
+	color: var(--lectrix-fg-muted);
+	font-size: 12px;
+	line-height: 1.6;
+}
+.panel-empty-action {
+	margin-top: 16px;
+}
+/* A key, in a line of text or a button: the look of Settings' shortcut keys. */
+.keycap {
+	display: inline-flex;
+	height: 18px;
+	min-width: 18px;
+	align-items: center;
+	justify-content: center;
+	padding: 0 5px;
+	border: 1px solid var(--lectrix-line);
+	border-radius: 4px;
+	background: var(--lectrix-button);
+	color: var(--lectrix-fg);
+	font-size: 11px;
+	line-height: 1;
+	vertical-align: 1px;
+	white-space: nowrap;
+}
+.button .keycap {
+	margin-left: 8px;
+	background: transparent;
+	color: var(--lectrix-fg-muted);
+}
 /* A tooltip (section 8), the app's own in place of the system's: flat, in the menus'
    colour with their thin edge, and a tail with curved sides pointing at what it is about
    (its sides continue the edge, as the comment panel's do). Whoever shows it places it:

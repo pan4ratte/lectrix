@@ -17,13 +17,26 @@
 	// annotation keeps its row though a change made it stop matching, until the selection, the
 	// search or the filters change; and an annotation that has just appeared (made, or brought
 	// back by undo) clears a search and filters that would leave it out.
-	import { ArrowDownUp, ListFilter, MessageSquareText, Search, TextQuote, TriangleAlert, Wrench, X } from '@lucide/svelte';
+	import {
+		ArrowDownUp,
+		FunnelX,
+		ListFilter,
+		MessageSquareText,
+		Search,
+		SearchX,
+		TextQuote,
+		TriangleAlert,
+		Wrench,
+		X
+	} from '@lucide/svelte';
 	import { ContextMenu, DropdownMenu } from 'bits-ui';
-	import { untrack } from 'svelte';
+	import { tick, untrack } from 'svelte';
 	import { MediaQuery, SvelteMap } from 'svelte/reactivity';
 	import { slide } from 'svelte/transition';
 
+	import type { CommandName } from '#lib/commands.ts';
 	import { chain } from '#lib/components/chain.ts';
+	import PanelEmpty from '#lib/components/PanelEmpty.svelte';
 	import { motionMs } from '#lib/components/panes.ts';
 	import type { Annotation, AnnotationSort } from '#lib/ipc/index.ts';
 	import { pageName } from '#lib/features/viewer/pagebox.ts';
@@ -428,6 +441,18 @@
 		document.querySelector<HTMLElement>('.annotation-list')?.focus();
 	}
 
+	/** Whether the search, rather than the filters alone, leaves out what there is. */
+	const bySearch = $derived(searchOpen && searched.trim() !== '');
+
+	/** The empty list's way out: what leaves everything out goes, and the list has the focus. */
+	async function clearSearchAndFilters() {
+		query = '';
+		searched = '';
+		filter = emptyFilter();
+		await tick();
+		focusList();
+	}
+
 	function startReply(a: Annotation) {
 		editingReply = null;
 		replyingTo = keyOf(a);
@@ -668,19 +693,31 @@
 		{/if}
 	</div>
 
+	{#snippet key(command: CommandName)}
+		{#if app.shortcut(command)}
+			{' '}<kbd class="keycap">{app.shortcut(command)}</kbd>
+		{/if}
+	{/snippet}
+	{#snippet clearAction()}
+		<button type="button" class="button h-7 gap-1 text-xs" onclick={() => void clearSearchAndFilters()}>
+			<X size={14} aria-hidden="true" />{bySearch && filtering ? 'Clear search and filters' : bySearch ? 'Clear search' : 'Clear filters'}
+		</button>
+	{/snippet}
+
 	{#if all.length === 0}
-		<p class="flex flex-col items-center gap-2 p-6 text-center text-sm text-fg-muted">
-			<MessageSquareText size={24} aria-hidden="true" />
-			No annotations yet. Pick a tool in the toolbar to add one.
-		</p>
+		<PanelEmpty icon={MessageSquareText} heading="No annotations">
+			{#if tab.readOnly}
+				This document is open for reading only.
+			{:else if !tab.flags.canAnnotate}
+				This document’s security settings don’t allow adding annotations.
+			{:else}
+				Highlight text{@render key('toolHighlight')} or add a note{@render key('toolNote')} from the toolbar.
+			{/if}
+		</PanelEmpty>
 	{:else if shown.length === 0}
-		<p class="p-4 text-sm text-fg-muted">
-			{searchOpen && searched.trim() ? 'No annotations match the search' : 'No annotations match the filters'}{filtering &&
-			searchOpen &&
-			searched.trim()
-				? ' and the filters'
-				: ''}.
-		</p>
+		<PanelEmpty icon={bySearch ? SearchX : FunnelX} heading="No matches" action={clearAction}>
+			No annotations match {bySearch && filtering ? 'the search and the filters' : bySearch ? 'the search' : 'the filters'}.
+		</PanelEmpty>
 	{:else}
 		<ContextMenu.Root>
 			<ContextMenu.Trigger>
