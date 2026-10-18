@@ -290,12 +290,30 @@ pub struct SearchHit {
 /// The most hits returned for one page; MuPDF's own search stops there too.
 const MAX_HITS_PER_PAGE: usize = 500;
 
+/// A word of the page's text that contains a search's needle, as the text has it, and how
+/// many times the page has it: what the search bar suggests (section 6.1).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct FoundWord {
+    pub text: String,
+    pub count: u32,
+}
+
 /// Finds every occurrence of `needle` on a page (case-insensitive, as MuPDF's search is).
 pub fn search_page(list: &DisplayList, needle: &str) -> Result<Vec<SearchHit>> {
+    Ok(search_page_words(list, needle)?.0)
+}
+
+/// [`search_page`], and the words around the occurrences of `needle` within a line (see
+/// [`words_containing`]), from the same text page.
+pub fn search_page_words(
+    list: &DisplayList,
+    needle: &str,
+) -> Result<(Vec<SearchHit>, Vec<FoundWord>)> {
     if needle.trim().is_empty() {
-        return Ok(Vec::new());
+        return Ok((Vec::new(), Vec::new()));
     }
     let page = list.to_text_page(flags())?;
+    let words = words_containing(&collect(&page), needle);
     let mut hits: Vec<SearchHit> = Vec::new();
     page.search_cb(needle, &mut hits, |hits, quads| {
         hits.push(SearchHit {
@@ -322,7 +340,80 @@ pub fn search_page(list: &DisplayList, needle: &str) -> Result<Vec<SearchHit>> {
             mupdf::text_page::SearchHitResponse::ContinueSearch
         }
     })?;
-    Ok(hits)
+    Ok((hits, words))
+}
+
+/// The words of `text` that contain `needle`, with how many times each is there: every
+/// occurrence of the needle within a line (case-insensitive, any run of spaces in the
+/// needle matching one space, as MuPDF's search reads it), taken out to the word
+/// boundaries on both sides. An occurrence that runs from one line onto the next is not
+/// counted. Each word of the text counts once, however often the needle is in it.
+pub fn words_containing(text: &PageText, needle: &str) -> Vec<FoundWord> {
+    let mut wanted: Vec<char> = Vec::new();
+    for c in needle.trim().chars().map(fold) {
+        if !(c == ' ' && wanted.last() == Some(&' ')) {
+            wanted.push(c);
+        }
+    }
+    let mut counts: Vec<FoundWord> = Vec::new();
+    if wanted.is_empty() {
+        return counts;
+    }
+    for line in &text.lines {
+        let chars: Vec<char> = line.text.chars().collect();
+        let folded: Vec<char> = chars.iter().copied().map(fold).collect();
+        let mut last_start = None;
+        let mut at = 0;
+        while at + wanted.len() <= folded.len() {
+            if folded[at..at + wanted.len()] != wanted[..] {
+                at += 1;
+                continue;
+            }
+            let mut start = at;
+            while start > 0 && in_word(&chars, start - 1) {
+                start -= 1;
+            }
+            let mut end = at + wanted.len();
+            while end < chars.len() && in_word(&chars, end) {
+                end += 1;
+            }
+            at += wanted.len();
+            if last_start == Some(start) {
+                continue;
+            }
+            last_start = Some(start);
+            let word: String = chars[start..end].iter().collect();
+            match counts.iter_mut().find(|w| w.text == word) {
+                Some(found) => found.count += 1,
+                None => counts.push(FoundWord {
+                    text: word,
+                    count: 1,
+                }),
+            }
+        }
+    }
+    counts
+}
+
+/// A character as a search compares it: lower case, and any space as one space.
+fn fold(c: char) -> char {
+    if c.is_whitespace() {
+        ' '
+    } else {
+        c.to_lowercase().next().unwrap_or(c)
+    }
+}
+
+/// Whether `chars[i]` is part of a word: a letter, a digit or a combining mark, or an
+/// apostrophe between two of those ("don't").
+fn in_word(chars: &[char], i: usize) -> bool {
+    let wordy = |c: char| c.is_alphanumeric() || ('\u{0300}'..='\u{036F}').contains(&c);
+    match chars[i] {
+        '\'' | '\u{2019}' => {
+            i > 0 && i + 1 < chars.len() && wordy(chars[i - 1]) && wordy(chars[i + 1])
+        }
+        c => wordy(c),
+    }
 }
 
 #[cfg(test)]
@@ -447,6 +538,68 @@ mod tests {
         assert_eq!(hits[0].quads.len(), 1);
         assert!(search_page(&list, "not on this page").unwrap().is_empty());
         assert!(search_page(&list, "  ").unwrap().is_empty());
+        let (_, words) = search_page_words(&list, "ROWN").unwrap();
+        assert_eq!(
+            words,
+            [FoundWord {
+                text: "brown".into(),
+                count: 1
+            }]
+        );
+    }
+
+    fn lines(texts: &[&str]) -> PageText {
+        PageText {
+            lines: texts
+                .iter()
+                .map(|t| TextLine {
+                    text: (*t).to_string(),
+                    boxes: vec![[0.0; 4]; t.chars().count()],
+                    bbox: [0.0; 4],
+                    block: 0,
+                    vertical: false,
+                })
+                .collect(),
+        }
+    }
+
+    fn found(words: &[(&str, u32)]) -> Vec<FoundWord> {
+        words
+            .iter()
+            .map(|&(text, count)| FoundWord {
+                text: text.into(),
+                count,
+            })
+            .collect()
+    }
+
+    #[test]
+    fn words_containing_the_needle_are_whole_words_counted_once_each() {
+        let text = lines(&[
+            "Lectures on lecture halls; a lecturer's lecture.",
+            "Banana, (lecture) and LECTURE",
+        ]);
+        assert_eq!(
+            words_containing(&text, "lect"),
+            found(&[
+                ("Lectures", 1),
+                ("lecture", 3),
+                ("lecturer's", 1),
+                ("LECTURE", 1)
+            ])
+        );
+        // A word with the needle in it twice is one word.
+        assert_eq!(
+            words_containing(&text, "an"),
+            found(&[("Banana", 1), ("and", 1)])
+        );
+        // Spaces in the needle match any run of them; the words around go with it.
+        assert_eq!(
+            words_containing(&text, "on   lec"),
+            found(&[("on lecture", 1)])
+        );
+        assert!(words_containing(&text, " ").is_empty());
+        assert!(words_containing(&text, "zebra").is_empty());
     }
 
     #[test]

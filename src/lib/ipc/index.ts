@@ -22,6 +22,7 @@ import type { RecentFile } from './generated/RecentFile';
 import type { RecoveredDocument } from './generated/RecoveredDocument';
 import type { SaveResult } from './generated/SaveResult';
 import type { SearchChunk } from './generated/SearchChunk';
+import type { SearchWord } from './generated/SearchWord';
 import type { StartupInfo } from './generated/StartupInfo';
 import type { TabHandoff } from './generated/TabHandoff';
 import type { TouchpadPinch } from './generated/TouchpadPinch';
@@ -51,6 +52,7 @@ export type {
 	RecoveredDocument,
 	SaveResult,
 	SearchChunk,
+	SearchWord,
 	StartupInfo,
 	TabHandoff,
 	TouchpadPinch,

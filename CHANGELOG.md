@@ -16,6 +16,13 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 - After a double-click on a word, keeping the button down and dragging selects whole words, as in a word processor. Before, the drag went on letter by letter. The same goes for whole lines after a triple-click.
 - A click in the text puts a blinking text cursor there. The arrow keys move it, and Shift with them (Ctrl+Shift for whole words) selects text from it, so you can select without the mouse.
+- As you type in the search bar, a list under it suggests the words of the document that contain what you typed, each with its number of matches. Pick one with the mouse, or with the arrow keys and Enter, to search for it.
+- Typing in the search bar no longer scrolls to the first match: the bar counts the matches, and **Enter** or the arrows take you to them, starting from the page you are on. Editing the document while the search bar is open no longer jumps back to a match either.
+- Closed and opened again, the search bar keeps its text and shows its matches again. Before, they showed only once you typed again.
+- With text selected, **Ctrl+F** puts that text in the search bar and starts at the selection itself.
+- While you search, marks beside the scrollbar show where the matches are in the document, the one shown in a stronger colour. **Settings > General > Search** can turn them off.
+- Going to the next or previous match glides there, as bookmarks do. **Settings > Appearance > Motion** can turn this off.
+- The search bar slides in and fades in as it opens, and goes the same way.
 
 ### Annotations
 

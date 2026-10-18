@@ -1257,6 +1257,18 @@ pub struct SearchChunk {
     #[ts(type = "number")]
     pub revision: u64,
     pub pages: Vec<PageHits>,
+    /// The words of these pages that contain the query, as the text has them (each
+    /// spelling once), for the search bar's suggestions (section 6.1).
+    pub words: Vec<SearchWord>,
+}
+
+/// A word that contains a search's query, and how many times the pages searched have it.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SearchWord {
+    pub text: String,
+    pub count: u32,
 }
 
 #[derive(Debug, Clone, Serialize, TS)]
@@ -1520,6 +1532,12 @@ pub struct Settings {
     /// Whether following a bookmark or a link in the text glides to its place (sections
     /// 6.1 and 6.2).
     pub smooth_bookmark_scroll: bool,
+    /// Whether going to the next or previous match of a search glides there (section
+    /// 6.1).
+    pub smooth_search_scroll: bool,
+    /// Whether the matches of a search are marked beside the pages' scrollbar (section
+    /// 6.1).
+    pub search_markers: bool,
     /// How long the pointer rests on an annotation before its comment shows, in ms.
     pub tooltip_delay_ms: u32,
     /// Whether marking text up selects the new annotation and opens the inspector on its
@@ -1572,6 +1590,8 @@ pub struct SettingsInput {
     pub smooth_annotation_scroll: bool,
     pub smooth_page_turn: bool,
     pub smooth_bookmark_scroll: bool,
+    pub smooth_search_scroll: bool,
+    pub search_markers: bool,
     pub tooltip_delay_ms: u32,
     pub open_comment_after_markup: bool,
     pub remember_annotation_style: bool,

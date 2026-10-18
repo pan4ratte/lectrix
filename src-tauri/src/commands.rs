@@ -5,7 +5,7 @@
 //! Commands that may block (dialogs, opening, saving, search) run off the main thread
 //! (`async`).
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
@@ -23,8 +23,8 @@ use crate::ipc::{
     AppError, DocumentChange, DocumentInfo, DocumentSaved, ImageFormat, LabelMode, LinkPlace,
     MenuEntry, MergeOutcome, MergePlan, MergeProgress, MergeRequest, MergeStage, MoveTarget,
     OpenResult, OperationInput, PageHits, PageText, PaneLayout, RecentFile, RecoveredDocument,
-    SaveResult, SearchChunk, Settings, SettingsInput, StartupInfo, TabHandoff, UnsavedSource,
-    ViewState, WebPage, WindowChrome, WindowDocument, WindowEntry,
+    SaveResult, SearchChunk, SearchWord, Settings, SettingsInput, StartupInfo, TabHandoff,
+    UnsavedSource, ViewState, WebPage, WindowChrome, WindowDocument, WindowEntry,
 };
 use crate::platform::Platform;
 use crate::store::StoredSettings;
@@ -492,8 +492,23 @@ pub fn search_text(
     let start = start as usize;
     let end = start + count.min(MAX_SEARCH_CHUNK) as usize;
     let (pages, revision) = session.search(&query, start..end)?;
+    let mut words: Vec<SearchWord> = Vec::new();
+    let mut index: HashMap<String, usize> = HashMap::new();
+    for word in pages.iter().flat_map(|p| &p.words) {
+        match index.get(&word.text) {
+            Some(&i) => words[i].count += word.count,
+            None => {
+                index.insert(word.text.clone(), words.len());
+                words.push(SearchWord {
+                    text: word.text.clone(),
+                    count: word.count,
+                });
+            }
+        }
+    }
     Ok(SearchChunk {
         revision,
+        words,
         pages: pages
             .into_iter()
             .map(|p| PageHits {
@@ -588,6 +603,8 @@ fn settings_of(stored: &StoredSettings, platform: &dyn Platform) -> Settings {
         smooth_annotation_scroll: stored.smooth_annotation_scroll,
         smooth_page_turn: stored.smooth_page_turn,
         smooth_bookmark_scroll: stored.smooth_bookmark_scroll,
+        smooth_search_scroll: stored.smooth_search_scroll,
+        search_markers: stored.search_markers,
         tooltip_delay_ms: stored.tooltip_delay_ms,
         open_comment_after_markup: stored.open_comment_after_markup,
         remember_annotation_style: stored.remember_annotation_style,
@@ -646,6 +663,8 @@ pub fn set_settings(
         smooth_annotation_scroll: settings.smooth_annotation_scroll,
         smooth_page_turn: settings.smooth_page_turn,
         smooth_bookmark_scroll: settings.smooth_bookmark_scroll,
+        smooth_search_scroll: settings.smooth_search_scroll,
+        search_markers: settings.search_markers,
         tooltip_delay_ms: settings
             .tooltip_delay_ms
             .min(crate::store::MAX_TOOLTIP_DELAY_MS),

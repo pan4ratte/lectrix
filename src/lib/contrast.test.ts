@@ -180,6 +180,10 @@ describe.each([
 		const handle = solid('--lectrix-selection-handle', vars);
 		expect(contrast(handle, '#ffffff'), 'selection handle on the page').toBeGreaterThanOrEqual(3);
 		expect(contrast(handle, on('--lectrix-selection', vars, '#ffffff')), 'selection handle on the selection').toBeGreaterThanOrEqual(3);
+		// The marks of a search's matches beside the pages' scrollbar, over the canvas.
+		for (const mark of ['--lectrix-search-marker', '--lectrix-search-marker-current']) {
+			expect(contrast(solid(mark, vars), canvas), `${mark} on the canvas`).toBeGreaterThanOrEqual(3);
+		}
 		for (let i = 1; i <= 6; i++) {
 			const source = solid(`--lectrix-source-${i}`, vars);
 			for (const bg of ['--lectrix-surface', '--lectrix-chrome', '--lectrix-canvas']) {

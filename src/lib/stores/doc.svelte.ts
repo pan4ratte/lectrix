@@ -40,6 +40,7 @@ import {
 	type ViewMode
 } from '#lib/features/viewer/layout.ts';
 import { prepareText, type Caret, type TextGeometry } from '#lib/features/viewer/selection.ts';
+import { FoundWords, type Suggestion } from '#lib/features/viewer/suggestions.ts';
 import { clampZoom, type ZoomMode } from '#lib/features/viewer/zoom.ts';
 
 import { PageMove } from './pagemap.ts';
@@ -115,8 +116,20 @@ export interface SearchHit {
 const TEXT_CACHE_PAGES = 120;
 const SEARCH_CHUNK = 32;
 
+/** Where a search starts: the first match at or after this page, or, with a point (page
+ * points, view space at zoom 1), the match on the page that holds it, if one does. */
+export interface SearchFrom {
+	page: number;
+	point?: [number, number];
+}
+
+/** How often the suggestions are worked out again while a search goes on, in ms. */
+const SUGGEST_EVERY_MS = 200;
+
 class SearchState {
 	open = $state(false);
+	/** The text in the search field, which a search starts from once typing pauses. */
+	input = $state('');
 	query = $state('');
 	hits = $state<SearchHit[]>([]);
 	current = $state(-1);
@@ -125,7 +138,13 @@ class SearchState {
 	failed = $state(false);
 	/** Pages searched so far, for progress. */
 	searched = $state(0);
+	/** The words of the document that contain the query, for the field's list. */
+	suggestions = $state<Suggestion[]>([]);
+	private readonly words = new FoundWords();
 	private run = 0;
+	/** A hit to go to as soon as the search has found it (Enter, Next or Previous pressed
+	 * before it had). */
+	private pending: { from: SearchFrom; direction: 1 | -1; reveal: boolean; smooth: boolean } | null = null;
 
 	constructor(private readonly tab: DocTab) {}
 
@@ -147,20 +166,31 @@ class SearchState {
 
 	clear() {
 		this.cancel();
+		this.pending = null;
 		this.hits = [];
 		this.current = -1;
 		this.searched = 0;
 		this.failed = false;
+		this.words.clear();
+		this.suggestions = [];
 	}
 
-	/** Searches the whole document in chunks, jumping to the first hit at or after `from`. */
-	async start(query: string, from: number) {
+	/**
+	 * Searches the whole document in chunks. It moves nothing by itself (a search typed
+	 * leaves the view where it is): with `go`, it then goes to the first hit at or after
+	 * `from` ('reveal', gliding there with `smooth`), or makes that hit the one shown
+	 * without moving the view ('mark').
+	 */
+	async start(query: string, from: number | SearchFrom, options: SearchGo = {}) {
 		this.clear();
 		this.query = query;
 		if (!query.trim()) return;
 		const run = ++this.run;
 		this.running = true;
+		const at = typeof from === 'number' ? { page: from } : from;
+		if (options.go) this.pending = { from: at, direction: 1, reveal: options.go === 'reveal', smooth: options.smooth === true };
 		const count = this.tab.pages.length;
+		let suggested = 0;
 		try {
 			for (let start = 0; start < count; start += SEARCH_CHUNK) {
 				const chunk = await searchText(this.tab.id, query, start, SEARCH_CHUNK);
@@ -170,42 +200,121 @@ class SearchState {
 				);
 				this.hits = [...this.hits, ...found];
 				this.searched = Math.min(count, start + SEARCH_CHUNK);
-				if (this.current < 0) {
-					const first = this.hits.findIndex((h) => h.page >= from);
-					if (first >= 0) this.select(first);
+				this.words.add(chunk.words);
+				if (performance.now() - suggested >= SUGGEST_EVERY_MS) {
+					this.suggestions = this.words.suggest(query);
+					suggested = performance.now();
 				}
+				this.settle(false);
 			}
-			// Nothing at or after `from`: wrap to the first hit.
-			if (this.current < 0 && this.hits.length) this.select(0);
+			this.suggestions = this.words.suggest(query);
+			this.settle(true);
 		} catch (e) {
 			if (run === this.run) {
 				this.failed = true;
 				void logError(`search failed: ${String(e)}`);
 			}
 		} finally {
-			if (run === this.run) this.running = false;
+			if (run === this.run) {
+				this.running = false;
+				this.pending = null;
+			}
 		}
 	}
 
-	select(index: number) {
+	/** The search again, after the document changed: the hit shown stays the one shown, as
+	 * far as it can, and the view stays where it is. */
+	refresh() {
+		if (!this.query) return;
+		const shown = this.hits[this.current];
+		void this.start(this.query, shown?.page ?? this.tab.currentPage, { go: shown ? 'mark' : undefined });
+	}
+
+	/** As the bar opens again with text in its field: that text is searched again, if it is
+	 * not still. */
+	resume() {
+		if (!this.input.trim() || (this.input === this.query && (this.hits.length > 0 || this.running))) return;
+		void this.start(this.input, this.tab.currentPage);
+	}
+
+	/** Goes to the hit waited for, once the pages it can be on have been searched (`done`:
+	 * all of them). */
+	private settle(done: boolean) {
+		const wait = this.pending;
+		if (!wait || this.current >= 0) return;
+		let index = -1;
+		if (wait.direction > 0) {
+			index = firstHit(this.hits, wait.from);
+			// Nothing at or after it: wrap to the first hit.
+			if (index < 0 && done) index = this.hits.length ? 0 : -1;
+		} else if (done || this.searched >= wait.from.page) {
+			index = this.hits.findLastIndex((h) => h.page < wait.from.page);
+			// Nothing before it: wrap to the last hit.
+			if (index < 0 && done) index = this.hits.length - 1;
+		}
+		if (index < 0) return;
+		this.pending = null;
+		this.select(index, { smooth: wait.smooth, reveal: wait.reveal });
+	}
+
+	select(index: number, options: { smooth?: boolean; reveal?: boolean } = {}) {
 		const hit = this.hits[index];
 		if (!hit) return;
 		this.current = index;
+		if (options.reveal === false) return;
 		const xs = hit.quads.flatMap((q) => [q[0]!, q[2]!, q[4]!, q[6]!]);
 		const ys = hit.quads.flatMap((q) => [q[1]!, q[3]!, q[5]!, q[7]!]);
-		this.tab.viewer?.reveal(hit.page, [
-			Math.min(...xs),
-			Math.min(...ys),
-			Math.max(...xs),
-			Math.max(...ys)
-		]);
+		this.tab.viewer?.reveal(
+			hit.page,
+			[Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)],
+			{ smooth: options.smooth === true }
+		);
 	}
 
-	step(direction: 1 | -1) {
-		if (!this.hits.length) return;
+	/**
+	 * The next or previous hit. With none shown yet (the search was typed, which moves
+	 * nothing), the first from the current page on, or the last before it: once those pages
+	 * have been searched, if the search is still going.
+	 */
+	step(direction: 1 | -1, options: { smooth?: boolean } = {}) {
 		const n = this.hits.length;
-		this.select((((this.current < 0 ? 0 : this.current + direction) % n) + n) % n);
+		if (this.current >= 0) {
+			this.select((((this.current + direction) % n) + n) % n, options);
+			return;
+		}
+		if (!n && !this.running) return;
+		this.pending = { from: { page: this.tab.currentPage }, direction, reveal: true, smooth: options.smooth === true };
+		this.settle(!this.running);
 	}
+}
+
+/** What a search does once it finds hits (`SearchState.start`). */
+export interface SearchGo {
+	go?: 'reveal' | 'mark';
+	smooth?: boolean;
+}
+
+/** The hit a search starting at `from` shows first: -1 while none has been found. Only a
+ * hit found already counts, so `hits` must hold every page up to `from.page`'s. With a
+ * point, the hit whose first line holds it comes first. */
+export function firstHit(hits: readonly SearchHit[], from: SearchFrom): number {
+	const point = from.point;
+	if (point) {
+		const at = hits.findIndex((hit) => {
+			const q = hit.quads[0];
+			if (hit.page !== from.page || !q) return false;
+			const xs = [q[0]!, q[2]!, q[4]!, q[6]!];
+			const ys = [q[1]!, q[3]!, q[5]!, q[7]!];
+			return (
+				point[0] >= Math.min(...xs) - 1 &&
+				point[0] <= Math.max(...xs) + 1 &&
+				point[1] >= Math.min(...ys) - 1 &&
+				point[1] <= Math.max(...ys) + 1
+			);
+		});
+		if (at >= 0) return at;
+	}
+	return hits.findIndex((h) => h.page >= from.page);
 }
 
 /** The turns remembered for a file's pages (none in a view stored before pages could be
@@ -439,7 +548,7 @@ export class DocTab {
 		if (revisionChanged) {
 			this.selection = null;
 			this.caret = null;
-			if (this.search.query) void this.search.start(this.search.query, this.currentPage);
+			this.search.refresh();
 		}
 	}
 

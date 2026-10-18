@@ -77,6 +77,7 @@
 	import PageView from './PageView.svelte';
 	import { AHEAD_PRIORITY, scheduler, type Ticket } from './scheduler.ts';
 	import SearchBar from './SearchBar.svelte';
+	import { CURRENT_MARK_PX, MARK_PX, searchMarks } from './searchmarks.ts';
 	import {
 		caretBox,
 		caretPoint,
@@ -118,6 +119,8 @@
 	let scrollLeft = $state(0);
 	let viewportW = $state(0);
 	let viewportH = $state(0);
+	/** How wide the pages' vertical scrollbar is (0 without one). */
+	let scrollbarW = $state(0);
 	let dpr = $state(typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1);
 
 	/** The row shown in the single page and two-page modes (section 6.1, scroll modes). */
@@ -146,6 +149,26 @@
 
 	$effect(() => {
 		if (viewportH > 0) tab.currentPage = currentPage(layout, scrollTop, viewportH);
+	});
+
+	/** The marks of the search's matches beside the scrollbar (section 6.1), while the search
+	 * bar is open and Settings have them. */
+	const marks = $derived.by(() => {
+		const search = tab.search;
+		if (!search.open || app.settings?.searchMarkers === false || search.hits.length === 0) return null;
+		return searchMarks(
+			layout,
+			search.hits,
+			search.current,
+			(i) => {
+				const q = search.hits[i]!.quads[0];
+				if (!q || !tab.pages[search.hits[i]!.page]) return null;
+				const x = (q[0]! + q[2]! + q[4]! + q[6]!) / 4;
+				const y = (q[1]! + q[3]! + q[5]! + q[7]!) / 4;
+				return toBox(search.hits[i]!.page, x, y)[1];
+			},
+			viewportH
+		);
 	});
 
 	function pageBox(index: number) {
@@ -426,6 +449,8 @@
 	}
 
 	async function reveal(index: number, rect: [number, number, number, number], options: { smooth?: boolean } = {}) {
+		const duration = options.smooth ? motionMs(SCROLL_GLIDE_MS) : 0;
+		const fromRow = shownRow;
 		const showing = showRowOf(index);
 		if (showing) await showing;
 		if (!scroller || !layout.pages[index]) return;
@@ -438,7 +463,13 @@
 		const right = b.left + Math.max(ax, bx);
 		const toTop = top < scrollTop + 40 || bottom > scrollTop + viewportH - 40 ? (top + bottom) / 2 - viewportH / 2 : null;
 		const toLeft = left < scrollLeft || right > scrollLeft + viewportW ? (left + right) / 2 - viewportW / 2 : null;
-		glideScroll(toTop, toLeft, options.smooth ? motionMs(SCROLL_GLIDE_MS) : 0);
+		if (showing) {
+			// Another row, with one shown at a time: it comes in, as a row turned to does.
+			glideScroll(toTop, toLeft, 0);
+			enterRow(shownRow > fromRow ? 1 : -1, duration);
+			return;
+		}
+		glideScroll(toTop, toLeft, duration);
 	}
 
 	// ----- gliding scroll (to an annotation picked in the list, section 6.5; to the next or
@@ -1604,6 +1635,7 @@
 		if (!scroller) return;
 		const w = scroller.clientWidth;
 		const h = scroller.clientHeight;
+		scrollbarW = Math.max(0, scroller.offsetWidth - w);
 		if (w === 0 || (w === viewportW && h === viewportH)) return;
 		const first = viewportW === 0;
 		// A fit mode re-fits on every frame of a pane sliding or being resized, or of the
@@ -1805,6 +1837,28 @@
 		</ContextMenu.Portal>
 	</ContextMenu.Root>
 
+	{#if marks}
+		<!-- Over the scrollbar's track, letting the pointer through to it. -->
+		<div
+			class="pointer-events-none absolute top-0 right-0"
+			style:width="{Math.max(scrollbarW, 6)}px"
+			style:height="{viewportH}px"
+			aria-hidden="true"
+			data-search-marks
+		>
+			{#each marks.tops as top (top)}
+				<div class="bg-search-marker absolute inset-x-0" style:top="{top}px" style:height="{MARK_PX}px"></div>
+			{/each}
+			{#if marks.current !== null}
+				<div
+					class="bg-search-marker-current absolute inset-x-0"
+					style:top="{marks.current}px"
+					style:height="{CURRENT_MARK_PX}px"
+					data-search-mark-current
+				></div>
+			{/if}
+		</div>
+	{/if}
 	{#if tab.search.open}
 		<SearchBar {tab} />
 	{/if}

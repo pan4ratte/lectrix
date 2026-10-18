@@ -1345,7 +1345,7 @@ class AppStore {
 			tab.update(info);
 			tab.banner = null;
 			if (position) tab.viewer?.goTo(position, { recordHistory: false });
-			if (tab.search.query) void tab.search.start(tab.search.query, tab.currentPage);
+			tab.search.refresh();
 		} catch (e) {
 			this.showError(toAppError(e));
 		}

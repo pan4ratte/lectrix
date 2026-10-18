@@ -11,6 +11,7 @@ import { insertFromFile, toggleOrganize } from '#lib/features/organize/actions.t
 import { update } from '#lib/features/update/update.svelte.ts';
 import { copySelection } from '#lib/features/viewer/actions.ts';
 import { normalizeRotation, type ViewMode } from '#lib/features/viewer/layout.ts';
+import { find, findStep } from '#lib/features/viewer/search.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -97,17 +98,9 @@ export const commands = {
 		else if (app.active) void app.redo(app.active);
 	},
 	copy: withTab((t) => copySelection(t)),
-	find: reading((t) => {
-		if (t.search.open) {
-			const input = document.querySelector<HTMLInputElement>('[data-search-input]');
-			input?.focus();
-			input?.select();
-		} else {
-			t.search.open = true;
-		}
-	}),
-	findNext: reading((t) => t.search.step(1)),
-	findPrevious: reading((t) => t.search.step(-1)),
+	find: reading((t) => find(t)),
+	findNext: reading((t) => findStep(t, 1)),
+	findPrevious: reading((t) => findStep(t, -1)),
 
 	zoomIn: () => zoom(1),
 	zoomOut: () => zoom(-1),

@@ -297,6 +297,14 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 				]
 			},
 			{
+				title: 'Search',
+				rows: [
+					toggle('searchMarkers', 'Mark matches beside the scrollbar', {
+						description: 'While you search a document, a mark beside its scrollbar shows where each match is.'
+					})
+				]
+			},
+			{
 				title: 'Links',
 				rows: [
 					toggle('highlightLinks', 'Highlight the link under the pointer', {
@@ -357,6 +365,9 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 					}),
 					toggle('smoothBookmarkScroll', 'Smooth scrolling to bookmarks and links', {
 						description: 'The view glides to the place a bookmark or a link in the text leads to.'
+					}),
+					toggle('smoothSearchScroll', 'Smooth scrolling to search results', {
+						description: 'The view glides to the next or previous match of a search.'
 					})
 				]
 			},
@@ -521,6 +532,8 @@ export function toInput(d: Draft): SettingsInput {
 		smoothAnnotationScroll: d.smoothAnnotationScroll,
 		smoothPageTurn: d.smoothPageTurn,
 		smoothBookmarkScroll: d.smoothBookmarkScroll,
+		smoothSearchScroll: d.smoothSearchScroll,
+		searchMarkers: d.searchMarkers,
 		tooltipDelayMs: Number(d.tooltipDelayMs),
 		openCommentAfterMarkup: d.openCommentAfterMarkup,
 		rememberAnnotationStyle: d.rememberAnnotationStyle,

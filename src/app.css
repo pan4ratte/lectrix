@@ -117,6 +117,10 @@
 	--lectrix-link-hover: rgb(47 93 170 / 0.16);
 	--lectrix-search-hit: rgb(255 196 0 / 0.38);
 	--lectrix-search-current: rgb(255 120 0 / 0.5);
+	/* The marks beside the pages' scrollbar for a search's matches, and for the one shown:
+	   over the canvas, at 3:1. */
+	--lectrix-search-marker: #a87400;
+	--lectrix-search-marker-current: #c84a00;
 	--lectrix-row-selected: color-mix(in srgb, var(--lectrix-accent) 16%, transparent);
 	--lectrix-close-hover: #c9303a;
 	--lectrix-close-hover-fg: #ffffff;
@@ -142,6 +146,8 @@
 		--lectrix-menu: #1c1e22;
 		--lectrix-menu-line: var(--lectrix-line-strong);
 		--lectrix-canvas: #0c0d0e;
+		--lectrix-search-marker: #ffc400;
+		--lectrix-search-marker-current: #ff7a1a;
 		--lectrix-tab-active: #2a2f37;
 		--lectrix-tab-active-line: transparent;
 		--lectrix-button: #262a31;
@@ -185,6 +191,8 @@
 	--lectrix-menu: #1c1e22;
 	--lectrix-menu-line: var(--lectrix-line-strong);
 	--lectrix-canvas: #0c0d0e;
+	--lectrix-search-marker: #ffc400;
+	--lectrix-search-marker-current: #ff7a1a;
 	--lectrix-tab-active: #2a2f37;
 	--lectrix-tab-active-line: transparent;
 	--lectrix-button: #262a31;
@@ -356,6 +364,12 @@ input[type='color'],
 }
 .fill-search-current {
 	fill: var(--lectrix-search-current);
+}
+.bg-search-marker {
+	background: var(--lectrix-search-marker);
+}
+.bg-search-marker-current {
+	background: var(--lectrix-search-marker-current);
 }
 
 /* Annotations on the page canvas. */

@@ -49,7 +49,7 @@ use crate::outline::{self, Outline};
 use crate::pages::DeleteReport;
 use crate::render::{self, PixelRect, RgbaImage};
 use crate::save::{SaveKind, SaveOutcome, save_atomic, save_atomic_checked};
-use crate::text::{self, PageText, SearchHit};
+use crate::text::{self, FoundWord, PageText, SearchHit};
 
 /// Size of a page in view space at zoom 1 (points), after rotation and cropping.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -181,6 +181,8 @@ pub enum ExtractStep {
 pub struct PageHits {
     pub page: usize,
     pub hits: Vec<SearchHit>,
+    /// The words of the page that contain the needle (`text::words_containing`).
+    pub words: Vec<FoundWord>,
 }
 
 type Reply<T> = SyncSender<Result<T>>;
@@ -419,9 +421,9 @@ impl Session {
                 Err(e) => return Err(e),
             };
             revision = rev;
-            let hits = text::search_page(&list, needle)?;
-            if !hits.is_empty() {
-                out.push(PageHits { page, hits });
+            let (hits, words) = text::search_page_words(&list, needle)?;
+            if !hits.is_empty() || !words.is_empty() {
+                out.push(PageHits { page, hits, words });
             }
         }
         Ok((out, revision))

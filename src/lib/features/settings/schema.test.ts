@@ -20,6 +20,8 @@ const STORED: Settings = {
 	smoothAnnotationScroll: true,
 	smoothPageTurn: true,
 	smoothBookmarkScroll: true,
+	smoothSearchScroll: true,
+	searchMarkers: true,
 	tooltipDelayMs: 300,
 	openCommentAfterMarkup: false,
 	rememberAnnotationStyle: true,

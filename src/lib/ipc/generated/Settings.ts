@@ -50,6 +50,16 @@ smoothPageTurn: boolean,
  */
 smoothBookmarkScroll: boolean, 
 /**
+ * Whether going to the next or previous match of a search glides there (section
+ * 6.1).
+ */
+smoothSearchScroll: boolean, 
+/**
+ * Whether the matches of a search are marked beside the pages' scrollbar (section
+ * 6.1).
+ */
+searchMarkers: boolean, 
+/**
  * How long the pointer rests on an annotation before its comment shows, in ms.
  */
 tooltipDelayMs: number, 
