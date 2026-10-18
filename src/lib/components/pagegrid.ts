@@ -47,29 +47,20 @@ export interface Grid {
 	/** Distance between cell origins, horizontally and vertically. */
 	pitchX: number;
 	pitchY: number;
-	/** Padding around the cells: above the first row and below the last, and the least at
-	 * the sides. */
+	/** Padding around the cells: above the first row and below the last, and at the left
+	 * (the least at the right). */
 	pad: number;
-	/** Where the first column starts: the columns are centered in the width. */
+	/** Where the first column starts: the padding, the columns starting at the left. */
 	left: number;
 }
 
 /**
- * The grid for `count` pages in `width`: as many columns as fit, centered. Fewer pages than
- * that are centered as the one row they are.
+ * The grid in `width`: as many columns as fit, from the top left corner, what is left over
+ * at the right.
  */
-export function gridFor(
-	width: number,
-	cellWidth: number,
-	cellHeight: number,
-	gap: number,
-	pad: number,
-	count = Infinity
-): Grid {
+export function gridFor(width: number, cellWidth: number, cellHeight: number, gap: number, pad: number): Grid {
 	const columns = Math.max(1, Math.floor((width - 2 * pad + gap) / (cellWidth + gap)));
-	const used = Math.max(1, Math.min(columns, count));
-	const left = Math.max(pad, Math.floor((width - (used * (cellWidth + gap) - gap)) / 2));
-	return { columns, cellWidth, cellHeight, pitchX: cellWidth + gap, pitchY: cellHeight + gap, pad, left };
+	return { columns, cellWidth, cellHeight, pitchX: cellWidth + gap, pitchY: cellHeight + gap, pad, left: pad };
 }
 
 /** Where cell `index` starts in the grid's content. */

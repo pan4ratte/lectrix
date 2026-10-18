@@ -59,6 +59,15 @@ the wording, translations): docs/releasing.md, "The changelog".
 - A bookmark can be given a colour in its properties, with the same colours as annotations, or set back to the default. Its title shows in that colour, as in other PDF readers; a colour from another app showed as a dot before.
 - The bookmark properties no longer have a **Go to** button: click the bookmark to go to it.
 
+### Combining files
+
+- The **Smaller pages** and **Larger pages** buttons, and **Ctrl+-** and **Ctrl+=**, change the size of the pages in one step, without the glide. The mouse wheel still glides.
+- The pages start at the top left of the grid, however few there are, instead of in the middle.
+
+### Organizing pages
+
+- The same goes for the page grid: the size buttons and keys change the size in one step, and the pages start at the top left.
+
 ### Settings
 
 - A new command switches between the light and the dark theme. It has no shortcut until you give it one in **Settings > Shortcuts**, under View.

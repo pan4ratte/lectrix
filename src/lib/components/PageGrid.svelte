@@ -124,7 +124,7 @@
 	let scrollTop = $state(0);
 	let dpr = $state(typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1);
 
-	const grid = $derived(gridFor(width, cellW, cellH, GAP, PAD, items.length));
+	const grid = $derived(gridFor(width, cellW, cellH, GAP, PAD));
 	const rowCount = $derived(Math.ceil(items.length / grid.columns));
 	const totalHeight = $derived(rowCount ? 2 * PAD + rowCount * grid.pitchY - GAP : 0);
 	const focusIndex = $derived(Math.max(0, items.findIndex((p) => p.key === model.focusKey)));

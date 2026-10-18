@@ -17,9 +17,9 @@ import {
 } from './pagegrid.ts';
 
 describe('grid', () => {
-	// Five columns of 140 with 8 between them are 732 wide: 34 left over at each side.
+	// Five columns of 140 with 8 between them are 732 wide, from the padding at the left.
 	const grid = gridFor(800, 140, 180, 8, 16);
-	const LEFT = 34;
+	const LEFT = 16;
 
 	it('fits whole cells into the width', () => {
 		// 800 - 32 + 8 = 776; 776 / 148 = 5.2
@@ -27,14 +27,9 @@ describe('grid', () => {
 		expect(gridFor(50, 140, 180, 8, 16).columns).toBe(1);
 	});
 
-	it('centers the columns, and a row of fewer pages than fit', () => {
+	it('starts the columns at the left, however few pages fill them', () => {
 		expect(grid.left).toBe(LEFT);
-		// Two pages are one row, 288 wide.
-		expect(gridFor(800, 140, 180, 8, 16, 2)).toMatchObject({ columns: 5, left: 256 });
-		expect(gridFor(800, 140, 180, 8, 16, 12).left).toBe(LEFT);
-		// No narrower than the padding, however little room there is.
-		expect(gridFor(50, 140, 180, 8, 16).left).toBe(16);
-		expect(gridFor(800, 140, 180, 8, 16, 0).left).toBe(330);
+		expect(gridFor(50, 140, 180, 8, 16).left).toBe(LEFT);
 	});
 
 	it('places cells row by row', () => {
@@ -62,7 +57,7 @@ describe('grid', () => {
 		expect(largestThumb(1000, 700, 16, 44)).toBe(624);
 		expect(largestThumb(500, 900, 16, 44)).toBe(452);
 		// At that size the grid has one column.
-		expect(gridFor(1000, 624 + 16, 624 + 44, 8, 16, 30).columns).toBe(1);
+		expect(gridFor(1000, 624 + 16, 624 + 44, 8, 16).columns).toBe(1);
 	});
 });
 

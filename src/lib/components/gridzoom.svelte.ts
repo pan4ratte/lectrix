@@ -1,6 +1,6 @@
 // The size of the pictures in a page grid (`PageGrid.svelte`): the square each page is
-// fitted into, which the buttons and the keys step through, a mouse wheel notch glides to
-// and a touchpad pinch follows, up to the size at which one page fills the grid's view. The
+// fitted into, which the buttons and the keys step through at once, a mouse wheel notch
+// glides to and a touchpad pinch follows, up to the size at which one page fills the grid's view. The
 // Combine view and the page organizing tool each have one.
 
 import { ZOOM_GLIDE_MS, zoomBetween } from '#lib/features/viewer/zoom.ts';
@@ -35,14 +35,15 @@ export class GridZoom {
 	constructor(private readonly smooth: () => boolean) {}
 
 	/** Glides the pictures to `size` (140 ms, as zooming the pages does; at once when
-	 * Settings' smooth zooming is off or the system asks for reduced motion). */
-	zoomTo(size: number) {
+	 * Settings' smooth zooming is off or the system asks for reduced motion), or takes it at
+	 * once without `glide`. */
+	zoomTo(size: number, glide = true) {
 		const to = Math.round(clampThumb(size, this.largest));
 		this.stopZoom();
 		this.thumbTarget = to;
 		this.renderThumb = to;
 		const from = this.thumb;
-		const duration = this.smooth() ? motionMs(ZOOM_GLIDE_MS) : 0;
+		const duration = glide && this.smooth() ? motionMs(ZOOM_GLIDE_MS) : 0;
 		if (duration === 0 || from === to) {
 			this.thumb = to;
 			return;
@@ -56,11 +57,11 @@ export class GridZoom {
 		this.glide = requestAnimationFrame(frame);
 	}
 
-	/** The next smaller or larger of the buttons' sizes, going on from where a glide is
-	 * heading. */
+	/** The next smaller or larger of the buttons' sizes, at once, going on from where a
+	 * glide is heading. */
 	zoomStep(direction: 1 | -1) {
 		const next = stepThumb(this.thumbTarget, direction, this.largest);
-		if (next !== null) this.zoomTo(next);
+		if (next !== null) this.zoomTo(next, false);
 	}
 
 	/** A mouse wheel notch: glides on by `factor` from where a glide is heading. */

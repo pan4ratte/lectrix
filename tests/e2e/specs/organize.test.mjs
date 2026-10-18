@@ -221,7 +221,7 @@ test('pages are moved, turned and deleted in the grid, and the document follows'
 		await (await browser.$('button[aria-label="Larger pages"]')).click();
 		assert.equal(await waitForWidth(browser, (w) => w > smallest, 'back to the first size'), start);
 
-		// Larger, step by step, as far as it goes: one page fills the view, in the middle.
+		// Larger, step by step, as far as it goes: one page fills the view, at its left.
 		const largerButton = await browser.$('button[aria-label="Larger pages"]');
 		for (let i = 0; i < 20 && (await largerButton.isEnabled()); i++) await largerButton.click();
 		assert.equal(await largerButton.isEnabled(), false, 'the pictures never reached their largest size');
@@ -229,7 +229,7 @@ test('pages are moved, turned and deleted in the grid, and the document follows'
 		const one = await layout(browser);
 		assert.equal(one.inRow, 1, `more than one page in a row at the largest size: ${JSON.stringify(one)}`);
 		assert.ok(one.cellHeight <= one.viewHeight, `a page does not fit the view: ${JSON.stringify(one)}`);
-		assert.ok(Math.abs(one.left - one.right) <= 1.5, `the page is not centered: ${JSON.stringify(one)}`);
+		assert.ok(one.left <= one.right && one.left <= 17, `the page does not start at the left: ${JSON.stringify(one)}`);
 		// The wheel goes no further.
 		const largest = await cellWidth(browser);
 		await wheelOver(browser, null, -120);
