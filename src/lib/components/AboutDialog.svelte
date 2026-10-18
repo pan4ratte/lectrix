@@ -23,8 +23,8 @@
 			.catch(() => {});
 	});
 
-	/** The dialog itself takes the focus, so no control looks picked as it opens; Tab
-	 * then reaches the author, the GitHub button and Close. */
+	/** The dialog itself takes the focus, so no control looks picked as it opens (it shows
+	 * no ring for that, app.css); Tab then reaches the author, the GitHub button and Close. */
 	function focusDialog(event: Event) {
 		event.preventDefault();
 		content?.focus();
@@ -44,7 +44,7 @@
 		<Dialog.Overlay class="dialog-overlay" />
 		<Dialog.Content
 			bind:ref={content}
-			class="dialog-content w-[400px] outline-none"
+			class="dialog-content about-dialog w-[400px]"
 			tabindex={-1}
 			onOpenAutoFocus={focusDialog}
 		>

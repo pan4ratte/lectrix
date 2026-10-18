@@ -14,6 +14,7 @@
 		hiddenByList,
 		hiddenOnPage,
 		listShowsSelected,
+		madeForComment,
 		markSelection,
 		openComment,
 		openInspector,
@@ -1034,6 +1035,7 @@
 				if (change) {
 					tools.tool = 'select';
 					openInspector(tab, true);
+					if (change.created != null) madeForComment(tab, page, change.created, change.state.revision);
 				}
 			});
 		} else if (tool === 'freeText') {

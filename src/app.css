@@ -1840,6 +1840,10 @@ button.shortcut-key:hover,
 	animation: dialog-out 100ms ease-in forwards;
 	pointer-events: none;
 }
+/* About takes the focus itself as it opens, so that no control looks picked: no ring for it. */
+.about-dialog:focus-visible {
+	outline: none;
+}
 @keyframes dialog-dim {
 	from {
 		opacity: 0;
@@ -2209,8 +2213,10 @@ button.shortcut-key:hover,
 	overflow-y: auto;
 	line-height: 1.45;
 }
+/* It takes the focus as the dialog opens, so the keys scroll it at once: a ring around the
+   whole list would only be noise, as around the pages (.viewer-scroll). */
 .whats-new-body:focus-visible {
-	outline-offset: -2px;
+	outline: none;
 }
 .whats-new-release + .whats-new-release {
 	margin-top: 20px;

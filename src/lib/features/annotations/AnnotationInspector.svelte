@@ -31,7 +31,7 @@
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
-	import { keepsComment, repair, setPanel } from './actions.ts';
+	import { keepsComment, repair, setPanel, undoMadeForComment } from './actions.ts';
 	import AnnotationControls from './AnnotationControls.svelte';
 	import {
 		BAR_GAP,
@@ -173,8 +173,10 @@
 		return untrack(() => (a ? keepsComment(tab, a.page, a.id) : undefined));
 	});
 
-	/** Ctrl+Enter and Esc leave the note, which keeps what was typed. */
+	/** Ctrl+Enter and Esc leave the note, which keeps what was typed. Undo in the empty note
+	 * of an annotation just made takes the annotation back. */
 	function textKey(event: KeyboardEvent) {
+		if (a && undoMadeForComment(tab, a.page, a.id, event)) return;
 		stopUnlessShortcut(event);
 		if ((event.key === 'Enter' && event.ctrlKey) || event.key === 'Escape') {
 			event.preventDefault();

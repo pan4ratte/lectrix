@@ -32,7 +32,17 @@
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 	import { legibleOnPane } from '#lib/theme.ts';
 
-	import { addReply, copyComment, keepsComment, listShowsSelected, openInspector, remove, repair, update } from './actions.ts';
+	import {
+		addReply,
+		copyComment,
+		keepsComment,
+		listShowsSelected,
+		openInspector,
+		remove,
+		repair,
+		undoMadeForComment,
+		update
+	} from './actions.ts';
 	import AnnotationControls from './AnnotationControls.svelte';
 	import { typeIcon } from './icons.ts';
 	import {
@@ -397,8 +407,10 @@
 		if (event.key === 'ArrowUp' || event.key === 'ArrowDown' || event.key === 'Delete') event.stopPropagation();
 	}
 
-	/** Ctrl+Enter and Esc leave the comment, which keeps what was typed. */
-	function noteKey(event: KeyboardEvent) {
+	/** Ctrl+Enter and Esc leave the comment, which keeps what was typed. Undo in the empty
+	 * comment of an annotation just made takes the annotation back. */
+	function noteKey(a: Annotation, event: KeyboardEvent) {
+		if (undoMadeForComment(tab, a.page, a.id, event)) return;
 		stopUnlessShortcut(event);
 		if ((event.key === 'Enter' && event.ctrlKey) || event.key === 'Escape') {
 			event.preventDefault();
@@ -670,7 +682,7 @@
 											aria-label={a.kind === 'freeText' ? 'Text' : 'Note'}
 											placeholder="Add a note"
 											onclick={(e) => e.stopPropagation()}
-											onkeydown={noteKey}
+											onkeydown={(e) => noteKey(a, e)}
 											{@attach keepsComment(tab, a.page, a.id)}
 										></textarea>
 									{:else if a.contents}

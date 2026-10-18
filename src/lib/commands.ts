@@ -7,6 +7,7 @@ import { addBookmark } from '#lib/features/bookmarks/actions.ts';
 import { openWhatsNew } from '#lib/features/changelog/announce.ts';
 import { toggleFullScreen } from '#lib/features/fullscreen/actions.ts';
 import { showLabels } from '#lib/features/labels/actions.ts';
+import { toggleTheme } from '#lib/features/settings/apply.ts';
 import { insertFromFile, toggleOrganize } from '#lib/features/organize/actions.ts';
 import { update } from '#lib/features/update/update.svelte.ts';
 import { copySelection } from '#lib/features/viewer/actions.ts';
@@ -80,13 +81,17 @@ export const commands = {
 		if (!app.isOnlyTab(t.id)) void app.moveToWindow(t.id, { kind: 'new' });
 	}),
 	exit: () => void app.exit(),
+	// Their shortcut pressed again, while they are open, closes them.
 	settings: () => {
-		app.settingsOpen = true;
+		app.settingsOpen = !app.settingsOpen;
 	},
 	about: () => {
-		app.aboutOpen = true;
+		app.aboutOpen = !app.aboutOpen;
 	},
-	whatsNew: openWhatsNew,
+	whatsNew: () => {
+		if (app.whatsNewOpen) app.whatsNewOpen = false;
+		else openWhatsNew();
+	},
 	checkForUpdates: () => void update.checkNow(),
 
 	undo: () => {
@@ -119,6 +124,8 @@ export const commands = {
 		// Full screen shows the pages alone; the grid of pages being organized is not that.
 		if (!app.active?.organize) void toggleFullScreen();
 	},
+	/** The other theme, light or dark, from the one on screen. */
+	toggleTheme: () => void toggleTheme(),
 	toggleLeftPane: reading(() => app.togglePane('left')),
 	toggleRightPane: reading(() => app.togglePane('right')),
 	goToPage: () => {
@@ -141,9 +148,9 @@ export const commands = {
 	organizePages: withTab((t) => toggleOrganize(t)),
 	insertPages: withTab((t) => insertFromFile(t)),
 	addBookmark: reading((t) => addBookmark(t)),
-	showPages: reading(() => app.showPanel('pages')),
-	showBookmarks: reading(() => app.showPanel('bookmarks')),
-	showAnnotations: reading(() => app.showPanel('annotations')),
+	showPages: reading(() => app.togglePanel('pages')),
+	showBookmarks: reading(() => app.togglePanel('bookmarks')),
+	showAnnotations: reading(() => app.togglePanel('annotations')),
 	repairAnnotations: withTab((t) => repair(t)),
 	toolSelect: useTool('select'),
 	toolHighlight: useTool('highlight'),

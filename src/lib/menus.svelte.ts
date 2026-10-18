@@ -8,7 +8,7 @@ import { APP_NAME } from '#lib/config.ts';
 import { debugMenu } from '#lib/features/debug/menu.ts';
 import { update } from '#lib/features/update/update.svelte.ts';
 import { VIEW_MODES } from '#lib/features/viewer/layout.ts';
-import type { MenuEntry as NativeEntry, SystemMenuItem } from '#lib/ipc/index.ts';
+import type { MenuEntry as NativeEntry, PanelId, SystemMenuItem } from '#lib/ipc/index.ts';
 import { PLATFORM, type Platform } from '#lib/platform.ts';
 import { menuAccelerator, shortcutOf } from '#lib/shortcuts.ts';
 import { app } from '#lib/stores/app.svelte.ts';
@@ -56,6 +56,11 @@ function item(id: string, label: string, run: () => void, more: Partial<Extract<
 /** An item that runs a command and shows its shortcut, with the command's name as its id. */
 function command(name: CommandName, label: string, enabled = true): MenuEntry {
 	return item(name, label, commands[name], { enabled, command: name });
+}
+
+/** A panel's item, checked while the panel is on screen; picked then, it closes its pane. */
+function panelItem(name: CommandName, label: string, panel: PanelId, reading: boolean): MenuEntry {
+	return item(name, label, commands[name], { enabled: reading, checked: reading && app.isShown(panel), command: name });
 }
 
 function system(item: SystemMenuItem): MenuEntry {
@@ -171,9 +176,9 @@ export function appMenus(platform: Platform = PLATFORM): AppMenu[] {
 				command: 'toggleRightPane'
 			}),
 			separator,
-			command('showPages', 'Pages', reading),
-			command('showBookmarks', 'Bookmarks', reading),
-			command('showAnnotations', 'Annotations', reading),
+			panelItem('showPages', 'Pages', 'pages', reading),
+			panelItem('showBookmarks', 'Bookmarks', 'bookmarks', reading),
+			panelItem('showAnnotations', 'Annotations', 'annotations', reading),
 			separator,
 			command('zoomIn', 'Zoom in', hasDoc || app.combineActive),
 			command('zoomOut', 'Zoom out', hasDoc || app.combineActive),

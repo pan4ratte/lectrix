@@ -385,6 +385,12 @@ class AppStore {
 		this.setOpen(side, true);
 	}
 
+	/** Shows a panel, or, while it is on screen, closes the pane that shows it. */
+	togglePanel(panel: PanelId) {
+		if (this.isShown(panel)) this.setOpen(paneOf(this.panels, panel), false);
+		else this.showPanel(panel);
+	}
+
 	/**
 	 * Moves a panel to `index` in a pane's row. Moved into the other pane, it is shown
 	 * there, and a pane left without panels closes.

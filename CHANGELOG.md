@@ -23,6 +23,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 - While you search, marks beside the scrollbar show where the matches are in the document, the one shown in a stronger colour. **Settings > General > Search** can turn them off.
 - Going to the next or previous match glides there, as bookmarks do. **Settings > Appearance > Motion** can turn this off.
 - The search bar slides in and fades in as it opens, and goes the same way.
+- Pressed a second time, a shortcut you gave to the Pages, Bookmarks or Annotations panel hides it again. In the **View** menu, the panel on screen has a check mark, and choosing it again hides it.
 
 ### Annotations
 
@@ -33,9 +34,16 @@ the wording, translations): docs/releasing.md, "The changelog".
 - The colour button is always in the annotation toolbar, before the tools, so you can pick a colour before choosing a tool. It is also the first button over selected text, so you can pick the colour before marking the text.
 - The number keys **1** to **9** pick the first nine preset colours for new annotations. The presets now start with yellow, green, red and blue, the colours used most for marking text, with each light colour under its brighter colour. Preset colours you changed in Settings keep their colours.
 - When the floating toolbar is set to show only near its edge, it now stays while one of its colour panels or lists is open. Before, it disappeared and left the panel or list floating on its own.
+- With **Add a comment after marking text** on, **Ctrl+Z** in the new annotation’s empty comment removes the annotation itself, and so it does in a new sticky note. Before, it did nothing there. Text you typed in the comment is undone first.
+
+### Settings
+
+- A new command switches between the light and the dark theme. It has no shortcut until you give it one in **Settings > Shortcuts**, under View.
+- Pressed again while it is open, the shortcut for Settings closes it. The same goes for About and What’s new, once you give them a shortcut.
 
 ### General
 
+- About and What’s new no longer show a blue ring inside them as they open.
 - On macOS, the window has the system’s own buttons at the top left, with its shadow, rounded corners and full screen. Dialogs come down from under the title bar as sheets, and questions look like the system’s alerts, with the main button where macOS puts it: press Return to choose it.
 - On macOS, the menus are in the menu bar at the top of the screen, arranged as in other Mac apps: Settings, About and Quit are in the Lectrix menu, and there is a Window menu. Shortcuts use the Command key and are shown as macOS shows them (⇧⌘S), and some follow Mac conventions: ⌘Q quits, ⇧⌘Z redoes, ⌘G finds the next match, ⌥⌘G goes to a page, ⌘[ and ⌘] go back and forward, ⇧⌘F turns on full screen.
 - On Linux, Lectrix is now offered for PDF files: it is listed under **Open With** and can be chosen as the app that opens PDFs.

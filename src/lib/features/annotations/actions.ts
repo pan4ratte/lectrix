@@ -10,6 +10,7 @@ import {
 	type AnnotationEditInput,
 	type NewAnnotationInput
 } from '#lib/ipc/index.ts';
+import { commandFor } from '#lib/shortcuts.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -72,8 +73,41 @@ export async function createMarkup(
 	openComment = markupOpensComment()
 ) {
 	const change = await create(tab, kind, items, openComment);
-	if (openComment && change?.created != null) openInspector(tab, true);
+	if (openComment && change?.created != null) {
+		openInspector(tab, true);
+		madeForComment(tab, items[0]!.page, change.created, change.state.revision);
+	}
 	return change;
+}
+
+/** The annotation just made with the cursor put in its comment, while nothing else has
+ * changed the document since (its revision then). */
+let fresh: { tab: DocTab; page: number; id: number; revision: number } | null = null;
+
+/** Annotation `id` on `page` was just made, at `revision`, and its comment opened for typing:
+ * a new note, or new text markup that opens its comment (section 6.5). */
+export function madeForComment(tab: DocTab, page: number, id: number, revision: number) {
+	fresh = { tab, page, id, revision };
+}
+
+/**
+ * Undo (Ctrl+Z) pressed in the comment of an annotation just made for it, while the comment
+ * is still empty: the annotation is taken back, as Undo anywhere else would. Text typed
+ * there is taken back by the field first, a step at a time, as in any field. Returns
+ * whether it did that, so the field's key handler stops there.
+ */
+export function undoMadeForComment(tab: DocTab, page: number, id: number, event: KeyboardEvent): boolean {
+	const field = event.currentTarget as HTMLTextAreaElement | null;
+	if (field?.value !== '' || commandFor(event, false) !== 'undo') return false;
+	const f = fresh;
+	if (!f || f.tab !== tab || f.page !== page || f.id !== id || f.revision !== tab.state.revision) return false;
+	event.preventDefault();
+	event.stopPropagation();
+	fresh = null;
+	if (tab.selectedAnnotation?.page === page && tab.selectedAnnotation.id === id) tab.selectedAnnotation = null;
+	tab.viewer?.focus();
+	void app.undo(tab);
+	return true;
 }
 
 /** Marks the selected text with `kind` (one undo step) and clears the selection. */

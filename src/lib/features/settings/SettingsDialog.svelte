@@ -27,6 +27,9 @@
 	let pending: ReturnType<typeof setTimeout> | undefined;
 	/** Stores run one after another, so the last change is the one stored. */
 	let stored = Promise.resolve();
+	/** Changes on their way to Rust: until the last of them is back, `app.settings` is not
+	 * yet what the draft says. */
+	let storing = 0;
 	/** A shortcut is being pressed: Esc leaves that, not the dialog. */
 	let capturing = $state(false);
 
@@ -47,6 +50,14 @@
 			.catch((e: unknown) => app.showError(toAppError(e)));
 	});
 
+	// The theme switched from the keyboard while the dialog is open: Appearance shows it.
+	$effect(() => {
+		const appearance = app.settings?.appearance;
+		untrack(() => {
+			if (draft && appearance && storing === 0) draft.appearance = appearance;
+		});
+	});
+
 	/** Stores the draft and applies it, now or after `delay` ms without another change. */
 	function commit(delay = 0) {
 		clearTimeout(pending);
@@ -57,10 +68,14 @@
 		}
 		if (!draft) return;
 		const input = toInput(draft);
+		storing++;
 		stored = stored.then(async () => {
 			try {
-				applySettings(await setSettings(input));
+				const s = await setSettings(input);
+				storing--;
+				applySettings(s);
 			} catch (e) {
+				storing--;
 				app.showError(toAppError(e));
 			}
 		});
