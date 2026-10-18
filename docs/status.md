@@ -496,6 +496,26 @@ Nothing has been run interactively there.
     year) for a Developer ID certificate and notarization.
   - The README's "Download and install" says the builds are not signed; change it when
     either is done.
+- **Package managers** (decided 2026-10-19, not started): winget and Flathub, no others.
+  - **winget:** a manifest for the NSIS installer in `microsoft/winget-pkgs`
+    (`wingetcreate new`), with two installers, per user (`/S /CurrentUser`) and per machine
+    (`/S /AllUsers`), and a step in the Release workflow that files each version's pull
+    request (`winget-releaser` or `komac`, with a token in the repository's secrets).
+    Unsigned installers are accepted; the in-app updater stays on.
+  - **Flathub:** a flatpak-builder manifest on `org.gnome.Platform` (WebKitGTK 4.1), kept
+    in its own repository under the `flathub` organisation once accepted. To decide first:
+    the app ID, which must be on a domain Lectrix controls (`io.github.pan4ratte.Lectrix`
+    unless `lectrix.org` is ours; the Flatpak's desktop file and metainfo are named after
+    it); a grant that lets the icons, now all rights reserved, be redistributed unmodified;
+    and a build switch that leaves out the update check, since Flathub forbids apps that
+    update themselves (an ADR, and `docs/spec/settings.md`). Reviewers expect an offline
+    build from source: cargo and npm sources vendored (`flatpak-cargo-generator`,
+    `flatpak-node-generator`), the MuPDF fork, NASM and libclang from the SDK extensions.
+    The sandbox needs `--filesystem=home` (or `host`): a save writes a temporary file beside
+    the target and renames it, recent files are reopened and open files watched, and the
+    file portal allows none of these. Without the update check it needs no network; links
+    go through the OpenURI portal. The metainfo needs screenshots, `<releases>` and a
+    content rating, and `flatpak-builder-lint` must pass.
 - **Administrators answer a UAC prompt on every Windows update**, per-user installs
   included: the NSIS installer offers "just me" or "everyone" and asks for the highest
   rights when it starts (ADR 0015). Only users without administrator rights update with
