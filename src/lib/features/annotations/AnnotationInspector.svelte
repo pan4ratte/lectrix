@@ -38,6 +38,7 @@
 		clampPanel,
 		placePanel,
 		resizePanel,
+		tailFill,
 		tailPath,
 		tailShape,
 		type Area,
@@ -94,6 +95,7 @@
 				)
 	);
 	const tailSides = $derived(tail ? tailPath(tail) : '');
+	const tailArea = $derived(tail ? tailFill(tail) : '');
 
 	function putAt(left: number, top: number) {
 		if (key) positions.set(key, { dx: left - anchor.x0, dy: top - anchor.y0 });
@@ -224,7 +226,7 @@
 	>
 		{#if tail}
 			<svg class="comment-tail" width={w} height={h} aria-hidden="true">
-				<path class="comment-tail-fill" d="{tailSides} Z" />
+				<path class="comment-tail-fill" d={tailArea} />
 				<path class="comment-tail-edge" d={tailSides} />
 			</svg>
 		{/if}

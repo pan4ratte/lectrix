@@ -9,7 +9,7 @@
 	import { untrack } from 'svelte';
 
 	import ColorPicker from '#lib/features/annotations/ColorPicker.svelte';
-	import { tailPath, tailShape, type Area } from '#lib/features/annotations/bars.ts';
+	import { tailFill, tailPath, tailShape, type Area } from '#lib/features/annotations/bars.ts';
 	import { isWebAddress } from '#lib/features/viewer/links.ts';
 	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
@@ -112,6 +112,7 @@
 
 	const tail = $derived(place?.row && w > 0 ? tailShape(w, h, place.row, RADIUS) : null);
 	const tailSides = $derived(tail ? tailPath(tail) : '');
+	const tailArea = $derived(tail ? tailFill(tail) : '');
 
 	/** Back to the usual text colour; the focus goes to the colour button, since this button
 	 * goes with the colour. */
@@ -151,7 +152,7 @@
 	>
 		{#if tail}
 			<svg class="comment-tail" width={w} height={h} aria-hidden="true">
-				<path class="comment-tail-fill" d="{tailSides} Z" />
+				<path class="comment-tail-fill" d={tailArea} />
 				<path class="comment-tail-edge" d={tailSides} />
 			</svg>
 		{/if}

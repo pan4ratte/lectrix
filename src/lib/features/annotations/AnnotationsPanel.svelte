@@ -193,6 +193,13 @@
 	 * with reduced motion). */
 	const reveal = () => ({ duration: motionMs(140) });
 
+	/** The selected row's controls slide open, and the last selected row's shut (`holdRow`
+	 * keeps the selected row's comment still meanwhile). */
+	const rowControls = (node: Element) => slide(node, reveal());
+	/** The selected row's comment field stands in for its text, at its size; empty, it slides
+	 * open and shut with the controls (what is in it then decides, as it leaves). */
+	const rowField = (node: HTMLTextAreaElement) => (node.value ? { duration: 0 } : slide(node, reveal()));
+
 	/** Whether the search and the filters let `a` through. */
 	const matches = (a: Annotation) => matchesFilter(a, filter) && found(a);
 	/** The rows: what matches, and the selected annotation, which stays while it is selected
@@ -277,9 +284,61 @@
 	});
 
 	// The selected annotation's row comes into view, wherever it was selected: the row has
-	// its comment and its controls.
+	// its comment and its controls. A row selected on screen keeps its comment where it was
+	// while its controls slide open above it (and the last selected row's shut): the list
+	// scrolls with them, as far as it can, so they rise out from under the comment. Once
+	// they are open, the comment is brought into view if it isn't.
+	let held: { key: string; y: number } | null = null;
+	let holding = 0;
+
+	/** Where what follows a row's first line or its controls starts (its comment, replies or
+	 * reply), or else the row's bottom: the point that stays put. */
+	function holdPoint(row: HTMLElement): { at: number; follower: HTMLElement | null } {
+		let next = row.querySelector('.annotation-meta')?.nextElementSibling;
+		if (next?.hasAttribute('data-row-controls')) next = next.nextElementSibling;
+		const follower = next instanceof HTMLElement ? next : null;
+		return { at: (follower ?? row).getBoundingClientRect()[follower ? 'top' : 'bottom'], follower };
+	}
+
+	$effect.pre(() => {
+		const key = selectedKey;
+		untrack(() => {
+			held = null;
+			const row = key ? document.getElementById(rowId(key)) : null;
+			const list = row?.closest<HTMLElement>('.annotation-list');
+			if (!key || !row || !list) return;
+			const box = list.getBoundingClientRect();
+			const y = holdPoint(row).at - box.top;
+			if (y >= 0 && y <= box.height) held = { key, y };
+		});
+	});
+
 	$effect(() => {
-		if (selectedKey) document.getElementById(rowId(selectedKey))?.scrollIntoView({ block: 'nearest' });
+		const key = selectedKey;
+		if (!key) return;
+		const hold = untrack(() => held);
+		const row = document.getElementById(rowId(key));
+		const list = row?.closest<HTMLElement>('.annotation-list');
+		if (!row || !list) return;
+		if (hold?.key !== key) {
+			row.scrollIntoView({ block: 'nearest' });
+			return;
+		}
+		const until = performance.now() + motionMs(140) + 50;
+		const keep = () => {
+			list.scrollTop += holdPoint(row).at - list.getBoundingClientRect().top - hold.y;
+			if (performance.now() < until) {
+				holding = requestAnimationFrame(keep);
+				return;
+			}
+			holding = 0;
+			(holdPoint(row).follower ?? row).scrollIntoView({ block: 'nearest' });
+		};
+		keep();
+		return () => {
+			cancelAnimationFrame(holding);
+			holding = 0;
+		};
 	});
 
 	// A double-click on the annotation in the page, or an annotation just made with its
@@ -296,7 +355,7 @@
 				if (!listShowsSelected(tab)) openInspector(tab, true);
 				return;
 			}
-			row.scrollIntoView({ block: 'nearest' });
+			if (!holding) row.scrollIntoView({ block: 'nearest' });
 			const field = row.querySelector<HTMLTextAreaElement>('textarea.comment-field');
 			if (field) {
 				field.focus({ preventScroll: true });
@@ -678,14 +737,22 @@
 									{#if isSelected}
 										<!-- A click on the controls is theirs: it doesn't show the annotation again.
 										     (Inset so the colour in its button lines up with the icon above and the
-										     comment below.) -->
+										     comment below.) They slide open as the row is selected, as the last
+										     selected row's slide shut, rising out from under the comment. -->
 										<!-- svelte-ignore a11y_no_static_element_interactions -->
-										<div class="mt-1 pl-[4px]" onclick={(e) => e.stopPropagation()} onkeydown={controlsKey}>
+										<div
+											class="mt-1 pl-[4px]"
+											onclick={(e) => e.stopPropagation()}
+											onkeydown={controlsKey}
+											transition:rowControls
+											data-row-controls
+										>
 											<AnnotationControls {tab} annotation={a} onremoved={focusList} />
 										</div>
 									{/if}
 									{#if isSelected && caps.text}
 										<textarea
+											transition:rowField
 											class="field comment-field mt-1 w-full text-sm"
 											value={a.contents}
 											aria-label={a.kind === 'freeText' ? 'Text' : 'Note'}

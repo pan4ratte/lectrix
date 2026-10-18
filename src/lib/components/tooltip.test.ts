@@ -26,7 +26,7 @@ describe('tooltips', () => {
 		const edge = { x0: 258, y0: 36, x1: 262, y1: 700 };
 		expect(placeTooltip(edge, size, viewport)).toEqual({ left: 262 + reach, top: 368 - 13 });
 		const tail = tailShape(size.w, size.h, { x0: 258 - 270, y0: 36 - 355, x1: 262 - 270, y1: 700 - 355 }, TIP_RADIUS, TIP_TAIL)!;
-		expect(tail.e1.x).toBe(2);
+		expect(tail.e1.x).toBe(0.5);
 		expect(tail.tip.x).toBeCloseTo(-TIP_TAIL.length);
 		// The right pane's edge, with no room to its right: to its left.
 		expect(placeTooltip({ x0: 938, y0: 36, x1: 942, y1: 700 }, size, viewport).left).toBe(938 - reach - 120);
@@ -49,8 +49,8 @@ describe('tooltips', () => {
 
 	it('have a small tail that stops short of the control', () => {
 		const tail = tailShape(size.w, size.h, { x0: 46, y0: -36, x1: 74, y1: -reach }, TIP_RADIUS, TIP_TAIL)!;
-		expect(tail.e1).toEqual({ x: 60 - TIP_TAIL.width / 2, y: 2 });
-		expect(tail.e2).toEqual({ x: 60 + TIP_TAIL.width / 2, y: 2 });
+		expect(tail.e1).toEqual({ x: 60 - TIP_TAIL.width / 2, y: 0.5 });
+		expect(tail.e2).toEqual({ x: 60 + TIP_TAIL.width / 2, y: 0.5 });
 		expect(tail.tip.x).toBeCloseTo(60);
 		expect(tail.tip.y).toBeCloseTo(-TIP_TAIL.length);
 	});

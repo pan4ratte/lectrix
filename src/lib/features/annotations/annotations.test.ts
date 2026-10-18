@@ -467,23 +467,31 @@ describe('comment panel tail and resizing', () => {
 
 	it('points straight at the centre of an annotation beside it, from opposite that centre', () => {
 		const t = tailShape(288, 200, { x0: -180, y0: 50, x1: -20, y1: 70 }, 8)!;
-		// Base on the left side, 2 px in, centred level with the annotation's centre (-100, 60).
-		expect(t.e1).toEqual({ x: 2, y: 60 - TAIL.width / 2 });
-		expect(t.e2).toEqual({ x: 2, y: 60 + TAIL.width / 2 });
+		// Base on the left side's border, centred level with the annotation's centre (-100, 60).
+		expect(t.e1).toEqual({ x: 0.5, y: 60 - TAIL.width / 2 });
+		expect(t.e2).toEqual({ x: 0.5, y: 60 + TAIL.width / 2 });
 		expect(t.tip.y).toBeCloseTo(60);
-		expect(t.tip.x).toBeCloseTo(2 - TAIL.length - 2);
+		expect(t.tip.x).toBeCloseTo(-TAIL.length);
 		// Near a corner the base stays clear of it and the point leans to the centre.
 		const low = tailShape(288, 200, { x0: -80, y0: 195, x1: -40, y1: 199 }, 8)!;
 		expect(low.e2.y).toBe(200 - 8);
-		const mid = { x: 2, y: (low.e1.y + low.e2.y) / 2 };
+		const mid = { x: 0.5, y: (low.e1.y + low.e2.y) / 2 };
 		const cross = (low.tip.x - mid.x) * (197 - mid.y) - (low.tip.y - mid.y) * (-60 - mid.x);
 		expect(Math.abs(cross)).toBeLessThan(1e-6);
 	});
 
 	it('comes out of a corner for an annotation off it, and stops short of a close annotation', () => {
 		const t = tailShape(288, 200, { x0: -80, y0: -70, x1: -40, y1: -50 }, 8)!;
-		expect(t.e1).toEqual({ x: 12, y: 2 });
-		expect(t.e2).toEqual({ x: 2, y: 12 });
+		expect(t.e1).toEqual({ x: 12, y: 0.5 });
+		expect(t.e2).toEqual({ x: 0.5, y: 12 });
+		// Each side leaves its own side of the border along it, and the fill covers the
+		// rounded corner between them.
+		expect(t.a1.y).toBe(0.5);
+		expect(t.a1.x).toBeLessThan(t.e1.x);
+		expect(t.a2.x).toBe(0.5);
+		expect(t.a2.y).toBeLessThan(t.e2.y);
+		expect(t.i1).toEqual({ x: 12, y: 2 });
+		expect(t.i2).toEqual({ x: 2, y: 12 });
 		expect(t.tip.x).toBeLessThan(0);
 		expect(t.tip.y).toBeLessThan(0);
 		// 8 px from the panel: the point stops 2 px short of it, not on it.
@@ -493,17 +501,27 @@ describe('comment panel tail and resizing', () => {
 		expect(tailShape(288, 200, { x0: 100, y0: 50, x1: 200, y1: 60 }, 8)).toBeNull();
 	});
 
-	it('curves its sides in towards its axis', () => {
+	it('leaves the border along it, as its continuation, and curves its sides in towards its axis', () => {
 		const t = tailShape(288, 200, { x0: 50, y0: -60, x1: 150, y1: -40 }, 8)!;
-		const mid = { x: (t.e1.x + t.e2.x) / 2, y: (t.e1.y + t.e2.y) / 2 };
-		const axisX = (x: number, y: number) => mid.x + ((t.tip.x - mid.x) * (y - mid.y)) / (t.tip.y - mid.y);
-		// Each control point is nearer the axis than the straight side's middle.
-		for (const [e, c] of [
-			[t.e1, t.c1],
-			[t.e2, t.c2]
+		// Up from the top side: the base on the border's middle, the fill a little inside it.
+		expect(t.e1).toEqual({ x: 100 - TAIL.width / 2, y: 0.5 });
+		expect(t.e2).toEqual({ x: 100 + TAIL.width / 2, y: 0.5 });
+		expect(t.i1).toEqual({ x: t.e1.x, y: 2 });
+		expect(t.i2).toEqual({ x: t.e2.x, y: 2 });
+		// Each side starts along the border, towards the tail's middle.
+		expect(t.a1.y).toBe(0.5);
+		expect(t.a2.y).toBe(0.5);
+		expect(t.a1.x).toBeGreaterThan(t.e1.x);
+		expect(t.a2.x).toBeLessThan(t.e2.x);
+		// Halfway along, each side is nearer the axis (x = 100) than the straight side is.
+		const at = (p0: number, p1: number, p2: number, p3: number) => (p0 + 3 * p1 + 3 * p2 + p3) / 8;
+		for (const [e, a, b] of [
+			[t.e1, t.a1, t.b1],
+			[t.e2, t.a2, t.b2]
 		] as const) {
-			const side = { x: (e.x + t.tip.x) / 2, y: (e.y + t.tip.y) / 2 };
-			expect(Math.abs(c.x - axisX(c.x, c.y))).toBeLessThan(Math.abs(side.x - axisX(side.x, side.y)));
+			const curve = { x: at(e.x, a.x, b.x, t.tip.x), y: at(e.y, a.y, b.y, t.tip.y) };
+			expect(curve.y).toBeLessThan(0);
+			expect(Math.abs(curve.x - 100)).toBeLessThan(Math.abs((e.x + t.tip.x) / 2 - 100));
 		}
 	});
 

@@ -99,15 +99,21 @@ export interface Point {
 
 /**
  * The comment panel's tail, in the panel's own coordinates: its base runs from `e1` to `e2`
- * just inside the panel's border, its sides curve in (`c1`, `c2` are their control points)
- * to the point `tip`.
+ * on the middle of the panel's border, where each side leaves the border along it, as the
+ * border's own continuation, and curves out to the point `tip` (`a1`, `b1` and `a2`, `b2` are
+ * the sides' control points). `i1` and `i2` are the base's ends just inside the border, so
+ * the tail's fill covers the border between its sides.
  */
 export interface TailShape {
 	e1: Point;
 	e2: Point;
 	tip: Point;
-	c1: Point;
-	c2: Point;
+	a1: Point;
+	b1: Point;
+	a2: Point;
+	b2: Point;
+	i1: Point;
+	i2: Point;
 }
 
 /** How far the tail reaches out of the panel, and how wide its base is. */
@@ -117,42 +123,59 @@ export const TIP_TAIL = { length: 6, width: 12 };
 export const TIP_RADIUS = 6;
 
 /**
- * The tail of a `w` × `h` panel with rounded corners (`radius`) pointing at the centre of
- * `anchor` (in the panel's coordinates). With the annotation's centre beyond one side of the
- * panel, the base is on that side, opposite the centre (clear of the corners), so the tail
- * points straight at it; beyond two sides at once, the base spans that corner and the tail
- * leans towards the centre. The point stops short of the annotation. None while the
- * annotation's centre is inside the panel. A tooltip's tail is the same shape at its own
- * `size`.
+ * The tail of a `w` × `h` panel with rounded corners (`radius`) and a 1 px border, pointing
+ * at the centre of `anchor` (in the panel's coordinates). With the annotation's centre beyond
+ * one side of the panel, the base is on that side, opposite the centre (clear of the
+ * corners), so the tail points straight at it; beyond two sides at once, the base spans that
+ * corner and the tail leans towards the centre. The point stops short of the annotation.
+ * None while the annotation's centre is inside the panel. A tooltip's tail is the same shape
+ * at its own `size`.
  */
 export function tailShape(w: number, h: number, anchor: Area, radius: number, size = TAIL): TailShape | null {
 	const target = { x: (anchor.x0 + anchor.x1) / 2, y: (anchor.y0 + anchor.y1) / 2 };
 	const across = target.x < 0 ? -1 : target.x > w ? 1 : 0;
 	const down = target.y < 0 ? -1 : target.y > h ? 1 : 0;
 	if (across === 0 && down === 0) return null;
-	const inside = 2;
+	// The middle of the border, and how far past it into the panel the fill reaches.
+	const edge = 0.5;
+	const cover = 1.5;
 	const half = size.width / 2;
 	const reach = radius + half;
 	const around = radius + 4;
 	const clamp = (v: number, lo: number, hi: number) => Math.max(lo, Math.min(v, hi));
 	let e1: Point;
 	let e2: Point;
+	// From each end of the base: along the border towards the tail, and into the panel.
+	let d1: Point;
+	let d2: Point;
+	let n1: Point;
+	let n2: Point;
 	if (across !== 0 && down !== 0) {
 		// Across the corner: one end on each of its two sides.
 		const cx = across < 0 ? 0 : w;
 		const cy = down < 0 ? 0 : h;
-		e1 = { x: cx - across * around, y: cy - down * inside };
-		e2 = { x: cx - across * inside, y: cy - down * around };
+		e1 = { x: cx - across * around, y: cy - down * edge };
+		e2 = { x: cx - across * edge, y: cy - down * around };
+		d1 = { x: across, y: 0 };
+		d2 = { x: 0, y: down };
+		n1 = { x: 0, y: -down };
+		n2 = { x: -across, y: 0 };
 	} else if (down !== 0) {
-		const y = down < 0 ? inside : h - inside;
+		const y = down < 0 ? edge : h - edge;
 		const x = clamp(target.x, reach, w - reach);
 		e1 = { x: x - half, y };
 		e2 = { x: x + half, y };
+		d1 = { x: 1, y: 0 };
+		d2 = { x: -1, y: 0 };
+		n1 = n2 = { x: 0, y: -down };
 	} else {
-		const x = across < 0 ? inside : w - inside;
+		const x = across < 0 ? edge : w - edge;
 		const y = clamp(target.y, reach, h - reach);
 		e1 = { x, y: y - half };
 		e2 = { x, y: y + half };
+		d1 = { x: 0, y: 1 };
+		d2 = { x: 0, y: -1 };
+		n1 = n2 = { x: -across, y: 0 };
 	}
 	const mid = { x: (e1.x + e2.x) / 2, y: (e1.y + e2.y) / 2 };
 	const toTarget = Math.hypot(target.x - mid.x, target.y - mid.y);
@@ -160,21 +183,40 @@ export function tailShape(w: number, h: number, anchor: Area, radius: number, si
 	// Short of the annotation itself, so it never covers what it marks.
 	const near = { x: clamp(mid.x, anchor.x0, anchor.x1), y: clamp(mid.y, anchor.y0, anchor.y1) };
 	const gap = Math.hypot(near.x - mid.x, near.y - mid.y);
-	const length = clamp(gap - 2, Math.min(6, size.length), size.length + inside);
+	const length = clamp(gap - 2, Math.min(6, size.length), size.length + edge);
 	const tip = { x: mid.x + u.x * length, y: mid.y + u.y * length };
-	// Each side bends in: its control point is pulled from the side's middle towards the
-	// tail's axis.
-	const bend = (e: Point) => {
-		const side = { x: (e.x + tip.x) / 2, y: (e.y + tip.y) / 2 };
-		const axis = { x: (mid.x + tip.x) / 2, y: (mid.y + tip.y) / 2 };
-		return { x: side.x + (axis.x - side.x) * 0.6, y: side.y + (axis.y - side.y) * 0.6 };
+	// Each side leaves the border along it (its first control point is on the border), then
+	// bends out to the point.
+	const side = (e: Point, d: Point) => {
+		const a = { x: e.x + d.x * half * 0.6, y: e.y + d.y * half * 0.6 };
+		return { a, b: { x: tip.x + (a.x - tip.x) * 0.35, y: tip.y + (a.y - tip.y) * 0.35 } };
 	};
-	return { e1, e2, tip, c1: bend(e1), c2: bend(e2) };
+	const s1 = side(e1, d1);
+	const s2 = side(e2, d2);
+	return {
+		e1,
+		e2,
+		tip,
+		a1: s1.a,
+		b1: s1.b,
+		a2: s2.a,
+		b2: s2.b,
+		i1: { x: e1.x + n1.x * cover, y: e1.y + n1.y * cover },
+		i2: { x: e2.x + n2.x * cover, y: e2.y + n2.y * cover }
+	};
 }
 
 /** A tail's two sides as an SVG path, from one end of its base to its point to the other. */
 export function tailPath(t: TailShape): string {
-	return `M${t.e1.x} ${t.e1.y} Q${t.c1.x} ${t.c1.y} ${t.tip.x} ${t.tip.y} Q${t.c2.x} ${t.c2.y} ${t.e2.x} ${t.e2.y}`;
+	return (
+		`M${t.e1.x} ${t.e1.y} C${t.a1.x} ${t.a1.y} ${t.b1.x} ${t.b1.y} ${t.tip.x} ${t.tip.y} ` +
+		`C${t.b2.x} ${t.b2.y} ${t.a2.x} ${t.a2.y} ${t.e2.x} ${t.e2.y}`
+	);
+}
+
+/** A tail's fill: its sides, closed just inside the border, so the border between them goes. */
+export function tailFill(t: TailShape): string {
+	return `${tailPath(t)} L${t.i2.x} ${t.i2.y} L${t.i1.x} ${t.i1.y} Z`;
 }
 
 /** An edge or corner the panel is resized from: n, s, e, w, ne, nw, se, sw. */

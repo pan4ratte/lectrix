@@ -2,7 +2,7 @@
 	// A tooltip's bubble (section 8): flat, in the menus' colour with their thin edge, and a
 	// tail with curved sides pointing at what the tooltip is about. Whoever shows it places
 	// it, from the size it reports. It never takes the pointer.
-	import { TIP_RADIUS, TIP_TAIL, tailPath, tailShape, type Area } from '#lib/features/annotations/bars.ts';
+	import { TIP_RADIUS, TIP_TAIL, tailFill, tailPath, tailShape, type Area } from '#lib/features/annotations/bars.ts';
 
 	interface Props {
 		text: string;
@@ -32,6 +32,7 @@
 				)
 	);
 	const tailSides = $derived(tail ? tailPath(tail) : '');
+	const tailArea = $derived(tail ? tailFill(tail) : '');
 </script>
 
 <div
@@ -47,7 +48,7 @@
 	<div class="tip-text" style:-webkit-line-clamp={lines}>{text}</div>
 	{#if tail}
 		<svg class="tip-tail" width={w} height={h} aria-hidden="true">
-			<path class="tip-tail-fill" d="{tailSides} Z" />
+			<path class="tip-tail-fill" d={tailArea} />
 			<path class="tip-tail-edge" d={tailSides} />
 		</svg>
 	{/if}

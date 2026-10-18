@@ -912,8 +912,9 @@ button.shortcut-key:hover,
 	text-align: right;
 }
 /* The comment panel beside an annotation: its note field, the tail pointing at the
-   annotation (it overlaps the panel's border, so the two read as one shape), and the
-   invisible strips and corners that resize it. */
+   annotation (its sides leave the panel's border along it, as the border's continuation, and
+   its fill covers the border between them, so the two read as one shape), and the invisible
+   strips and corners that resize it. */
 .panel-note {
 	padding: 10px;
 }
@@ -1109,11 +1110,13 @@ button.shortcut-key:hover,
 	outline: 2px solid var(--lectrix-focus);
 	outline-offset: -2px;
 }
+/* A row: the same room on every side, so the selected row's controls and comment field sit
+   evenly in it. */
 .annotation-row {
 	display: flex;
 	flex-direction: column;
 	gap: 2px;
-	padding: 6px 12px;
+	padding: 6px;
 	border-radius: 4px;
 	content-visibility: auto;
 	contain-intrinsic-size: auto 52px;
@@ -1152,7 +1155,7 @@ button.shortcut-key:hover,
 }
 /* A tooltip (section 8), the app's own in place of the system's: flat, in the menus'
    colour with their thin edge, and a tail with curved sides pointing at what it is about
-   (the tail overlaps the edge, so the two read as one shape). Whoever shows it places it:
+   (its sides continue the edge, as the comment panel's do). Whoever shows it places it:
    in the window for a control's, in the scrolled pages for an annotation's comment (plain
    text, up to 12 lines). It never takes the pointer. */
 .tip {
