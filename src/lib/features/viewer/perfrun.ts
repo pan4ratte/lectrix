@@ -35,7 +35,7 @@ function serverMs(header: string | null, keys: string[]): number {
  */
 async function compareFormats(tab: DocTab, samples = 16) {
 	const dpr = window.devicePixelRatio || 1;
-	// A scale off the ladder, so the RGBA image cache cannot answer from memory.
+	// A scale beside the page's own, so the RGBA image cache cannot answer from memory.
 	const scale = renderScale(tab.zoom, dpr) + 0.001;
 	const canvas = document.createElement('canvas');
 	const ctx = canvas.getContext('2d');

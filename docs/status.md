@@ -501,7 +501,10 @@ Nothing has been run interactively there.
   Windows checks are separate jobs, so one that failed is run again alone. Known and
   left: `recovery.test.mjs` ends with a click that quits Lectrix, as
   `window-placement.test.mjs` did; no soak run has been done yet, so other such tests
-  are likely.
+  are likely. `visual-adjustments.test.mjs`'s full-screen test fails about half its
+  runs on the author's screen in `test:ci` mode ("Esc left full screen": the title bar
+  is back after Esc closes the adjustments panel; 2026-10-18, with and without that day's
+  change to how pages are shown).
 
 ## Upstream work
 

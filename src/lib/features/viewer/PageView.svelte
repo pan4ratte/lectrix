@@ -23,7 +23,7 @@
 	import { markPageDrawn } from './perfrun.ts';
 	import RenderedImage from './RenderedImage.svelte';
 	import { caretBar, ordered, selectionHandles, selectionRects, type Caret } from './selection.ts';
-	import { TILE_SIZE, isTiled, pixelSize, renderScale, wholePageScale } from './zoom.ts';
+	import { TILE_SIZE, cssPerImagePixel, isTiled, pixelSize, renderScale, snapToDevice, wholePageScale } from './zoom.ts';
 
 	interface Props {
 		tab: DocTab;
@@ -78,13 +78,20 @@
 	/** Unrotated page size in CSS pixels. */
 	const innerW = $derived(size.width * k);
 	const innerH = $derived(size.height * k);
-	const transform = $derived(turnTransform(rotation, innerW, innerH));
+	// Turned about whole device pixels, so a page's pixels stay on the screen's.
+	const transform = $derived(
+		turnTransform(rotation, snapToDevice(innerW, devicePixelRatio), snapToDevice(innerH, devicePixelRatio))
+	);
 
 	const revision = $derived(tab.state.revision);
 	const scale = $derived(renderScale(renderZoom, devicePixelRatio));
 	const pixels = $derived(pixelSize(size, scale));
 	const tiled = $derived(isTiled(size, scale));
 	const baseScale = $derived(wholePageScale(size, scale));
+	/** The whole page's image, laid out one to one on the screen's pixels at the page's own
+	 * scale (and so a fraction of a pixel past the page's edge, which it clips). */
+	const basePixels = $derived(pixelSize(size, baseScale));
+	const baseUnit = $derived(cssPerImagePixel(baseScale, zoom, devicePixelRatio));
 	/** The annotations the annotation list filters out, which the page is drawn without. */
 	const hidden = $derived(hiddenOnPage(tab, index));
 	const hiddenKey = $derived(hidden.join(','));
@@ -313,8 +320,8 @@
 	class="page absolute overflow-hidden shadow-[0_1px_3px_var(--color-page-shadow)]"
 	class:bg-white={!tab.pageFilter}
 	class:isolate={tab.pageTone !== null}
-	style:left="{left}px"
-	style:top="{top}px"
+	style:left="{snapToDevice(left, devicePixelRatio)}px"
+	style:top="{snapToDevice(top, devicePixelRatio)}px"
 	style:width="{width}px"
 	style:height="{height}px"
 	data-page={index}
@@ -341,8 +348,8 @@
 				{priority}
 				x={0}
 				y={0}
-				width={innerW}
-				height={innerH}
+				width={basePixels.width * baseUnit}
+				height={basePixels.height * baseUnit}
 				rotation={size.rotation}
 				ondrawn={(key) => {
 					drawnBase = key;
@@ -351,6 +358,7 @@
 				}}
 			/>
 			{#each shownTiles as t (t.id)}
+				{@const unit = cssPerImagePixel(t.scale, zoom, devicePixelRatio)}
 				<RenderedImage
 					imageKey="{tab.id}:{index}:{revision}:{t.id}:{without}"
 					url={pageUrl(
@@ -364,10 +372,10 @@
 						annotLayer ? 'content' : undefined
 					)}
 					priority={priority + 0.5}
-					x={(t.x * k) / t.scale}
-					y={(t.y * k) / t.scale}
-					width={(t.w * k) / t.scale}
-					height={(t.h * k) / t.scale}
+					x={t.x * unit}
+					y={t.y * unit}
+					width={t.w * unit}
+					height={t.h * unit}
 					ondrawn={() => drawnTiles.add(t.id)}
 				/>
 			{/each}
@@ -384,13 +392,14 @@
 					priority={priority + 0.25}
 					x={0}
 					y={0}
-					width={innerW}
-					height={innerH}
+					width={basePixels.width * baseUnit}
+					height={basePixels.height * baseUnit}
 					rotation={size.rotation}
 					transparent
 					hidden={layerTilesDrawn}
 				/>
 				{#each tiled ? tiles : [] as t (t.id)}
+					{@const unit = cssPerImagePixel(t.scale, zoom, devicePixelRatio)}
 					<RenderedImage
 						imageKey={layerTileKey(t)}
 						url={pageUrl(
@@ -404,10 +413,10 @@
 							annotLayer
 						)}
 						priority={priority + 0.75}
-						x={(t.x * k) / t.scale}
-						y={(t.y * k) / t.scale}
-						width={(t.w * k) / t.scale}
-						height={(t.h * k) / t.scale}
+						x={t.x * unit}
+						y={t.y * unit}
+						width={t.w * unit}
+						height={t.h * unit}
 						transparent
 						ondrawn={(key) => drawnLayerTiles.add(key)}
 					/>

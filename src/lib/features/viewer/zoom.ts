@@ -1,4 +1,4 @@
-// Zoom levels, fitting, and the render-scale ladder.
+// Zoom levels, fitting, and the scale pages are rendered at.
 
 import { CSS_PX_PER_PT, PAGE_GAP, PAGE_MARGIN, type Size } from './layout.ts';
 
@@ -90,18 +90,32 @@ export function fitPageZoom(size: Size, viewportWidth: number, viewportHeight: n
 	return clampZoom(Math.min(zw, zh));
 }
 
-/** Steps per doubling on the render-scale ladder (about 4.4% apart). */
-const LADDER_STEPS = 16;
-
 /**
  * Device-pixel scale (pixels per point) to render at for `zoom` on a display with
- * `devicePixelRatio`. Rounded *up* to a fixed ladder, so nearby zoom levels share
- * cached images and a page is never drawn blurrier than its on-screen size.
+ * `devicePixelRatio`: the page's own on-screen scale, to the thousandth the page URL
+ * carries, so its pixels land one to one on the screen's. An image rendered a few percent
+ * larger and shrunk by the webview had every glyph edge smeared over its neighbours.
  */
 export function renderScale(zoom: number, devicePixelRatio: number): number {
 	const raw = zoom * CSS_PX_PER_PT * (devicePixelRatio || 1);
-	const step = Math.ceil(Math.log2(raw) * LADDER_STEPS - 1e-9) / LADDER_STEPS;
-	return Math.round(2 ** step * 1000) / 1000;
+	return Math.max(0.001, Math.round(raw * 1000) / 1000);
+}
+
+/**
+ * CSS pixels per image pixel for an image rendered at `scale` of a page shown at `zoom`:
+ * one device pixel when the scale is the page's own (`renderScale`), so the image is shown
+ * as it was rendered, not resampled; the page's size otherwise (an image of another zoom,
+ * stretched while its successor renders, or a low-resolution underlay).
+ */
+export function cssPerImagePixel(scale: number, zoom: number, devicePixelRatio: number): number {
+	const dpr = devicePixelRatio || 1;
+	return scale === renderScale(zoom, dpr) ? 1 / dpr : (zoom * CSS_PX_PER_PT) / scale;
+}
+
+/** `css` rounded to the nearest whole device pixel. */
+export function snapToDevice(css: number, devicePixelRatio: number): number {
+	const dpr = devicePixelRatio || 1;
+	return Math.round(css * dpr) / dpr;
 }
 
 /** Pixel size of a page rendered at `scale`, rounded like MuPDF (`render::pixel_size`). */

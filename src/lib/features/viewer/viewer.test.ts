@@ -45,11 +45,13 @@ import {
 import {
 	MAX_ZOOM,
 	MIN_ZOOM,
+	cssPerImagePixel,
 	fitPageZoom,
 	fitWidthZoom,
 	isTiled,
 	pixelSize,
 	renderScale,
+	snapToDevice,
 	stepZoom,
 	isWheelNotch,
 	wheelZoomFactor,
@@ -273,13 +275,28 @@ describe('zoom', () => {
 		expect(contentWidth(layout, 1000)).toBe(1000);
 	});
 
-	it('rounds render scales up to a shared ladder', () => {
-		const s = renderScale(1, 1);
-		expect(s).toBeGreaterThanOrEqual(CSS_PX_PER_PT);
-		expect(s / CSS_PX_PER_PT).toBeLessThan(1.05);
-		expect(renderScale(1.005, 1)).toBe(renderScale(1.01, 1));
-		expect(renderScale(2, 1)).toBeCloseTo(2 * renderScale(1, 1), 1);
+	it('renders at the scale the page is shown at, to the thousandth', () => {
+		expect(renderScale(1, 1)).toBe(1.333);
+		expect(renderScale(1, 1.25)).toBe(1.667);
+		expect(renderScale(1, 1.5)).toBe(2);
 		expect(renderScale(1, 2)).toBe(renderScale(2, 1));
+		expect(renderScale(0.1, 0.0001)).toBe(0.001);
+	});
+
+	it('shows an image of the shown scale one to one, and others stretched', () => {
+		// At the page's own scale, an image pixel is a device pixel.
+		expect(cssPerImagePixel(renderScale(1.1, 1.25), 1.1, 1.25)).toBe(0.8);
+		expect(cssPerImagePixel(renderScale(1, 1), 1, 1)).toBe(1);
+		// An image of another zoom, or an underlay, spans the page.
+		expect(cssPerImagePixel(renderScale(1, 1), 1.2, 1)).toBeCloseTo((1.2 * CSS_PX_PER_PT) / 1.333);
+		expect(cssPerImagePixel(1, 2, 1)).toBeCloseTo(2 * CSS_PX_PER_PT);
+	});
+
+	it('snaps to whole device pixels', () => {
+		expect(snapToDevice(10.3, 1)).toBe(10);
+		expect(snapToDevice(10.3, 1.25)).toBe(10.4);
+		expect(snapToDevice(10.5, 2)).toBe(10.5);
+		expect(snapToDevice(10.3, 0)).toBe(10);
 	});
 
 	it('follows a touchpad pinch exactly and steps a wheel notch', () => {

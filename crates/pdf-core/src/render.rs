@@ -571,7 +571,7 @@ pub struct ImageKey {
     pub doc: u32,
     pub page: usize,
     pub revision: u64,
-    /// The render scale in thousandths (the frontend sends scales from a fixed ladder).
+    /// The render scale in thousandths (the frontend rounds its scales to them).
     pub scale_milli: u32,
     /// `None` for a whole page.
     pub tile: Option<PixelRect>,
