@@ -66,8 +66,10 @@ pub struct AppState {
     renders: protocol::Renders,
     /// First-page previews of recent files, for the start screen's grid.
     previews: protocol::PreviewCache,
-    /// PDFs passed on the command line, opened once the frontend is ready.
-    startup_paths: Mutex<Vec<PathBuf>>,
+    /// PDFs passed on the command line, or handed over by the system (macOS: Finder) or a
+    /// second launch before the first window asked for them, opened once the frontend is
+    /// ready. `None` once that window has taken them.
+    startup_paths: Mutex<Option<Vec<PathBuf>>>,
     platform: &'static dyn Platform,
     /// Which window shows which document, and what else differs between windows.
     windows: windows::Windows,
@@ -100,6 +102,49 @@ fn pdf_args(args: impl IntoIterator<Item = String>, cwd: &Path) -> Vec<PathBuf> 
     args.into_iter()
         .map(PathBuf::from)
         .map(|p| if p.is_absolute() { p } else { cwd.join(p) })
+        .filter(|p| is_pdf(p) && p.is_file())
+        .collect()
+}
+
+/// Files handed over before the app was set up (macOS can send its open event before
+/// that), for the first window to open with the command line's.
+static EARLY_PATHS: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
+
+/// Opens PDFs handed over while Lectrix runs: by a second launch (a double-click on a PDF
+/// in File Explorer or a file manager) or by macOS (Finder, Open With, another app). Until
+/// the first window has asked for the files it starts with, they are among those; after
+/// that they open in the window used last, which comes to the front.
+fn hand_over(app: &AppHandle, paths: Vec<PathBuf>) {
+    if paths.is_empty() {
+        return;
+    }
+    let Some(state) = app.try_state::<AppState>() else {
+        if let Ok(mut early) = EARLY_PATHS.lock() {
+            early.extend(paths);
+        }
+        return;
+    };
+    let paths = match state.startup_paths.lock() {
+        Ok(mut startup) => match startup.as_mut() {
+            Some(waiting) => {
+                waiting.extend(paths);
+                return;
+            }
+            None => paths,
+        },
+        Err(_) => paths,
+    };
+    if let Some(label) = windows::for_new_files(app) {
+        open_in_background(app, paths, false, label.clone());
+        windows::focus(app, &label);
+    }
+}
+
+/// The PDFs among files macOS asks Lectrix to open (`file://` URLs).
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn opened_paths(urls: &[tauri::Url]) -> Vec<PathBuf> {
+    urls.iter()
+        .filter_map(|url| url.to_file_path().ok())
         .filter(|p| is_pdf(p) && p.is_file())
         .collect()
 }
@@ -277,12 +322,7 @@ pub fn run() {
     // Lectrix the user has open, nor take the files of one started meanwhile.
     if std::env::var_os("LECTRIX_EPHEMERAL").is_none() {
         builder = builder.plugin(tauri_plugin_single_instance::init(|app, args, cwd| {
-            let paths = pdf_args(args.into_iter().skip(1), Path::new(&cwd));
-            // In the window used last, which comes to the front.
-            if let Some(label) = windows::for_new_files(app) {
-                open_in_background(app, paths, false, label.clone());
-                windows::focus(app, &label);
-            }
+            hand_over(app, pdf_args(args.into_iter().skip(1), Path::new(&cwd)));
         }));
     }
     let result = builder
@@ -322,7 +362,18 @@ pub fn run() {
                 render_gate: RenderGate::new(),
                 renders: protocol::Renders::default(),
                 previews: protocol::PreviewCache::default(),
-                startup_paths: Mutex::new(startup_paths.clone()),
+                startup_paths: Mutex::new(Some(
+                    startup_paths
+                        .iter()
+                        .cloned()
+                        .chain(
+                            EARLY_PATHS
+                                .lock()
+                                .map(|mut p| std::mem::take(&mut *p))
+                                .unwrap_or_default(),
+                        )
+                        .collect(),
+                )),
                 platform: platform::current(),
                 windows: windows::Windows::default(),
                 merge_cancel: Mutex::new(None),
@@ -465,6 +516,12 @@ pub fn run() {
         .build(tauri::generate_context!())
         .map(|app| {
             app.run(|app, event| {
+                // macOS hands files over as an event, never as arguments: at launch (a
+                // PDF opened from Finder, Open With, another app) and while Lectrix runs.
+                #[cfg(target_os = "macos")]
+                if let RunEvent::Opened { urls } = &event {
+                    hand_over(app, opened_paths(urls));
+                }
                 // Quitting normally: the user saved or chose not to save, so this run's
                 // recovery copies go. Only a crash leaves them behind. The window's close
                 // prompt already deleted them (exit_confirmed); this covers other exits.
@@ -492,6 +549,26 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Files macOS hands over arrive as `file://` URLs; only existing PDFs are opened.
+    #[test]
+    fn opened_urls_give_the_pdfs_that_exist() {
+        let dir = std::env::temp_dir().join(format!("lectrix-opened-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let pdf = dir.join("report with space.PDF");
+        let text = dir.join("notes.txt");
+        std::fs::write(&pdf, b"%PDF-1.7").unwrap();
+        std::fs::write(&text, b"").unwrap();
+        let url = |p: &Path| tauri::Url::from_file_path(p).unwrap();
+        let urls = vec![
+            url(&pdf),
+            url(&text),
+            url(&dir.join("gone.pdf")),
+            tauri::Url::parse("https://example.com/a.pdf").unwrap(),
+        ];
+        assert_eq!(opened_paths(&urls), vec![pdf]);
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
 
     /// A command the webview may not call fails at run time only ("Something went wrong"),
     /// so every command handled here must be declared in build.rs and granted in the

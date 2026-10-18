@@ -4,11 +4,13 @@
     "targets": ["appimage", "deb"],
     "linux": {
       "deb": {
+        "desktopTemplate": "linux/lectrix.desktop",
         "files": {
           "/usr/share/metainfo/org.lectrix.pdf.metainfo.xml": "linux/org.lectrix.pdf.metainfo.xml"
         }
       },
       "rpm": {
+        "desktopTemplate": "linux/lectrix.desktop",
         "files": {
           "/usr/share/metainfo/org.lectrix.pdf.metainfo.xml": "linux/org.lectrix.pdf.metainfo.xml"
         }

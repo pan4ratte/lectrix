@@ -39,6 +39,7 @@
   <url type="vcs-browser">https://github.com/pan4ratte/lectrix</url>
   <provides>
     <binary>lectrix</binary>
+    <mediatype>application/pdf</mediatype>
   </provides>
   <content_rating type="oars-1.1" />
 </component>

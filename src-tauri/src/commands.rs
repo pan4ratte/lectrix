@@ -141,17 +141,19 @@ pub fn open_with_dialog(
 }
 
 /// Opens the PDFs given on the command line (file association or `lectrix a.pdf b.pdf`),
-/// once.
+/// and those macOS or a second launch handed over meanwhile, once.
 #[tauri::command(async)]
 pub fn open_startup_documents(
     app: AppHandle,
     window: WebviewWindow,
     state: State<'_, AppState>,
 ) -> Vec<OpenResult> {
+    // Taken once: files handed over later open by themselves (`hand_over`).
     let paths = state
         .startup_paths
         .lock()
-        .map(|mut p| std::mem::take(&mut *p))
+        .ok()
+        .and_then(|mut p| p.take())
         .unwrap_or_default();
     paths
         .iter()

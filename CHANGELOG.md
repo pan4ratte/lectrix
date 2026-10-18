@@ -38,6 +38,8 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 - On macOS, the window has the system’s own buttons at the top left, with its shadow, rounded corners and full screen. Dialogs come down from under the title bar as sheets, and questions look like the system’s alerts, with the main button where macOS puts it: press Return to choose it.
 - On macOS, the menus are in the menu bar at the top of the screen, arranged as in other Mac apps: Settings, About and Quit are in the Lectrix menu, and there is a Window menu. Shortcuts use the Command key and are shown as macOS shows them (⇧⌘S), and some follow Mac conventions: ⌘Q quits, ⇧⌘Z redoes, ⌘G finds the next match, ⌥⌘G goes to a page, ⌘[ and ⌘] go back and forward, ⇧⌘F turns on full screen.
+- On Linux, Lectrix is now offered for PDF files: it is listed under **Open With** and can be chosen as the app that opens PDFs.
+- On macOS, PDFs opened from Finder, with **Open With** or from another app now open in Lectrix, whether it is running or not. Before, nothing opened. Finder also lists Lectrix under **Open With** for PDFs.
 - On Linux, the window buttons look like those of GTK apps and sit where your desktop puts them: in GNOME, a single close button at the right, unless you have turned on minimize and maximize.
 
 ## 1.2.0

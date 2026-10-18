@@ -133,6 +133,14 @@ does afterwards.
       close Software and open it again. Under Installed, Lectrix has its icon, and its page
       shows the icon, "View, annotate and combine PDF files" and the description. The app
       grid shows the icon too.
+- [ ] Ubuntu: install the `.deb`. In Files, right-click a PDF > Open With…: Lectrix is
+      listed; pick it and the file opens in it. Right-click > Properties > Open With: Lectrix
+      can be set as the default, and a double-click then opens PDFs in it. With Lectrix
+      already running, a double-click on another PDF opens it there, in a new tab.
+- [ ] macOS: install from the `.dmg`. In Finder, right-click a PDF > Open With: Lectrix is
+      listed, and Preview stays the default. Opening a PDF with Lectrix while it is closed
+      starts it with that file; while it runs, opens the file in a new tab and brings the
+      window forward. Drag a PDF onto Lectrix's Dock icon: it opens too.
 
 ## Updates (from the second release on)
 

@@ -404,7 +404,14 @@ Nothing has been run interactively there.
 - **Packages** for macOS (dmg, ad-hoc signed, not notarized) and Linux (AppImage and deb,
   plus rpm for final versions; built on Ubuntu 24.04, so glibc 2.39 or later) are built and released (ADR 0011)
   but have not been checked as the Windows installers are (the manual checklist covers
-  only the Windows ones). No PDF file association is configured for them.
+  only the Windows ones). Their PDF association (2026-10-18, after users' reports that
+  Ubuntu did not offer Lectrix for PDFs and that macOS opened nothing from Finder) is
+  untested by hand: the deb, rpm and AppImage desktop file now declares
+  `MimeType=application/pdf;` and takes files (`Exec=lectrix %F`,
+  `src-tauri/linux/lectrix.desktop`), the metainfo names the media type, and the macOS
+  bundle declares PDFs (`CFBundleDocumentTypes`, rank Alternate, `tauri.macos.conf.json`)
+  and opens the files macOS hands over (`RunEvent::Opened`, which only compiles on macOS,
+  so CI's macOS job is its only build check).
   Crash recovery, the single-instance hand-off and the in-app updater are
   platform-neutral but untested there.
 - **macOS versions** (read from the 1.0.0 bundles, 2026-10-12): both declare macOS 10.13
