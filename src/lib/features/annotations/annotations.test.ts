@@ -42,6 +42,7 @@ import {
 import {
 	capabilities,
 	changedStyles,
+	DEFAULT_COLOR,
 	DEFAULT_STYLES,
 	isMarkupTool,
 	lineBreaks,
@@ -51,7 +52,7 @@ import {
 	showsComment,
 	typeName,
 	type DrawTool,
-	type ToolStyle
+	type OwnStyle
 } from './tools.ts';
 
 function annotation(patch: Partial<Annotation>): Annotation {
@@ -394,14 +395,21 @@ describe('dates in the list', () => {
 });
 
 describe('tool styles', () => {
-	it('start with Acrobat’s colours and highlight opacity, which are preset swatches', () => {
-		expect(DEFAULT_STYLES.highlight).toMatchObject({ color: '#ffd100', opacity: 0.4 });
-		expect(DEFAULT_STYLES.note.color).toBe('#ffd100');
-		for (const tool of ['underline', 'strikeOut', 'squiggly', 'ink', 'freeText'] as const) {
-			expect(DEFAULT_STYLES[tool]).toMatchObject({ color: '#e52237', opacity: 1 });
+	it('start with Acrobat’s highlight yellow for every tool, and its highlight opacity', () => {
+		expect(DEFAULT_COLOR).toBe('#ffd100');
+		expect(DEFAULT_STYLES.highlight.opacity).toBe(0.4);
+		for (const tool of ['underline', 'strikeOut', 'squiggly', 'note', 'ink', 'freeText'] as const) {
+			expect(DEFAULT_STYLES[tool].opacity).toBe(1);
 		}
-		const presets = PRESET_COLORS.map((c) => c.value);
-		for (const style of Object.values(DEFAULT_STYLES)) expect(presets).toContain(style.color);
+		// The colour is the first preset, the one the 1 key picks.
+		expect(PRESET_COLORS[0]?.value).toBe(DEFAULT_COLOR);
+	});
+
+	it('put yellow, green, red and blue first, with each tint under its colour', () => {
+		const names = PRESET_COLORS.map((c) => c.name);
+		expect(names.slice(0, 4)).toEqual(['Yellow', 'Green', 'Red', 'Blue']);
+		expect(names.slice(6, 12)).toEqual(['Light yellow', 'Light green', 'Pink', 'Light blue', 'Light orange', 'Light purple']);
+		expect(new Set(PRESET_COLORS.map((c) => c.value)).size).toBe(18);
 	});
 
 	it('offer the presets with the user’s own colours in the places they changed', () => {
@@ -419,11 +427,11 @@ describe('tool styles', () => {
 	});
 
 	it('remember only what differs from the defaults', () => {
-		const styles = structuredClone(DEFAULT_STYLES) as Record<DrawTool, ToolStyle>;
+		const styles = structuredClone(DEFAULT_STYLES) as Record<DrawTool, OwnStyle>;
 		expect(changedStyles(styles)).toEqual({});
-		styles.underline = { ...styles.underline, color: '#5fd35f' };
+		styles.underline = { ...styles.underline, opacity: 0.5 };
 		styles.ink = { ...styles.ink, width: 5 };
-		expect(changedStyles(styles)).toEqual({ underline: { color: '#5fd35f' }, ink: { width: 5 } });
+		expect(changedStyles(styles)).toEqual({ underline: { opacity: 0.5 }, ink: { width: 5 } });
 	});
 });
 

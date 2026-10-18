@@ -334,6 +334,20 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 		await drag(browser, await pagePoint(browser, 0, 40, 92), released, 1);
 		quick = await browser.$('[role=toolbar][aria-label="Quick tools"]');
 		await quick.waitForDisplayed({ timeoutMsg: 'no quick tools over the selection' });
+		// The colour every tool draws with comes first, before the tools, so it can be picked
+		// before the text is marked; picking one leaves the selection and the bar as they are.
+		const quickOrder = await browser.execute(() => {
+			const bar = document.querySelector('[role=toolbar][aria-label="Quick tools"]');
+			return [...bar.querySelectorAll('button')].map((b) => (b.hasAttribute('data-color-button') ? 'colour' : b.getAttribute('aria-label')));
+		});
+		assert.deepEqual(quickOrder.slice(0, 2), ['colour', 'Highlight'], `quick tools: ${quickOrder}`);
+		const quickColours = await openColours(browser, quick);
+		assert.equal(await (await quickColours.$('input[type=range]')).isExisting(), false, 'the quick tools offer an opacity, which belongs to each tool');
+		await (await quickColours.$('button[aria-label="Green"]')).click();
+		await browser.keys(['Escape']);
+		await quickColours.waitForExist({ reverse: true, timeoutMsg: 'Esc left the colours open' });
+		assert.equal(await quick.isDisplayed(), true, 'picking a colour put the quick tools away');
+		assert.match(await (await quick.$('[data-color-button]')).getAttribute('aria-label'), /^Colour: Green$/);
 		// The bar sits above where the pointer was released, centred on it.
 		const bar = await browser.execute(() => {
 			const r = document.querySelector('[role=toolbar][aria-label="Quick tools"]').getBoundingClientRect();
@@ -364,7 +378,7 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 		// The row shows only the colour in use; its button opens the colours, on the one in use.
 		assert.equal((await selectedRow.$$('.swatch')).length, 0, 'the row shows every colour');
 		const colours = await openColours(browser, selectedRow);
-		await browser.waitUntil(async () => (await focusedLabel(browser)) === 'Yellow', { timeoutMsg: 'the colours did not open on the one in use' });
+		await browser.waitUntil(async () => (await focusedLabel(browser)) === 'Green', { timeoutMsg: 'the colours did not open on the one in use' });
 		await (await colours.$('button[aria-label="Pink"]')).click();
 		await browser.waitUntil(async () => (await (await colours.$('button[aria-label="Pink"]')).getAttribute('aria-checked')) === 'true', {
 			timeoutMsg: 'the underline did not turn pink'
@@ -424,7 +438,8 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 			timeoutMsg: `the author did not change: ${JSON.stringify(await listRows(browser))}`
 		});
 
-		// The colour given to the underline (pink, above) is what new underlines get.
+		// The colour given to the underline (pink, above) is what new annotations get,
+		// whatever the tool.
 		await browser.keys(['Escape']);
 		await browser.keys('u');
 		const tools = await browser.$('[role=toolbar][aria-label="Annotation tools"]');
@@ -478,6 +493,14 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 		await browser.waitUntil(async () => (await toolbar.getCSSProperty('opacity')).value === 1, {
 			timeoutMsg: 'the toolbar did not show near the top'
 		});
+		// While something it opened is open, it stays, though the pointer has gone.
+		const hoverColours = await openColours(browser, toolbar);
+		await browser.action('pointer').move({ ...middle, origin: 'viewport' }).perform();
+		await browser.pause(600);
+		assert.equal(await hoverColours.isDisplayed(), true, 'the colours went when the pointer left');
+		assert.equal((await toolbar.getCSSProperty('opacity')).value, 1, 'the toolbar hid with its colours open');
+		await browser.keys(['Escape']);
+		await hoverColours.waitForExist({ reverse: true, timeoutMsg: 'Esc left the colours open' });
 
 		// Settings: docked in the bar above the pages instead, beside the page and zoom
 		// controls, always shown. The floating options stay: full screen floats it.
@@ -622,8 +645,8 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 		await browser.keys(['Control', 's']);
 		await browser.waitUntil(async () => (await statusText(browser)).includes('All changes saved'), { timeoutMsg: 'not saved' });
 
-		// Settings: without the last colour, new annotations start from the defaults again
-		// (the underline's red, not the pink given to one above).
+		// Settings: without the last colour, new annotations start from the default again
+		// (yellow, not the pink given to one above).
 		await browser.keys(['Control', ',']);
 		await (await browser.$('button[role="tab"]*=Annotations')).click();
 		await (await browser.$('label*=Use the last colour and opacity')).click();
@@ -631,7 +654,7 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 		await (await browser.$('[role=toolbar][aria-label="Annotation tools"] button[aria-label="Underline"]')).click();
 		const docked = await browser.$('[role=toolbar][aria-label="Annotation tools"]');
 		const toolColour = await openColours(browser, docked);
-		assert.equal(await (await toolColour.$('button[aria-label="Red"]')).getAttribute('aria-checked'), 'true', 'new underlines kept the last colour');
+		assert.equal(await (await toolColour.$('button[aria-label="Yellow"]')).getAttribute('aria-checked'), 'true', 'new underlines kept the last colour');
 		await browser.keys(['Escape']);
 		await toolColour.waitForExist({ reverse: true });
 		await browser.keys(['Escape']);
@@ -840,11 +863,11 @@ test('the colour panel opens under the pointer, and Settings changes its presets
 		await browser.keys(['Escape']);
 		await (await panel()).waitForExist({ reverse: true });
 
-		// Settings: the first preset (blue) gets another colour, which every panel then offers.
+		// Settings: the first preset (yellow) gets another colour, which every panel then offers.
 		const firstPreset = () => browser.execute(() => document.querySelector('#setting-presetColors [data-preset="0"]')?.getAttribute('aria-label'));
 		await browser.keys(['Control', ',']);
 		await (await browser.$('button[role="tab"]*=Annotations')).click();
-		assert.equal(await firstPreset(), 'Blue');
+		assert.equal(await firstPreset(), 'Yellow');
 		assert.equal((await browser.$$('#setting-presetColors .swatch')).length, 18);
 		assert.equal(await (await browser.$('#setting-resetPresetColors')).isEnabled(), false, 'Restore colours is offered with nothing changed');
 		await (await browser.$('#setting-presetColors [data-preset="0"]')).click();
@@ -854,7 +877,7 @@ test('the colour panel opens under the pointer, and Settings changes its presets
 		await browser.keys(['Control', 'a']);
 		await browser.keys([...'12AB34']);
 		await browser.keys(['Enter']);
-		await browser.waitUntil(async () => (await firstPreset()) === '#12AB34, in place of Blue', { timeoutMsg: `the preset did not change: ${await firstPreset()}` });
+		await browser.waitUntil(async () => (await firstPreset()) === '#12AB34, in place of Yellow', { timeoutMsg: `the preset did not change: ${await firstPreset()}` });
 		// Esc closes the picker, not Settings.
 		await browser.keys(['Escape']);
 		await (await panel()).waitForExist({ reverse: true, timeoutMsg: 'Esc left the preset’s picker open' });
@@ -869,11 +892,41 @@ test('the colour panel opens under the pointer, and Settings changes its presets
 		await browser.keys(['Escape']);
 		await (await panel()).waitForExist({ reverse: true });
 
-		// Restore colours puts blue back.
+		// Restore colours puts yellow back.
 		await browser.keys(['Control', ',']);
 		await (await browser.$('button=Restore colours')).click();
-		await browser.waitUntil(async () => (await firstPreset()) === 'Blue', { timeoutMsg: 'Restore colours left the changed preset' });
+		await browser.waitUntil(async () => (await firstPreset()) === 'Yellow', { timeoutMsg: 'Restore colours left the changed preset' });
 		await closeSettings(browser);
+
+		// The number keys pick the presets in their order: yellow, green, red, blue first.
+		const colourIs = (name) =>
+			browser.waitUntil(async () => new RegExp(`^Colour: ${name},`).test(await button.getAttribute('aria-label')), {
+				timeoutMsg: `the colour is not ${name}`
+			});
+		await (await browser.$('[role=document]')).click();
+		await browser.keys('2');
+		await colourIs('Green');
+		await browser.keys('4');
+		await colourIs('Blue');
+		// The colour is every tool's, so it is there with the Select tool too, before the
+		// tools; the opacity is each tool's own, so its panel then has none.
+		await (await tools.$('button[aria-label="Select"]')).click();
+		await (await tools.$('button[aria-label="Select"][aria-pressed="true"]')).waitForExist();
+		assert.match(await button.getAttribute('aria-label'), /^Colour: Blue$/);
+		assert.equal(
+			await browser.execute((el) => el.compareDocumentPosition(document.querySelector('[aria-label="Annotation tools"] .tool-button')) === Node.DOCUMENT_POSITION_FOLLOWING, button),
+			true,
+			'the colour is not before the tools'
+		);
+		await button.click();
+		await (await panel()).waitForDisplayed({ timeoutMsg: 'the colour button opened no panel with the Select tool' });
+		assert.equal(await (await (await panel()).$('input[type=range]')).isExisting(), false, 'an opacity with no tool to have it');
+		await (await (await panel()).$('button[aria-label="Red"]')).click();
+		await browser.keys(['Escape']);
+		await (await panel()).waitForExist({ reverse: true });
+		await browser.keys('n');
+		await colourIs('Red');
+		assert.match(await button.getAttribute('aria-label'), /opacity 100%$/);
 	} finally {
 		await stop();
 	}

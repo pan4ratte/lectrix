@@ -169,7 +169,8 @@ export function openInspector(tab: DocTab, focusNote: boolean) {
 
 /**
  * Gives annotation `a` another colour or opacity (one undo step). With Settings' "Use the
- * last colour and opacity" on, new annotations of its type get it too.
+ * last colour and opacity" on, new annotations get the colour, whatever their type, and new
+ * ones of its type the opacity.
  */
 export async function restyle(tab: DocTab, a: Annotation, patch: { color?: string; opacity?: number }) {
 	const change = await update(tab, a.page, a.id, patch);

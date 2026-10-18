@@ -153,6 +153,16 @@ export const commands = {
 	toolNote: useTool('note'),
 	toolPen: useTool('ink'),
 	toolText: useTool('freeText'),
+	/** The number keys: a preset colour for new annotations, whatever the tool (section 6.5). */
+	colour1: () => tools.pickPreset(1),
+	colour2: () => tools.pickPreset(2),
+	colour3: () => tools.pickPreset(3),
+	colour4: () => tools.pickPreset(4),
+	colour5: () => tools.pickPreset(5),
+	colour6: () => tools.pickPreset(6),
+	colour7: () => tools.pickPreset(7),
+	colour8: () => tools.pickPreset(8),
+	colour9: () => tools.pickPreset(9),
 	/** The Page labels dialog (section 6.3). It belongs to the grid of pages being organized
 	 * (section 6.7), for the pages selected there: it does nothing while a document is read. */
 	showLabels: withTab((t) => showLabels(t))

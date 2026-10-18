@@ -69,22 +69,24 @@ export interface PresetColor {
 }
 
 /**
- * Acrobat's 18 preset colours (section 6.5), in its grid of three rows: bright colours,
- * their light tints, and white to black. Read from Acrobat DC's own table (`Acrobat.dll`,
- * beside `AVInPlaceColorPickerView`), so the swatches match the colours its annotations have.
+ * The 18 preset colours (section 6.5), in a grid of three rows: bright colours, their light
+ * tints, and white to black. Acrobat's colours, read from Acrobat DC's own table
+ * (`Acrobat.dll`, beside `AVInPlaceColorPickerView`), so the swatches match the colours its
+ * annotations have; the first four are the ones marking text most often takes (yellow,
+ * green, red, blue), which the number keys 1 to 4 pick, and each tint is under its colour.
  */
 export const PRESET_COLORS: readonly PresetColor[] = [
-	{ value: '#0000ff', name: 'Blue' },
-	{ value: '#6ad928', name: 'Green' },
 	{ value: ACROBAT_YELLOW, name: 'Yellow' },
-	{ value: '#ff7002', name: 'Orange' },
+	{ value: '#6ad928', name: 'Green' },
 	{ value: ACROBAT_RED, name: 'Red' },
+	{ value: '#0000ff', name: 'Blue' },
+	{ value: '#ff7002', name: 'Orange' },
 	{ value: '#a33086', name: 'Purple' },
-	{ value: '#38e5ff', name: 'Light blue' },
-	{ value: '#c5fb72', name: 'Light green' },
 	{ value: '#fcf485', name: 'Light yellow' },
-	{ value: '#ffc09e', name: 'Light orange' },
+	{ value: '#c5fb72', name: 'Light green' },
 	{ value: '#ff809d', name: 'Pink' },
+	{ value: '#38e5ff', name: 'Light blue' },
+	{ value: '#ffc09e', name: 'Light orange' },
 	{ value: '#fb88ff', name: 'Light purple' },
 	{ value: '#ffffff', name: 'White' },
 	{ value: '#cccccc', name: 'Light grey' },
@@ -93,6 +95,9 @@ export const PRESET_COLORS: readonly PresetColor[] = [
 	{ value: '#444444', name: 'Charcoal' },
 	{ value: '#000000', name: 'Black' }
 ];
+
+/** How many presets the number keys pick, 1 for the first. */
+export const NUMBERED_PRESETS = 9;
 
 /**
  * The colour panel's presets as the user has them: the defaults, with the colours Settings
@@ -107,8 +112,9 @@ export function presetColors(custom: Readonly<Record<number, string>> | undefine
 	});
 }
 
+/** What a tool draws with. */
 export interface ToolStyle {
-	/** #rrggbb */
+	/** #rrggbb: the same for every tool (`DEFAULT_COLOR` until changed). */
 	color: string;
 	/** 0.1 to 1 */
 	opacity: number;
@@ -118,28 +124,33 @@ export interface ToolStyle {
 	fontSize: number;
 }
 
+/** What each tool keeps of its own: everything but the colour, which all tools share. */
+export type OwnStyle = Omit<ToolStyle, 'color'>;
+
+/** The colour every tool starts with: Acrobat's highlight yellow. */
+export const DEFAULT_COLOR = ACROBAT_YELLOW;
+
 /**
- * Each tool's style until the user changes it: the colours and opacity Acrobat gives new
- * annotations (highlights yellow at 40%; notes yellow; underline, strikeout, pen and
- * text-box text red). Acrobat has no squiggly tool; it gets the red of the other lines.
+ * Each tool's own style until the user changes it: highlights at Acrobat's 40% opacity,
+ * everything else opaque.
  */
-export const DEFAULT_STYLES: Readonly<Record<DrawTool, ToolStyle>> = {
-	highlight: { color: ACROBAT_YELLOW, opacity: 0.4, width: 2, fontSize: 12 },
-	underline: { color: ACROBAT_RED, opacity: 1, width: 2, fontSize: 12 },
-	strikeOut: { color: ACROBAT_RED, opacity: 1, width: 2, fontSize: 12 },
-	squiggly: { color: ACROBAT_RED, opacity: 1, width: 2, fontSize: 12 },
-	note: { color: ACROBAT_YELLOW, opacity: 1, width: 2, fontSize: 12 },
-	ink: { color: ACROBAT_RED, opacity: 1, width: 2, fontSize: 12 },
-	freeText: { color: ACROBAT_RED, opacity: 1, width: 2, fontSize: 12 }
+export const DEFAULT_STYLES: Readonly<Record<DrawTool, OwnStyle>> = {
+	highlight: { opacity: 0.4, width: 2, fontSize: 12 },
+	underline: { opacity: 1, width: 2, fontSize: 12 },
+	strikeOut: { opacity: 1, width: 2, fontSize: 12 },
+	squiggly: { opacity: 1, width: 2, fontSize: 12 },
+	note: { opacity: 1, width: 2, fontSize: 12 },
+	ink: { opacity: 1, width: 2, fontSize: 12 },
+	freeText: { opacity: 1, width: 2, fontSize: 12 }
 };
 
 /** The parts of `styles` that differ from the defaults: what is remembered of them. */
-export function changedStyles(styles: Readonly<Record<DrawTool, ToolStyle>>): Partial<Record<DrawTool, Partial<ToolStyle>>> {
-	const changed: Partial<Record<DrawTool, Partial<ToolStyle>>> = {};
+export function changedStyles(styles: Readonly<Record<DrawTool, OwnStyle>>): Partial<Record<DrawTool, Partial<OwnStyle>>> {
+	const changed: Partial<Record<DrawTool, Partial<OwnStyle>>> = {};
 	for (const tool of Object.keys(DEFAULT_STYLES) as DrawTool[]) {
 		const diff = Object.fromEntries(
-			Object.entries(styles[tool]).filter(([key, v]) => v !== DEFAULT_STYLES[tool][key as keyof ToolStyle])
-		) as Partial<ToolStyle>;
+			Object.entries(styles[tool]).filter(([key, v]) => v !== DEFAULT_STYLES[tool][key as keyof OwnStyle])
+		) as Partial<OwnStyle>;
 		if (Object.keys(diff).length) changed[tool] = diff;
 	}
 	return changed;

@@ -404,7 +404,7 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 						description: 'A new highlight, underline, strikeout or squiggly opens its comment, ready to type.'
 					}),
 					toggle('rememberAnnotationStyle', 'Use the last colour and opacity for new annotations', {
-						description: `Remembered for each type. When off, the defaults return each time ${APP_NAME} starts.`
+						description: `One colour for every tool, and an opacity for each. When off, the defaults return each time ${APP_NAME} starts.`
 					}),
 					{
 						kind: 'range',

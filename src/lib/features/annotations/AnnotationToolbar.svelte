@@ -1,11 +1,13 @@
 <script lang="ts">
-	// The annotation toolbar (sections 6.5 and 8): the tools, and the style the active tool
-	// draws with (remembered per tool; the colour button opens the colours and the opacity).
+	// The annotation toolbar (sections 6.5 and 8): the colour every tool draws with, before the
+	// tools, so it can be picked before a tool is; then the tools, and the rest of the style
+	// the active tool draws with (remembered per tool: the opacity, in the colour's panel, the
+	// stroke width, the font size).
 	// Settings dock it, always shown: in the bar at the top of the document, beside the page
 	// and zoom controls (ViewBar.svelte places it), or in a bar of its own at the left or the
 	// right of the pages (App.svelte); or make it float over the page canvas, at any of its
 	// four edges, shown always or only while the pointer is near that edge (or the toolbar has
-	// focus, or a tool was just picked). At a side, docked or floating, its controls are
+	// focus, or a tool was just picked, or something it opened is open). At a side, docked or floating, its controls are
 	// stacked, and what they open (the colours, a list of sizes) goes beside it, over the pages.
 	// Full screen (section 6.1) it always floats, with the page and zoom controls before the
 	// tools and a button that leaves full screen after them; Alt held shows it too.
@@ -69,7 +71,7 @@
 	const stacked = $derived(isStacked(edge));
 	const side = $derived(menuSide(edge));
 
-	/** The style controls slide open and shut along the toolbar as the tool changes, as the
+	/** The style controls after the tools slide open and shut along the toolbar as the tool changes, as the
 	 * mark glides to it (not at all with reduced motion). */
 	const reveal = () => ({ axis: stacked ? ('y' as const) : ('x' as const), duration: motionMs(GLIDE_MS) });
 
@@ -92,8 +94,22 @@
 	let near = $state(false);
 	let focused = $state(false);
 	let flash = $state(false);
+	/** A panel or list one of its controls opened is open: it lies outside the toolbar, and
+	 * would be left floating by itself if the toolbar went. */
+	let opened = $state(false);
 	let shown = $state(true);
-	const wanted = $derived(!onHover || near || focused || flash || fullscreen.peek || fullscreen.justEntered);
+	const wanted = $derived(!onHover || near || focused || flash || opened || fullscreen.peek || fullscreen.justEntered);
+
+	$effect(() => {
+		const el = bar;
+		if (!el) return;
+		// Every control that opens something says so on itself (Bits UI's triggers).
+		const check = () => (opened = el.querySelector('[aria-expanded="true"]') !== null);
+		check();
+		const watcher = new MutationObserver(check);
+		watcher.observe(el, { subtree: true, attributes: true, attributeFilter: ['aria-expanded'] });
+		return () => watcher.disconnect();
+	});
 
 	let lingerTimer: ReturnType<typeof setTimeout> | undefined;
 	$effect(() => {
@@ -172,6 +188,16 @@
 		</span>
 	{/if}
 
+	<ColorPicker
+		color={tools.color}
+		opacity={style?.opacity ?? null}
+		label="Colour"
+		{side}
+		oncolor={(color) => tools.setColor(color)}
+		onopacity={(opacity) => drawTool && tools.setStyle(drawTool, { opacity })}
+	/>
+	{@render rule()}
+
 	<span class={['tool-group flex items-center gap-0.5', stacked && 'flex-col']} {@attach toolMark}>
 		<span class="tool-mark" aria-hidden="true" hidden></span>
 		{#each TOOLS as t (t.id)}
@@ -190,17 +216,9 @@
 		{/each}
 	</span>
 
-	{#if style && drawTool}
+	{#if style && (drawTool === 'ink' || drawTool === 'freeText')}
 		<span class={['flex items-center gap-0.5', stacked && 'flex-col']} transition:slide={reveal()}>
 			{@render rule()}
-			<ColorPicker
-				color={style.color}
-				opacity={style.opacity}
-				label="Colour"
-				{side}
-				oncolor={(color) => tools.setStyle(drawTool, { color })}
-				onopacity={(opacity) => tools.setStyle(drawTool, { opacity })}
-			/>
 			{#if drawTool === 'ink'}
 				<span class="flex" transition:slide={reveal()}>
 					<Dropdown

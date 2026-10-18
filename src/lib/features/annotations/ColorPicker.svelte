@@ -6,7 +6,9 @@
 	// button at its end. A colour applies when picked and the panel stays open for the
 	// opacity, which applies when the slider is let go. The custom colour's button slides
 	// Lectrix's own picker (HexPicker) open below, open from the start when the colour in use
-	// is not a preset.
+	// is not a preset. Without an opacity (the toolbar while no tool that draws is picked, and
+	// the quick tools: the colour is every tool's, the opacity each tool's own), the panel has
+	// the custom colour's button alone on that row.
 	//
 	// The panel opens when the pointer rests on the button (Settings can turn that off), and
 	// then goes when the pointer leaves the button and the panel. Once something in it has
@@ -28,11 +30,11 @@
 	interface Props {
 		/** #rrggbb, or null for an annotation without a colour. */
 		color: string | null;
-		/** 0.1 to 1. */
-		opacity: number;
+		/** 0.1 to 1; null for no opacity slider. */
+		opacity: number | null;
 		label: string;
 		oncolor: (color: string) => void;
-		onopacity: (opacity: number) => void;
+		onopacity?: (opacity: number) => void;
 		/** Where the panel opens: below the button, or beside it (a stacked toolbar, where
 		 * the button is the colour alone, as wide as a tool). */
 		side?: MenuSide;
@@ -67,7 +69,7 @@
 	let tookFocus = false;
 
 	$effect(() => {
-		if (open) value = opacity;
+		if (open && opacity !== null) value = opacity;
 	});
 
 	function setOpen(next: boolean) {
@@ -77,7 +79,7 @@
 	}
 
 	function apply() {
-		if (Math.abs(value - opacity) > 1e-3) onopacity(value);
+		if (opacity !== null && Math.abs(value - opacity) > 1e-3) onopacity?.(value);
 	}
 
 	/** Esc closes the panel only: it must not also pick the Select tool or deselect. */
@@ -135,7 +137,7 @@
 	<Popover.Trigger
 		bind:ref={trigger}
 		class={['color-button', side !== 'bottom' && 'color-button-stacked']}
-		aria-label="{label}: {name}, opacity {Math.round(opacity * 100)}%"
+		aria-label={opacity === null ? `${label}: ${name}` : `${label}: ${name}, opacity ${Math.round(opacity * 100)}%`}
 		data-tip={open ? undefined : label}
 		data-color-button
 		openOnHover={onHover}
@@ -177,10 +179,14 @@
 				{/each}
 			</div>
 			<div class="mt-2 flex items-center gap-2">
-				<span class="flex min-w-0 flex-1" data-tip="Opacity">
-					<Slider min={MIN_OPACITY} max={1} step={0.05} label="Opacity" valuetext={percent} bind:value onchange={apply} />
-				</span>
-				<span class="w-8 shrink-0 text-right text-xs tabular-nums" aria-hidden="true">{percent}</span>
+				{#if opacity !== null}
+					<span class="flex min-w-0 flex-1" data-tip="Opacity">
+						<Slider min={MIN_OPACITY} max={1} step={0.05} label="Opacity" valuetext={percent} bind:value onchange={apply} />
+					</span>
+					<span class="w-8 shrink-0 text-right text-xs tabular-nums" aria-hidden="true">{percent}</span>
+				{:else}
+					<span class="min-w-0 flex-1 text-xs text-fg-muted" aria-hidden="true">Custom colour</span>
+				{/if}
 				<button
 					type="button"
 					class="swatch swatch-custom"

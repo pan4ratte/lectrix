@@ -103,7 +103,16 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 			{ command: 'toolSquiggly', label: 'Squiggly tool', keys: [] },
 			{ command: 'toolNote', label: 'Note tool', keys: ['N'] },
 			{ command: 'toolPen', label: 'Pen tool', keys: ['P'] },
-			{ command: 'toolText', label: 'Text box tool', keys: ['T'] }
+			{ command: 'toolText', label: 'Text box tool', keys: ['T'] },
+			{ command: 'colour1', label: 'Preset colour 1', keys: ['1'] },
+			{ command: 'colour2', label: 'Preset colour 2', keys: ['2'] },
+			{ command: 'colour3', label: 'Preset colour 3', keys: ['3'] },
+			{ command: 'colour4', label: 'Preset colour 4', keys: ['4'] },
+			{ command: 'colour5', label: 'Preset colour 5', keys: ['5'] },
+			{ command: 'colour6', label: 'Preset colour 6', keys: ['6'] },
+			{ command: 'colour7', label: 'Preset colour 7', keys: ['7'] },
+			{ command: 'colour8', label: 'Preset colour 8', keys: ['8'] },
+			{ command: 'colour9', label: 'Preset colour 9', keys: ['9'] }
 		]
 	},
 	{

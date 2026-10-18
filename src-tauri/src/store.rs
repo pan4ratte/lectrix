@@ -38,7 +38,7 @@ struct Data {
     /// Keyed by `Platform::file_key`.
     #[serde(default)]
     views: HashMap<String, StoredView>,
-    #[serde(default)]
+    #[serde(default, deserialize_with = "settings_with_old_presets")]
     settings: StoredSettings,
     #[serde(default, deserialize_with = "panes_with_old_names")]
     panes: PaneLayout,
@@ -92,6 +92,37 @@ fn panes_with_old_names<'de, D: serde::Deserializer<'de>>(
         }
     }
     Ok(serde_json::from_value(value).unwrap_or_default())
+}
+
+/// Where each of the first twelve presets of versions up to 1.2 is now: their first row
+/// went blue, green, yellow, orange, red, purple (the tints under them), and now goes
+/// yellow, green, red, blue, orange, purple, the colours the number keys pick first.
+const OLD_PRESET_PLACES: [u8; 12] = [3, 1, 0, 4, 2, 5, 9, 7, 6, 10, 8, 11];
+
+/// The settings, reading the preset colours of versions up to 1.2 (`preset_colors`, by
+/// their places then) into the places those colours have now (`presets`).
+fn settings_with_old_presets<'de, D: serde::Deserializer<'de>>(
+    deserializer: D,
+) -> Result<StoredSettings, D::Error> {
+    let mut value = serde_json::Value::deserialize(deserializer)?;
+    if let Some(map) = value.as_object_mut()
+        && let Some(serde_json::Value::Object(old)) = map.remove("preset_colors")
+        && !map.contains_key("presets")
+    {
+        let moved = old
+            .into_iter()
+            .filter_map(|(place, colour)| {
+                let place: u8 = place.parse().ok()?;
+                let now = OLD_PRESET_PLACES
+                    .get(usize::from(place))
+                    .copied()
+                    .unwrap_or(place);
+                Some((now.to_string(), colour))
+            })
+            .collect();
+        map.insert("presets".to_string(), serde_json::Value::Object(moved));
+    }
+    serde_json::from_value(value).map_err(serde::de::Error::custom)
 }
 
 /// What the Settings dialog changes (sections 6.5 and 6.6).
@@ -163,8 +194,9 @@ pub struct StoredSettings {
     #[serde(default = "yes")]
     pub color_panel_on_hover: bool,
     /// The colour panel's presets that differ from the defaults (section 6.5): a preset's
-    /// place in the panel, from 0, and its colour ("#rrggbb").
-    #[serde(default)]
+    /// place in the panel, from 0, and its colour ("#rrggbb"). Stored as `presets`: versions
+    /// up to 1.2 kept them as `preset_colors`, in the places of their order.
+    #[serde(default, rename = "presets")]
     pub preset_colors: BTreeMap<u8, String>,
     /// Keyboard shortcuts that differ from the defaults (section 6.6): a command's name
     /// and its keys, as Settings shows them ("Ctrl+Shift+S"); no keys, no shortcut.
@@ -714,6 +746,21 @@ mod tests {
         assert!(v1.settings().color_panel_on_hover);
         assert!(v1.settings().preset_colors.is_empty());
         assert!(v1.settings().shortcuts.is_empty());
+        // Preset colours from before the presets were reordered keep their colours: the
+        // blue changed then (place 0) is the blue's place now (3), the pink's (10) is 8.
+        fs::write(
+            &file,
+            br##"{"settings":{"preset_colors":{"0":"#123456","10":"#abcdef","17":"#101010"}}}"##,
+        )
+        .unwrap();
+        assert_eq!(
+            Store::load(Some(file.clone())).settings().preset_colors,
+            BTreeMap::from([
+                (3, "#123456".to_string()),
+                (8, "#abcdef".to_string()),
+                (17, "#101010".to_string()),
+            ])
+        );
         // Tools from a newer version are skipped, not fatal; an empty list stays empty.
         fs::write(
             &file,

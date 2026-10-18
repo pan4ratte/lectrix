@@ -190,8 +190,11 @@ test('shortcuts are listed, searched and changed, and work at once', async () =>
 		assert.deepEqual(await listed(), ['zoomIn', 'zoomOut']);
 		await search.setValue('ctrl+shift+s');
 		assert.deepEqual(await listed(), ['saveAs']);
+		// (The eight tools, and the nine preset colours the number keys pick.)
 		await search.setValue('annotation tools');
-		assert.equal((await listed()).length, 8);
+		assert.equal((await listed()).length, 17);
+		await search.setValue('preset colour');
+		assert.equal((await listed()).length, 9);
 		await search.setValue('no such thing');
 		assert.deepEqual(await listed(), []);
 		assert.ok(await (await browser.$('p*=No shortcut matches')).isDisplayed());

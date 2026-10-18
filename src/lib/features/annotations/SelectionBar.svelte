@@ -1,6 +1,8 @@
 <script lang="ts">
-	// The bar over selected text (section 6.5): the quick tools chosen in Settings. Markup
-	// uses each tool's last style; "Highlight with note" opens the inspector on the note.
+	// The bar over selected text (section 6.5): the colour every tool draws with, so it can be
+	// picked before the text is marked, then the quick tools chosen in Settings. Markup uses
+	// that colour and each tool's last opacity; "Highlight with note" opens the inspector on
+	// the note.
 	import {
 		BookmarkPlus,
 		Copy,
@@ -19,7 +21,9 @@
 
 	import { markSelection, markupOpensComment } from './actions.ts';
 	import { quickToolAllowed, type Area } from './bars.ts';
+	import ColorPicker from './ColorPicker.svelte';
 	import FloatingBar from './FloatingBar.svelte';
+	import { tools } from './state.svelte.ts';
 	import { QUICK_TOOLS } from './tools.ts';
 
 	interface Props {
@@ -67,6 +71,8 @@
 </script>
 
 <FloatingBar label="Quick tools" {anchor} {view} {contentWidth} {prefer}>
+	<ColorPicker color={tools.color} opacity={null} label="Colour" oncolor={(color) => tools.setColor(color)} />
+	<span class="mx-1 h-6 w-px shrink-0 bg-line" aria-hidden="true"></span>
 	{#each shown as t (t.id)}
 		{@const Icon = ICONS[t.id]}
 		<button

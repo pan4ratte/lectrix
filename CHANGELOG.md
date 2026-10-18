@@ -29,6 +29,10 @@ the wording, translations): docs/releasing.md, "The changelog".
 - With the Select tool, a click on a highlight (or another text markup) selects it, and a drag that starts on it now selects the text under it, as a drag anywhere else does.
 - The text cursor works with the Highlight, Underline, Strikeout and Squiggly tools too: select from it with Shift and the arrow keys, let go of **Shift**, and what you selected is marked.
 - Marking text that starts or ends on a superscript or a subscript (a footnote number, a squared x) gives a straight highlight, underline or strikeout along the line. Before, it slanted up or down towards the raised or lowered character.
+- New annotations share one colour, whatever the tool: a colour picked for a highlight is the one underlines, notes, drawings and text boxes get too. Opacity, stroke width and font size are still kept for each tool. Your current highlight colour becomes the shared one.
+- The colour button is always in the annotation toolbar, before the tools, so you can pick a colour before choosing a tool. It is also the first button over selected text, so you can pick the colour before marking the text.
+- The number keys **1** to **9** pick the first nine preset colours for new annotations. The presets now start with yellow, green, red and blue, the colours used most for marking text, with each light colour under its brighter colour. Preset colours you changed in Settings keep their colours.
+- When the floating toolbar is set to show only near its edge, it now stays while one of its colour panels or lists is open. Before, it disappeared and left the panel or list floating on its own.
 
 ### General
 
