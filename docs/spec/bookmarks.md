@@ -1,0 +1,23 @@
+# 6.2 Bookmarks (outline)
+
+Part of the Lectrix specification. [AGENTS.md](../../AGENTS.md) holds the rules every change follows and [README.md](README.md) lists these files; sections keep the numbers they share, so "section 5.4" is in AGENTS.md and "section 6.5" in [annotations.md](annotations.md).
+
+- A panel (section 8) with the outline as a tree. Expanded/collapsed state is read from and written to the outline.
+- **Add bookmark** (Ctrl+B) at the current page and scroll position; if text is selected, use it as the title.
+- **Edit:** rename inline (F2 or double-click), drag to reorder and nest, delete (with children, after confirmation), "Set destination to current view," and a color for the title (`/C`), from the inspector.
+- New and retargeted bookmarks get explicit destinations: page reference, `/XYZ`, left and top of the current view, null zoom (keeps the reader's zoom).
+- Existing bookmarks the user did not edit keep their original destination or action exactly, including named destinations and URI actions.
+- Titles with non-ASCII characters are written as UTF-16BE with a byte-order mark.
+- Titles are shown as Acrobat shows them: up to their first NUL character (some producers pad titles with them), with other control characters, such as a line break at the end, as spaces, and without spaces at the ends. The title in the file stays as it is until the bookmark is renamed.
+
+## Settled details
+
+- A click selects a bookmark and follows it; arrow keys only move the selection; Enter follows. The selection stays when the page is clicked, so repeated Ctrl+B builds a list in order.
+- Following a bookmark glides the view to its place in 140 ms (Settings: "Smooth scrolling to bookmarks and links", on by default; reduced motion turns it off). A long way starts one screen from the place, where its page is in view from the first frame, so the pages passed are not rendered first. In single page and two pages, a bookmark in another row has that row come in as a row turned to does (section 6.1). Scrolling or clicking stops the glide. A link in the text that leads to a place in the document is glided to the same way, under the same setting.
+- Ctrl+B puts the new bookmark right after the selected one, as its sibling; with nothing selected, at the top level, in page order. Without selected text it is titled "Page <label>" and opens for renaming. Selected text is used only if the document allows copying.
+- A new or retargeted bookmark points at the top-left of what is visible on the page at the top of the view (in the page's own orientation), rounded to whole points.
+- Deleting a bookmark without children needs no confirmation (it can be undone).
+- Expanding or collapsing is not an edit: it neither dirties the document nor adds an undo step, and is written at the next save. It is not written for a signed document without other changes, or when permissions forbid outline changes.
+- Bookmarks untouched by an edit keep their bytes exactly; neighbours whose links change are rewritten by MuPDF with the same destination and action values.
+- A bookmark that is a web link (http or https) opens in the system's default browser when followed, as a link in the text does (section 6.1), with the same notification; its inspector has Open in browser beside Copy link. Other addresses, other files and actions are described in a notice when clicked, never opened or run. A bookmark's own color is its title's, moved toward the text color only as far as 4.5:1 contrast on the pane needs (a black title in the dark theme).
+- The inspector opens from the context menu (Properties), then follows the selection until closed. It floats over the page beside the bookmark's row, at the edge of the pages next to the pane that holds the Bookmarks panel, with a tail pointing at the row (the comment panel's, section 6.5), and follows the row as the tree scrolls and the panes change; without a row to stand beside (the panel not on screen, the bookmark inside a collapsed one) it is at the top right of the pages. It never changes a fit-width zoom. It has the title, the color (the presets and custom color of section 6.5, without opacity, and Default color, which takes the color away: one undo step each, "Change bookmark colour"), the destination, Open in browser and Copy link for a web link, Set to current view and Delete; following the bookmark is the row's click, not the inspector's.

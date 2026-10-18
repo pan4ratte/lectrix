@@ -4,7 +4,7 @@ Thanks for taking a look. Issues and pull requests are welcome at <https://githu
 
 A bug report is most useful with the PDF that shows the problem, if you can share it, and with the name of the program that made the file. For a new feature or a larger change, please open an issue before writing code: some things are deliberately not built yet (filling forms, digital signatures, OCR, editing a page's text or images, redaction), and it is better to agree on the shape of one first.
 
-[AGENTS.md](AGENTS.md) is the full specification: what every feature does, how the code is laid out, and the rules it is written by. It is addressed to coding agents, and reads just as well for people. This page is the short way in.
+[AGENTS.md](AGENTS.md) is the specification: how the code is laid out, the rules it is written by, and each feature in short. What every feature does in detail is in [docs/spec/](docs/spec/README.md), one file per feature. Both are addressed to coding agents, and read just as well for people. This page is the short way in.
 
 ## What you need
 
@@ -93,7 +93,7 @@ Tests write to `target/test-output/` and nowhere else. Never weaken a test or a 
 | `third_party/` | The vendored `mupdf` crate with Lectrix's patches, and MuPDF's headers |
 | `tests/` | The cross-renderer, end-to-end, installer, licence and performance tests |
 | `design/` | The sources of the icons and the wordmark |
-| `docs/` | Decision records (`docs/decisions/`), the annotation write profile, measurements and known gaps (`docs/status.md`) |
+| `docs/` | Feature specifications (`docs/spec/`), decision records (`docs/decisions/`), the annotation write profile, measurements and known gaps (`docs/status.md`) |
 
 ## Rules worth knowing first
 
@@ -113,8 +113,8 @@ AGENTS.md has all of them. These are the ones a first pull request most often me
 
 * Commits follow [Conventional Commits](https://www.conventionalcommits.org) (`feat:`, `fix:`, `test:`, `docs:`…), and each one builds and passes the tests.
 * A change people will notice gets a line in [CHANGELOG.md](CHANGELOG.md) under `## Unreleased`, in the same commit. [docs/releasing.md](docs/releasing.md) says how it is worded: one plain sentence about what people can do or see now.
-* A change to how the app behaves is also written into AGENTS.md, so that the specification stays true.
-* A decision that departs from AGENTS.md gets a short record in `docs/decisions/` saying what, why, and what else was considered.
+* A change to how the app behaves is also written into its feature's file in `docs/spec/`, so that the specification stays true.
+* A decision that departs from AGENTS.md or a spec gets a short record in `docs/decisions/` saying what, why, and what else was considered.
 
 How a release is made is in [docs/releasing.md](docs/releasing.md).
 
