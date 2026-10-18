@@ -1,0 +1,36 @@
+--- a/source/fitz/filter-dct.c
++++ b/source/fitz/filter-dct.c
+@@ -281,8 +281,14 @@
+ 			state->wp = state->scanline;
+ 		}
+ 
+-		while (state->rp < state->wp && p < ep)
+-			*p++ = *state->rp++;
++		/* Copy what is left of the row in one go. */
++		if (state->rp < state->wp && p < ep)
++		{
++			size_t n = fz_minz(state->wp - state->rp, ep - p);
++			memcpy(p, state->rp, n);
++			p += n;
++			state->rp += n;
++		}
+ 
+ 		while (p < ep)
+ 		{
+@@ -305,8 +311,14 @@
+ 				state->wp = state->scanline + state->stride;
+ 			}
+ 
+-			while (state->rp < state->wp && p < ep)
+-				*p++ = *state->rp++;
++			/* Copy what is left of the row in one go. */
++			if (state->rp < state->wp && p < ep)
++			{
++				size_t n = fz_minz(state->wp - state->rp, ep - p);
++				memcpy(p, state->rp, n);
++				p += n;
++				state->rp += n;
++			}
+ 		}
+ 		stm->rp = state->buffer;
+ 		stm->wp = p;

@@ -102,6 +102,9 @@ jobs:
         with:
           node-version: 24
 
+      # libjpeg-turbo's SIMD code, in the MuPDF build (ADR 0024).
+      - uses: ./.github/actions/install-nasm
+
       # The structural check of every file the tests write (AGENTS.md section 9).
       - name: Install qpdf
         run: choco install qpdf --no-progress -y

@@ -87,11 +87,31 @@ again with that day's script:
   brought down only by showing the coarser decode first and the finer one after it,
   which is a change to rendering that has not been asked for.
 
+JPEG decoded by libjpeg-turbo (ADR 0024), measured 2026-10-19 on mains against the build
+before it, the same evening: `15-largest-file.pdf` (328 pages scanned as JPEG, 5.9
+megapixels each) shows its first page after 202 to 231 ms instead of 240 to 262, a page
+renders in 35 ms instead of 60 on average, and a page jumped to is blank for 115 ms at
+the median and 154 at worst, instead of 151 and 188; `lectrix.exe` is 0.4 MB larger.
+
 Scripts: `tests/perf/measure.ps1` and `tests/perf/memory-over-time.ps1`; for the grid of
 pages, `tests/perf/organize.mjs` (its numbers are under "Organizing pages" below).
 
 ## Known gaps
 
+- **A book whose cover is a whole jacket in one large image** shows its first page late.
+  Measured 2026-10-18 on a 283-page book (OneVision PDFengine): page 1 crops the front out
+  of a 1,515 pt wide jacket drawn from one 6035 × 2693 CMYK JPEG with an ICC profile and
+  a soft mask that is a second JPEG of that size. The first page is visible after 580 to
+  626 ms on battery (the 1,000-page file 100 to 172 ms the same day); the other pages
+  render in 11 ms on average. MuPDF decodes only the columns shown, but every row of both
+  JPEGs: about 345 ms of the page's render at the 3.5 px per point it is fitted at.
+  Its rendered image also leaves the image cache once the pages after it are scrolled
+  through, so a jump back to it left it blank for 304 ms on battery (the target is 200).
+  Since 2026-10-19 MuPDF decodes JPEG with libjpeg-turbo and copies JPEG rows whole
+  (ADR 0024): on mains, the first page shows after 371 to 387 ms instead of 467 to 481,
+  and the worst blank after a jump was 196 ms (191 before). What is left is MuPDF's work
+  on the decoded image (about 100 ms) and the decode of every row; showing a coarse
+  decode first, or decoding only the columns shown, would bring it down further.
 - **JPEG 2000 scans.** A page of a book scanned as JPEG 2000 (archive.org style) takes
   about a quarter of a second to render. Measured 2026-10-12 on a 602-page Internet
   Archive book (each page a 1920 × 3032 image with a JBIG2 mask, drawn 1,300 px wide):

@@ -12,6 +12,7 @@ Recorded at project start (2026-10-02). Versions are pinned exactly in `Cargo.to
 | LLVM / libclang | 23.1.2 | bindgen for `mupdf-sys`; `winget install LLVM.LLVM` |
 | Node.js | 24.13.0 | npm 11.6.2 |
 | qpdf | 12.4.2 | structural check (section 9); `winget install QPDF.QPDF` |
+| NASM | 3.02 | assembles libjpeg-turbo's SIMD code in the MuPDF build (ADR 0024); `winget install NASM.NASM`, then its folder on PATH. CI installs the runners' current one |
 | Python | 3.14 | interop harness: pypdfium2 5.13.0 (PDFium 153.0.7999.0) |
 
 ## PDF engine
@@ -19,7 +20,8 @@ Recorded at project start (2026-10-02). Versions are pinned exactly in `Cargo.to
 | Component | Version | Source |
 | --- | --- | --- |
 | MuPDF | 1.27.2 | built from source by `mupdf-sys` |
-| `mupdf-sys` | 0.8.0 @ `537d50556ee8e4abf2435f81357dfef3c145d883` + Lectrix patch | git, Lectrix's fork pan4ratte/mupdf-rs, branch `folio-mupdf-1.27.2` @ `460b796a88f2fa4ba617b07fbb7f73e5308f1417` (upstream commit plus `folio_patches.rs`: JPEG 2000 decoded at the resolution drawn, ADR 0008), via `[patch]` in `Cargo.toml` |
+| `mupdf-sys` | 0.8.0 @ `537d50556ee8e4abf2435f81357dfef3c145d883` + Lectrix patch | git, Lectrix's fork pan4ratte/mupdf-rs, branch `folio-mupdf-1.27.2` @ `0c9267715f9f90da035be8e03c1cf0e140efeb5a` (upstream commit plus `folio_patches.rs`: JPEG 2000 decoded at the resolution drawn, ADR 0008; JPEG decoded by libjpeg-turbo, its `libjpeg-turbo` feature, and JPEG rows copied whole, ADR 0024), via `[patch]` in `Cargo.toml` |
+| libjpeg-turbo (as MozJPEG 4, decoder unchanged) | through `mozjpeg-sys` 2.2.3, features `nasm_simd`, `arith_dec`, `parallel` | crates.io, a dependency of the fork's `mupdf-sys`; replaces MuPDF's bundled libjpeg (ADR 0024) |
 | `mupdf` | 0.8.0 @ same commit, Lectrix-patched | vendored in `third_party/mupdf-rs` (ADR 0001); built without `system-fonts` (ADR 0005), so `font-kit` is no longer in the build |
 
 ## Rust crates (direct)

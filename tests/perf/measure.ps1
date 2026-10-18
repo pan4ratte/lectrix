@@ -90,7 +90,9 @@ function Wait-For([string]$Log, [string]$Pattern, [int]$Seconds, $Stopwatch) {
     }
 }
 
-Get-Process lectrix -ErrorAction SilentlyContinue | Stop-Process -Force
+# Copies of the build measured that an earlier run left, and only those: a Lectrix the user
+# has open from another build (an installed one, a development one) is left alone.
+Get-Process lectrix -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $Exe } | Stop-Process -Force
 
 # The conditions of the run, to keep with the numbers: the same build gives other numbers
 # on battery, and a page is fitted to the window at another scale on another display

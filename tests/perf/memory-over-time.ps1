@@ -43,7 +43,9 @@ function Show-Memory([string]$When, $Process) {
     '{0,-28} lectrix={1,4} tree={2,5}  {3}' -f $When, [math]::Round($Process.WorkingSet64 / 1MB), [math]::Round($total / 1MB), $types
 }
 
-Get-Process lectrix -ErrorAction SilentlyContinue | Stop-Process -Force
+# Copies of the build measured that an earlier run left, and only those: a Lectrix the user
+# has open from another build (an installed one, a development one) is left alone.
+Get-Process lectrix -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $Exe } | Stop-Process -Force
 $copy = Join-Path $out (Split-Path $Pdf -Leaf)
 Copy-Item $Pdf $copy -Force
 $log = Join-Path $out 'memory-over-time.log'

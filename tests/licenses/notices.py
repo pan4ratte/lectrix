@@ -28,6 +28,11 @@ ALLOWED = {
     "BSD-3-Clause", "ISC", "Zlib", "0BSD", "Unlicense", "CC0-1.0", "BSL-1.0", "MPL-2.0",
     "Unicode-3.0", "Unicode-DFS-2016", "AGPL-3.0", "AGPL-3.0-only", "AGPL-3.0-or-later",
     "LGPL-2.1-or-later", "LGPL-3.0-or-later", "GPL-3.0-or-later",
+    # The Independent JPEG Group's license (libjpeg, and libjpeg-turbo through mozjpeg-sys,
+    # ADR 0024): permissive, GPL-compatible by the FSF's list; it asks that the
+    # documentation say the software is based in part on the IJG's work, which
+    # THIRD_PARTY_NOTICES.md does.
+    "IJG",
 }
 
 # Fonts may also be under the SIL Open Font License, which allows bundling them with any

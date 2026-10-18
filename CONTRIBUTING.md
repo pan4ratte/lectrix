@@ -12,15 +12,21 @@ A bug report is most useful with the PDF that shows the problem, if you can shar
 | --- | --- | --- |
 | Rust, stable | 1.99.0 | the backend and the PDF engine |
 | A C compiler, and libclang | LLVM 18 or later | MuPDF is built from source, and its bindings are generated |
+| NASM | 2.13 or later | libjpeg-turbo's SIMD code, which MuPDF decodes JPEG with (not needed on Apple silicon) |
 | Node.js | 24 | the frontend |
 | qpdf | 12 | the tests' structural check of every file they write |
 | Python | 3.14 | the cross-renderer tests and the licence check |
 
 The exact versions in use are in [docs/versions.md](docs/versions.md).
 
-* **Windows:** the MSVC Build Tools 2022 with the Windows SDK, then `winget install LLVM.LLVM` and `winget install QPDF.QPDF`. `.cargo/config.toml` expects libclang in `C:\Program Files\LLVM\bin`; set `LIBCLANG_PATH` if yours is elsewhere.
-* **macOS:** Xcode's command line tools, which bring libclang. `brew install qpdf`.
-* **Linux** (Ubuntu 24.04 names): `libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev libclang-18-dev qpdf`.
+* **Windows:** the MSVC Build Tools 2022 with the Windows SDK, then `winget install LLVM.LLVM`, `winget install QPDF.QPDF` and `winget install NASM.NASM`, and add NASM's folder (`%LOCALAPPDATA%\bin\NASM`) to your PATH. `.cargo/config.toml` expects libclang in `C:\Program Files\LLVM\bin`; set `LIBCLANG_PATH` if yours is elsewhere.
+* **macOS:** Xcode's command line tools, which bring libclang. `brew install qpdf`, and on an Intel Mac `brew install nasm`.
+* **Linux** (Ubuntu 24.04 names): `libwebkit2gtk-4.1-dev libgtk-3-dev librsvg2-dev libayatana-appindicator3-dev libclang-18-dev qpdf nasm`.
+
+Without NASM, Lectrix still builds, but its JPEG decoder has no SIMD code and is no faster
+than MuPDF's own, and the
+test `libjpeg_turbo_has_its_simd_code` fails. Installed afterwards, NASM is used once the
+decoder is built again: `cargo clean -p mozjpeg-sys` (ADR 0024).
 
 ## Running it
 

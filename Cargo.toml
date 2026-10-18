@@ -15,7 +15,9 @@ rust-version = "1.99"
 # and docs/decisions/0001-mupdf-binding-coverage.md.
 # Without `system-fonts`: Lectrix's own font index replaces font-kit (ADR 0005).
 mupdf = { path = "third_party/mupdf-rs", default-features = false, features = ["base14-fonts", "brotli"] }
-mupdf-sys = { git = "https://github.com/messense/mupdf-rs", rev = "537d50556ee8e4abf2435f81357dfef3c145d883", default-features = false }
+# `libjpeg-turbo` is the fork's feature (below): JPEG decoded by libjpeg-turbo, not MuPDF's
+# bundled libjpeg (ADR 0024).
+mupdf-sys = { git = "https://github.com/messense/mupdf-rs", rev = "537d50556ee8e4abf2435f81357dfef3c145d883", default-features = false, features = ["libjpeg-turbo"] }
 thiserror = "=2.0.21"
 
 [profile.dev.package."*"]
@@ -23,8 +25,9 @@ thiserror = "=2.0.21"
 opt-level = 2
 
 
-# Lectrix's fork of mupdf-sys: the same MuPDF 1.27.2, with a build-time patch so JPEG 2000
-# images are decoded at the resolution they are drawn at (ADR 0008). The fork changes only
-# mupdf-sys/build.rs and adds mupdf-sys/folio_patches.rs; MuPDF itself is not forked.
+# Lectrix's fork of mupdf-sys: the same MuPDF 1.27.2, with build-time patches so JPEG 2000
+# images are decoded at the resolution they are drawn at (ADR 0008), and JPEG by
+# libjpeg-turbo, its rows copied whole (ADR 0024). The fork changes mupdf-sys's build
+# scripts and manifest and adds mupdf-sys/folio_patches.rs; MuPDF itself is not forked.
 [patch."https://github.com/messense/mupdf-rs"]
-mupdf-sys = { git = "https://github.com/pan4ratte/mupdf-rs", rev = "460b796a88f2fa4ba617b07fbb7f73e5308f1417" }
+mupdf-sys = { git = "https://github.com/pan4ratte/mupdf-rs", rev = "0c9267715f9f90da035be8e03c1cf0e140efeb5a" }

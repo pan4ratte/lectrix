@@ -21,6 +21,9 @@ runs:
         node-version: 24
         cache: npm
 
+    # libjpeg-turbo's SIMD code, in the MuPDF build (ADR 0024).
+    - uses: ./.github/actions/install-nasm
+
     # LLVM (libclang for bindgen) is preinstalled on windows-latest at C:\Program Files\LLVM,
     # which .cargo/config.toml points LIBCLANG_PATH at.
     - name: Install JS dependencies

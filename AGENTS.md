@@ -27,7 +27,7 @@ The stack is fixed: Tauri 2, a Rust backend running MuPDF, and a Svelte 5 fronte
 | --- | --- | --- |
 | App shell | Tauri 2 | WebView2 on Windows. Bundled with the Tauri bundler (an NSIS installer, ADR 0020). |
 | Backend language | Rust, stable toolchain | All PDF logic lives here. |
-| PDF engine | MuPDF (C library) | Via the `mupdf` Rust crate, vendored and patched in `third_party/mupdf-rs` (ADR 0001); `mupdf-sys` comes from Lectrix's fork (ADR 0008). The C API is called directly through `mupdf-sys` where the crate lacks coverage. |
+| PDF engine | MuPDF (C library) | Via the `mupdf` Rust crate, vendored and patched in `third_party/mupdf-rs` (ADR 0001); `mupdf-sys` comes from Lectrix's fork (ADR 0008), which also has MuPDF decode JPEG with libjpeg-turbo (ADR 0024; NASM is a build requirement). The C API is called directly through `mupdf-sys` where the crate lacks coverage. |
 | Frontend | Svelte 5 (runes) on SvelteKit | `adapter-static`, SSR disabled, as Tauri's own SvelteKit guide recommends. TypeScript in strict mode. |
 | Styling | Tailwind CSS | Through its Vite plugin. Design tokens as CSS variables. |
 | UI primitives | Bits UI (headless) and Lucide icons | Headless only, so the visual design stays ours. |

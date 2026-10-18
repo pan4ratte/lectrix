@@ -158,6 +158,9 @@ jobs:
         if: runner.os == 'macOS'
         run: echo "LIBCLANG_PATH=$(xcode-select -p)/Toolchains/XcodeDefault.xctoolchain/usr/lib" >> "$GITHUB_ENV"
 
+      # libjpeg-turbo's SIMD code, in the MuPDF build (ADR 0024).
+      - uses: ./.github/actions/install-nasm
+
       - name: Install JS dependencies
         run: npm ci
 

@@ -1,0 +1,33 @@
+name: Install NASM
+description: >
+  Installs NASM, which assembles libjpeg-turbo's SIMD code when MuPDF is built (the fork's
+  libjpeg-turbo feature, ADR 0024). Without NASM the build still succeeds, with a decoder
+  without SIMD, so this step fails the job when NASM cannot be run instead. Every job that
+  compiles MuPDF uses it.
+
+runs:
+  using: composite
+  steps:
+    - name: Install NASM (Windows)
+      if: runner.os == 'Windows'
+      shell: pwsh
+      run: |
+        choco install nasm --no-progress -y
+        Add-Content $env:GITHUB_PATH "$env:ProgramFiles\NASM"
+
+    - name: Install NASM (Linux)
+      if: runner.os == 'Linux'
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y nasm
+
+    # Apple silicon builds use libjpeg-turbo's Arm code, which needs no NASM; Intel builds do.
+    - name: Install NASM (macOS)
+      if: runner.os == 'macOS'
+      shell: bash
+      run: brew install nasm
+
+    - name: Check NASM
+      shell: bash
+      run: nasm -v

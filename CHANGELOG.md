@@ -19,6 +19,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 - Show documents side by side: drag a tab to the left or right edge of the pages, or right-click it and choose **Show beside the current tab**. Up to four documents share one tab, each in its own column with a header, and you can resize the columns by dragging the line between them. **View > Side by side** has the same commands.
 - Show one document twice, side by side, to read two parts of it at once: right-click its tab and choose **Show twice, side by side**. Each view has its own page and zoom, and a change made in one shows in both.
 - With documents side by side, the lock in the view bar scrolls them together, each keeping its distance from the others: page 3 beside page 10 stays page 3 beside page 10. Two views of the same document also share their zoom and rotation.
+- Pages with JPEG pictures appear sooner. In a book scanned as JPEG, each page takes about a third less time to draw, its thumbnails half the time, and a page you jump to is there sooner. A book whose cover is one large photo shows it about a fifth sooner when it opens.
 - Text on the pages is sharper. Pages are now shown pixel for pixel as they were drawn. Before, a page was drawn slightly larger than shown and then shrunk to fit, which softened every letter.
 - Tabs grow into the row as they open and shrink away as they close, instead of appearing and vanishing at once.
 - A tab dragged off the row and let go inside its window now stays there. Only a tab dropped outside the window gets a window of its own.
