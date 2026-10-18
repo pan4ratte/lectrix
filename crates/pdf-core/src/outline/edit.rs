@@ -12,7 +12,7 @@ use mupdf::pdf::{PdfDocument, PdfObject};
 use super::tree::Tree;
 use super::{ViewDest, destination_from_view};
 use crate::error::{Error, Result};
-use crate::objects::text_string;
+use crate::objects::{self, text_string};
 
 /// Adds a bookmark as child number `index` of `parent` (`None`: the top level; an index
 /// past the end appends). Returns the new bookmark's id.
@@ -156,6 +156,31 @@ pub fn set_destination(doc: &mut PdfDocument, id: u32, dest: &ViewDest) -> Resul
     obj.dict_put("Dest", destination_from_view(doc, dest)?)?;
     if obj.get_dict("A")?.is_some() {
         obj.dict_delete("A")?;
+    }
+    Ok(())
+}
+
+/// Gives a bookmark's title a colour (`/C`, DeviceRGB), or takes it away (`None`), which
+/// readers show as the default text colour. The same colour already there writes nothing.
+pub fn set_color(doc: &mut PdfDocument, id: u32, color: Option<[f32; 3]>) -> Result<()> {
+    let tree = editable(doc)?;
+    let node = find(&tree, id)?;
+    let mut obj = tree.nodes[node].obj.clone();
+    let current = match obj.get_dict("C")? {
+        Some(c) => Some(objects::numbers(&c)?),
+        None => None,
+    };
+    match color {
+        Some(c) => {
+            let wanted = c.map(f64::from);
+            let same = matches!(&current, Some(Some(v)) if v.len() == 3
+                && v.iter().zip(wanted).all(|(a, b)| (a - b).abs() < 0.5 / 255.0));
+            if !same {
+                obj.dict_put("C", objects::real_array(doc, &wanted)?)?;
+            }
+        }
+        None if current.is_some() => obj.dict_delete("C")?,
+        None => {}
     }
     Ok(())
 }

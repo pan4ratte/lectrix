@@ -36,6 +36,13 @@ the wording, translations): docs/releasing.md, "The changelog".
 - When the floating toolbar is set to show only near its edge, it now stays while one of its colour panels or lists is open. Before, it disappeared and left the panel or list floating on its own.
 - With **Add a comment after marking text** on, **Ctrl+Z** in the new annotation’s empty comment removes the annotation itself, and so it does in a new sticky note. Before, it did nothing there. Text you typed in the comment is undone first.
 
+### Bookmarks
+
+- **Rename** in a bookmark’s menu now works. Before, the title field closed as soon as it opened.
+- A bookmark’s properties open beside the bookmark in the Bookmarks panel, pointing at it. Before, they opened at the top right of the pages.
+- A bookmark can be given a colour in its properties, with the same colours as annotations, or set back to the default. Its title shows in that colour, as in other PDF readers; a colour from another app showed as a dot before.
+- The bookmark properties no longer have a **Go to** button: click the bookmark to go to it.
+
 ### Settings
 
 - A new command switches between the light and the dark theme. It has no shortcut until you give it one in **Settings > Shortcuts**, under View.

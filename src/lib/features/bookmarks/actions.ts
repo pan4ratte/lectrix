@@ -131,6 +131,13 @@ export async function setDestinationHere(tab: DocTab, id: number) {
 	await app.apply(tab, { kind: 'setBookmarkDestination', id, dest: tab.viewer.topLeft() });
 }
 
+/** Gives a bookmark's title a colour (#rrggbb), or takes its colour away (null). */
+export async function setBookmarkColor(tab: DocTab, id: number, color: string | null) {
+	const current = locate(tab.outline.items, id)?.bookmark;
+	if (!current || current.color === color || refuseEdit(tab)) return;
+	await app.apply(tab, { kind: 'setBookmarkColor', id, color });
+}
+
 export async function moveBookmark(tab: DocTab, id: number, to: Position) {
 	if (refuseEdit(tab)) return;
 	const change = await app.apply(tab, { kind: 'moveBookmark', id, parent: to.parent, index: to.index });

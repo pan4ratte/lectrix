@@ -141,6 +141,11 @@ pub enum Operation {
         id: u32,
         dest: ViewDest,
     },
+    /// Gives a bookmark's title a colour (`/C`), or takes it away (`None`).
+    SetBookmarkColor {
+        id: u32,
+        color: Option<[f32; 3]>,
+    },
     /// Replaces the page labels with `rules` (a rule at the first page is added if
     /// missing); an empty list removes them. Rules already stored that way change nothing.
     SetPageLabels {
@@ -198,6 +203,7 @@ impl Operation {
             Operation::MoveBookmark { .. } => "Move bookmark".into(),
             Operation::DeleteBookmark { .. } => "Delete bookmark".into(),
             Operation::SetBookmarkDestination { .. } => "Change bookmark destination".into(),
+            Operation::SetBookmarkColor { .. } => "Change bookmark colour".into(),
             Operation::SetPageLabels { rules } if rules.is_empty() => "Remove page labels".into(),
             Operation::SetPageLabels { .. } => "Change page labels".into(),
             Operation::InsertPages { source, .. } if source.pages.len() == 1 => {
@@ -296,6 +302,7 @@ impl Operation {
             | Operation::MoveBookmark { .. }
             | Operation::DeleteBookmark { .. }
             | Operation::SetBookmarkDestination { .. }
+            | Operation::SetBookmarkColor { .. }
             | Operation::SetPageLabels { .. }
             | Operation::InsertPages { .. } => true,
             Operation::AddAnnotation { .. }
@@ -319,7 +326,8 @@ impl Operation {
             | Operation::RenameBookmark { .. }
             | Operation::MoveBookmark { .. }
             | Operation::DeleteBookmark { .. }
-            | Operation::SetBookmarkDestination { .. } => OutlineEffect::Any,
+            | Operation::SetBookmarkDestination { .. }
+            | Operation::SetBookmarkColor { .. } => OutlineEffect::Any,
             Operation::SetPageLabels { .. }
             | Operation::AddAnnotation { .. }
             | Operation::AddAnnotations { .. }
@@ -370,6 +378,12 @@ impl Operation {
             }
             Operation::RenameBookmark { title, .. } => edit::clean_title(title).map(drop),
             Operation::SetBookmarkDestination { dest, .. } => check_dest(dest, page_count),
+            Operation::SetBookmarkColor { color, .. } => match color {
+                Some(c) if c.iter().any(|v| !(0.0..=1.0).contains(v)) => Err(
+                    Error::InvalidArgument(format!("bookmark colour out of range: {c:?}")),
+                ),
+                _ => Ok(()),
+            },
             Operation::MoveBookmark { .. } | Operation::DeleteBookmark { .. } => Ok(()),
             Operation::SetPageLabels { rules } if rules.is_empty() => Ok(()),
             Operation::SetPageLabels { rules } => {
@@ -500,6 +514,9 @@ impl Operation {
             Operation::DeleteBookmark { id } => edit::delete(doc, *id).map(|()| None),
             Operation::SetBookmarkDestination { id, dest } => {
                 edit::set_destination(doc, *id, dest).map(|()| None)
+            }
+            Operation::SetBookmarkColor { id, color } => {
+                edit::set_color(doc, *id, *color).map(|()| None)
             }
             Operation::SetPageLabels { rules } => {
                 labels::set_rules(doc, rules.clone()).map(|_| None)

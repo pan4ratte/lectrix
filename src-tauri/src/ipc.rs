@@ -1002,6 +1002,11 @@ pub enum OperationInput {
         id: u32,
         dest: ViewDest,
     },
+    /// Give a bookmark's title a colour (#rrggbb), or take it away (null).
+    SetBookmarkColor {
+        id: u32,
+        color: Option<String>,
+    },
     /// Replace the page labels (a rule at the first page is added if missing); an empty
     /// list removes them.
     SetPageLabels {
@@ -1133,6 +1138,16 @@ impl OperationInput {
             OperationInput::SetBookmarkDestination { id, dest } => Op::SetBookmarkDestination {
                 id,
                 dest: dest.into(),
+            },
+            OperationInput::SetBookmarkColor { id, color } => Op::SetBookmarkColor {
+                id,
+                color: match color {
+                    Some(hex) => {
+                        let c = crate::annotations::parse_hex(&hex)?;
+                        Some([c.r, c.g, c.b])
+                    }
+                    None => None,
+                },
             },
             OperationInput::SetPageLabels { rules } => Op::SetPageLabels {
                 rules: rules.into_iter().map(Into::into).collect(),

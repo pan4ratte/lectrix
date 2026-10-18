@@ -209,4 +209,14 @@ describe.each([
 			if (contrast(value, theme.pane) >= 3 && contrast(value, selected) >= 3) expect(shown, name).toBe(value);
 		}
 	});
+
+	it('coloured bookmark titles show at 4.5:1, black ones in the dark theme too', () => {
+		const theme = _name === 'dark' ? PANE_COLORS.dark : PANE_COLORS.light;
+		const selected = mix(theme.pane, theme.accent, ROW_SELECTED_SHARE);
+		for (const { value, name } of [...PRESET_COLORS, { value: '#000000', name: 'Black' }]) {
+			const shown = legibleOnPane(value, _name === 'dark', 4.5);
+			expect(contrast(shown, theme.pane), `${name} on the pane`).toBeGreaterThanOrEqual(4.5);
+			expect(contrast(shown, selected), `${name} on a selected row`).toBeGreaterThanOrEqual(4.5);
+		}
+	});
 });

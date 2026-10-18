@@ -234,7 +234,7 @@ enum OutlineAction {
     /// view-space point (points from the page's top-left), PARENT is an id or `-` for the
     /// top level:
     ///   add:PARENT:INDEX:PAGE:X:Y:TITLE   rename:ID:TITLE   move:ID:PARENT:INDEX
-    ///   delete:ID   retarget:ID:PAGE:X:Y   open:ID   close:ID
+    ///   delete:ID   retarget:ID:PAGE:X:Y   color:ID:RRGGBB|none   open:ID   close:ID
     Edit {
         input: PathBuf,
         out: PathBuf,
@@ -1025,6 +1025,25 @@ fn parse_outline_step(spec: &str) -> Result<OutlineStep> {
                 },
             })
         }
+        "color" => {
+            let (i, c) = rest.split_once(':').ok_or_else(bad)?;
+            let color = if c == "none" {
+                None
+            } else {
+                let hex = c.strip_prefix('#').unwrap_or(c);
+                let ch = |at: usize| {
+                    hex.get(at..at + 2)
+                        .and_then(|h| u8::from_str_radix(h, 16).ok())
+                        .map(|v| f32::from(v) / 255.0)
+                        .ok_or_else(bad)
+                };
+                if hex.len() != 6 {
+                    return Err(bad());
+                }
+                Some([ch(0)?, ch(2)?, ch(4)?])
+            };
+            OutlineStep::Op(Operation::SetBookmarkColor { id: id(i)?, color })
+        }
         "open" => OutlineStep::Open(id(rest)?, true),
         "close" => OutlineStep::Open(id(rest)?, false),
         _ => return Err(bad()),
@@ -1116,8 +1135,15 @@ fn print_bookmarks(items: &[Bookmark], depth: usize) {
         } else {
             "+"
         };
+        let color = b
+            .color
+            .map(|c| {
+                let [r, g, b] = c.map(|v| (v.clamp(0.0, 1.0) * 255.0).round() as u8);
+                format!(" (colour #{r:02x}{g:02x}{b:02x})")
+            })
+            .unwrap_or_default();
         println!(
-            "{}{marker} [{}] {} -> {}",
+            "{}{marker} [{}] {} -> {}{color}",
             "  ".repeat(depth + 1),
             b.id,
             b.title,

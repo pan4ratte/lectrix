@@ -9,12 +9,14 @@
 	import { BookmarkPlus, ChevronRight, TriangleAlert } from '@lucide/svelte';
 	import { ContextMenu } from 'bits-ui';
 	import { tick } from 'svelte';
+	import { MediaQuery } from 'svelte/reactivity';
 
 	import { chain } from '#lib/components/chain.ts';
 	import { ClickCounter } from '#lib/components/clicks.ts';
 	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
+	import { legibleOnPane } from '#lib/theme.ts';
 
 	import {
 		addBookmark,
@@ -48,6 +50,17 @@
 		return rows.slice(first, last).map((row, i) => ({ row, top: (first + i) * ROW }));
 	});
 	const selectedIndex = $derived(rows.findIndex((r) => r.bookmark.id === tab.selectedBookmark));
+
+	// A bookmark's own colour is its title's (section 6.2), moved toward the text colour as
+	// far as 4.5:1 on the pane needs: a black title in the dark theme, a yellow one in the light.
+	const systemDark = new MediaQuery('(prefers-color-scheme: dark)');
+	const dark = $derived(
+		app.settings?.appearance === 'dark' || (app.settings?.appearance !== 'light' && systemDark.current)
+	);
+
+	function titleColor(color: string | null): string | undefined {
+		return color && /^#[0-9a-f]{6}$/i.test(color) ? legibleOnPane(color, dark, 4.5) : undefined;
+	}
 
 	function ensureVisible(index: number) {
 		if (!list || index < 0) return;
@@ -297,6 +310,13 @@
 		if (hit) tab.selectedBookmark = hit.row.bookmark.id;
 	}
 
+	function keepRenameFocus(event: Event) {
+		if (tab.renamingBookmark === null) return;
+		event.preventDefault();
+		const field = list?.querySelector<HTMLInputElement>('.tree-rename');
+		if (field && document.activeElement !== field) focusSelect(field);
+	}
+
 	function onScroll() {
 		if (list) scrollTop = list.scrollTop;
 	}
@@ -380,9 +400,6 @@
 									{:else}
 										<span class="w-5 shrink-0" aria-hidden="true"></span>
 									{/if}
-									{#if b.color}
-										<span class="bookmark-color" style:background-color={b.color} aria-hidden="true"></span>
-									{/if}
 									{#if tab.renamingBookmark === b.id}
 										<input
 											class="tree-rename"
@@ -393,7 +410,12 @@
 											onblur={(e) => onRenameBlur(e, b.id)}
 										/>
 									{:else}
-										<span class="truncate" class:font-semibold={b.bold} class:italic={b.italic}>{b.title || '(untitled)'}</span>
+										<span
+											class="truncate"
+											class:font-semibold={b.bold}
+											class:italic={b.italic}
+											style:color={titleColor(b.color)}>{b.title || '(untitled)'}</span
+										>
 									{/if}
 								</div>
 							{/each}
@@ -410,7 +432,9 @@
 				{/snippet}
 			</ContextMenu.Trigger>
 			<ContextMenu.Portal>
-				<ContextMenu.Content class="menu-content">
+				<!-- Rename's field keeps the focus it takes, rather than the menu handing it back
+				     to the tree, whose taking it would end the rename at once (the field's blur). -->
+				<ContextMenu.Content class="menu-content" onCloseAutoFocus={keepRenameFocus}>
 					{#if menuBookmark}
 						{@const b = menuBookmark}
 						<ContextMenu.Item class="menu-item" onSelect={() => goToBookmark(tab, b.id)}>

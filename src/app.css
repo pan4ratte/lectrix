@@ -2441,13 +2441,6 @@ button.shortcut-key:hover,
 	background: var(--lectrix-surface);
 	outline: none;
 }
-.bookmark-color {
-	width: 8px;
-	height: 8px;
-	flex-shrink: 0;
-	margin-right: 4px;
-	border-radius: 50%;
-}
 .tree-drop-inside {
 	box-shadow: inset 0 0 0 2px var(--lectrix-accent);
 }

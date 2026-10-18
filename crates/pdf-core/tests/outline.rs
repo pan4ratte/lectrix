@@ -432,6 +432,62 @@ fn bookmark_edits_undo_and_redo() {
 }
 
 #[test]
+fn bookmark_colours_are_set_kept_and_removed() {
+    let dir = out_dir("outline-color");
+    let path = write_fixture(&dir, "color.pdf");
+    let original = std::fs::read(&path).unwrap();
+    let (session, info) = Session::open(&path, None).unwrap();
+    assert_eq!(find(&info.outline, A2).color, Some([0.0, 0.0, 1.0]));
+    let red = [1.0, 0.0, 0.0];
+    let set = session
+        .apply(Operation::SetBookmarkColor {
+            id: A,
+            color: Some(red),
+        })
+        .unwrap();
+    assert_eq!(
+        set.state.undo_name.as_deref(),
+        Some("Change bookmark colour")
+    );
+    assert_eq!(find(set.outline.as_ref().unwrap(), A).color, Some(red));
+    session.undo().unwrap();
+    assert_eq!(find(&session.info().unwrap().outline, A).color, None);
+    session.redo().unwrap();
+    // Taking a colour away removes /C; the item keeps its style and unknown keys.
+    session
+        .apply(Operation::SetBookmarkColor {
+            id: A2,
+            color: None,
+        })
+        .unwrap();
+    let out_of_range = session.apply(Operation::SetBookmarkColor {
+        id: B,
+        color: Some([2.0, 0.0, 0.0]),
+    });
+    assert!(matches!(out_of_range, Err(Error::InvalidArgument(_))));
+    // The colour a bookmark already has, or no colour for one without, writes nothing.
+    for (id, color) in [(A, Some(red)), (D, None)] {
+        session
+            .apply(Operation::SetBookmarkColor { id, color })
+            .unwrap();
+    }
+
+    common::writing(|| session.save(SaveKind::Incremental, None)).unwrap();
+    session.close();
+    let saved = std::fs::read(&path).unwrap();
+    qpdf_check(&path);
+    let written = objects_written_after(&saved, original.len());
+    assert_eq!(written, [A, A2].into());
+    let after = open(&path);
+    let outline = read_bookmarks(&after).unwrap();
+    assert_eq!(find(&outline, A).color, Some(red));
+    assert_eq!(find(&outline, A2).color, None);
+    let a2 = after.new_indirect(A2 as i32, 0).unwrap();
+    assert!(a2.get_dict("C").unwrap().is_none());
+    assert_eq!(a2.get_dict("F").unwrap().unwrap().as_int().unwrap(), 3);
+}
+
+#[test]
 fn invalid_moves_and_titles_change_nothing() {
     let dir = out_dir("outline-invalid");
     let path = write_fixture(&dir, "invalid.pdf");

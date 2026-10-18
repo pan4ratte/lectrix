@@ -128,3 +128,59 @@ test('add, rename, nest, undo, save and reopen bookmarks', async () => {
 		await stop();
 	}
 });
+
+test('rename from the menu, and the properties beside the bookmark with its colour', async () => {
+	const path = sample('bookmark-properties.pdf', 3);
+
+	let { browser, stop } = await launch([path]);
+	try {
+		await waitForDocument(browser);
+		await (await browser.$('button[aria-label="Bookmarks"]')).click();
+		await browser.keys(['Control', 'b']);
+		await typeTitle(browser, 'Intro');
+		await waitForRows(browser, [['Intro', 1, null]], 'bookmark added');
+
+		// Rename in the context menu opens the field and keeps it open for typing.
+		await (await row(browser, 'Intro')).click({ button: 'right' });
+		await (await browser.$('.menu-item*=Rename')).click();
+		await typeTitle(browser, 'Introduction');
+		await waitForRows(browser, [['Introduction', 1, null]], 'renamed from the menu');
+
+		// Properties float beside the row, over the pages, with no Go to button.
+		await (await row(browser, 'Introduction')).click({ button: 'right' });
+		await (await browser.$('.menu-item*=Properties')).click();
+		const inspector = await browser.$('aside[aria-label="Bookmark properties"]');
+		await inspector.waitForDisplayed();
+		const placed = () =>
+			browser.execute(() => {
+				const r = document.querySelector('.tree-row[aria-selected="true"]').getBoundingClientRect();
+				const p = document.querySelector('aside[aria-label="Bookmark properties"]').getBoundingClientRect();
+				const middle = (r.top + r.bottom) / 2;
+				return p.left >= r.right && p.left - r.right < 80 && p.top <= middle && p.bottom >= middle;
+			});
+		await browser.waitUntil(placed, { timeoutMsg: 'the properties are not beside the bookmark' });
+		const labels = await browser.execute(() =>
+			[...document.querySelectorAll('aside[aria-label="Bookmark properties"] button')].map((b) => b.textContent.trim())
+		);
+		assert.ok(!labels.includes('Go to'), `buttons: ${labels.join(', ')}`);
+
+		// A colour colours the title in the panel.
+		await (await inspector.$('[data-color-button]')).click();
+		const panel = await browser.$('.color-panel');
+		await panel.waitForDisplayed();
+		await (await panel.$('.swatch[aria-label="Blue"]')).click();
+		await browser.keys('Escape');
+		const titleColor = () =>
+			browser.execute(() => document.querySelector('.tree-row[aria-selected="true"] .truncate').style.color);
+		await browser.waitUntil(async () => (await titleColor()) !== '', { timeoutMsg: 'the title took no colour' });
+		await browser.keys(['Control', 's']);
+		await browser.waitUntil(async () => (await statusText(browser)).includes('All changes saved'), {
+			timeout: 10_000,
+			timeoutMsg: 'saving did not finish'
+		});
+	} finally {
+		await stop();
+	}
+
+	assert.deepEqual(outlineLines(path), ['    Introduction -> page 1 at 0,0 (colour #0000ff)']);
+});

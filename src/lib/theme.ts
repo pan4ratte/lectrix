@@ -48,16 +48,17 @@ export const PANE_COLORS = {
 export const ROW_SELECTED_SHARE = 0.16;
 
 /**
- * `hex`, moved toward the text colour just far enough that it shows at 3:1 (WCAG 1.4.11)
- * on a side pane, plain or under a selected row's tint. A colour that already shows stays
- * as it is, so annotation colours keep their own look wherever they can.
+ * `hex`, moved toward the text colour just far enough that it shows at `ratio` on a side
+ * pane, plain or under a selected row's tint: 3:1 for an icon (WCAG 1.4.11), 4.5:1 for text
+ * (1.4.3). A colour that already shows stays as it is, so annotation and bookmark colours
+ * keep their own look wherever they can.
  */
-export function legibleOnPane(hex: string, dark: boolean): string {
+export function legibleOnPane(hex: string, dark: boolean, ratio = 3): string {
 	const { pane, fg, accent } = dark ? PANE_COLORS.dark : PANE_COLORS.light;
 	const selected = mix(pane, accent, ROW_SELECTED_SHARE);
 	for (let step = 0; step <= 20; step++) {
 		const c = mix(hex, fg, step / 20);
-		if (contrast(c, pane) >= 3 && contrast(c, selected) >= 3) return c;
+		if (contrast(c, pane) >= ratio && contrast(c, selected) >= ratio) return c;
 	}
 	return fg;
 }
