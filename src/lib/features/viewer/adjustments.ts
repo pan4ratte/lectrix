@@ -1,7 +1,9 @@
 // Visual adjustments (section 6.1): brightness, contrast, sepia, inverted colours and
 // greyscale for a document's pages, as a CSS filter on the page images and, for sepia, a
-// paper tone laid over them. Only on screen: nothing here reaches Rust's renderer or the
-// file. Settings give every document its adjustments; one adjusted by itself has its own,
+// paper tone laid over them. Greyscale and inverted colours leave the annotations out: a
+// page with annotations is then its content, filtered, with its annotations on a layer of
+// their own over it, both rendered by Rust. Only on screen: nothing here reaches the file.
+// Settings give every document its adjustments; one adjusted by itself has its own,
 // remembered with its view.
 
 import type { PageAdjustments } from '#lib/ipc/index.ts';
@@ -63,12 +65,42 @@ export function isAdjusted(a: PageAdjustments): boolean {
  * link blue: the lightness is what is inverted. Sepia is not a filter (`pageTone`).
  */
 export function pageFilter(a: PageAdjustments): string | null {
+	const parts = [colourFilter(a), lightFilter(a)].filter((f) => f !== null);
+	return parts.length > 0 ? parts.join(' ') : null;
+}
+
+/**
+ * The part of `pageFilter` that changes the colours, greyscale and the inversion, or null
+ * for none. It is applied to the page without its annotations, which are laid over it as
+ * they are (`annotationLayer`), and to the selection and what else is drawn over the page.
+ */
+export function colourFilter(a: PageAdjustments): string | null {
 	const parts: string[] = [];
 	if (a.grayscale) parts.push('grayscale(1)');
 	if (a.invert) parts.push('invert(1)', 'hue-rotate(180deg)');
+	return parts.length > 0 ? parts.join(' ') : null;
+}
+
+/** The rest of `pageFilter`, brightness and contrast, or null for none: applied to the
+ * page as it is seen, annotations included. */
+export function lightFilter(a: PageAdjustments): string | null {
+	const parts: string[] = [];
 	if (a.brightness !== 100) parts.push(`brightness(${a.brightness / 100})`);
 	if (a.contrast !== 100) parts.push(`contrast(${a.contrast / 100})`);
 	return parts.length > 0 ? parts.join(' ') : null;
+}
+
+/**
+ * The layer a page's annotations are drawn on, apart from the page, while its colours are
+ * adjusted, or null while they are not. Greyscale leaves the annotations their colours
+ * (`annots`: drawn as on the page as it is). An inverted page has them inverted in Rust
+ * (`annots-dark`: lightness inverted with hue and saturation kept, a highlight dark enough
+ * for the light text over it) and laid over it as light (`screen`), so that a yellow
+ * highlight is yellow, not the muddy brown that inverting the page makes of it.
+ */
+export function annotationLayer(a: PageAdjustments): 'annots' | 'annots-dark' | null {
+	if (a.invert) return 'annots-dark';
+	return a.grayscale ? 'annots' : null;
 }
 
 /**

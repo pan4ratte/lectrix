@@ -10,7 +10,7 @@ import { basename, join } from 'node:path';
 import { test } from 'node:test';
 
 import { OUT, launch, statusText, waitForDocument } from '../lib/app.mjs';
-import { sample } from '../lib/pdfcli.mjs';
+import { cli, sample } from '../lib/pdfcli.mjs';
 
 const BUTTON = '[data-visual-adjustments]';
 const PANEL = '[role=dialog][aria-label="Visual adjustments"]';
@@ -22,9 +22,12 @@ const hash = (path) => createHash('sha256').update(readFileSync(path)).digest('h
 function look(browser) {
 	return browser.execute((button) => {
 		const b = document.querySelector(button);
+		// The colours part of the filter is on the pixels, brightness and contrast on all.
+		const filter = (layer) =>
+			layer && [layer.querySelector('[data-page-pixels]')?.style.filter, layer.style.filter].filter(Boolean).join(' ');
 		return {
-			page: document.querySelector('.page[data-page="0"] [data-page-layer]')?.style.filter ?? null,
-			thumbnail: document.querySelector('[data-thumb="0"] > span > span')?.style.filter ?? null,
+			page: filter(document.querySelector('.page[data-page="0"] [data-page-layer]')) ?? null,
+			thumbnail: filter(document.querySelector('[data-thumb="0"] > span > span')) ?? null,
 			tone: document.querySelector('.page[data-page="0"] [data-page-tone]')?.style.opacity ?? null,
 			thumbTone: document.querySelector('[data-thumb="0"] [data-page-tone]')?.style.opacity ?? null,
 			button: b?.getAttribute('aria-label') ?? null,
@@ -36,22 +39,34 @@ function look(browser) {
 /** The colour on screen at the top-left corner of the first page (its margin), from a
  * screenshot: what the user sees there, filter included. */
 async function marginColour(browser) {
+	return colourAt(browser, null);
+}
+
+/** The colour on screen at a point of the first page (`at`, in points from its top-left
+ * corner, on a 612 pt wide page), or 12 px into its corner (`at` null). */
+async function colourAt(browser, at) {
 	const shot = await browser.takeScreenshot();
-	return browser.executeAsync((png, done) => {
-		const image = new Image();
-		image.onload = () => {
-			const r = document.querySelector('.page[data-page="0"]').getBoundingClientRect();
-			const k = image.width / innerWidth;
-			const canvas = document.createElement('canvas');
-			canvas.width = image.width;
-			canvas.height = image.height;
-			const context = canvas.getContext('2d');
-			context.drawImage(image, 0, 0);
-			const top = Math.max(r.top, document.querySelector('.viewer-scroll').getBoundingClientRect().top);
-			done([...context.getImageData(Math.round((r.left + 12) * k), Math.round((top + 12) * k), 1, 1).data.slice(0, 3)]);
-		};
-		image.src = `data:image/png;base64,${png}`;
-	}, shot);
+	return browser.executeAsync(
+		(png, at, done) => {
+			const image = new Image();
+			image.onload = () => {
+				const r = document.querySelector('.page[data-page="0"]').getBoundingClientRect();
+				const k = image.width / innerWidth;
+				const canvas = document.createElement('canvas');
+				canvas.width = image.width;
+				canvas.height = image.height;
+				const context = canvas.getContext('2d');
+				context.drawImage(image, 0, 0);
+				const top = Math.max(r.top, document.querySelector('.viewer-scroll').getBoundingClientRect().top);
+				const pt = r.width / 612;
+				const [x, y] = at ? [r.left + at[0] * pt, r.top + at[1] * pt] : [r.left + 12, top + 12];
+				done([...context.getImageData(Math.round(x * k), Math.round(y * k), 1, 1).data.slice(0, 3)]);
+			};
+			image.src = `data:image/png;base64,${png}`;
+		},
+		shot,
+		at
+	);
 }
 
 async function openPanel(browser) {
@@ -190,6 +205,70 @@ test('visual adjustments change how the pages look, not the file, and are rememb
 		assert.ok(white.every((c) => c > 240), `the page is white again: ${white}`);
 	} finally {
 		await run.stop();
+	}
+});
+
+test('greyscale and inverted colours leave the annotations their colours', async () => {
+	// A yellow highlight and a red line in the margin beside the text.
+	const plain = sample('annotated-adjusted-plain.pdf', 1);
+	const marked = join(OUT, 'annotated-adjusted-marked.pdf');
+	const path = join(OUT, 'annotated-adjusted.pdf');
+	cli('annot', 'markup', plain, marked, '--rect', '500,90,580,130', '--color', 'FFD100');
+	cli('annot', 'ink', marked, path, '--stroke', '500,170;580,170', '--width', '8', '--color', 'E52237');
+	const HIGHLIGHT = [540, 110];
+	const LINE = [540, 170];
+	const { browser, stop } = await launch([path]);
+	try {
+		await waitForDocument(browser);
+		const layer = () =>
+			browser.execute(() => document.querySelector('.page[data-page="0"] [data-annotation-layer]')?.dataset.annotationLayer ?? null);
+		/** The colour at a point once the page's images are all drawn. */
+		const settled = async (at) => {
+			await browser.waitUntil(async () => (await browser.execute(() => document.querySelector('.page[data-page="0"] canvas.opacity-0') === null)), {
+				timeout: 4000
+			});
+			await browser.pause(400);
+			return colourAt(browser, at);
+		};
+		assert.equal(await layer(), null, 'the annotations are part of the page as it is');
+		const yellow = await settled(HIGHLIGHT);
+		const red = await settled(LINE);
+		assert.ok(yellow[0] > 230 && yellow[1] > 190 && yellow[2] < 60, `the highlight: ${yellow}`);
+		assert.ok(red[0] > 200 && red[1] < 80 && red[2] < 90, `the line: ${red}`);
+
+		await openPanel(browser);
+		const [invert, greyscale] = await browser.$$(`${PANEL} [role=switch]`);
+
+		// Greyscale: the page grey, the annotations as they are.
+		await greyscale.click();
+		await browser.waitUntil(async () => (await layer()) === 'annots', { timeout: 4000, timeoutMsg: 'no annotation layer under greyscale' });
+		await browser.keys(['Escape']);
+		const greyHighlight = await settled(HIGHLIGHT);
+		const greyLine = await settled(LINE);
+		assert.ok(
+			greyHighlight.every((c, i) => Math.abs(c - yellow[i]) <= 6),
+			`greyscale changed the highlight: ${greyHighlight} against ${yellow}`
+		);
+		assert.ok(greyLine.every((c, i) => Math.abs(c - red[i]) <= 6), `greyscale changed the line: ${greyLine} against ${red}`);
+		const thumbnailLayer = await browser.execute(() => document.querySelector('[data-thumb="0"] [data-page-pixels] + span') !== null);
+		assert.ok(thumbnailLayer, 'the thumbnail has no annotation layer');
+
+		// Inverted: the paper dark, the highlight a gold that light text stays readable on
+		// (inverting the page made it a brown of luminance under 0.1), the line red.
+		await openPanel(browser);
+		await invert.click();
+		await browser.waitUntil(async () => (await layer()) === 'annots-dark', { timeout: 4000, timeoutMsg: 'no dark annotation layer' });
+		await browser.keys(['Escape']);
+		const [r, g, b] = await settled(HIGHLIGHT);
+		const luminance = (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+		assert.ok(r >= g && g > b + 40 && luminance > 0.25 && luminance < 0.45, `the inverted highlight: ${[r, g, b]}`);
+		const darkLine = await settled(LINE);
+		assert.ok(darkLine[0] > 180 && darkLine[1] < 80 && darkLine[2] < 90, `the inverted line: ${darkLine}`);
+		const paper = await marginColour(browser);
+		assert.ok(paper.every((c) => c < 15), `the inverted page is dark: ${paper}`);
+		await browser.saveScreenshot(join(OUT, 'visual-adjustments-annotations.png'));
+	} finally {
+		await stop();
 	}
 });
 

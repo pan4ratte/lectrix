@@ -25,6 +25,9 @@ import type { Box } from '#lib/features/annotations/geometry.ts';
 import { lineBreaks } from '#lib/features/annotations/tools.ts';
 import { pageDefaults } from '#lib/features/viewer/adjustments.svelte.ts';
 import {
+	annotationLayer as annotationLayerOf,
+	colourFilter as colourFilterOf,
+	lightFilter as lightFilterOf,
 	normalizeAdjustments,
 	pageFilter as filterOf,
 	pageTone as toneOf,
@@ -742,6 +745,11 @@ export class DocTab {
 	adjustments = $derived(this.ownAdjustments ?? pageDefaults.value);
 	/** The CSS filter that shows a page so, or null for the pages as they are. */
 	pageFilter = $derived(filterOf(this.adjustments));
+	/** Its colours part, on the page without annotations, and its light part, on all. */
+	pageColour = $derived(colourFilterOf(this.adjustments));
+	pageLight = $derived(lightFilterOf(this.adjustments));
+	/** The layer annotations are drawn on while the colours are adjusted, or null. */
+	annotationLayer = $derived(annotationLayerOf(this.adjustments));
 	/** How much of the sepia paper tone lies over a page (0 to 1), or null for none. */
 	pageTone = $derived(toneOf(this.adjustments));
 	/** How the pages are laid out (section 6.1, scroll modes); not stored in the file. */
@@ -913,6 +921,18 @@ export class DocTab {
 
 	annotationsOn(page: number): readonly Annotation[] {
 		return this.doc.annotationsOn(page);
+	}
+
+	/**
+	 * The layer page `index`'s annotations are drawn on, over its content, or null when it
+	 * is drawn whole: only while the colours are adjusted (`annotationLayer`), and only
+	 * when the page shows annotations (`hidden`: those the annotation list leaves out).
+	 * Other pages are their content already.
+	 */
+	annotationLayerOn(index: number, hidden: readonly number[] = []): 'annots' | 'annots-dark' | null {
+		const layer = this.annotationLayer;
+		if (layer === null) return null;
+		return this.doc.hitTargets(index).some((a) => !hidden.includes(a.id)) ? layer : null;
 	}
 
 	annotation(page: number, id: number): Annotation | null {

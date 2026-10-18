@@ -1380,6 +1380,70 @@ fn the_session_renders_a_page_without_the_annotations_to_hide() {
 }
 
 #[test]
+fn the_annotation_layer_over_the_content_makes_the_page_as_it_is() {
+    let dir = out_dir("annot-session-layer");
+    let src = sample_file(&dir, "doc.pdf", SampleSpec::default());
+    let specs = every_kind(&open(&src), 0);
+    let (session, _) = Session::open(&src, None).unwrap();
+    let mut last = 0;
+    for spec in &specs {
+        last = session
+            .apply(Operation::AddAnnotation {
+                annotation: spec.clone(),
+            })
+            .unwrap()
+            .state
+            .revision;
+    }
+    let lists = session.annotation_lists(0, &[]).unwrap();
+    assert_eq!(lists.revision, last);
+    let scale = 1.5;
+    let content = pdf_core::render::render_rgba(&lists.content, scale, None).unwrap();
+    let (whole, _) = session.render_rgba(0, scale, None, &[]).unwrap();
+    let layer = |dark| {
+        pdf_core::render::annotation_layer(
+            &content,
+            &lists.highlights,
+            &lists.others,
+            scale,
+            None,
+            dark,
+        )
+        .unwrap()
+    };
+    let plain = layer(false);
+    // Every type is on it, and laid over the content it makes the page as it is (but for
+    // a level or two, where MuPDF composites a page with a blended highlight as a group).
+    let mut drawn = 0;
+    for ((l, c), w) in plain
+        .data
+        .chunks(4)
+        .zip(content.data.chunks(4))
+        .zip(whole.data.chunks(4))
+    {
+        let shown = if l[3] == 255 {
+            drawn += 1;
+            l
+        } else {
+            assert_eq!(l, [0; 4]);
+            c
+        };
+        let off = shown.iter().zip(w).map(|(a, b)| a.abs_diff(*b)).max();
+        assert!(off <= Some(2), "{shown:?} against {w:?}");
+    }
+    assert!(drawn > 1000, "only {drawn} pixels drawn");
+    // For an inverted page, the same pixels.
+    let dark = layer(true);
+    assert!(
+        dark.data
+            .chunks(4)
+            .zip(plain.data.chunks(4))
+            .all(|(d, l)| d[3] == l[3])
+    );
+    assert_ne!(dark.data, plain.data);
+}
+
+#[test]
 fn repair_is_one_undo_step() {
     let dir = out_dir("annotations-repair-session");
     let src = other_app_file(&dir);

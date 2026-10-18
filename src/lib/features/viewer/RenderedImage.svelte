@@ -21,10 +21,27 @@
 		height: number;
 		/** The page's `/Rotate` the image is rendered for (whole pages only). */
 		rotation?: number;
+		/** The image has transparent pixels (an annotation layer): the canvas is cleared
+		 * before it is drawn, not drawn over. */
+		transparent?: boolean;
+		/** Kept, but not shown. */
+		hidden?: boolean;
 		ondrawn?: (imageKey: string) => void;
 	}
 
-	let { imageKey, url, priority, x, y, width, height, rotation = 0, ondrawn }: Props = $props();
+	let {
+		imageKey,
+		url,
+		priority,
+		x,
+		y,
+		width,
+		height,
+		rotation = 0,
+		transparent = false,
+		hidden = false,
+		ondrawn
+	}: Props = $props();
 
 	let canvas: HTMLCanvasElement | undefined = $state();
 	let drawnKey = '';
@@ -56,6 +73,7 @@
 				// A CPU-backed canvas: Chromium keeps an accelerated canvas's pixels in the GPU process
 				// as well, which doubled the memory of every page on screen (ADR 0002).
 				const ctx = canvas.getContext('2d', { willReadFrequently: /Windows/i.test(navigator.userAgent) });
+				if (ctx && transparent) ctx.clearRect(0, 0, image.width, image.height);
 				if (ctx) image.draw(ctx);
 				drawnKey = key;
 				drawnRotation = rendered;
@@ -93,7 +111,7 @@
 <canvas
 	bind:this={canvas}
 	class="absolute block"
-	class:opacity-0={failed && !everDrawn}
+	class:opacity-0={(failed && !everDrawn) || hidden}
 	style:left="{sideways ? x + (width - height) / 2 : x}px"
 	style:top="{sideways ? y + (height - width) / 2 : y}px"
 	style:width="{sideways ? height : width}px"

@@ -725,7 +725,10 @@
 		return pagesBeside(layout, mounted[0], mounted[1])
 			.map((index) => {
 				const whole = wholePageScale(tab.pages[index]!, scale);
-				return pageUrl(tab.id, index, whole, tab.state.revision, undefined, undefined, hiddenOnPage(tab, index));
+				const hidden = hiddenOnPage(tab, index);
+				// A page with an annotation layer: rendering that renders its content too.
+				const layer = tab.annotationLayerOn(index, hidden) ?? undefined;
+				return pageUrl(tab.id, index, whole, tab.state.revision, undefined, undefined, hidden, layer);
 			})
 			.join(' ');
 	});

@@ -281,6 +281,7 @@
 							{@const turn = turnOf(index)}
 							{@const pictureW = turn === 90 || turn === 270 ? item.imageH : thumbW}
 							{@const pictureH = turn === 90 || turn === 270 ? thumbW : item.imageH}
+							{@const layer = tab.annotationLayerOn(index)}
 							<button
 								type="button"
 								data-thumb={index}
@@ -308,21 +309,48 @@
 									     the page's turn on screen. -->
 									<span
 										class="absolute top-0 left-0 origin-top-left bg-white"
+										class:isolate={layer}
 										style:width="{pictureW}px"
 										style:height="{pictureH}px"
 										style:transform={turnTransform(turn, pictureW, pictureH)}
-										style:filter={tab.pageFilter}
+										style:filter={tab.pageLight}
 									>
-										<RenderedImage
-											imageKey="{tab.id}:{index}:{tab.state.revision}:{scale(index)}"
-											url={pageUrl(tab.id, index, scale(index), tab.state.revision)}
-											priority={BACKGROUND_PRIORITY + Math.abs(index - tab.currentPage)}
-											x={0}
-											y={0}
-											width={pictureW}
-											height={pictureH}
-											rotation={tab.pages[index]?.rotation ?? 0}
-										/>
+										<span class="absolute inset-0 bg-white" style:filter={tab.pageColour} data-page-pixels>
+											<RenderedImage
+												imageKey="{tab.id}:{index}:{tab.state.revision}:{scale(index)}:{layer ? 'content' : ''}"
+												url={pageUrl(
+													tab.id,
+													index,
+													scale(index),
+													tab.state.revision,
+													undefined,
+													undefined,
+													undefined,
+													layer ? 'content' : undefined
+												)}
+												priority={BACKGROUND_PRIORITY + Math.abs(index - tab.currentPage)}
+												x={0}
+												y={0}
+												width={pictureW}
+												height={pictureH}
+												rotation={tab.pages[index]?.rotation ?? 0}
+											/>
+										</span>
+										{#if layer}
+											<span class="absolute inset-0" class:mix-blend-screen={layer === 'annots-dark'}>
+												<RenderedImage
+													imageKey="{tab.id}:{index}:{tab.state.revision}:{scale(index)}:{layer}"
+													url={pageUrl(tab.id, index, scale(index), tab.state.revision, undefined, undefined, undefined, layer)}
+													priority={BACKGROUND_PRIORITY + Math.abs(index - tab.currentPage) + 0.5}
+													x={0}
+													y={0}
+													width={pictureW}
+													height={pictureH}
+													rotation={tab.pages[index]?.rotation ?? 0}
+													transparent
+												/>
+											</span>
+										{/if}
 									</span>
 									{#if tab.pageTone !== null}
 										<span class="page-tone" style:opacity={tab.pageTone} data-page-tone aria-hidden="true"></span>

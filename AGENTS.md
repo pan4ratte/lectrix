@@ -60,7 +60,7 @@ Down-arrows carry typed operations and calls; up-arrows carry page images, revis
 
 **Rendering pipeline.**
 
-- The frontend requests pages through a custom URI protocol: `lectrix://page/{docId}/{pageIndex}?scale={s}&rev={r}`. Including the document revision in the URL makes cache invalidation automatic. `&hide={n},{n}…` names annotations to leave out of the image, by object number: the ones the annotation list filters out (section 6.5).
+- The frontend requests pages through a custom URI protocol: `lectrix://page/{docId}/{pageIndex}?scale={s}&rev={r}`. Including the document revision in the URL makes cache invalidation automatic. `&hide={n},{n}…` names annotations to leave out of the image, by object number: the ones the annotation list filters out (section 6.5). `&layer=content`, `annots` or `annots-dark` asks for the page without its annotations or for them alone, for visual adjustments that leave annotations out (section 6.1).
 - Rust renders the page with MuPDF and returns a PNG at the fastest compression level (ADR 0004). Raw RGBA drawn into a `<canvas>` stays available for measurement (`LECTRIX_IMAGE_FORMAT`).
 - Above a zoom threshold, render 512 px tiles instead of whole pages.
 - The start screen's grid gets recent files' first pages from `lectrix://recent/{index}?w={px}&opened={ms}`: rendered from the file on disk without opening it as a document, named by the file's place in the recent list and the time it was opened (never by a path from the webview), and kept in memory while the file's size and modification time are unchanged.

@@ -47,7 +47,7 @@ use crate::merge::{self, MergeReport};
 use crate::ops::{NumberedDests, Operation, OutlineEffect};
 use crate::outline::{self, Outline};
 use crate::pages::DeleteReport;
-use crate::render::{self, PixelRect, RgbaImage};
+use crate::render::{self, Part, PixelRect, RgbaImage};
 use crate::save::{SaveKind, SaveOutcome, save_atomic, save_atomic_checked};
 use crate::text::{self, FoundWord, PageText, SearchHit};
 
@@ -185,6 +185,15 @@ pub struct PageHits {
     pub words: Vec<FoundWord>,
 }
 
+/// The display lists of a page's annotation layer ([`render::annotation_layer`]): its
+/// content, its highlights and its other annotations, at one revision.
+pub struct AnnotationLists {
+    pub content: Arc<DisplayList>,
+    pub highlights: Arc<DisplayList>,
+    pub others: Arc<DisplayList>,
+    pub revision: u64,
+}
+
 type Reply<T> = SyncSender<Result<T>>;
 
 enum Command {
@@ -195,6 +204,7 @@ enum Command {
         page: usize,
         /// Object numbers of annotations to leave out (sorted, without repeats).
         hidden: Vec<u32>,
+        part: Part,
         cache: bool,
         reply: Reply<(Arc<DisplayList>, u64)>,
     },
@@ -349,15 +359,50 @@ impl Session {
         page: usize,
         hidden: &[u32],
     ) -> Result<(Arc<DisplayList>, u64)> {
+        self.display_list_part(page, hidden, Part::Whole)
+    }
+
+    /// The display list of `part` of `page`, without the annotations in `hidden`, and the
+    /// revision it shows. Cached on the actor.
+    pub fn display_list_part(
+        &self,
+        page: usize,
+        hidden: &[u32],
+        part: Part,
+    ) -> Result<(Arc<DisplayList>, u64)> {
         let mut hidden = hidden.to_vec();
         hidden.sort_unstable();
         hidden.dedup();
         self.call(|reply| Command::DisplayList {
             page,
             hidden,
+            part,
             cache: true,
             reply,
         })
+    }
+
+    /// The display lists an annotation layer of `page` is made from
+    /// ([`render::annotation_layer`]), all of the same revision.
+    pub fn annotation_lists(&self, page: usize, hidden: &[u32]) -> Result<AnnotationLists> {
+        // The document may change between the calls; it changes seldom, so asking again
+        // soon gets three of one revision.
+        for _ in 0..4 {
+            let (content, revision) = self.display_list_part(page, &[], Part::Content)?;
+            let (highlights, a) = self.display_list_part(page, hidden, Part::Highlights)?;
+            let (others, b) = self.display_list_part(page, hidden, Part::OtherAnnotations)?;
+            if a == revision && b == revision {
+                return Ok(AnnotationLists {
+                    content,
+                    highlights,
+                    others,
+                    revision,
+                });
+            }
+        }
+        Err(Error::InvalidArgument(
+            "the document kept changing while its page was drawn".into(),
+        ))
     }
 
     /// Renders `page` (or one tile of it) to RGBA on the calling thread, without the
@@ -369,7 +414,20 @@ impl Session {
         tile: Option<PixelRect>,
         hidden: &[u32],
     ) -> Result<(RgbaImage, u64)> {
-        let (list, revision) = self.display_list_hiding(page, hidden)?;
+        self.render_part(page, scale, tile, hidden, Part::Whole)
+    }
+
+    /// Renders `part` of `page` (or one tile of it) to RGBA on the calling thread, without
+    /// the annotations in `hidden`.
+    pub fn render_part(
+        &self,
+        page: usize,
+        scale: f32,
+        tile: Option<PixelRect>,
+        hidden: &[u32],
+        part: Part,
+    ) -> Result<(RgbaImage, u64)> {
+        let (list, revision) = self.display_list_part(page, hidden, part)?;
         Ok((render::render_rgba(&list, scale, tile)?, revision))
     }
 
@@ -412,6 +470,7 @@ impl Session {
             let (list, rev) = match self.call(|reply| Command::DisplayList {
                 page,
                 hidden: Vec::new(),
+                part: Part::Whole,
                 cache: false,
                 reply,
             }) {
@@ -518,9 +577,9 @@ impl Session {
     }
 }
 
-/// What a cached display list shows: a page, without the annotations with these object
-/// numbers.
-type ListKey = (usize, Vec<u32>);
+/// What a cached display list shows: a part of a page, without the annotations with these
+/// object numbers.
+type ListKey = (usize, Vec<u32>, Part);
 
 /// Display lists kept per document. Small: a display list for a scanned page holds a
 /// reference to its decoded image.
@@ -607,10 +666,11 @@ fn actor(origin: Origin, rx: Receiver<Command>, ready: SyncSender<Result<Documen
             Command::DisplayList {
                 page,
                 hidden,
+                part,
                 cache,
                 reply,
             } => {
-                let _ = reply.send(actor.display_list(page, hidden, cache));
+                let _ = reply.send(actor.display_list(page, hidden, part, cache));
             }
             Command::Apply { op, reply } => {
                 let _ = reply.send(actor.apply(&op));
@@ -846,10 +906,11 @@ impl Actor {
         &mut self,
         page: usize,
         hidden: Vec<u32>,
+        part: Part,
         cache: bool,
     ) -> Result<(Arc<DisplayList>, u64)> {
         let revision = self.revision();
-        let key = (page, hidden);
+        let key = (page, hidden, part);
         if let Some(i) = self.lists.iter().position(|(k, _)| *k == key) {
             // Move to the back (most recently used).
             if let Some(entry) = self.lists.remove(i) {
@@ -858,7 +919,10 @@ impl Actor {
                 return Ok((list, revision));
             }
         }
-        let list = Arc::new(render::display_list_hiding(&self.doc, page, &key.1)?);
+        let list = Arc::new(match part {
+            Part::Whole => render::display_list_hiding(&self.doc, page, &key.1)?,
+            _ => render::display_list_part(&self.doc, page, &key.1, part)?,
+        });
         if cache {
             if self.lists.len() >= DISPLAY_LIST_CACHE {
                 self.lists.pop_front();

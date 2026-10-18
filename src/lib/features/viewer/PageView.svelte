@@ -4,7 +4,9 @@
 	// points scaled to CSS pixels; a CSS transform turns it as the page is shown (the view
 	// rotation and the page's own turn, section 6.1). The document's visual adjustments
 	// (section 6.1) are a CSS filter on all of that, pixels and overlays alike, so what
-	// shows on the page stays as visible as it was; the page's shadow is outside it.
+	// shows on the page stays as visible as it was; the page's shadow is outside it. Its
+	// colours part (greyscale, inverted) leaves the annotations out: a page with
+	// annotations is then its content, with the annotations on a layer over it.
 	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 
@@ -86,7 +88,12 @@
 	/** The annotations the annotation list filters out, which the page is drawn without. */
 	const hidden = $derived(hiddenOnPage(tab, index));
 	const hiddenKey = $derived(hidden.join(','));
-	const baseKey = $derived(`${tab.id}:${index}:${revision}:${baseScale}:${hiddenKey}`);
+	/** While the colours are adjusted, a page with annotations is its content, filtered,
+	 * with its annotations on a layer of their own over it (section 6.1). */
+	const annotLayer = $derived(tab.annotationLayerOn(index, hidden));
+	/** What the page's pixels are drawn without: its annotations, or those hidden. */
+	const without = $derived(annotLayer ? 'content' : hiddenKey);
+	const baseKey = $derived(`${tab.id}:${index}:${revision}:${baseScale}:${without}`);
 	let drawnBase = $state('');
 
 	/** Maps a rectangle in the rotated page box (CSS px) to unrotated CSS px. */
@@ -183,6 +190,20 @@
 	});
 	/** Old tiles first, so the new ones are drawn over them. */
 	const shownTiles = $derived([...underTiles.filter((t) => t.scale !== scale), ...(tiled ? tiles : [])]);
+
+	/** The annotation layer's tiles drawn, by image key. Its tiles are transparent, so only
+	 * the current scale's are shown, and its whole-page image beneath until they are all
+	 * drawn. */
+	const drawnLayerTiles = new SvelteSet<string>();
+	const layerTileKey = (t: Tile) => `${tab.id}:${index}:${revision}:${t.id}:${hiddenKey}:${annotLayer}`;
+	const layerTilesDrawn = $derived(tiled && tiles.length > 0 && tiles.every((t) => drawnLayerTiles.has(layerTileKey(t))));
+	$effect(() => {
+		// Keys of other revisions, scales and layers are not drawn any more.
+		void revision;
+		void scale;
+		void annotLayer;
+		untrack(() => drawnLayerTiles.clear());
+	});
 
 	// Pixels on screen for the current revision (the whole page, or the tile underlay).
 	let drawnRevision = $state(-1);
@@ -300,48 +321,104 @@
 	role="img"
 	aria-label={label ? `Page ${label} (${index + 1} of ${tab.pageCount})` : `Page ${index + 1} of ${tab.pageCount}`}
 >
+	<!-- Brightness and contrast act on the page as it is seen, annotations included; the
+	     colours part of the filter on everything but the annotations' own layer. -->
 	<div
 		class="absolute top-0 left-0 origin-top-left"
-		class:bg-white={tab.pageFilter}
+		class:isolate={annotLayer}
 		style:width="{innerW}px"
 		style:height="{innerH}px"
 		style:transform
-		style:filter={tab.pageFilter}
+		style:filter={tab.pageLight}
 		data-page-layer
 	>
-		<!-- The whole page, or the low-resolution underlay beneath tiles: one canvas either
-		     way, so crossing the tile threshold keeps the pixels already there. -->
-		<RenderedImage
-			imageKey={baseKey}
-			url={pageUrl(tab.id, index, baseScale, revision, undefined, undefined, hidden)}
-			{priority}
-			x={0}
-			y={0}
-			width={innerW}
-			height={innerH}
-			rotation={size.rotation}
-			ondrawn={(key) => {
-				drawnBase = key;
-				drawnRevision = revision;
-				markPageDrawn();
-			}}
-		/>
-		{#each shownTiles as t (t.id)}
+		<div class="absolute inset-0" class:bg-white={tab.pageFilter} style:filter={tab.pageColour} data-page-pixels>
+			<!-- The whole page, or the low-resolution underlay beneath tiles: one canvas either
+			     way, so crossing the tile threshold keeps the pixels already there. -->
 			<RenderedImage
-				imageKey="{tab.id}:{index}:{revision}:{t.id}:{hiddenKey}"
-				url={pageUrl(tab.id, index, t.scale, revision, { x: t.x, y: t.y, width: t.w, height: t.h }, undefined, hidden)}
-				priority={priority + 0.5}
-				x={(t.x * k) / t.scale}
-				y={(t.y * k) / t.scale}
-				width={(t.w * k) / t.scale}
-				height={(t.h * k) / t.scale}
-				ondrawn={() => drawnTiles.add(t.id)}
+				imageKey={baseKey}
+				url={pageUrl(tab.id, index, baseScale, revision, undefined, undefined, hidden, annotLayer ? 'content' : undefined)}
+				{priority}
+				x={0}
+				y={0}
+				width={innerW}
+				height={innerH}
+				rotation={size.rotation}
+				ondrawn={(key) => {
+					drawnBase = key;
+					drawnRevision = revision;
+					markPageDrawn();
+				}}
 			/>
-		{/each}
+			{#each shownTiles as t (t.id)}
+				<RenderedImage
+					imageKey="{tab.id}:{index}:{revision}:{t.id}:{without}"
+					url={pageUrl(
+						tab.id,
+						index,
+						t.scale,
+						revision,
+						{ x: t.x, y: t.y, width: t.w, height: t.h },
+						undefined,
+						hidden,
+						annotLayer ? 'content' : undefined
+					)}
+					priority={priority + 0.5}
+					x={(t.x * k) / t.scale}
+					y={(t.y * k) / t.scale}
+					width={(t.w * k) / t.scale}
+					height={(t.h * k) / t.scale}
+					ondrawn={() => drawnTiles.add(t.id)}
+				/>
+			{/each}
+		</div>
+		{#if annotLayer}
+			<!-- The annotations, unfiltered: as they are under greyscale, and made light for an
+			     inverted page, which they are laid over as light. -->
+			<div class="absolute inset-0" class:mix-blend-screen={annotLayer === 'annots-dark'} data-annotation-layer={annotLayer}>
+				<!-- Beneath tiles only until they are drawn: being transparent, they would show
+				     its blurrier annotations around theirs. -->
+				<RenderedImage
+					imageKey="{tab.id}:{index}:{revision}:{baseScale}:{hiddenKey}:{annotLayer}"
+					url={pageUrl(tab.id, index, baseScale, revision, undefined, undefined, hidden, annotLayer)}
+					priority={priority + 0.25}
+					x={0}
+					y={0}
+					width={innerW}
+					height={innerH}
+					rotation={size.rotation}
+					transparent
+					hidden={layerTilesDrawn}
+				/>
+				{#each tiled ? tiles : [] as t (t.id)}
+					<RenderedImage
+						imageKey={layerTileKey(t)}
+						url={pageUrl(
+							tab.id,
+							index,
+							t.scale,
+							revision,
+							{ x: t.x, y: t.y, width: t.w, height: t.h },
+							undefined,
+							hidden,
+							annotLayer
+						)}
+						priority={priority + 0.75}
+						x={(t.x * k) / t.scale}
+						y={(t.y * k) / t.scale}
+						width={(t.w * k) / t.scale}
+						height={(t.h * k) / t.scale}
+						transparent
+						ondrawn={(key) => drawnLayerTiles.add(key)}
+					/>
+				{/each}
+			</div>
+		{/if}
 
 		{#if selection.length || hits.length || showSelected || linkTint || cursor || (draft && draft.kind !== 'text')}
 			<svg
 				class="pointer-events-none absolute inset-0"
+				style:filter={tab.pageColour}
 				width={innerW}
 				height={innerH}
 				viewBox="0 0 {size.width} {size.height}"
@@ -472,6 +549,7 @@
 				style:transform={textDraft.turn ? `rotate(${-textDraft.turn}deg)` : undefined}
 				style:font-size="{textDraft.fontSize * k}px"
 				style:color={textDraft.color}
+				style:filter={tab.pageColour}
 				value={textDraft.text}
 				aria-label="Text box text"
 				spellcheck="true"

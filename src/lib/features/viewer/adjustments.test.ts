@@ -5,7 +5,10 @@ import {
 	ADJUST_MIN,
 	NO_ADJUSTMENTS,
 	SEPIA_MAX,
+	annotationLayer,
+	colourFilter,
 	isAdjusted,
+	lightFilter,
 	normalizeAdjustments,
 	pageFilter,
 	pageTone,
@@ -37,6 +40,20 @@ describe('visual adjustments', () => {
 		expect(pageFilter({ brightness: 70, contrast: 110, invert: true, grayscale: true, sepia: 0 })).toBe(
 			'grayscale(1) invert(1) hue-rotate(180deg) brightness(0.7) contrast(1.1)'
 		);
+	});
+
+	it('split into the colours, which leave the annotations out, and the light, which does not', () => {
+		const a = { brightness: 70, contrast: 110, invert: true, grayscale: true, sepia: 0 };
+		expect(colourFilter(a)).toBe('grayscale(1) invert(1) hue-rotate(180deg)');
+		expect(lightFilter(a)).toBe('brightness(0.7) contrast(1.1)');
+		expect(colourFilter({ ...NO_ADJUSTMENTS, brightness: 80 })).toBeNull();
+		expect(lightFilter({ ...NO_ADJUSTMENTS, grayscale: true })).toBeNull();
+		// The annotations are drawn apart as they are under greyscale, and made light on a
+		// dark page when it is inverted; with neither, they are part of the page.
+		expect(annotationLayer({ ...NO_ADJUSTMENTS, grayscale: true })).toBe('annots');
+		expect(annotationLayer({ ...NO_ADJUSTMENTS, invert: true })).toBe('annots-dark');
+		expect(annotationLayer(a)).toBe('annots-dark');
+		expect(annotationLayer({ ...NO_ADJUSTMENTS, brightness: 80, contrast: 120, sepia: 40 })).toBeNull();
 	});
 
 	it('tone the page sepia by a layer over it, not by the filter', () => {

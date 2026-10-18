@@ -329,6 +329,10 @@ export function setImageFormat(format: ImageFormat) {
 	imageFormat = format;
 }
 
+/** Part of a page an image can show: without its annotations, or its annotations alone
+ * (for an inverted page, `annots-dark`). */
+export type PageLayer = 'content' | 'annots' | 'annots-dark';
+
 /** The most annotations a page image can be asked to leave out (mirrors `MAX_HIDDEN` in
  * `protocol.rs`); with more, the page is asked for with all of them. */
 export const MAX_HIDDEN = 1024;
@@ -337,6 +341,8 @@ export const MAX_HIDDEN = 1024;
  * URL of a rendered page image. WebView2 (Windows) serves custom protocols as
  * http://<scheme>.localhost; other platforms use <scheme>://localhost. `hidden` names the
  * annotations to leave out, by object number: the ones the annotation list filters out.
+ * `layer` asks for part of the page: its content without annotations, or its annotations
+ * alone (`protocol.rs`; section 6.1, visual adjustments).
  */
 export function pageUrl(
 	docId: number,
@@ -345,12 +351,15 @@ export function pageUrl(
 	rev: number,
 	tile?: TileRect,
 	format: ImageFormat = imageFormat,
-	hidden: readonly number[] = []
+	hidden: readonly number[] = [],
+	layer?: PageLayer
 ): string {
 	const base = isWindows() ? 'http://lectrix.localhost' : 'lectrix://localhost';
 	let url = `${base}/page/${docId}/${pageIndex}?scale=${scale.toFixed(3)}&rev=${rev}`;
 	if (tile) url += `&tile=${tile.x},${tile.y},${tile.width},${tile.height}`;
-	if (hidden.length > 0 && hidden.length <= MAX_HIDDEN) url += `&hide=${hidden.join(',')}`;
+	// The content has no annotations to leave out.
+	if (layer !== 'content' && hidden.length > 0 && hidden.length <= MAX_HIDDEN) url += `&hide=${hidden.join(',')}`;
+	if (layer) url += `&layer=${layer}`;
 	if (format === 'png') url += '&fmt=png';
 	return url;
 }

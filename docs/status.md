@@ -152,7 +152,12 @@ pages, `tests/perf/organize.mjs` (its numbers are under "Organizing pages" below
   Alt+F4 and Alt+Tab still do what they do, is in the manual checklist, not yet done.
 - **Visual adjustments.** Invert colours keeps hues by CSS's `hue-rotate`, which is an
   approximation: saturated colours come out darker or lighter than they were, and
-  photographs look odd, as inverted ones do. No command (so no shortcut) turns an
+  photographs look odd, as inverted ones do. Annotations are left out of it and of
+  greyscale (their own layer, rendered by Rust): a page with annotations takes a second
+  image while either is on, not measured. The layer is drawn after the content, so for a
+  moment after a page appears its annotations may be missing. A highlight that lies over
+  another annotation is drawn under it on an inverted page; a highlight over a picture
+  shows that part of the picture in colour under greyscale. No command (so no shortcut) turns an
   adjustment on or off; the panel does. The start screen's previews and the Combine view
   show pages as they are. Scrolling with adjustments on has not been measured
   (`tests/perf/measure.ps1` runs without them); the filter is applied by the compositor,

@@ -12,7 +12,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
-use mupdf::pdf::PdfDocument;
+use mupdf::pdf::{PdfAnnotationType, PdfDocument};
 use mupdf::{Colorspace, Device, DisplayList, Document, IRect, Matrix, Pixmap};
 
 use crate::error::{Error, Result};
@@ -66,6 +66,16 @@ fn check_scale(scale: f32) -> Result<()> {
 /// Renders a display list at `scale` to opaque RGBA on white: the whole page, or only
 /// `region` (clipped to the page) for a tile.
 pub fn render_rgba(list: &DisplayList, scale: f32, region: Option<PixelRect>) -> Result<RgbaImage> {
+    let area = image_area(list, scale, region)?;
+    Ok(RgbaImage {
+        width: area.width,
+        height: area.height,
+        data: draw(list, scale, area, None)?,
+    })
+}
+
+/// The part of the page an image at `scale` covers: all of it, or `region` clipped to it.
+fn image_area(list: &DisplayList, scale: f32, region: Option<PixelRect>) -> Result<PixelRect> {
     check_scale(scale)?;
     let bounds = list.bounds();
     let (page_w, page_h) = pixel_size(bounds.width(), bounds.height(), scale);
@@ -96,6 +106,12 @@ pub fn render_rgba(list: &DisplayList, scale: f32, region: Option<PixelRect>) ->
             area.width, area.height
         )));
     }
+    Ok(area)
+}
+
+/// Draws a display list at `scale` into `area` of the page, over opaque white or over
+/// `under` (opaque pixels of that same area), and returns the packed RGBA.
+fn draw(list: &DisplayList, scale: f32, area: PixelRect, under: Option<&[u8]>) -> Result<Vec<u8>> {
     let to_i32 =
         |v: u32| i32::try_from(v).map_err(|_| Error::InvalidArgument("image too large".into()));
     let (x, y, w, h) = (
@@ -106,10 +122,29 @@ pub fn render_rgba(list: &DisplayList, scale: f32, region: Option<PixelRect>) ->
     );
 
     // An RGBA pixmap whose origin is the tile's position in page pixels; MuPDF clips
-    // drawing to it. Cleared to opaque white, so premultiplied and straight alpha agree
-    // and the canvas can take the bytes as they are.
+    // drawing to it. Opaque from the start (white, or the pixels under), so premultiplied
+    // and straight alpha agree and the canvas can take the bytes as they are.
     let mut pixmap = Pixmap::new(&Colorspace::device_rgb(), x, y, w, h, true)?;
-    pixmap.clear_with(255)?;
+    match under {
+        None => pixmap.clear_with(255)?,
+        Some(pixels) => {
+            let row_bytes = area.width as usize * 4;
+            if pixels.len() != row_bytes * area.height as usize {
+                return Err(Error::InvalidArgument(
+                    "the pixels under do not fit the image".into(),
+                ));
+            }
+            let stride = usize::try_from(pixmap.stride())
+                .map_err(|_| Error::InvalidArgument("negative pixmap stride".into()))?;
+            for (row, src) in pixmap
+                .samples_mut()
+                .chunks_mut(stride)
+                .zip(pixels.chunks(row_bytes))
+            {
+                row[..row_bytes].copy_from_slice(src);
+            }
+        }
+    }
     {
         let device = Device::from_pixmap_with_clip(&pixmap, IRect::new(x, y, x + w, y + h))?;
         let ctm = Matrix::new_scale(scale, scale);
@@ -118,11 +153,143 @@ pub fn render_rgba(list: &DisplayList, scale: f32, region: Option<PixelRect>) ->
         list.run(&device, &ctm, scissor)?;
         // Dropping the device closes it, which flushes pending drawing into the pixmap.
     }
+    packed_samples(&pixmap, 4)
+}
+
+/// The annotations of a page on their own, for a page shown with visual adjustments that
+/// leave them out (section 6.1). `content` is the page without them ([`Part::Content`] at
+/// the same scale and region), `highlights` and `others` its annotations
+/// ([`Part::Highlights`], [`Part::OtherAnnotations`]). They are drawn over the content as
+/// the whole page draws them, and every pixel they change keeps what they made of it; the
+/// rest is transparent. Laid over the adjusted content, the annotations look as they do on
+/// the page as it is, and so does what lies under a highlight.
+///
+/// `dark` makes the layer for an inverted page, to be laid over it as light (CSS
+/// `screen`, so light text under a highlight stays light): each changed pixel gets its
+/// lightness inverted and its hue and saturation kept ([`dark_stroke`], [`dark_tint`]).
+/// Black ink turns white and a red stays red, where inverting the page turns a yellow
+/// highlight a muddy brown.
+pub fn annotation_layer(
+    content: &RgbaImage,
+    highlights: &DisplayList,
+    others: &DisplayList,
+    scale: f32,
+    region: Option<PixelRect>,
+    dark: bool,
+) -> Result<RgbaImage> {
+    let area = image_area(highlights, scale, region)?;
+    if (content.width, content.height) != (area.width, area.height) {
+        return Err(Error::InvalidArgument(
+            "the page's content does not fit the layer".into(),
+        ));
+    }
+    let tinted = draw(highlights, scale, area, Some(&content.data))?;
+    let mut data = draw(others, scale, area, Some(&tinted))?;
+    let pixels = data
+        .as_chunks_mut::<4>()
+        .0
+        .iter_mut()
+        .zip(tinted.as_chunks::<4>().0)
+        .zip(content.data.as_chunks::<4>().0);
+    for ((out, tint), under) in pixels {
+        let [r, g, b, _] = *out;
+        *out = if out[..3] != tint[..3] {
+            // An annotation other than a highlight, drawn last, made this pixel.
+            let [r, g, b] = if dark {
+                dark_stroke([r, g, b])
+            } else {
+                [r, g, b]
+            };
+            [r, g, b, 255]
+        } else if tint[..3] != under[..3] {
+            let [r, g, b] = if dark {
+                dark_tint([r, g, b])
+            } else {
+                [r, g, b]
+            };
+            [r, g, b, 255]
+        } else {
+            [0; 4]
+        };
+    }
     Ok(RgbaImage {
         width: area.width,
         height: area.height,
-        data: packed_samples(&pixmap, 4)?,
+        data,
     })
+}
+
+/// How light a fully saturated highlight may be on an inverted page, as relative
+/// luminance, so that the light text over it stays readable. A grey may be as light as it
+/// comes out.
+const DARK_TINT_MOST: f32 = 0.4;
+/// How light a highlight's colour is at least on an inverted page: a pale one (light pink
+/// at 40%) inverts to nearly black. Reached by scaling the colour up, which keeps it as
+/// saturated as it is; a highlight that is nearly grey gets less of it.
+const DARK_TINT_LEAST: f32 = 0.2;
+/// How light a fully saturated annotation colour is at least on an inverted page: pure
+/// blue is nearly black there.
+const DARK_LEAST: f32 = 0.2;
+
+/// A colour's relative luminance (Rec. 709, on the channel values as they are).
+fn luminance([r, g, b]: [f32; 3]) -> f32 {
+    0.2126 * r + 0.7152 * g + 0.0722 * b
+}
+
+/// The colour with its HSL lightness inverted and its hue and saturation kept, and its
+/// chroma (0 for a grey, 1 for a pure colour). The same amount added to every channel
+/// keeps the hue and the chroma, and `1 - max - min` takes (max + min) / 2 to its inverse.
+fn lightness_inverted(colour: [u8; 3]) -> ([f32; 3], f32) {
+    let c = colour.map(|v| f32::from(v) / 255.0);
+    let max = c[0].max(c[1]).max(c[2]);
+    let min = c[0].min(c[1]).min(c[2]);
+    let shift = 1.0 - max - min;
+    (c.map(|v| v + shift), max - min)
+}
+
+/// The colour at `least` luminance or more: mixed with white as far as that takes.
+fn lit_at_least(c: [f32; 3], least: f32) -> [f32; 3] {
+    let l = luminance(c);
+    if l >= least {
+        return c;
+    }
+    // `l < least <= DARK_LEAST`, so `1 - l` is well above 0.
+    let t = (least - l) / (1.0 - l);
+    c.map(|v| v + (1.0 - v) * t)
+}
+
+fn to_bytes(c: [f32; 3]) -> [u8; 3] {
+    // In 0..=255 once clamped, so the cast is exact.
+    c.map(|v| (v.clamp(0.0, 1.0) * 255.0).round() as u8)
+}
+
+/// What a pixel of ink, a line, a note's icon or a text box's text becomes on an inverted
+/// page: its lightness inverted (black turns white, a dark blue light blue), and a pure
+/// colour too dark to see there lit a little.
+pub fn dark_stroke(colour: [u8; 3]) -> [u8; 3] {
+    let (c, chroma) = lightness_inverted(colour);
+    to_bytes(lit_at_least(c, DARK_LEAST * chroma))
+}
+
+/// What a pixel of a highlight becomes on an inverted page: as [`dark_stroke`], a bright
+/// colour (a full yellow) dimmed until the light text over it stays readable, and a pale
+/// one (a light colour at 40%) brightened until it shows.
+pub fn dark_tint(colour: [u8; 3]) -> [u8; 3] {
+    let (c, chroma) = lightness_inverted(colour);
+    let c = lit_at_least(c, DARK_LEAST * chroma);
+    let most = 1.0 - (1.0 - DARK_TINT_MOST) * chroma;
+    let least = DARK_TINT_LEAST * (4.0 * chroma).min(1.0);
+    let l = luminance(c);
+    // Scaled only when `l` is well above 0: past `most >= DARK_TINT_MOST`, or a colour
+    // with some luminance under `least`.
+    let factor = if l > most {
+        most / l
+    } else if l < least && l > 1e-3 {
+        least / l
+    } else {
+        1.0
+    };
+    to_bytes(c.map(|v| v * factor))
 }
 
 /// The tallest a preview may be, as a multiple of its width: a very tall page (a receipt,
@@ -157,23 +324,31 @@ pub fn first_page_preview(path: &Path, width: u32) -> Result<RgbaImage> {
     render_rgba(&list, scale, None)
 }
 
-/// Encodes opaque RGBA pixels as an RGB PNG at the fastest compression level (the alpha
-/// channel is always 255, so it is dropped).
+/// Encodes RGBA pixels as PNG at the fastest compression level: RGB for an opaque image (a
+/// page: the alpha channel is always 255, so it is dropped), RGBA for one that is not (an
+/// [`annotation_layer`]).
 pub fn encode_rgba_png(image: &RgbaImage) -> Result<Vec<u8>> {
-    let rgb: Vec<u8> = image
-        .data
-        .as_chunks::<4>()
-        .0
-        .iter()
-        .flat_map(|[r, g, b, _]| [*r, *g, *b])
-        .collect();
-    let mut out = Vec::with_capacity(rgb.len() / 4);
+    let pixels = image.data.as_chunks::<4>().0;
+    let opaque = pixels.iter().all(|p| p[3] == 255);
+    let mut out = Vec::with_capacity(image.data.len() / 4);
     let mut encoder = png::Encoder::new(&mut out, image.width, image.height);
-    encoder.set_color(png::ColorType::Rgb);
+    encoder.set_color(if opaque {
+        png::ColorType::Rgb
+    } else {
+        png::ColorType::Rgba
+    });
     encoder.set_depth(png::BitDepth::Eight);
     encoder.set_compression(png::Compression::Fastest);
     let mut writer = encoder.write_header().map_err(png_error)?;
-    writer.write_image_data(&rgb).map_err(png_error)?;
+    if opaque {
+        let rgb: Vec<u8> = pixels
+            .iter()
+            .flat_map(|[r, g, b, _]| [*r, *g, *b])
+            .collect();
+        writer.write_image_data(&rgb).map_err(png_error)?;
+    } else {
+        writer.write_image_data(&image.data).map_err(png_error)?;
+    }
     writer.finish().map_err(png_error)?;
     Ok(out)
 }
@@ -219,27 +394,70 @@ pub fn display_list_hiding(doc: &PdfDocument, index: usize, hidden: &[u32]) -> R
     if hidden.is_empty() {
         return display_list(doc, index);
     }
+    display_list_part(doc, index, hidden, Part::Whole)
+}
+
+/// What of a page a display list draws.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Part {
+    /// All of it: content, annotations, form fields.
+    Whole,
+    /// The page without its annotations: content and form fields.
+    Content,
+    /// Its highlights alone, which tint what is under them.
+    Highlights,
+    /// Its annotations other than highlights, alone.
+    OtherAnnotations,
+}
+
+/// Display list of `part` of page `index`, without the annotations in `hidden` (as
+/// [`display_list_hiding`]). Every part has the page's bounds. Drawn one over the other,
+/// content, highlights and the other annotations make the page as it is, unless a
+/// highlight lies over another annotation.
+pub fn display_list_part(
+    doc: &PdfDocument,
+    index: usize,
+    hidden: &[u32],
+    part: Part,
+) -> Result<DisplayList> {
     let page_no = i32::try_from(index).map_err(|_| Error::PageOutOfRange(index))?;
     if page_no >= doc.page_count()? {
         return Err(Error::PageOutOfRange(index));
     }
     let page = doc.load_pdf_page(page_no)?;
     let mut list = DisplayList::new(page.bounds()?)?;
+    let content = matches!(part, Part::Whole | Part::Content);
     {
         let device = Device::from_display_list(&mut list)?;
-        page.run_contents(&device, &Matrix::IDENTITY)?;
-        for annot in page.annotations() {
-            let object = annot.object();
-            let number = if object.is_indirect()? {
-                u32::try_from(object.as_indirect()?).unwrap_or(0)
-            } else {
-                0
-            };
-            if !hidden.contains(&number) {
-                crate::ffi::run_annotation(&annot, &device)?;
+        if content {
+            page.run_contents(&device, &Matrix::IDENTITY)?;
+        }
+        if part != Part::Content {
+            for annot in page.annotations() {
+                let highlight =
+                    || -> Result<bool> { Ok(annot.r#type()? == PdfAnnotationType::Highlight) };
+                let wanted = match part {
+                    Part::Highlights => highlight()?,
+                    Part::OtherAnnotations => !highlight()?,
+                    Part::Whole | Part::Content => true,
+                };
+                if !wanted {
+                    continue;
+                }
+                let object = annot.object();
+                let number = if object.is_indirect()? {
+                    u32::try_from(object.as_indirect()?).unwrap_or(0)
+                } else {
+                    0
+                };
+                if !hidden.contains(&number) {
+                    crate::ffi::run_annotation(&annot, &device)?;
+                }
             }
         }
-        page.run_widgets(&device, &Matrix::IDENTITY)?;
+        if content {
+            page.run_widgets(&device, &Matrix::IDENTITY)?;
+        }
     }
     Ok(list)
 }
@@ -359,6 +577,23 @@ pub struct ImageKey {
     pub tile: Option<PixelRect>,
     /// Which annotations are left out ([`ImageKey::hidden`]); 0 when all are drawn.
     pub hidden: u64,
+    pub layer: Layer,
+}
+
+/// Which picture of a page an image is. A page shown with visual adjustments that leave
+/// its annotations out (section 6.1) is its content, adjusted, with its annotations over
+/// it.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Hash)]
+pub enum Layer {
+    /// The page as it is.
+    #[default]
+    Page,
+    /// The page without its annotations ([`Part::Content`]).
+    Content,
+    /// Its annotations on their own ([`annotation_layer`]).
+    Annotations,
+    /// Its annotations on their own, for an inverted page.
+    DarkAnnotations,
 }
 
 impl ImageKey {
@@ -553,6 +788,122 @@ mod tests {
     }
 
     #[test]
+    fn the_annotation_layer_over_the_content_makes_the_page() {
+        let (doc, first, _) = two_squares();
+        let whole = render_rgba(&display_list(&doc, 0).unwrap(), 1.0, None).unwrap();
+        let none = render_rgba(&display_list_with(&doc, 0, false).unwrap(), 1.0, None).unwrap();
+        let content = render_rgba(
+            &display_list_part(&doc, 0, &[], Part::Content).unwrap(),
+            1.0,
+            None,
+        )
+        .unwrap();
+        assert_eq!(content, none, "the content is the page without annotations");
+        let layer = |hidden: &[u32], region: Option<PixelRect>, dark: bool| {
+            let content = render_rgba(
+                &display_list_part(&doc, 0, &[], Part::Content).unwrap(),
+                1.0,
+                region,
+            )
+            .unwrap();
+            let highlights = display_list_part(&doc, 0, hidden, Part::Highlights).unwrap();
+            let others = display_list_part(&doc, 0, hidden, Part::OtherAnnotations).unwrap();
+            annotation_layer(&content, &highlights, &others, 1.0, region, dark).unwrap()
+        };
+
+        // Opaque where the annotations change the page, transparent elsewhere; laid over
+        // the content, the page as it is.
+        let plain = layer(&[], None, false);
+        let mut drawn = 0;
+        for ((l, c), w) in plain
+            .data
+            .chunks(4)
+            .zip(content.data.chunks(4))
+            .zip(whole.data.chunks(4))
+        {
+            if l[3] == 255 {
+                drawn += 1;
+                assert_eq!(l, w);
+            } else {
+                assert_eq!(l, [0; 4]);
+                assert_eq!(c, w);
+            }
+        }
+        assert!(drawn > 0, "the squares are on the layer");
+
+        // A hidden annotation is not on it.
+        let one = layer(&[first], None, false);
+        let at = |image: &RgbaImage, x: usize, y: usize| {
+            let i = (y * image.width as usize + x) * 4;
+            image.data[i..i + 4].to_vec()
+        };
+        // The squares' edges, 100 to 200 and 300 to 400 across, 400 to 500 down.
+        assert_eq!(at(&plain, 100, 450)[3], 255);
+        assert_eq!(at(&one, 100, 450), [0; 4]);
+        assert_eq!(at(&one, 300, 450), at(&plain, 300, 450));
+
+        // For an inverted page, the same pixels, their lightness inverted.
+        let dark = layer(&[], None, true);
+        for (d, l) in dark.data.chunks(4).zip(plain.data.chunks(4)) {
+            assert_eq!(d[3], l[3]);
+            if l[3] == 255 {
+                assert_eq!(&d[..3], dark_stroke([l[0], l[1], l[2]]));
+            }
+        }
+
+        // A tile is that part of the layer.
+        let region = PixelRect {
+            x: 64,
+            y: 384,
+            width: 256,
+            height: 128,
+        };
+        let tile = layer(&[], Some(region), false);
+        assert_eq!((tile.width, tile.height), (256, 128));
+        assert_eq!(at(&tile, 100 - 64, 450 - 384), at(&plain, 100, 450));
+        assert_eq!(at(&tile, 250 - 64, 450 - 384), [0; 4]);
+    }
+
+    #[test]
+    fn annotation_colours_on_an_inverted_page_keep_their_hue() {
+        // Greys turn over: black ink is white there, white black.
+        assert_eq!(dark_stroke([0, 0, 0]), [255, 255, 255]);
+        assert_eq!(dark_stroke([255, 255, 255]), [0, 0, 0]);
+        assert_eq!(dark_stroke([64, 64, 64]), [191, 191, 191]);
+        // A pure colour has the lightness of its inverse already: Acrobat's red stays.
+        assert_eq!(dark_stroke([255, 0, 0]), [255, 0, 0]);
+        // A dark blue turns light blue; pure blue, nearly black on a dark page, is lit.
+        let [r, g, b] = dark_stroke([0, 0, 128]);
+        assert!(b == 255 && r > 100 && r == g, "{r} {g} {b}");
+        let [r, g, b] = dark_stroke([0, 0, 255]);
+        assert!(b == 255 && r > 0 && r == g && r < 100, "{r} {g} {b}");
+
+        // A highlight stays its colour, dark enough under light text: a full yellow is
+        // dimmed, and Acrobat's yellow at 40% (on white paper) comes out a dark gold.
+        let lum = |c: [u8; 3]| luminance(c.map(|v| f32::from(v) / 255.0));
+        let full = dark_tint([255, 255, 0]);
+        assert!(full[0] == full[1] && full[2] == 0, "{full:?}");
+        assert!((lum(full) - DARK_TINT_MOST).abs() < 0.01, "{full:?}");
+        let acrobat = dark_tint([255, 237, 153]);
+        assert!(
+            acrobat[0] > acrobat[1] && acrobat[1] > acrobat[2],
+            "{acrobat:?}"
+        );
+        assert!(
+            lum(acrobat) > 0.2 && lum(acrobat) <= DARK_TINT_MOST,
+            "{acrobat:?}"
+        );
+        // Inverted, as the page is, the same highlight was a muddy brown (luminance
+        // under 0.1). A pale pink at 40%, nearly black inverted, is a clear crimson.
+        let pink = dark_tint([255, 204, 216]);
+        assert!(pink[0] > pink[2] && pink[2] > pink[1], "{pink:?}");
+        assert!((lum(pink) - 0.16).abs() < 0.01, "{pink:?}");
+        // A highlight's grey is neither dimmed nor brightened.
+        assert_eq!(dark_tint([0, 0, 0]), [255, 255, 255]);
+        assert_eq!(dark_tint([255, 255, 255]), [0, 0, 0]);
+    }
+
+    #[test]
     fn hidden_sets_get_keys_of_their_own() {
         assert_eq!(ImageKey::hidden(&[]), 0);
         assert_ne!(ImageKey::hidden(&[0]), 0);
@@ -578,6 +929,18 @@ mod tests {
             .flat_map(|p| [p[0], p[1], p[2]])
             .collect();
         assert_eq!(&buf[..info.buffer_size()], &rgb[..]);
+
+        // An image that is not opaque keeps its alpha.
+        let mut layer = rgba.clone();
+        layer.data[3] = 0;
+        let png = encode_rgba_png(&layer).unwrap();
+        let mut reader = png::Decoder::new(std::io::Cursor::new(png))
+            .read_info()
+            .unwrap();
+        let mut buf = vec![0; reader.output_buffer_size().unwrap()];
+        let info = reader.next_frame(&mut buf).unwrap();
+        assert_eq!(info.color_type, png::ColorType::Rgba);
+        assert_eq!(&buf[..info.buffer_size()], &layer.data[..]);
     }
 
     #[test]
@@ -702,6 +1065,7 @@ mod tests {
             scale_milli: 1000,
             tile: None,
             hidden: 0,
+            layer: Layer::Page,
         }
     }
 

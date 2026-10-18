@@ -28,6 +28,8 @@ the wording, translations): docs/releasing.md, "The changelog".
 - Typing in the search bar no longer scrolls to the first match: the bar counts the matches, and **Enter** or the arrows take you to them, starting from the page you are on. Editing the document while the search bar is open no longer jumps back to a match either.
 - Closed and opened again, the search bar keeps its text and shows its matches again. Before, they showed only once you typed again.
 - With text selected, **Ctrl+F** puts that text in the search bar and starts at the selection itself.
+- With **Greyscale** on in Visual adjustments, annotations keep their colours: only the page turns grey.
+- With **Invert colours** on, annotations keep clear colours on the dark page. A yellow highlight is a gold the light text stays readable on, instead of a dark brown, pale highlights show, and black ink and text boxes turn white.
 - While you search, marks beside the scrollbar show where the matches are in the document, the one shown in a stronger colour. **Settings > General > Search** can turn them off.
 - Going to the next or previous match glides there, as bookmarks do. **Settings > Appearance > Motion** can turn this off.
 - The search bar slides in and fades in as it opens, and goes the same way.

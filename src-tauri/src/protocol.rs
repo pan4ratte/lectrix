@@ -1,5 +1,5 @@
 //! The page-image protocol:
-//! `lectrix://page/{docId}/{pageIndex}?scale={s}&rev={r}[&tile={x},{y},{w},{h}][&hide={n},{n}...][&fmt=png][&warm=1]`,
+//! `lectrix://page/{docId}/{pageIndex}?scale={s}&rev={r}[&tile={x},{y},{w},{h}][&hide={n},{n}...][&layer={l}][&fmt=png][&warm=1]`,
 //! and previews of recent files: `lectrix://recent/{index}?w={px}&opened={ms}`.
 //!
 //! On Windows (WebView2) the same URL is served as `http://lectrix.localhost/page/...`. The
@@ -7,10 +7,16 @@
 //! annotations to leave out, by object number (0: those that are not indirect objects): the
 //! ones the annotation list filters out while it shows.
 //!
+//! `layer` asks for part of the page, for visual adjustments that leave the annotations
+//! out (section 6.1): `content` is the page without its annotations, `annots` its
+//! annotations alone on a transparent image, and `annots-dark` the same for an inverted
+//! page (`render::annotation_layer`). Without it, the page as it is.
+//!
 //! Without `fmt`, the response is raw RGBA (`application/octet-stream`, 4 bytes per pixel,
-//! size in the `X-Lectrix-Width` and `X-Lectrix-Height` headers). `fmt=png` returns the same
-//! cached pixels as PNG, which the app uses by default because it reaches the screen about
-//! three times faster through WebView2 (ADR 0004).
+//! size in the `X-Lectrix-Width` and `X-Lectrix-Height` headers; straight alpha, opaque
+//! but for an annotation layer). `fmt=png` returns the same cached pixels as PNG, which the
+//! app uses by default because it reaches the screen about three times faster through
+//! WebView2 (ADR 0004).
 //!
 //! `warm=1` renders the image into the cache and answers 204 with no body: the frontend
 //! has the pages next to those on screen rendered ahead this way, so that they are there
@@ -22,7 +28,8 @@ use std::path::PathBuf;
 use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Instant, SystemTime};
 
-use pdf_core::render::{ImageCache, ImageKey, PixelRect, RgbaImage, TILE_SIZE};
+use pdf_core::render::{ImageCache, ImageKey, Layer, Part, PixelRect, RgbaImage, TILE_SIZE};
+use pdf_core::session::Session;
 use tauri::http::{Request, Response, StatusCode, header};
 
 use crate::AppState;
@@ -45,6 +52,7 @@ struct PageRequest {
     tile: Option<PixelRect>,
     /// Object numbers of the annotations to leave out, sorted, without repeats.
     hidden: Vec<u32>,
+    layer: Layer,
     format: Format,
     /// Render the image and keep it, and send nothing: a page rendered ahead.
     warm: bool,
@@ -75,6 +83,7 @@ fn parse(path: &str, query: Option<&str>) -> Result<PageRequest, Failure> {
         revision: 0,
         tile: None,
         hidden: Vec::new(),
+        layer: Layer::Page,
         format: Format::Rgba,
         warm: false,
     };
@@ -126,6 +135,14 @@ fn parse(path: &str, query: Option<&str>) -> Result<PageRequest, Failure> {
                 hidden.sort_unstable();
                 hidden.dedup();
                 request.hidden = hidden;
+            }
+            "layer" => {
+                request.layer = match value {
+                    "content" => Layer::Content,
+                    "annots" => Layer::Annotations,
+                    "annots-dark" => Layer::DarkAnnotations,
+                    _ => return Err((StatusCode::BAD_REQUEST, "bad layer")),
+                };
             }
             "fmt" => {
                 request.format = match value {
@@ -306,15 +323,30 @@ fn serve(state: &AppState, request: &Request<Vec<u8>>) -> Result<Response<Body>,
         revision: req.revision,
         scale_milli: ImageKey::scale_milli(req.scale),
         tile: req.tile,
-        hidden: ImageKey::hidden(&req.hidden),
+        // The content has no annotations to hide.
+        hidden: if req.layer == Layer::Content {
+            0
+        } else {
+            ImageKey::hidden(&req.hidden)
+        },
+        layer: req.layer,
     };
     let (image, cached) = match state.renders.begin(key, || state.image_cache.get(&key)) {
         Begin::Cached(image) => (image, true),
         Begin::Render(mut turn) => {
-            let (image, revision) = state
-                .render_gate
-                .run(|| session.render_rgba(req.page, req.scale, req.tile, &req.hidden))
-                .map_err(|e| render_failed(&req, e))?;
+            let (image, revision) = match req.layer {
+                Layer::Page => state
+                    .render_gate
+                    .run(|| session.render_rgba(req.page, req.scale, req.tile, &req.hidden))
+                    .map_err(|e| render_failed(&req, e))?,
+                Layer::Content => state
+                    .render_gate
+                    .run(|| session.render_part(req.page, req.scale, req.tile, &[], Part::Content))
+                    .map_err(|e| render_failed(&req, e))?,
+                Layer::Annotations | Layer::DarkAnnotations => {
+                    annotation_layer(state, &session, &req, key)?
+                }
+            };
             let image = Arc::new(image);
             // Key by the revision actually rendered: if the document changed after the
             // request was made, these pixels belong to the newer revision.
@@ -357,6 +389,57 @@ fn serve(state: &AppState, request: &Request<Vec<u8>>) -> Result<Response<Body>,
         &timing,
         body,
     )
+}
+
+/// The annotation layer `key` names, and the revision it shows. It is drawn over the
+/// page's content at the same scale and region, which the frontend asks for too (to show
+/// under it): that is taken from the image cache, or rendered and kept there.
+fn annotation_layer(
+    state: &AppState,
+    session: &Session,
+    req: &PageRequest,
+    key: ImageKey,
+) -> Result<(RgbaImage, u64), Failure> {
+    let lists = session
+        .annotation_lists(req.page, &req.hidden)
+        .map_err(|e| render_failed(req, e))?;
+    let content_key = ImageKey {
+        revision: lists.revision,
+        hidden: 0,
+        layer: Layer::Content,
+        ..key
+    };
+    let content = match state
+        .renders
+        .begin(content_key, || state.image_cache.get(&content_key))
+    {
+        Begin::Cached(image) => image,
+        Begin::Render(mut turn) => {
+            let image = state
+                .render_gate
+                .run(|| pdf_core::render::render_rgba(&lists.content, req.scale, req.tile))
+                .map_err(|e| render_failed(req, e))?;
+            let image = Arc::new(image);
+            insert(&state.image_cache, content_key, &image);
+            turn.rendered();
+            image
+        }
+    };
+    let dark = req.layer == Layer::DarkAnnotations;
+    let layer = state
+        .render_gate
+        .run(|| {
+            pdf_core::render::annotation_layer(
+                &content,
+                &lists.highlights,
+                &lists.others,
+                req.scale,
+                req.tile,
+                dark,
+            )
+        })
+        .map_err(|e| render_failed(req, e))?;
+    Ok((layer, lists.revision))
 }
 
 /// A preview of a recent file: the entry at `index` in the recent list, which must still
@@ -575,7 +658,16 @@ mod tests {
         );
         assert_eq!(r.format, Format::Png);
         assert!(r.hidden.is_empty());
+        assert_eq!(r.layer, Layer::Page);
         assert!(!r.warm);
+        for (value, layer) in [
+            ("content", Layer::Content),
+            ("annots", Layer::Annotations),
+            ("annots-dark", Layer::DarkAnnotations),
+        ] {
+            let query = format!("scale=1&rev=0&layer={value}&fmt=png");
+            assert_eq!(parse("/page/1/0", Some(&query)).unwrap().layer, layer);
+        }
         assert!(
             parse("/page/1/0", Some("scale=2&rev=0&fmt=png&warm=1"))
                 .unwrap()
@@ -596,6 +688,7 @@ mod tests {
                 height: TILE_SIZE,
             }),
             hidden: 0,
+            layer: Layer::Page,
         }
     }
 
@@ -747,5 +840,6 @@ mod tests {
         assert!(parse("/page/1/0", Some("tile=0,0,4096,10")).is_err());
         assert!(parse("/page/1/0", Some("tile=1,2,3")).is_err());
         assert!(parse("/page/1/0", Some("fmt=jpeg")).is_err());
+        assert!(parse("/page/1/0", Some("layer=ink")).is_err());
     }
 }

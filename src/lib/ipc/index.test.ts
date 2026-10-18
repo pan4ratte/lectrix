@@ -21,6 +21,12 @@ describe('pageUrl', () => {
 		expect(pageUrl(1, 0, 1, 2, undefined, 'png', many)).toMatch(/&rev=2&fmt=png$/);
 		expect(pageUrl(1, 0, 1, 2, undefined, 'png', many.slice(1))).toContain('&hide=1,2,');
 	});
+
+	it('asks for the content or the annotations alone; the content hides nothing', () => {
+		expect(pageUrl(1, 0, 1, 2, undefined, 'png', [7], 'content')).toMatch(/&rev=2&layer=content&fmt=png$/);
+		expect(pageUrl(1, 0, 1, 2, undefined, 'png', [7], 'annots')).toMatch(/&hide=7&layer=annots&fmt=png$/);
+		expect(pageUrl(1, 0, 1, 2, undefined, 'png', [], 'annots-dark')).toMatch(/&rev=2&layer=annots-dark&fmt=png$/);
+	});
 });
 
 describe('isAppError', () => {
