@@ -1,4 +1,5 @@
-// One open document (one tab): what Rust told us about it, and how the user is viewing it.
+// One open document: what Rust told us about it (DocModel), and each view of it in this
+// window (DocTab: a tab, or a pane of tabs side by side), with how the user is viewing it.
 // The document itself lives in Rust (section 7); this is only a view of it.
 
 import {
@@ -79,6 +80,12 @@ export interface ViewerApi {
 	 * gliding there unless Settings or the system's reduced motion say otherwise. */
 	turn(direction: 1 | -1): void;
 	focus(): void;
+	/** Where the view is, in pages from the start (the part of a page as a fraction): what
+	 * synchronized scrolling keeps panes in step by (section 6.1, split view). */
+	place(): number;
+	/** Goes to `place` (as `place()` gives it) to keep in step with a pane being scrolled,
+	 * at once, outside back/forward history; this scroll leads no other pane. */
+	follow(place: number): void;
 }
 
 export type BannerKind = 'changedOnDisk' | 'changedOnDiskDirty' | 'deletedOnDisk';
@@ -334,7 +341,9 @@ function splitQuads(flat: number[]): number[][] {
 	return quads;
 }
 
-export class DocTab {
+/** One open document, as Rust reported it: shared by every view of it in this window (a
+ * document can be shown in two panes side by side, section 6.1, split view). */
+export class DocModel {
 	readonly id: number;
 	name = $state('');
 	path = $state('');
@@ -379,101 +388,31 @@ export class DocTab {
 	renamingBookmark = $state<number | null>(null);
 	/** Annotations by page (pages without any are left out). */
 	annotations = $state.raw<ReadonlyMap<number, Annotation[]>>(new Map());
-	selectedAnnotation = $state<AnnotationRef | null>(null);
-	/** Something being drawn or dragged on a page. */
-	draft = $state<AnnotationDraft | null>(null);
 	/** Every annotation, in page order. */
 	allAnnotations = $derived.by(() => {
 		const pages = [...this.annotations.keys()].sort((a, b) => a - b);
 		return pages.flatMap((p) => this.annotations.get(p) ?? []);
 	});
-	/** The selected annotation's data. */
-	selectedAnnotationInfo = $derived.by(() => {
-		const sel = this.selectedAnnotation;
-		return sel ? (this.annotations.get(sel.page)?.find((a) => a.id === sel.id) ?? null) : null;
-	});
-
-	zoom = $state(1);
-	zoomMode = $state<ZoomMode>('fitWidth');
-	rotation = $state<Rotation>(0);
-	/** The pages turned as they are shown, on top of `rotation` (section 6.1, view rotation):
-	 * a page's index and its turn. On screen only, never in the file; remembered per file
-	 * with the rest of the view. */
-	pageTurns = $state.raw<ReadonlyMap<number, Rotation>>(new Map());
-	/** The visual adjustments this document has of its own (section 6.1), or null while it
-	 * has the ones Settings give every document. On screen only, never in the file;
-	 * remembered per file with the rest of the view. */
-	ownAdjustments = $state.raw<PageAdjustments | null>(null);
-	/** How the pages are shown: the document's own adjustments, else those of Settings. */
-	adjustments = $derived(this.ownAdjustments ?? pageDefaults.value);
-	/** The CSS filter that shows a page so, or null for the pages as they are. */
-	pageFilter = $derived(filterOf(this.adjustments));
-	/** How much of the sepia paper tone lies over a page (0 to 1), or null for none. */
-	pageTone = $derived(toneOf(this.adjustments));
-	/** How the pages are laid out (section 6.1, scroll modes); not stored in the file. */
-	mode = $state<ViewMode>('singlePageContinuous');
-	/** In the two-page modes, the first page has a row of its own (a book's cover). */
-	cover = $state(false);
-	columns = $derived(columnsOf(this.mode));
-	continuous = $derived(isContinuous(this.mode));
-	currentPage = $state(0);
-	/** Position to show when the viewer mounts (restored view, or the tab's last place). */
-	pendingPosition: ViewPosition | null = null;
 	/** A key for each page, in page order: a page keeps its key when pages are moved,
 	 * deleted or inserted, so what is shown or selected by key follows its page. */
 	pageKeys = $state.raw<number[]>([]);
 	private nextPageKey = 1;
-	/** The pages are being organized (section 6.7): a grid of them is on screen in place of
-	 * the viewer. Null while the document is read. */
-	organize = $state<OrganizeState | null>(null);
-
-	selection = $state<{ anchor: Caret; focus: Caret } | null>(null);
-	/** The text cursor a click with the Select tool or a markup tool put in the text (section
-	 * 6.1), while nothing is selected: Shift with the arrow keys selects from there. */
-	caret = $state<Caret | null>(null);
 	banner = $state<BannerKind | null>(null);
 	saving = $state(false);
 	/** The signed-document warning was accepted for this session. */
 	signedWarningAccepted = false;
-
-	readonly history = new NavHistory();
-	readonly search = new SearchState(this);
-	viewer: ViewerApi | null = null;
-
 	/** Bumps when cached text arrives, so overlays re-read the cache. */
 	textVersion = $state(0);
 	private texts = new Map<number, TextGeometry>();
 	private textRequests = new Map<number, Promise<TextGeometry | null>>();
+	/** The views showing it in this window. */
+	readonly views = new Set<DocTab>();
 
-	/** `scrollMode` is the Settings choice for documents being opened. A tab moved here from
-	 * another window brings what it had there instead (`handoff`). */
-	constructor(info: DocumentInfo, scrollMode: ScrollMode = 'singlePageContinuous', handoff: TabHandoff | null = null) {
+	constructor(info: DocumentInfo) {
 		this.id = info.id;
-		this.update(info);
-		const asked = documentMode(info.pageLayout);
-		if (handoff && handoff.scrollMode !== 'document') {
-			this.mode = handoff.scrollMode;
-			this.cover = handoff.cover;
-			this.signedWarningAccepted = handoff.signedWarningAccepted;
-		} else if (scrollMode !== 'document') this.mode = scrollMode;
-		else if (asked) {
-			this.mode = asked.mode;
-			this.cover = asked.cover;
-		}
-		const view = info.view;
-		if (view) {
-			this.zoom = clampZoom(view.zoom);
-			this.zoomMode = view.zoomMode;
-			this.rotation = normalizeRotation(view.rotation);
-			this.pageTurns = storedTurns(view.pageTurns, info.pages.length);
-			this.ownAdjustments = view.ownAdjustments ? normalizeAdjustments(view.ownAdjustments) : null;
-			const page = Math.min(view.page, Math.max(0, info.pages.length - 1));
-			this.currentPage = page;
-			this.pendingPosition = { page, offset: view.offset };
-		}
 	}
 
-	/** Replaces everything Rust reported (open, reload). */
+	/** Replaces everything Rust reported (open, reload), in every view. */
 	update(info: DocumentInfo) {
 		this.name = info.name;
 		this.path = info.path;
@@ -489,53 +428,31 @@ export class DocTab {
 		this.state = info.state;
 		this.setOutline(info.outline);
 		this.setAnnotations(info.annotations, true);
-		this.draft = null;
 		this.texts.clear();
 		this.textRequests.clear();
-		this.selection = null;
-		this.caret = null;
-		this.currentPage = Math.min(this.currentPage, Math.max(0, info.pages.length - 1));
-		// Turns are kept by page: one past the end of the file read anew has no page.
-		if ([...this.pageTurns.keys()].some((page) => page >= info.pages.length)) {
-			this.pageTurns = new Map([...this.pageTurns].filter(([page]) => page < info.pages.length));
-		}
-		this.organize?.pagesChanged();
+		for (const view of this.views) view.readAgain();
 	}
 
-	/** How far page `index` is turned on screen: the view rotation and the page's own turn. */
-	shownRotation(index: number): Rotation {
-		return normalizeRotation(this.rotation + (this.pageTurns.get(index) ?? 0));
-	}
-
-	/** Turns pages by `degrees` as they are shown. The document stays as it is: nothing to
-	 * save or undo. */
-	turnPages(pages: readonly number[], degrees: number) {
-		const turns = new Map(this.pageTurns);
-		for (const page of pages) {
-			if (page < 0 || page >= this.pages.length) continue;
-			const turn = normalizeRotation((turns.get(page) ?? 0) + degrees);
-			if (turn === 0) turns.delete(page);
-			else turns.set(page, turn);
-		}
-		this.pageTurns = turns;
-	}
-
-	/** Applies what a mutating command changed (section 3: no full re-fetch). */
+	/** Applies what a mutating command changed (section 3: no full re-fetch), in every view. */
 	applyChange(change: DocumentChange) {
 		const revisionChanged = change.state.revision !== this.state.revision;
-		// Pages moved, deleted or inserted: where the view is, read before they change under it.
+		// Pages moved, deleted or inserted: where each view is, read before they change under it.
 		const move = change.pageMap ? new PageMove(change.pageMap) : null;
-		const shown = move ? (this.viewer?.position() ?? null) : null;
+		const shown = new Map([...this.views].map((view) => [view, move ? (view.viewer?.position() ?? null) : null]));
 		this.state = change.state;
-		if (change.changedPages.length || change.pageCount !== this.pages.length) {
+		const counted = change.changedPages.length > 0 || change.pageCount !== this.pages.length;
+		if (counted) {
 			// Inserted or deleted pages (or either undone) change the count; the pages that
 			// moved are listed with their sizes.
 			const pages = this.pages.slice(0, change.pageCount);
 			for (const p of change.changedPages) pages[p.index] = p.size;
 			this.pages = pages;
-			if (!move) this.currentPage = Math.min(this.currentPage, Math.max(0, change.pageCount - 1));
 		}
-		if (move) this.pagesMoved(move, shown);
+		if (move) this.pageKeys = move.keys(this.pageKeys, () => this.nextPageKey++);
+		for (const view of this.views) {
+			if (counted && !move) view.currentPage = Math.min(view.currentPage, Math.max(0, change.pageCount - 1));
+			if (move) view.pagesMoved(move, shown.get(view) ?? null);
+		}
 		if (change.labelsChanged) {
 			this.labels = change.labels;
 			this.labelRules = change.labelRules;
@@ -545,39 +462,7 @@ export class DocTab {
 		if (change.annotations.length || change.pageCount !== this.pages.length) {
 			this.setAnnotations(change.annotations, false, change.pageCount);
 		}
-		if (revisionChanged) {
-			this.selection = null;
-			this.caret = null;
-			this.search.refresh();
-		}
-	}
-
-	/** Everything kept by page index follows its page: the pages' keys, the current page,
-	 * the view (`shown`: where the viewer was before the change), the pages turned on
-	 * screen, the history of jumps and the selected annotation. */
-	private pagesMoved(move: PageMove, shown: ViewPosition | null) {
-		this.pageKeys = move.keys(this.pageKeys, () => this.nextPageKey++);
-		this.currentPage = move.follow(this.currentPage);
-		if (this.pageTurns.size) {
-			const turns = new Map<number, Rotation>();
-			for (const [before, turn] of this.pageTurns) {
-				const page = move.to(before);
-				if (page !== null) turns.set(page, turn);
-			}
-			this.pageTurns = turns;
-		}
-		this.history.remap((page) => move.to(page));
-		const selected = this.selectedAnnotation;
-		if (selected) {
-			const page = move.to(selected.page);
-			this.selectedAnnotation = page === null ? null : { ...selected, page };
-		}
-		if (this.pendingPosition) this.pendingPosition = move.position(this.pendingPosition);
-		if (shown && this.viewer) {
-			const next = move.position(shown);
-			if (next.page !== shown.page) this.viewer.goTo(next, { recordHistory: false });
-		}
-		this.organize?.pagesChanged();
+		if (revisionChanged) for (const view of this.views) view.revised();
 	}
 
 	get pageCount() {
@@ -619,16 +504,10 @@ export class DocTab {
 		return this.annotationsOn(page).filter((a) => !this.isThreadReply(a));
 	}
 
-	selectAnnotation(page: number, id: number) {
-		this.selectedAnnotation = { page, id };
-		this.selection = null;
-		this.caret = null;
-	}
-
 	/**
 	 * Takes Rust's annotation lists: all of them (`replace`), or the pages that changed (an
 	 * empty list removes a page). Pages past `pageCount` are dropped. Comments get LF line
-	 * breaks (see `lineBreaks`).
+	 * breaks (see `lineBreaks`). A view's selected annotation that is gone is deselected.
 	 */
 	private setAnnotations(pages: PageAnnotations[], replace: boolean, pageCount = this.pages.length) {
 		const map = replace ? new Map<number, Annotation[]>() : new Map(this.annotations);
@@ -638,8 +517,10 @@ export class DocTab {
 		}
 		for (const page of map.keys()) if (page >= pageCount) map.delete(page);
 		this.annotations = map;
-		const sel = this.selectedAnnotation;
-		if (sel && !map.get(sel.page)?.some((a) => a.id === sel.id)) this.selectedAnnotation = null;
+		for (const view of this.views) {
+			const sel = view.selectedAnnotation;
+			if (sel && !map.get(sel.page)?.some((a) => a.id === sel.id)) view.selectedAnnotation = null;
+		}
 	}
 
 	/** Page labels can be changed (permissions allow document changes). */
@@ -698,6 +579,381 @@ export class DocTab {
 	/** Every cached text page, for building copied text. */
 	textMap(): ReadonlyMap<number, TextGeometry> {
 		return this.texts;
+	}
+}
+
+let viewSeq = 0;
+
+/**
+ * One view of an open document: a tab, or a pane of tabs joined side by side (section 6.1,
+ * split view). What Rust told us about the document is its `doc`, shared with the other
+ * views of it; how the user is viewing it (zoom, place, selection, search) is its own.
+ */
+export class DocTab {
+	readonly doc: DocModel;
+	/** Tells this view from another of the same document. */
+	readonly key = ++viewSeq;
+
+	get id() {
+		return this.doc.id;
+	}
+	get name() {
+		return this.doc.name;
+	}
+	set name(value: string) {
+		this.doc.name = value;
+	}
+	get path() {
+		return this.doc.path;
+	}
+	set path(value: string) {
+		this.doc.path = value;
+	}
+	get untitled() {
+		return this.doc.untitled;
+	}
+	set untitled(value: boolean) {
+		this.doc.untitled = value;
+	}
+	get pages() {
+		return this.doc.pages;
+	}
+	set pages(value: PageSize[]) {
+		this.doc.pages = value;
+	}
+	get labels() {
+		return this.doc.labels;
+	}
+	set labels(value: string[] | null) {
+		this.doc.labels = value;
+	}
+	get labelRules() {
+		return this.doc.labelRules;
+	}
+	set labelRules(value: LabelRule[]) {
+		this.doc.labelRules = value;
+	}
+	get previewLabels() {
+		return this.doc.previewLabels;
+	}
+	set previewLabels(value: string[] | null) {
+		this.doc.previewLabels = value;
+	}
+	get displayLabels() {
+		return this.doc.displayLabels;
+	}
+	get fileFlags() {
+		return this.doc.fileFlags;
+	}
+	set fileFlags(value: DocumentFlags) {
+		this.doc.fileFlags = value;
+	}
+	get readOnly() {
+		return this.doc.readOnly;
+	}
+	set readOnly(value: boolean) {
+		this.doc.readOnly = value;
+	}
+	get flags() {
+		return this.doc.flags;
+	}
+	get state() {
+		return this.doc.state;
+	}
+	set state(value: DocumentState) {
+		this.doc.state = value;
+	}
+	get outline() {
+		return this.doc.outline;
+	}
+	get selectedBookmark() {
+		return this.doc.selectedBookmark;
+	}
+	set selectedBookmark(value: number | null) {
+		this.doc.selectedBookmark = value;
+	}
+	get renamingBookmark() {
+		return this.doc.renamingBookmark;
+	}
+	set renamingBookmark(value: number | null) {
+		this.doc.renamingBookmark = value;
+	}
+	get annotations() {
+		return this.doc.annotations;
+	}
+	get allAnnotations() {
+		return this.doc.allAnnotations;
+	}
+	get pageKeys() {
+		return this.doc.pageKeys;
+	}
+	get banner() {
+		return this.doc.banner;
+	}
+	set banner(value: BannerKind | null) {
+		this.doc.banner = value;
+	}
+	get saving() {
+		return this.doc.saving;
+	}
+	set saving(value: boolean) {
+		this.doc.saving = value;
+	}
+	get signedWarningAccepted() {
+		return this.doc.signedWarningAccepted;
+	}
+	set signedWarningAccepted(value: boolean) {
+		this.doc.signedWarningAccepted = value;
+	}
+	get textVersion() {
+		return this.doc.textVersion;
+	}
+	get pageCount() {
+		return this.doc.pageCount;
+	}
+	get canEditLabels() {
+		return this.doc.canEditLabels;
+	}
+	get canEditBookmarks() {
+		return this.doc.canEditBookmarks;
+	}
+
+	selectedAnnotation = $state<AnnotationRef | null>(null);
+	/** Something being drawn or dragged on a page. */
+	draft = $state<AnnotationDraft | null>(null);
+	/** The selected annotation's data. */
+	selectedAnnotationInfo = $derived.by(() => {
+		const sel = this.selectedAnnotation;
+		return sel ? (this.doc.annotations.get(sel.page)?.find((a) => a.id === sel.id) ?? null) : null;
+	});
+
+	zoom = $state(1);
+	zoomMode = $state<ZoomMode>('fitWidth');
+	rotation = $state<Rotation>(0);
+	/** The pages turned as they are shown, on top of `rotation` (section 6.1, view rotation):
+	 * a page's index and its turn. On screen only, never in the file; remembered per file
+	 * with the rest of the view. */
+	pageTurns = $state.raw<ReadonlyMap<number, Rotation>>(new Map());
+	/** The visual adjustments this document has of its own (section 6.1), or null while it
+	 * has the ones Settings give every document. On screen only, never in the file;
+	 * remembered per file with the rest of the view. */
+	ownAdjustments = $state.raw<PageAdjustments | null>(null);
+	/** How the pages are shown: the document's own adjustments, else those of Settings. */
+	adjustments = $derived(this.ownAdjustments ?? pageDefaults.value);
+	/** The CSS filter that shows a page so, or null for the pages as they are. */
+	pageFilter = $derived(filterOf(this.adjustments));
+	/** How much of the sepia paper tone lies over a page (0 to 1), or null for none. */
+	pageTone = $derived(toneOf(this.adjustments));
+	/** How the pages are laid out (section 6.1, scroll modes); not stored in the file. */
+	mode = $state<ViewMode>('singlePageContinuous');
+	/** In the two-page modes, the first page has a row of its own (a book's cover). */
+	cover = $state(false);
+	columns = $derived(columnsOf(this.mode));
+	continuous = $derived(isContinuous(this.mode));
+	currentPage = $state(0);
+	/** Position to show when the viewer mounts (restored view, or the tab's last place). */
+	pendingPosition: ViewPosition | null = null;
+	/** The pages are being organized (section 6.7): a grid of them is on screen in place of
+	 * the viewer. Null while the document is read. */
+	organize = $state<OrganizeState | null>(null);
+
+	selection = $state<{ anchor: Caret; focus: Caret } | null>(null);
+	/** The text cursor a click with the Select tool or a markup tool put in the text (section
+	 * 6.1), while nothing is selected: Shift with the arrow keys selects from there. */
+	caret = $state<Caret | null>(null);
+
+	readonly history = new NavHistory();
+	readonly search = new SearchState(this);
+	viewer: ViewerApi | null = null;
+
+	/** `scrollMode` is the Settings choice for documents being opened. A tab moved here from
+	 * another window brings what it had there instead (`handoff`). Given a view in place of
+	 * the document's information, a second view of that document, as it is shown there. */
+	constructor(
+		info: DocumentInfo | DocTab,
+		scrollMode: ScrollMode = 'singlePageContinuous',
+		handoff: TabHandoff | null = null
+	) {
+		if (info instanceof DocTab) {
+			this.doc = info.doc;
+			this.doc.views.add(this);
+			this.copyView(info);
+			return;
+		}
+		this.doc = new DocModel(info);
+		this.doc.views.add(this);
+		this.doc.update(info);
+		const asked = documentMode(info.pageLayout);
+		if (handoff && handoff.scrollMode !== 'document') {
+			this.mode = handoff.scrollMode;
+			this.cover = handoff.cover;
+			this.signedWarningAccepted = handoff.signedWarningAccepted;
+		} else if (scrollMode !== 'document') this.mode = scrollMode;
+		else if (asked) {
+			this.mode = asked.mode;
+			this.cover = asked.cover;
+		}
+		const view = info.view;
+		if (view) {
+			this.zoom = clampZoom(view.zoom);
+			this.zoomMode = view.zoomMode;
+			this.rotation = normalizeRotation(view.rotation);
+			this.pageTurns = storedTurns(view.pageTurns, info.pages.length);
+			this.ownAdjustments = view.ownAdjustments ? normalizeAdjustments(view.ownAdjustments) : null;
+			const page = Math.min(view.page, Math.max(0, info.pages.length - 1));
+			this.currentPage = page;
+			this.pendingPosition = { page, offset: view.offset };
+		}
+	}
+
+	/** A second view of `view`'s document, shown as `view` shows it. */
+	static beside(view: DocTab): DocTab {
+		return new DocTab(view);
+	}
+
+	private copyView(from: DocTab) {
+		this.zoom = from.zoom;
+		this.zoomMode = from.zoomMode;
+		this.rotation = from.rotation;
+		this.pageTurns = from.pageTurns;
+		this.ownAdjustments = from.ownAdjustments;
+		this.mode = from.mode;
+		this.cover = from.cover;
+		this.currentPage = from.currentPage;
+		this.pendingPosition = from.viewer?.position() ?? from.pendingPosition ?? { page: from.currentPage, offset: 0 };
+	}
+
+	/** This view goes (its pane closed): the document no longer counts it. */
+	dispose() {
+		this.search.cancel();
+		this.doc.views.delete(this);
+	}
+
+	/** Replaces everything Rust reported (open, reload). */
+	update(info: DocumentInfo) {
+		this.doc.update(info);
+	}
+
+	/** The document was read anew (`DocModel.update`): what this view keeps by page. */
+	readAgain() {
+		this.draft = null;
+		this.selection = null;
+		this.caret = null;
+		this.currentPage = Math.min(this.currentPage, Math.max(0, this.pages.length - 1));
+		// Turns are kept by page: one past the end of the file read anew has no page.
+		if ([...this.pageTurns.keys()].some((page) => page >= this.pages.length)) {
+			this.pageTurns = new Map([...this.pageTurns].filter(([page]) => page < this.pages.length));
+		}
+		this.organize?.pagesChanged();
+	}
+
+	/** The document has a new revision: the text selected and the search's hits are of the
+	 * one before. */
+	revised() {
+		this.selection = null;
+		this.caret = null;
+		this.search.refresh();
+	}
+
+	/** How far page `index` is turned on screen: the view rotation and the page's own turn. */
+	shownRotation(index: number): Rotation {
+		return normalizeRotation(this.rotation + (this.pageTurns.get(index) ?? 0));
+	}
+
+	/** Turns pages by `degrees` as they are shown. The document stays as it is: nothing to
+	 * save or undo. */
+	turnPages(pages: readonly number[], degrees: number) {
+		const turns = new Map(this.pageTurns);
+		for (const page of pages) {
+			if (page < 0 || page >= this.pages.length) continue;
+			const turn = normalizeRotation((turns.get(page) ?? 0) + degrees);
+			if (turn === 0) turns.delete(page);
+			else turns.set(page, turn);
+		}
+		this.pageTurns = turns;
+	}
+
+	/** Applies what a mutating command changed (section 3: no full re-fetch), in every view
+	 * of the document. */
+	applyChange(change: DocumentChange) {
+		this.doc.applyChange(change);
+	}
+
+	/** Everything this view keeps by page index follows its page: the current page, the
+	 * view (`shown`: where the viewer was before the change), the pages turned on screen,
+	 * the history of jumps and the selected annotation. */
+	pagesMoved(move: PageMove, shown: ViewPosition | null) {
+		this.currentPage = move.follow(this.currentPage);
+		if (this.pageTurns.size) {
+			const turns = new Map<number, Rotation>();
+			for (const [before, turn] of this.pageTurns) {
+				const page = move.to(before);
+				if (page !== null) turns.set(page, turn);
+			}
+			this.pageTurns = turns;
+		}
+		this.history.remap((page) => move.to(page));
+		const selected = this.selectedAnnotation;
+		if (selected) {
+			const page = move.to(selected.page);
+			this.selectedAnnotation = page === null ? null : { ...selected, page };
+		}
+		if (this.pendingPosition) this.pendingPosition = move.position(this.pendingPosition);
+		if (shown && this.viewer) {
+			const next = move.position(shown);
+			if (next.page !== shown.page) this.viewer.goTo(next, { recordHistory: false });
+		}
+		this.organize?.pagesChanged();
+	}
+
+	/** What a save changed beyond the state: ids, after Save As (optimized) renumbered objects. */
+	applySaved(result: SaveResult) {
+		this.doc.applySaved(result);
+	}
+
+	annotationsOn(page: number): readonly Annotation[] {
+		return this.doc.annotationsOn(page);
+	}
+
+	annotation(page: number, id: number): Annotation | null {
+		return this.doc.annotation(page, id);
+	}
+
+	/** Replies to an annotation, shown in its thread (ADR 0012). */
+	repliesTo(page: number, id: number): Annotation[] {
+		return this.doc.repliesTo(page, id);
+	}
+
+	/** Is `a` a reply to an annotation on its page (shown in that one's thread)? */
+	isThreadReply(a: Annotation): boolean {
+		return this.doc.isThreadReply(a);
+	}
+
+	/** The annotations on a page the pointer can reach: replies in a thread are not drawn
+	 * on the page (ADR 0012). */
+	hitTargets(page: number): Annotation[] {
+		return this.doc.hitTargets(page);
+	}
+
+	selectAnnotation(page: number, id: number) {
+		this.selectedAnnotation = { page, id };
+		this.selection = null;
+		this.caret = null;
+	}
+
+	/** Cached text geometry for the current revision, if loaded. */
+	text(page: number): TextGeometry | undefined {
+		return this.doc.text(page);
+	}
+
+	/** Loads a page's text geometry once per revision. */
+	loadText(page: number): Promise<TextGeometry | null> {
+		return this.doc.loadText(page);
+	}
+
+	/** Every cached text page, for building copied text. */
+	textMap(): ReadonlyMap<number, TextGeometry> {
+		return this.doc.textMap();
 	}
 
 	/** What the tab takes along to another window, besides its place in the document (which

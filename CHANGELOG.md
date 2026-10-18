@@ -16,6 +16,12 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ### Viewer and tabs
 
+- Show documents side by side: drag a tab to the left or right edge of the pages, or right-click it and choose **Show beside the current tab**. Up to four documents share one tab, each in its own column with a header, and you can resize the columns by dragging the line between them. **View > Side by side** has the same commands.
+- Show one document twice, side by side, to read two parts of it at once: right-click its tab and choose **Show twice, side by side**. Each view has its own page and zoom, and a change made in one shows in both.
+- With documents side by side, the lock in the view bar scrolls them together, each keeping its distance from the others: page 3 beside page 10 stays page 3 beside page 10. Two views of the same document also share their zoom and rotation.
+- Tabs grow into the row as they open and shrink away as they close, instead of appearing and vanishing at once.
+- A tab dragged off the row and let go inside its window now stays there. Only a tab dropped outside the window gets a window of its own.
+- While you drag a tab, the document on screen stays on screen. A tab is shown when you let it go.
 - After a double-click on a word, keeping the button down and dragging selects whole words, as in a word processor. Before, the drag went on letter by letter. The same goes for whole lines after a triple-click.
 - A click in the text puts a blinking text cursor there. The arrow keys move it, and Shift with them (Ctrl+Shift for whole words) selects text from it, so you can select without the mouse.
 - As you type in the search bar, a list under it suggests the words of the document that contain what you typed, each with its number of matches. Pick one with the mouse, or with the arrow keys and Enter, to search for it.

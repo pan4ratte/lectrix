@@ -133,7 +133,7 @@
 	</div>
 	{#each list as panel (panel)}
 		<Tabs.Content value={panel} class="min-h-0 flex-1">
-			{#key tab.id}
+			{#key tab.key}
 				{#if panel === 'pages'}
 					<Thumbnails {tab} />
 				{:else if panel === 'bookmarks'}

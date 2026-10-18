@@ -338,3 +338,70 @@ describe('pages moved, deleted or inserted', () => {
 		expect(before).not.toContain(tab.pageKeys[0]);
 	});
 });
+
+describe('one document in two views (split view)', () => {
+	const size = { width: 612, height: 792, rotation: 0 };
+	const annotation = (id: number) => ({ id, page: 0, contents: '' }) as unknown as DocumentInfo['annotations'][number]['annotations'][number];
+
+	function twoViews() {
+		const first = new DocTab({ ...info(null), pages: [size, size, size] });
+		first.zoom = 1.5;
+		first.rotation = 90;
+		first.currentPage = 2;
+		const second = DocTab.beside(first);
+		return { first, second };
+	}
+
+	it('share the document, each with its own place, starting where the first one is', () => {
+		const { first, second } = twoViews();
+		expect(second.doc).toBe(first.doc);
+		expect(second.id).toBe(first.id);
+		expect(second.key).not.toBe(first.key);
+		expect([second.zoom, second.rotation, second.currentPage]).toEqual([1.5, 90, 2]);
+		second.zoom = 2;
+		second.currentPage = 0;
+		expect([first.zoom, first.currentPage]).toEqual([1.5, 2]);
+		// What the document says is said once, for both.
+		second.name = 'renamed.pdf';
+		expect(first.name).toBe('renamed.pdf');
+		expect([...first.doc.views]).toEqual([first, second]);
+	});
+
+	it('both take a change, and each keeps its own selection', () => {
+		const { first, second } = twoViews();
+		const change = (pageMap: (number | null)[] | null, annotations: DocumentChange['annotations'] = []): DocumentChange => ({
+			state: { revision: first.state.revision + 1, dirty: true, undoName: 'Edit', redoName: null },
+			changedPages: [],
+			labelsChanged: false,
+			labels: null,
+			labelRules: [],
+			outline: null,
+			created: null,
+			pageCount: 3,
+			mergeReport: null,
+			annotations,
+			pageMap,
+			deleted: null
+		});
+		first.applyChange(change(null, [{ page: 0, annotations: [annotation(5), annotation(6)] }]));
+		expect(second.annotationsOn(0).map((a) => a.id)).toEqual([5, 6]);
+		first.selectAnnotation(0, 5);
+		second.selectAnnotation(0, 6);
+		expect([first.selectedAnnotation?.id, second.selectedAnnotation?.id]).toEqual([5, 6]);
+		// The annotation one view had selected is deleted from the other: only that view loses it.
+		second.applyChange(change(null, [{ page: 0, annotations: [annotation(5)] }]));
+		expect(first.selectedAnnotation?.id).toBe(5);
+		expect(second.selectedAnnotation).toBeNull();
+		// Pages moved: each view's current page follows its own page.
+		first.currentPage = 2;
+		second.currentPage = 0;
+		first.applyChange(change([2, 0, 1]));
+		expect([first.currentPage, second.currentPage]).toEqual([0, 1]);
+	});
+
+	it('no longer counts a view that closed', () => {
+		const { first, second } = twoViews();
+		second.dispose();
+		expect([...first.doc.views]).toEqual([first]);
+	});
+});

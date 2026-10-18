@@ -187,7 +187,7 @@
 	// Pixels on screen for the current revision (the whole page, or the tile underlay).
 	let drawnRevision = $state(-1);
 	const hasPixels = $derived(drawnRevision === revision);
-	const trackKey = $derived(`${tab.id}:${index}`);
+	const trackKey = $derived(`${tab.key}:${index}`);
 
 	$effect(() => {
 		const key = trackKey;

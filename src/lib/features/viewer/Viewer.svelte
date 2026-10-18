@@ -48,6 +48,7 @@
 	import SelectionBar from '#lib/features/annotations/SelectionBar.svelte';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
 	import { DEFAULT_QUICK_TOOLS, capabilities, isMarkupTool, showsComment } from '#lib/features/annotations/tools.ts';
+	import { scrolled } from '#lib/features/split/sync.ts';
 	import { pageUrl, type Annotation, type PageLink } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -205,6 +206,49 @@
 		if (!scroller) return;
 		scrollTop = scroller.scrollTop;
 		scrollLeft = scroller.scrollLeft;
+		// Panes locked together (split view) follow this one, unless it is following them:
+		// then this is its own move (`followPlace`), or the browser's event for it.
+		if (following) return;
+		if (followedTop !== null && Math.abs(scroller.scrollTop - followedTop) < 1) {
+			followedTop = null;
+			return;
+		}
+		followedTop = null;
+		scrolled(tab);
+	}
+
+	/** `followPlace` is moving the view: the scroll leads no other pane. */
+	let following = false;
+	/** Where `followPlace` put the view, until the browser's scroll event for it arrives. */
+	let followedTop: number | null = null;
+
+	/** Pages from the start of the document at the top of the view (split view, section 6.1). */
+	function place(): number {
+		const p = position();
+		return p.page + p.offset;
+	}
+
+	/** Goes to `at` (as `place` gives it) to keep in step with another pane. */
+	async function followPlace(at: number) {
+		if (layout.pages.length === 0) return;
+		const page = Math.min(Math.max(0, Math.floor(at)), layout.pages.length - 1);
+		const offset = Math.min(1, Math.max(0, at - page));
+		stopScrollGlide();
+		following = true;
+		try {
+			const showing = showRowOf(page);
+			if (showing) await showing;
+			if (!scroller) return;
+			const b = layout.pages[page];
+			if (!b) return;
+			const top = Math.round(b.top + offset * b.height);
+			if (Math.abs(scroller.scrollTop - top) < 1) return;
+			scroller.scrollTop = top;
+			onScroll();
+			followedTop = scroller.scrollTop;
+		} finally {
+			following = false;
+		}
 	}
 
 	// ----- positions -----
@@ -1677,7 +1721,9 @@
 			setMode: (mode, cover) => void setMode(mode, cover),
 			turnPages,
 			turn,
-			focus: () => scroller?.focus({ preventScroll: true })
+			focus: () => scroller?.focus({ preventScroll: true }),
+			place,
+			follow: (at) => void followPlace(at)
 		};
 
 		return () => {

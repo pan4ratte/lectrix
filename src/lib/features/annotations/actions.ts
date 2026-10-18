@@ -128,7 +128,7 @@ export async function markSelection(tab: DocTab, kind: MarkupKind, openComment =
 /** The key `app.annotationPanel` knows the selected annotation by. */
 export function selectedKey(tab: DocTab): string | null {
 	const sel = tab.selectedAnnotation;
-	return sel ? `${tab.id}:${sel.page}:${sel.id}` : null;
+	return sel ? `${tab.key}:${sel.page}:${sel.id}` : null;
 }
 
 /** Whether the selected annotation shows its comment panel rather than its bar. */

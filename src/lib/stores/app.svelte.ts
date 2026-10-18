@@ -72,7 +72,10 @@ import { discardQuestion, recoveryQuestion } from '#lib/features/recovery/recove
 import type { CommandName } from '#lib/commands.ts';
 import { displayShortcut, shortcutOf } from '#lib/shortcuts.ts';
 
+import { MAX_PANES } from '#lib/features/split/split.ts';
+
 import { DocTab } from './doc.svelte.ts';
+import { TabGroup } from './group.svelte.ts';
 
 export interface DialogButton {
 	id: string;
@@ -137,8 +140,16 @@ export interface AnnotationRows {
 }
 
 class AppStore {
-	tabs = $state<DocTab[]>([]);
-	activeId = $state<number | null>(null);
+	/** The tabs of the window's row: each a view of one document, or views joined side by
+	 * side (section 6.1, split view). */
+	groups = $state<TabGroup[]>([]);
+	/** Every view in the window, tab by tab (a document shown twice is in it twice). */
+	tabs = $derived(this.groups.flatMap((g) => g.views));
+	/** The tab shown, or the one the start screen or the Combine view is shown over. */
+	activeKey = $state<number | null>(null);
+	activeGroup = $derived(this.groups.find((g) => g.key === this.activeKey) ?? null);
+	/** The document of the pane in focus in that tab. */
+	activeId = $derived(this.activeGroup?.focused?.id ?? null);
 	startup = $state<StartupInfo | null>(null);
 	recent = $state<RecentFile[]>([]);
 	/** The side panes (section 8): open, their widths, the panels each holds (the user
@@ -272,10 +283,20 @@ class AppStore {
 	/** Tabs on their way to another window. */
 	private moving = new Set<number>();
 
-	/** The document on screen; null while the Combine view or the start screen is. */
-	active = $derived(
-		this.combineActive || this.startShown ? null : (this.tabs.find((t) => t.id === this.activeId) ?? null)
-	);
+	/** The document on screen (the pane in focus, in a joined tab); null while the Combine
+	 * view or the start screen is. */
+	active = $derived(this.combineActive || this.startShown ? null : (this.activeGroup?.focused ?? null));
+
+	/** One view of each document in the window. */
+	get documents(): DocTab[] {
+		const seen = new Set<number>();
+		return this.tabs.filter((t) => !seen.has(t.id) && seen.add(t.id));
+	}
+
+	/** The tab `view` is in. */
+	groupOf(view: DocTab): TabGroup | null {
+		return this.groups.find((g) => g.has(view)) ?? null;
+	}
 
 	// ----- notifications and dialogs -----
 
@@ -437,7 +458,7 @@ class AppStore {
 					// A document can come back twice at startup: restored after a crash, then
 					// listed again among the documents Rust has open.
 					if (!this.tabs.some((t) => t.id === result.document.id)) {
-						this.tabs = [...this.tabs, new DocTab(result.document, this.settings?.scrollMode)];
+						this.groups = [...this.groups, new TabGroup([new DocTab(result.document, this.settings?.scrollMode)])];
 					}
 					activate = result.document.id;
 					break;
@@ -518,7 +539,7 @@ class AppStore {
 			let shown: number | null = null;
 			for (const { document, handoff } of await listOpenDocuments()) {
 				if (this.tabs.some((t) => t.id === document.id)) continue;
-				this.tabs = [...this.tabs, new DocTab(document, this.settings?.scrollMode, handoff)];
+				this.groups = [...this.groups, new TabGroup([new DocTab(document, this.settings?.scrollMode, handoff)])];
 				shown = document.id;
 			}
 			if (shown !== null) this.activate(shown);
@@ -605,14 +626,152 @@ class AppStore {
 
 	// ----- tabs -----
 
+	/** Shows the tab of document `id`, with the focus on its pane (the one in the tab shown,
+	 * if that tab has it). */
 	activate(id: number) {
-		if (!this.tabs.some((t) => t.id === id)) return;
+		const holds = (g: TabGroup) => g.views.some((v) => v.id === id);
+		const group = this.activeGroup && holds(this.activeGroup) ? this.activeGroup : this.groups.find(holds);
+		if (!group) return;
+		const view = group.focused?.id === id ? group.focused : (group.views.find((v) => v.id === id) ?? null);
+		this.show(group, view);
+	}
+
+	/** Shows `group`, with the focus on `view` among its panes if given. */
+	show(group: TabGroup, view: DocTab | null = null) {
+		if (!this.groups.includes(group)) return;
 		this.startShown = false;
 		if (this.combineActive) this.leaveCombine();
-		if (this.activeId === id) return;
+		if (this.activeKey === group.key && (!view || group.focused === view)) return;
 		const previous = this.active;
 		if (previous) this.rememberView(previous);
-		this.activeId = id;
+		this.activeKey = group.key;
+		this.shownOrder = [group.key, ...this.shownOrder.filter((k) => k !== group.key)];
+		if (view) group.focusOn(view);
+	}
+
+	/** The tabs as they were last shown, the latest first (keys). */
+	private shownOrder: number[] = [];
+
+	/** The tab shown before `group` was, of those still open: the one it goes beside when it
+	 * is dragged to an edge of the pages while on screen itself. Else its neighbour in the
+	 * row; null when it is the only tab. */
+	shownBefore(group: TabGroup): TabGroup | null {
+		for (const key of this.shownOrder) {
+			const found = key === group.key ? null : this.groups.find((g) => g.key === key);
+			if (found) return found;
+		}
+		const i = this.groups.indexOf(group);
+		return this.groups[i - 1] ?? this.groups[i + 1] ?? null;
+	}
+
+	// ----- documents side by side (section 6.1, split view) -----
+
+	/** Puts the focus on a pane: a click in it, or on its header. */
+	focusView(view: DocTab) {
+		const group = this.groupOf(view);
+		if (!group) return;
+		if (group !== this.activeGroup || this.startShown || this.combineActive) this.show(group, view);
+		else group.focusOn(view);
+	}
+
+	/** Joins the panes of tab `moving` into tab `target`, before its pane `at`, and shows
+	 * `target` with the focus on the first pane that joined. False if that would be more
+	 * than four panes. */
+	joinTabs(target: TabGroup, moving: TabGroup, at = target.views.length): boolean {
+		if (target === moving || target.views.length + moving.views.length > MAX_PANES) return false;
+		const views = [...target.views];
+		views.splice(Math.min(Math.max(0, at), views.length), 0, ...moving.views);
+		this.groups = this.groups.filter((g) => g !== moving);
+		const first = moving.views[0] ?? null;
+		target.setViews(views, first);
+		this.show(target, first);
+		return true;
+	}
+
+	/** A second view of `view`'s document, beside it (after it, or before it), with the
+	 * focus. False when its tab has four panes already. */
+	showTwice(view: DocTab, before = false): boolean {
+		const group = this.groupOf(view);
+		if (!group || group.full) return false;
+		const twin = DocTab.beside(view);
+		const views = [...group.views];
+		views.splice(group.views.indexOf(view) + (before ? 0 : 1), 0, twin);
+		group.setViews(views, twin);
+		this.show(group, twin);
+		return true;
+	}
+
+	/** Takes a pane out of its joined tab (its header's close button): a second view of a
+	 * document goes; a document shown once gets a tab of its own, right after. */
+	takeOut(view: DocTab) {
+		const group = this.groupOf(view);
+		if (!group?.joined) return;
+		group.setViews(group.views.filter((v) => v !== view));
+		if (this.tabs.some((v) => v.id === view.id)) {
+			view.dispose();
+			return;
+		}
+		const groups = [...this.groups];
+		groups.splice(groups.indexOf(group) + 1, 0, new TabGroup([view]));
+		this.groups = groups;
+	}
+
+	/** Separates a joined tab into tabs of their own, in its place and order. Second views of
+	 * a document go; the tab shown is the one with the pane that had the focus. */
+	separate(group: TabGroup) {
+		if (!group.joined || !this.groups.includes(group)) return;
+		const focusedId = group.focused?.id ?? null;
+		const kept: DocTab[] = [];
+		for (const view of group.views) {
+			if (kept.some((v) => v.id === view.id)) view.dispose();
+			else kept.push(view);
+		}
+		const [first, ...others] = kept;
+		if (!first) return;
+		group.setViews([first]);
+		const own = others.map((v) => new TabGroup([v]));
+		const groups = [...this.groups];
+		groups.splice(groups.indexOf(group) + 1, 0, ...own);
+		this.groups = groups;
+		if (this.activeKey === group.key && focusedId !== null && focusedId !== first.id) {
+			const shown = own.find((g) => g.views[0]?.id === focusedId);
+			if (shown) this.activeKey = shown.key;
+		}
+	}
+
+	/** Closes the pane in focus of a joined tab (Close, Ctrl+W): a second view of a document
+	 * just goes; a document shown once closes, after asking about unsaved changes. */
+	async closePane(view: DocTab) {
+		const group = this.groupOf(view);
+		if (!group) return;
+		if (this.tabs.some((v) => v !== view && v.id === view.id)) {
+			const rest = group.views.filter((v) => v !== view);
+			view.dispose();
+			if (rest.length > 0) group.setViews(rest);
+			else this.groups = this.groups.filter((g) => g !== group);
+			return;
+		}
+		await this.closeTab(view.id);
+	}
+
+	/** Closes a tab: each of its documents, one after another, after asking about unsaved
+	 * changes; it stops at the first the user keeps. */
+	async closeGroup(group: TabGroup) {
+		for (const id of [...new Set(group.views.map((v) => v.id))]) {
+			await this.closeTab(id);
+			if (this.tabs.some((t) => t.id === id)) return;
+		}
+	}
+
+	/** Moves a tab into another window, all its documents: they arrive there as tabs of
+	 * their own (a second view of a document stays behind and goes). */
+	async moveGroupToWindow(group: TabGroup, target: MoveTarget) {
+		let to = target;
+		for (const id of [...new Set(group.views.map((v) => v.id))]) {
+			const label = await this.moveToWindow(id, to);
+			if (label === null) return;
+			to = { kind: 'window', label };
+		}
 	}
 
 	// ----- combining files (section 6.4) -----
@@ -925,55 +1084,66 @@ class AppStore {
 	}
 
 	cycleTab(direction: 1 | -1) {
+		const current = this.activeGroup;
 		// From the start screen, back to the document it was shown over.
-		if (this.startShown && this.activeId !== null) {
-			this.activate(this.activeId);
+		if (this.startShown && current) {
+			this.show(current);
 			return;
 		}
-		if (this.tabs.length < 2 || this.activeId === null) return;
-		const i = this.tabs.findIndex((t) => t.id === this.activeId);
-		const next = this.tabs[(i + direction + this.tabs.length) % this.tabs.length];
-		if (next) this.activate(next.id);
+		if (this.groups.length < 2 || !current) return;
+		const i = this.groups.indexOf(current);
+		const next = this.groups[(i + direction + this.groups.length) % this.groups.length];
+		if (next) this.show(next);
 	}
 
+	/** Moves the tab at `from` in the row to `to`. */
 	moveTab(from: number, to: number) {
-		if (from === to || from < 0 || to < 0 || from >= this.tabs.length || to >= this.tabs.length) return;
-		const tabs = [...this.tabs];
-		const [tab] = tabs.splice(from, 1);
-		if (tab) tabs.splice(to, 0, tab);
-		this.tabs = tabs;
+		const n = this.groups.length;
+		if (from === to || from < 0 || to < 0 || from >= n || to >= n) return;
+		const groups = [...this.groups];
+		const [group] = groups.splice(from, 1);
+		if (group) groups.splice(to, 0, group);
+		this.groups = groups;
 	}
 
 	// ----- windows (section 8) -----
 
-	/** The tab is all this window shows: in a new window it would be this window again. */
+	/** The document's tab is all this window shows: in a new window it would be this window
+	 * again. */
 	isOnlyTab(id: number): boolean {
-		return this.tabs.length === 1 && this.tabs[0]?.id === id && !this.combine;
+		return this.groups.length === 1 && !this.combine && this.groups[0]!.views.every((v) => v.id === id);
+	}
+
+	/** The tab is all this window shows. */
+	isOnlyGroup(group: TabGroup): boolean {
+		return this.groups.length === 1 && this.groups[0] === group && !this.combine;
 	}
 
 	/**
 	 * Moves a tab into another window: a new one, one that is open, or wherever it was
 	 * dropped. The document stays open in Rust as it is, unsaved changes and undo history
 	 * included; the tab takes its place in the document and its page display along. A
-	 * window left with nothing to show closes. Returns whether the tab moved.
+	 * window left with nothing to show closes. Returns the window the tab went to, or null
+	 * if it did not move.
 	 */
-	async moveToWindow(id: number, target: MoveTarget): Promise<boolean> {
-		const tab = this.tabs.find((t) => t.id === id);
+	async moveToWindow(id: number, target: MoveTarget): Promise<string | null> {
+		const tab = (this.active?.id === id ? this.active : null) ?? this.tabs.find((t) => t.id === id);
 		// Not in the middle of a save, whose result this window's tab is waiting for.
-		if (!tab || tab.saving || this.moving.has(id)) return false;
+		if (!tab || tab.saving || this.moving.has(id)) return null;
 		this.moving.add(id);
 		try {
 			if (this.insertRequest?.tabId === id) this.cancelInsert();
 			await this.settled();
 			// Where the user is: the tab opens there in its new window.
 			await rememberView(tab.id, tab.viewState()).catch(() => {});
-			if ((await moveDocument(id, target, tab.handoff())) === null) return false;
-			this.removeTab(tab);
+			const label = await moveDocument(id, target, tab.handoff());
+			if (label === null) return null;
+			this.removeDocument(id);
 			if (this.tabs.length === 0 && !this.combine) void getCurrentWindow().close();
-			return true;
+			return label;
 		} catch (e) {
 			this.showError(toAppError(e));
-			return false;
+			return null;
 		} finally {
 			this.moving.delete(id);
 		}
@@ -1014,14 +1184,23 @@ class AppStore {
 		}
 	}
 
-	/** Takes a tab out of this window: the one after it shows, or what else is open. */
-	private removeTab(tab: DocTab) {
-		tab.search.cancel();
-		const index = this.tabs.indexOf(tab);
-		this.tabs = this.tabs.filter((t) => t !== tab);
-		if (this.activeId === tab.id) {
-			const next = this.tabs[Math.min(index, this.tabs.length - 1)];
-			this.activeId = next?.id ?? null;
+	/** Takes a document out of this window, every view of it: a joined tab keeps its other
+	 * panes; a tab left empty goes, and the one after it shows, or what else is open. */
+	private removeDocument(id: number) {
+		const before = this.activeGroup;
+		const index = before ? this.groups.indexOf(before) : -1;
+		const groups: TabGroup[] = [];
+		for (const group of this.groups) {
+			const rest = group.views.filter((v) => v.id !== id);
+			for (const view of group.views) if (view.id === id) view.dispose();
+			if (rest.length === 0) continue;
+			if (rest.length !== group.views.length) group.setViews(rest);
+			groups.push(group);
+		}
+		this.groups = groups;
+		if (before && !groups.includes(before)) {
+			const next = groups[Math.min(index, groups.length - 1)];
+			this.activeKey = next?.key ?? null;
 			// The last document gone while the Combine view is open: show it.
 			if (!next && this.combine && !this.startShown) this.openCombine();
 		}
@@ -1068,7 +1247,7 @@ class AppStore {
 		// Moved to another window while it asked: it is that window's to close now.
 		if (!this.tabs.includes(tab)) return;
 		this.rememberView(tab);
-		this.removeTab(tab);
+		this.removeDocument(id);
 		await closeDocument(id).catch(() => {});
 		void this.refreshRecent();
 	}
@@ -1102,7 +1281,7 @@ class AppStore {
 		// moment after it was made for a tab (File > Exit in another window), it would
 		// otherwise see no unsaved changes and close with them.
 		await this.adopting;
-		const dirty = this.tabs.filter((t) => t.state.dirty);
+		const dirty = this.documents.filter((t) => t.state.dirty);
 		if (dirty.length === 1) {
 			if (!(await this.confirmDiscard(dirty[0]!))) return false;
 		} else if (dirty.length > 1) {
@@ -1347,11 +1526,15 @@ class AppStore {
 		if (tab.untitled) return;
 		try {
 			const info = await reloadDocument(tab.id);
-			const position = tab.viewer?.position();
+			const views = [...tab.doc.views];
+			const positions = views.map((v) => v.viewer?.position());
 			tab.update(info);
 			tab.banner = null;
-			if (position) tab.viewer?.goTo(position, { recordHistory: false });
-			tab.search.refresh();
+			views.forEach((v, i) => {
+				const position = positions[i];
+				if (position) v.viewer?.goTo(position, { recordHistory: false });
+				v.search.refresh();
+			});
 		} catch (e) {
 			this.showError(toAppError(e));
 		}

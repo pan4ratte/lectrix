@@ -62,7 +62,7 @@
 	const EDGES: readonly ResizeEdge[] = ['n', 's', 'e', 'w', 'ne', 'nw', 'se', 'sw'];
 
 	const a = $derived(tab.selectedAnnotationInfo);
-	const key = $derived(a ? `${tab.id}:${a.page}:${a.id}` : null);
+	const key = $derived(a ? `${tab.key}:${a.page}:${a.id}` : null);
 	const caps = $derived(a ? capabilities(a, tab.flags.canAnnotate) : null);
 	const replies = $derived(a ? tab.repliesTo(a.page, a.id) : []);
 	const parent = $derived(a?.replyTo != null ? tab.annotation(a.page, a.replyTo) : null);

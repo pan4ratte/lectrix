@@ -248,6 +248,18 @@ Needs an installed earlier release and a newer one published (ADR 0011,
 - [ ] With a second monitor: leave the window on it, close, unplug the monitor, start:
       the window is on the remaining monitor, its title bar reachable.
 
+## Side by side
+
+- [ ] Drag a tab to the right edge of the pages: the column it would take shows; drop it,
+      and the two documents share one tab. Drag one to the middle of the pages instead: it
+      gets a window of its own, as before.
+- [ ] Resize the columns with the line between them; double-click it: even again. Narrated:
+      Narrator names each pane and the divider.
+- [ ] Turn the lock on, scroll either side: the other keeps its distance. Two pages side by
+      side in single page mode: Page Down in one turns both.
+- [ ] Show a document twice, annotate in one view: the highlight shows in both. Zoom one with
+      the lock on: the other follows.
+
 ## Recent files
 
 - [ ] Right-click a recent file on the start screen, **Open file location**: File Explorer

@@ -71,7 +71,13 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 			{ command: 'toggleRightPane', label: 'Show or hide the right pane', keys: [], inInputs: true },
 			{ command: 'showPages', label: 'Show or hide the Pages panel', keys: [], inInputs: true },
 			{ command: 'showBookmarks', label: 'Show or hide the Bookmarks panel', keys: [], inInputs: true },
-			{ command: 'showAnnotations', label: 'Show or hide the Annotations panel', keys: [], inInputs: true }
+			{ command: 'showAnnotations', label: 'Show or hide the Annotations panel', keys: [], inInputs: true },
+			{ command: 'showTwice', label: 'Show this document twice, side by side', keys: [], inInputs: true },
+			{ command: 'showNextTabBeside', label: 'Show the next tab beside this one', keys: [], inInputs: true },
+			{ command: 'separateTabs', label: 'Separate the documents side by side', keys: [], inInputs: true },
+			{ command: 'syncScrolling', label: 'Synchronize scrolling side by side', keys: [], inInputs: true },
+			{ command: 'nextPane', label: 'Next pane side by side', keys: [], inInputs: true },
+			{ command: 'previousPane', label: 'Previous pane side by side', keys: [], inInputs: true }
 		]
 	},
 	{

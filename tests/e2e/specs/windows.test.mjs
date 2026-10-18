@@ -5,7 +5,7 @@
 //
 // Dragging a tab out of the window is not scripted (WebDriver's pointer stays inside the
 // page); moving goes through the tab's context menu and the File menu, which call the same
-// code as a drop.
+// code as a drop. A tab dropped inside its window stays there.
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -143,9 +143,18 @@ test('tabs are reordered by dragging and from the keyboard', async () => {
 		assert.equal(await windowCount(browser), 1, 'a drag ended with Esc moved the tab');
 		assert.deepEqual(await tabNames(browser), ['order-b.pdf', 'order-c.pdf', 'order-a.pdf']);
 
-		// Dropped there, away from the row, it gets a window of its own.
+		// Dropped there, inside its window, it stays, and is the tab shown.
 		await drag(browser, pulled, below, { atTarget: onItsWay });
-		await browser.waitUntil(async () => (await windowCount(browser)) === 2, { timeout: 20_000, timeoutMsg: 'the dropped tab got no window' });
+		await browser.pause(500);
+		assert.equal(await windowCount(browser), 1, 'a tab dropped inside its window got a window of its own');
+		assert.deepEqual(await tabNames(browser), ['order-b.pdf', 'order-c.pdf', 'order-a.pdf']);
+		assert.ok((await browser.$('[role=tab][aria-selected="true"]').getText()).includes('order-c.pdf'), 'the dropped tab is not shown');
+
+		// Its menu gives it a window of its own (as a drop outside the window does, which
+		// WebDriver's pointer can't reach).
+		await (await tabOf(browser, 'order-c.pdf')).click({ button: 'right' });
+		await (await menuItem(browser, 'Move to new window')).click();
+		await browser.waitUntil(async () => (await windowCount(browser)) === 2, { timeout: 20_000, timeoutMsg: 'the tab got no window' });
 		await browser.waitUntil(async () => (await tabNames(browser)).length === 2, { timeoutMsg: 'the dropped tab stayed in its window' });
 		assert.deepEqual(await tabNames(browser), ['order-b.pdf', 'order-a.pdf']);
 		assert.ok(await switchToWindowWith(browser, 'order-c.pdf'));

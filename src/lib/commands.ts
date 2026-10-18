@@ -13,6 +13,8 @@ import { update } from '#lib/features/update/update.svelte.ts';
 import { copySelection } from '#lib/features/viewer/actions.ts';
 import { normalizeRotation, type ViewMode } from '#lib/features/viewer/layout.ts';
 import { find, findStep } from '#lib/features/viewer/search.ts';
+import { MAX_PANES } from '#lib/features/split/split.ts';
+import { toggleLock } from '#lib/features/split/sync.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -48,6 +50,36 @@ function layOut(tab: DocTab, mode: ViewMode, cover: boolean) {
 
 /** Zooms the pages in or out. In a grid of pages (the Combine view's, or that of a document
  * whose pages are being organized), the pictures get larger and smaller. */
+/** Shows the tab after the one shown (the one before, from the last) beside it (section
+ * 6.1, split view). */
+function joinNextTab() {
+	const group = app.activeGroup;
+	if (!group || app.combineActive || app.startShown) return;
+	const i = app.groups.indexOf(group);
+	const next = app.groups[i + 1] ?? app.groups[i - 1];
+	if (next && !app.joinTabs(group, next)) tooManyPanes();
+}
+
+/** Says why a document is not put beside the others. */
+export function tooManyPanes() {
+	app.notify({
+		kind: 'info',
+		message: `A tab shows at most ${MAX_PANES} documents side by side.`,
+		suggestion: 'Close one of them first, or open the document in a tab of its own.'
+	});
+}
+
+/** Puts the focus on the next or the previous pane of the tab shown, and the keyboard's. */
+function stepPane(direction: 1 | -1) {
+	const group = app.activeGroup;
+	if (!group?.joined || app.combineActive || app.startShown) return;
+	const n = group.views.length;
+	const view = group.views[(group.focus + direction + n) % n];
+	if (!view) return;
+	app.focusView(view);
+	view.viewer?.focus();
+}
+
 function zoom(direction: 1 | -1) {
 	if (app.combineActive) app.combine?.zoom.zoomStep(direction);
 	else if (app.active?.organize) app.active.organize.zoom.zoomStep(direction);
@@ -71,14 +103,17 @@ export const commands = {
 	saveAs: withTab((t) => app.saveAs(t)),
 	saveAsOptimized: withTab((t) => app.saveAs(t, true)),
 	reload: withTab((t) => app.reload(t)),
+	/** Closes the tab shown; in a joined tab, the pane in focus (section 6.1, split view). */
 	closeTab: () => {
 		if (app.combineActive) void app.closeCombine();
+		else if (app.active && app.activeGroup?.joined) void app.closePane(app.active);
 		else if (app.active) void app.closeTab(app.active.id);
 	},
 	combineFiles: () => app.openCombine(),
 	/** The active tab into a window of its own (section 8). */
-	moveTabToNewWindow: withTab((t) => {
-		if (!app.isOnlyTab(t.id)) void app.moveToWindow(t.id, { kind: 'new' });
+	moveTabToNewWindow: withTab(() => {
+		const group = app.activeGroup;
+		if (group && !app.isOnlyGroup(group)) void app.moveGroupToWindow(group, { kind: 'new' });
 	}),
 	exit: () => void app.exit(),
 	// Their shortcut pressed again, while they are open, closes them.
@@ -143,6 +178,19 @@ export const commands = {
 	}),
 	nextTab: () => app.cycleTab(1),
 	previousTab: () => app.cycleTab(-1),
+
+	// Documents side by side (section 6.1, split view).
+	showTwice: reading((t) => {
+		if (!app.showTwice(t)) tooManyPanes();
+	}),
+	showNextTabBeside: reading(() => joinNextTab()),
+	separateTabs: withTab(() => {
+		const group = app.activeGroup;
+		if (group?.joined) app.separate(group);
+	}),
+	nextPane: () => stepPane(1),
+	previousPane: () => stepPane(-1),
+	syncScrolling: reading(() => toggleLock()),
 
 	/** The pages as a grid to organize, in place of the viewer (section 6.7), and back. */
 	organizePages: withTab((t) => toggleOrganize(t)),

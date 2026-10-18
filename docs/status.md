@@ -319,6 +319,12 @@ pages, `tests/perf/organize.mjs` (its numbers are under "Organizing pages" below
   notes turn with rotated pages in PDFium and pdf.js) are listed in
   `docs/interop-profile.md`.
 
+## Split view
+
+- **A joined tab moved to another window** (its menu, File > Move tab to new window, a drag) arrives there as one tab per document, not joined: a window gets its tabs from Rust (`list_open_documents`), which knows documents, not views. A second view of a document stays behind and goes. To keep them joined, the handoff would carry the group.
+- **The lock is not remembered,** nor is a split: Lectrix does not reopen the tabs of a closed window.
+- **Synchronized scrolling counts pages**, not points: documents whose pages differ greatly in size keep their distance page for page, as Acrobat's does.
+
 ## Platform gaps (macOS and Linux)
 
 CI builds the app and its tests on both, and runs the tests without failing the job.

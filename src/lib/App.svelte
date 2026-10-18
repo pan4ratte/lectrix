@@ -42,6 +42,9 @@
 	import { insertDropped, leaveOrganize } from '#lib/features/organize/actions.ts';
 	import OrganizeBar from '#lib/features/organize/OrganizeBar.svelte';
 	import OrganizeView from '#lib/features/organize/OrganizeView.svelte';
+	import DropPreview from '#lib/features/split/DropPreview.svelte';
+	import SplitView from '#lib/features/split/SplitView.svelte';
+	import { dropTarget } from '#lib/features/split/tabdrop.svelte.ts';
 	import ViewBar from '#lib/features/viewer/ViewBar.svelte';
 	import Viewer from '#lib/features/viewer/Viewer.svelte';
 	import WhatsNewDialog from '#lib/features/changelog/WhatsNewDialog.svelte';
@@ -68,6 +71,8 @@
 	import { app } from '#lib/stores/app.svelte.ts';
 
 	const tab = $derived(app.active);
+	/** The tab shown: several documents side by side (section 6.1, split view), perhaps. */
+	const group = $derived(tab ? app.activeGroup : null);
 
 	async function startup() {
 		try {
@@ -234,7 +239,8 @@
 
 	// The window's title, for the taskbar and Alt+Tab: what it shows, then the app's name.
 	$effect(() => {
-		const shown = tab?.name ?? (app.combineActive ? 'Combine files' : null);
+		const names = group?.joined ? [...new Set(group.views.map((v) => v.name))].join(', ') : null;
+		const shown = names ?? tab?.name ?? (app.combineActive ? 'Combine files' : null);
 		void getCurrentWindow()
 			.setTitle(shown ? `${shown} - ${APP_NAME}` : APP_NAME)
 			.catch(() => {});
@@ -430,7 +436,7 @@
 						>
 							{@render paneEnd('left')}
 							<div class="min-w-0 flex-1">
-								{#key tab.id}
+								{#key tab.key}
 									{#if tab.organize}
 										<OrganizeBar {tab} organize={tab.organize} />
 									{:else}
@@ -441,6 +447,17 @@
 							{@render paneEnd('right')}
 						</div>
 					{/if}
+					{#if group?.joined}
+					<!-- Documents side by side: each pane has its banners and its own grid of
+					     pages to organize; the side panes go only while the one in focus does. -->
+					<div class="flex min-h-0 flex-1">
+						{#if !organizing}{@render toolDock('left')}{/if}
+						<div class={['flex min-h-0 min-w-0 flex-1', sliding ? 'viewer-covers' : 'relative']}>
+							<SplitView {group} {full} {floatingTools} />
+						</div>
+						{#if !organizing}{@render toolDock('right')}{/if}
+					</div>
+					{:else}
 					<!-- (Over the pages while the bars slide, as they are.) -->
 					<div class={['shrink-0', sliding && 'relative z-10']}>
 						<FileBanner {tab} />
@@ -450,25 +467,27 @@
 							<PdfaBanner {tab} />
 						{/if}
 					</div>
-					{#key tab.id}
+					{#key tab.key}
 						{#if tab.organize}
 							<!-- The pages as a grid to organize (section 6.7), in the viewer's place. -->
 							<OrganizeView {tab} organize={tab.organize} />
 						{:else}
 						<div class="flex min-h-0 flex-1">
 							{@render toolDock('left')}
-							<div class={['flex min-h-0 min-w-0 flex-1 flex-col', sliding ? 'viewer-covers' : 'relative']}>
+							<div class={['flex min-h-0 min-w-0 flex-1 flex-col', sliding ? 'viewer-covers' : 'relative']} {@attach dropTarget}>
 								<Viewer {tab} />
 								{#if floatingTools}
 									<AnnotationToolbar {tab} />
 								{/if}
 								<AnnotationPropertiesDialog {tab} />
 								<BookmarkInspector {tab} />
+								<DropPreview />
 							</div>
 							{@render toolDock('right')}
 						</div>
 						{/if}
 					{/key}
+					{/if}
 				{:else}
 					<StartScreen />
 				{/if}

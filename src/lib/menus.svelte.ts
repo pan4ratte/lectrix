@@ -7,6 +7,7 @@ import { commands, setViewMode, type CommandName } from '#lib/commands.ts';
 import { APP_NAME } from '#lib/config.ts';
 import { debugMenu } from '#lib/features/debug/menu.ts';
 import { update } from '#lib/features/update/update.svelte.ts';
+import { MAX_PANES } from '#lib/features/split/split.ts';
 import { VIEW_MODES } from '#lib/features/viewer/layout.ts';
 import type { MenuEntry as NativeEntry, PanelId, SystemMenuItem } from '#lib/ipc/index.ts';
 import { PLATFORM, type Platform } from '#lib/platform.ts';
@@ -78,6 +79,11 @@ export function appMenus(platform: Platform = PLATFORM): AppMenu[] {
 	/** A document is being read: its pages are not being organized (section 6.7), where the
 	 * viewer and the side panes are not on screen. */
 	const reading = tab !== null && !tab.organize;
+	/** The tab shown, which can be several documents side by side (section 6.1). */
+	const group = app.activeGroup;
+	const joined = !!group?.joined && hasDoc;
+	const groupIndex = group ? app.groups.indexOf(group) : -1;
+	const nextTab = group ? (app.groups[groupIndex + 1] ?? app.groups[groupIndex - 1] ?? null) : null;
 
 	const recent: MenuEntry = {
 		kind: 'submenu',
@@ -128,7 +134,7 @@ export function appMenus(platform: Platform = PLATFORM): AppMenu[] {
 					separator,
 					command('reload', 'Reload from disk', hasDoc && !tab?.untitled),
 					command('closeTab', 'Close', hasDoc || app.combineActive),
-					command('moveTabToNewWindow', 'Move tab to new window', !!tab && !app.isOnlyTab(tab.id)),
+					command('moveTabToNewWindow', 'Move tab to new window', !!group && hasDoc && !app.isOnlyGroup(group)),
 					separator,
 					command('settings', 'Settings…'),
 					separator,
@@ -210,6 +216,29 @@ export function appMenus(platform: Platform = PLATFORM): AppMenu[] {
 			},
 			command('rotateViewClockwise', 'Rotate view clockwise', reading),
 			command('rotateViewCounterClockwise', 'Rotate view counter-clockwise', reading),
+			{
+				kind: 'submenu',
+				label: 'Side by side',
+				enabled: hasDoc,
+				wide: true,
+				items: [
+					command('showTwice', 'Show this document twice', reading && !group?.full),
+					command(
+						'showNextTabBeside',
+						'Show the next tab beside this one',
+						reading && !!nextTab && !!group && group.views.length + nextTab.views.length <= MAX_PANES
+					),
+					command('separateTabs', 'Separate', joined),
+					separator,
+					item('syncScrolling', 'Synchronize scrolling', commands.syncScrolling, {
+						enabled: joined && reading,
+						checked: joined && !!group?.locked,
+						command: 'syncScrolling'
+					}),
+					command('nextPane', 'Next pane', joined),
+					command('previousPane', 'Previous pane', joined)
+				]
+			},
 			command('fullScreen', 'Full screen', reading),
 			separator,
 			command('goToPage', 'Go to page…', reading),
@@ -270,9 +299,9 @@ export function appMenus(platform: Platform = PLATFORM): AppMenu[] {
 			system('minimize'),
 			system('zoom'),
 			separator,
-			command('previousTab', 'Show previous tab', app.tabs.length > 1),
-			command('nextTab', 'Show next tab', app.tabs.length > 1),
-			command('moveTabToNewWindow', 'Move tab to new window', !!tab && !app.isOnlyTab(tab.id)),
+			command('previousTab', 'Show previous tab', app.groups.length > 1),
+			command('nextTab', 'Show next tab', app.groups.length > 1),
+			command('moveTabToNewWindow', 'Move tab to new window', !!group && hasDoc && !app.isOnlyGroup(group)),
 			separator,
 			system('bringAllToFront')
 		]

@@ -1,15 +1,17 @@
 <script lang="ts">
 	// The page and zoom controls (section 8): previous and next page, the page box (label or
 	// number, then "(4 of 312)" or "of 312"), zoom out, the zoom level and zoom in, the page
-	// display, and the visual adjustments. In the bar at the top of the document; full screen,
+	// display, the visual adjustments, and with documents side by side the lock that scrolls
+	// them together (section 6.1, split view). In the bar at the top of the document; full screen,
 	// in the floating toolbar (section 6.1), as a group of that toolbar: stacked when that
 	// toolbar is at a side of the screen, with the position under the page box and the menus
 	// opening beside the toolbar.
-	import { ChevronDown, ChevronUp, Minus, Plus } from '@lucide/svelte';
+	import { ChevronDown, ChevronUp, Link2, Minus, Plus } from '@lucide/svelte';
 	import { DropdownMenu } from 'bits-ui';
 
 	import { commands, setViewMode } from '#lib/commands.ts';
 	import { menuOffset, type MenuSide } from '#lib/features/annotations/bars.ts';
+	import { toggleLock } from '#lib/features/split/sync.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -23,6 +25,8 @@
 	let { tab, nested = false, side = 'bottom' }: { tab: DocTab; nested?: boolean; side?: MenuSide } = $props();
 
 	const stacked = $derived(side !== 'bottom');
+	/** The tab the document is in: several documents side by side, perhaps. */
+	const group = $derived(app.groupOf(tab));
 	const menuAlign = $derived(stacked ? 'start' : 'center');
 
 	let zoomOpen = $state(false);
@@ -256,4 +260,17 @@
 		</DropdownMenu.Portal>
 	</DropdownMenu.Root>
 	<VisualAdjustments {tab} {side} />
+	{#if group?.joined}
+		<button
+			type="button"
+			class="icon-button tool-button size-7"
+			aria-label="Synchronize scrolling"
+			aria-pressed={group.locked}
+			data-tip={app.hint(group.locked ? 'Scrolling together: click to scroll each by itself' : 'Synchronize scrolling', 'syncScrolling')}
+			data-sync-scrolling
+			onclick={toggleLock}
+		>
+			<Link2 size={16} aria-hidden="true" />
+		</button>
+	{/if}
 </div>
