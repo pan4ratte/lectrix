@@ -5,6 +5,8 @@ const COMMANDS: &[&str] = &[
     "open_startup_documents",
     "open_recent",
     "remove_recent",
+    "set_recent_pinned",
+    "show_recent_in_folder",
     "list_recent_files",
     "list_recovered",
     "restore_recovered",

@@ -1221,3 +1221,33 @@ test('the list shows the annotations of a page from its top, not in the order th
 		await stop();
 	}
 });
+
+test('the annotation list keeps the sort last picked in every document', async () => {
+	const paths = ['sort-kept-a', 'sort-kept-b'].map((name) => {
+		const plain = sample(`${name}-plain.pdf`, 1);
+		const path = plain.replace('-plain.pdf', '.pdf');
+		cli('annot', 'note', plain, path, '--at', '400,500', '--text', `A note in ${name}`);
+		return path;
+	});
+	const { browser, stop } = await launch(paths);
+	try {
+		await waitForDocument(browser);
+		await showAnnotations(browser);
+		await waitForRowCount(browser, 1, 'the note of the document shown');
+		await (await browser.$('button[aria-label^="Sort by page, A–Z"]')).click();
+		await (await browser.$('//*[@role="menuitemradio"][contains(., "Author")]')).click();
+		await (await browser.$('button[aria-label="Sort by author, A–Z"]')).click();
+		await (await browser.$('//*[@role="menuitemradio"][contains(., "Z–A")]')).click();
+		await (await browser.$('button[aria-label="Sort by author, Z–A"]')).waitForExist({ timeoutMsg: 'the sort was not picked' });
+		// The other document's list is sorted the same way (Settings keep the sort by default).
+		await browser.keys(['Control', 'Tab']);
+		await browser.waitUntil(async () => (await browser.$('[role=tab][aria-selected="true"]').getText()).includes('sort-kept-a'), {
+			timeoutMsg: 'Ctrl+Tab did not show the other document'
+		});
+		await waitForDocument(browser);
+		await waitForRowCount(browser, 1, 'the note of the other document');
+		await (await browser.$('button[aria-label="Sort by author, Z–A"]')).waitForExist({ timeoutMsg: 'the other document’s list is not sorted as picked' });
+	} finally {
+		await stop();
+	}
+});

@@ -463,6 +463,8 @@ pub fn run() {
             commands::open_startup_documents,
             commands::open_recent,
             commands::remove_recent,
+            commands::set_recent_pinned,
+            commands::show_recent_in_folder,
             commands::list_recent_files,
             commands::list_recovered,
             commands::restore_recovered,

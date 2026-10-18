@@ -10,11 +10,12 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 use crate::ipc::{
-    Appearance, PageAdjustments, PaneLayout, QuickTool, ScrollMode, ToolbarDock, ToolbarPosition,
-    ToolbarStyle, ToolbarVisibility, ViewState,
+    AnnotationSort, Appearance, PageAdjustments, PaneLayout, QuickTool, ScrollMode, ToolbarDock,
+    ToolbarPosition, ToolbarStyle, ToolbarVisibility, ViewState,
 };
 use crate::placement::WindowPlacement;
 
+/// The most files the recent list keeps besides the pinned ones, which stay however many.
 const MAX_RECENT: usize = 20;
 const MAX_VIEWS: usize = 500;
 
@@ -23,6 +24,10 @@ pub struct RecentEntry {
     pub path: PathBuf,
     /// Seconds since the Unix epoch.
     pub opened_at: u64,
+    /// Pinned on the start screen (section 6.1): kept at the top of the list, in the order
+    /// pinned, and never dropped to make room.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub pinned: bool,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -174,6 +179,12 @@ pub struct StoredSettings {
     /// ones of that type get.
     #[serde(default = "yes")]
     pub remember_annotation_style: bool,
+    /// Whether the annotation list's sort is the one last picked, in every document.
+    #[serde(default = "yes")]
+    pub remember_annotation_sort: bool,
+    /// The sort last picked in the annotation list, while it is remembered.
+    #[serde(default)]
+    pub annotation_sort: AnnotationSort,
     /// Whether selected text shows a handle at its start and at its end.
     #[serde(default)]
     pub selection_handles: bool,
@@ -249,6 +260,8 @@ impl Default for StoredSettings {
             tooltip_delay_ms: DEFAULT_TOOLTIP_DELAY_MS,
             open_comment_after_markup: false,
             remember_annotation_style: true,
+            remember_annotation_sort: true,
+            annotation_sort: AnnotationSort::default(),
             selection_handles: false,
             pdfa_read_only: true,
             highlight_links: true,
@@ -308,17 +321,59 @@ impl Store {
         &self.data.recent
     }
 
-    /// Moves `path` to the top of the recent list.
+    /// How many files at the top of the recent list are pinned.
+    fn pinned_count(&self) -> usize {
+        self.data.recent.iter().take_while(|e| e.pinned).count()
+    }
+
+    /// Moves `path` to the top of the recent list, under the pinned files; a pinned file
+    /// keeps its place and only notes the time.
     pub fn add_recent(&mut self, path: &Path, same_file: impl Fn(&Path, &Path) -> bool) {
+        if let Some(entry) = self
+            .data
+            .recent
+            .iter_mut()
+            .find(|e| e.pinned && same_file(&e.path, path))
+        {
+            entry.opened_at = now();
+            self.persist();
+            return;
+        }
         self.data.recent.retain(|e| !same_file(&e.path, path));
+        let top = self.pinned_count();
         self.data.recent.insert(
-            0,
+            top,
             RecentEntry {
                 path: path.to_path_buf(),
                 opened_at: now(),
+                pinned: false,
             },
         );
-        self.data.recent.truncate(MAX_RECENT);
+        self.data.recent.truncate(top + MAX_RECENT);
+        self.persist();
+    }
+
+    /// Pins the file at `index` (it goes after the files pinned before it) or unpins it (it
+    /// goes back among the others by when it was last opened, after those opened as late).
+    pub fn set_recent_pinned(&mut self, index: usize, pinned: bool) {
+        let Some(entry) = self.data.recent.get(index) else {
+            return;
+        };
+        if entry.pinned == pinned {
+            return;
+        }
+        let mut entry = self.data.recent.remove(index);
+        entry.pinned = pinned;
+        let top = self.pinned_count();
+        let place = if pinned {
+            top
+        } else {
+            top + self.data.recent[top..]
+                .iter()
+                .take_while(|e| e.opened_at >= entry.opened_at)
+                .count()
+        };
+        self.data.recent.insert(place, entry);
         self.persist();
     }
 
@@ -606,6 +661,57 @@ mod tests {
     }
 
     #[test]
+    fn pinned_files_stay_at_the_top_and_are_never_dropped() {
+        let file = temp_store("pinned.json");
+        let mut store = Store::load(Some(file.clone()));
+        let names = |store: &Store| -> Vec<String> {
+            store
+                .recent()
+                .iter()
+                .map(|e| e.path.file_stem().unwrap().to_string_lossy().into_owned())
+                .collect()
+        };
+        for name in ["a", "b", "c", "d"] {
+            store.add_recent(Path::new(&format!("C:/docs/{name}.pdf")), |a, b| a == b);
+        }
+        assert_eq!(names(&store), ["d", "c", "b", "a"]);
+        // Pinned files go after the ones pinned before them.
+        store.set_recent_pinned(2, true);
+        store.set_recent_pinned(3, true);
+        assert_eq!(names(&store), ["b", "a", "d", "c"]);
+        assert!(store.recent()[0].pinned && store.recent()[1].pinned);
+        // Opening a pinned file leaves it where it is; another goes under the pinned ones.
+        store.add_recent(Path::new("C:/docs/a.pdf"), |a, b| a == b);
+        store.add_recent(Path::new("C:/docs/e.pdf"), |a, b| a == b);
+        assert_eq!(names(&store), ["b", "a", "e", "d", "c"]);
+        // However many others are opened, the pinned files stay.
+        for i in 0..MAX_RECENT + 5 {
+            store.add_recent(Path::new(&format!("C:/docs/{i}.pdf")), |a, b| a == b);
+        }
+        assert_eq!(store.recent().len(), 2 + MAX_RECENT);
+        assert_eq!(names(&store)[..2], ["b", "a"]);
+        // Unpinned, a file goes back among the others by when it was last opened: "a", as
+        // if opened before every unpinned file left, goes last.
+        store.data.recent[1].opened_at = 1;
+        store.set_recent_pinned(1, false);
+        assert_eq!(names(&store)[0], "b");
+        assert_eq!(names(&store).last().map(String::as_str), Some("a"));
+        assert!(!store.recent().last().unwrap().pinned);
+        // Nothing for an index past the end, or a file already as asked.
+        store.set_recent_pinned(99, true);
+        store.set_recent_pinned(0, true);
+        assert_eq!(names(&store)[0], "b");
+        // Survives a restart; an entry from before pinning loads unpinned.
+        assert_eq!(Store::load(Some(file.clone())).recent(), store.recent());
+        fs::write(
+            &file,
+            br#"{"recent":[{"path":"C:/docs/old.pdf","opened_at":1}]}"#,
+        )
+        .unwrap();
+        assert!(!Store::load(Some(file)).recent()[0].pinned);
+    }
+
+    #[test]
     fn adjustments_stay_within_their_range() {
         let wild = PageAdjustments {
             brightness: 0,
@@ -687,6 +793,11 @@ mod tests {
             tooltip_delay_ms: 800,
             open_comment_after_markup: true,
             remember_annotation_style: false,
+            remember_annotation_sort: false,
+            annotation_sort: AnnotationSort {
+                sort: crate::ipc::AnnotationSortKey::Author,
+                order: crate::ipc::SortOrder::Desc,
+            },
             selection_handles: true,
             pdfa_read_only: false,
             highlight_links: false,
@@ -739,6 +850,8 @@ mod tests {
         assert_eq!(v1.settings().tooltip_delay_ms, DEFAULT_TOOLTIP_DELAY_MS);
         assert!(!v1.settings().open_comment_after_markup);
         assert!(v1.settings().remember_annotation_style);
+        assert!(v1.settings().remember_annotation_sort);
+        assert_eq!(v1.settings().annotation_sort, AnnotationSort::default());
         assert!(!v1.settings().selection_handles);
         assert!(v1.settings().pdfa_read_only);
         assert!(v1.settings().highlight_links);

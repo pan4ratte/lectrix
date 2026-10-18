@@ -16,4 +16,8 @@ openedAt: number,
 /**
  * Its size in bytes; `None` when it is not found.
  */
-size: number | null, };
+size: number | null, 
+/**
+ * Pinned to the top of the list (section 6.1).
+ */
+pinned: boolean, };

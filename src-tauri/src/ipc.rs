@@ -1302,6 +1302,8 @@ pub struct RecentFile {
     /// Its size in bytes; `None` when it is not found.
     #[ts(type = "number | null")]
     pub size: Option<u64>,
+    /// Pinned to the top of the list (section 6.1).
+    pub pinned: bool,
 }
 
 /// Unsaved changes a crash left behind, offered for restoring (section 7).
@@ -1429,6 +1431,37 @@ pub enum Appearance {
     System,
     Light,
     Dark,
+}
+
+/// What the annotation list's rows are sorted by (section 6.5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum AnnotationSortKey {
+    #[default]
+    Page,
+    Author,
+    Created,
+    Modified,
+}
+
+/// A to Z (first page, A, oldest first) or Z to A.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum SortOrder {
+    #[default]
+    Asc,
+    Desc,
+}
+
+/// How the annotation list is sorted (section 6.5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AnnotationSort {
+    pub sort: AnnotationSortKey,
+    pub order: SortOrder,
 }
 
 /// How pages are laid out when a document opens (Settings, section 6.1): as the document
@@ -1561,6 +1594,11 @@ pub struct Settings {
     /// Whether new annotations get the colour and opacity last given to one of their type
     /// (section 6.5); otherwise the defaults, and the toolbar's choice until Lectrix closes.
     pub remember_annotation_style: bool,
+    /// Whether the annotation list is sorted as it was last sorted, in every document and
+    /// after a restart (section 6.5); otherwise each document starts sorted by page.
+    pub remember_annotation_sort: bool,
+    /// The sort last picked in the annotation list, while it is remembered.
+    pub annotation_sort: AnnotationSort,
     /// Whether selected text shows a handle at its start and at its end, to drag it from
     /// (section 6.1); its sides can be dragged either way.
     pub selection_handles: bool,
@@ -1610,6 +1648,8 @@ pub struct SettingsInput {
     pub tooltip_delay_ms: u32,
     pub open_comment_after_markup: bool,
     pub remember_annotation_style: bool,
+    pub remember_annotation_sort: bool,
+    pub annotation_sort: AnnotationSort,
     pub selection_handles: bool,
     pub pdfa_read_only: bool,
     pub highlight_links: bool,

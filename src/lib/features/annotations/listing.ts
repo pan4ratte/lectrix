@@ -1,14 +1,14 @@
 // What the annotation list shows (section 6.5): filters by type, colour and author, search
 // in comments or in the marked text, and the order and groups of its rows.
 
-import type { Annotation } from '#lib/ipc/index.ts';
+import type { Annotation, AnnotationSortKey, SortOrder } from '#lib/ipc/index.ts';
 import type { Line } from '#lib/features/viewer/selection.ts';
 
 import { MARKUP_SUBTYPES } from './tools.ts';
 
-export type ListSort = 'page' | 'author' | 'created' | 'modified';
+export type ListSort = AnnotationSortKey;
 /** A to Z (first page, oldest date first) or Z to A. */
-export type SortOrder = 'asc' | 'desc';
+export type { SortOrder };
 
 export const SORTS: readonly { id: ListSort; label: string }[] = [
 	{ id: 'page', label: 'Page' },

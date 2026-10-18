@@ -1595,8 +1595,8 @@ button.shortcut-key:hover,
 }
 
 /* Recent files, as a table or a grid of first pages (a switch beside the heading). Each row
-   or card is one button (stretched over it), plus a remove button that shows while the row
-   or card is hovered or focused. */
+   or card is one button (stretched over it), plus a pin button and a remove button that
+   show while the row or card is hovered or focused; a pinned file's star always shows. */
 .recent-heading {
 	color: var(--lectrix-fg-muted);
 	font-size: 14px;
@@ -1621,14 +1621,18 @@ button.shortcut-key:hover,
 	outline-offset: -2px;
 	border-radius: 4px;
 }
-.recent-remove {
+:is(.recent-pin, .recent-remove) {
 	position: relative;
 	z-index: 1;
 	opacity: 0;
 }
-:is(.recent-row, .recent-card):hover .recent-remove,
-.recent-remove:focus-visible {
+:is(.recent-row, .recent-card):hover :is(.recent-pin, .recent-remove),
+:is(.recent-pin, .recent-remove):focus-visible,
+.recent-pinned {
 	opacity: 1;
+}
+.recent-pinned {
+	color: var(--lectrix-accent);
 }
 
 /* Switching between the table and the grid brings the files in: each rises into place as
@@ -1657,6 +1661,7 @@ button.shortcut-key:hover,
 .recent-table {
 	--recent-opened-w: 168px;
 	--recent-size-w: 104px;
+	--recent-pin-w: 34px;
 	--recent-remove-w: 40px;
 	width: 100%;
 	table-layout: fixed;
@@ -1668,6 +1673,9 @@ button.shortcut-key:hover,
 }
 .recent-col-size {
 	width: var(--recent-size-w);
+}
+.recent-col-pin {
+	width: var(--recent-pin-w);
 }
 .recent-col-remove {
 	width: var(--recent-remove-w);
@@ -1702,10 +1710,13 @@ button.shortcut-key:hover,
 	color: var(--lectrix-fg);
 }
 .recent-table .recent-open::after {
-	right: calc(-1 * (var(--recent-opened-w) + var(--recent-size-w) + var(--recent-remove-w)));
+	right: calc(-1 * (var(--recent-opened-w) + var(--recent-size-w) + var(--recent-pin-w) + var(--recent-remove-w)));
 }
 .recent-table td:last-child {
 	padding: 0 6px;
+}
+.recent-table td.recent-pin-cell {
+	padding: 0 0 0 6px;
 }
 .recent-row:hover {
 	background: var(--lectrix-hover);
@@ -1789,15 +1800,21 @@ button.shortcut-key:hover,
 	font-size: 12px;
 	white-space: nowrap;
 }
-/* Over the page's corner, so it has a background of its own. */
-.recent-card-remove {
+/* Over the page's corners (the star at the top left, remove at the top right), so they have
+   a background of their own. */
+.recent-card-button {
 	position: absolute;
 	top: 8px;
-	right: 8px;
 	border: 1px solid var(--lectrix-line);
 	background: var(--lectrix-surface-raised);
 }
-.recent-card-remove:hover:not(:disabled) {
+.recent-card-pin {
+	left: 8px;
+}
+.recent-card-remove {
+	right: 8px;
+}
+.recent-card-button:hover:not(:disabled) {
 	background: linear-gradient(var(--lectrix-hover), var(--lectrix-hover)), var(--lectrix-surface-raised);
 }
 

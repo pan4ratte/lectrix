@@ -406,6 +406,9 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 					toggle('rememberAnnotationStyle', 'Use the last colour and opacity for new annotations', {
 						description: `One colour for every tool, and an opacity for each. When off, the defaults return each time ${APP_NAME} starts.`
 					}),
+					toggle('rememberAnnotationSort', 'Keep the annotation list’s sort for every document', {
+						description: `The order last picked in the annotation list, in every file and after ${APP_NAME} restarts. When off, each document starts sorted by page.`
+					}),
 					{
 						kind: 'range',
 						id: 'tooltipDelayMs',
@@ -537,6 +540,8 @@ export function toInput(d: Draft): SettingsInput {
 		tooltipDelayMs: Number(d.tooltipDelayMs),
 		openCommentAfterMarkup: d.openCommentAfterMarkup,
 		rememberAnnotationStyle: d.rememberAnnotationStyle,
+		rememberAnnotationSort: d.rememberAnnotationSort,
+		annotationSort: { ...d.annotationSort },
 		selectionHandles: d.selectionHandles,
 		pdfaReadOnly: d.pdfaReadOnly,
 		highlightLinks: d.highlightLinks,
@@ -555,6 +560,7 @@ export function toDraft(s: Settings): Draft {
 		quickTools: [...s.quickTools],
 		presetColors: { ...s.presetColors },
 		pageAdjustments: { ...s.pageAdjustments },
+		annotationSort: { ...s.annotationSort },
 		shortcuts: copyShortcuts(s.shortcuts),
 		author: s.author === s.defaultAuthor ? '' : s.author
 	};

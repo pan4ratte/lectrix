@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-show-recent-in-folder"
+description = "Enables the show_recent_in_folder command without any pre-configured scope."
+commands.allow = ["show_recent_in_folder"]
+
+[[permission]]
+identifier = "deny-show-recent-in-folder"
+description = "Denies the show_recent_in_folder command without any pre-configured scope."
+commands.deny = ["show_recent_in_folder"]

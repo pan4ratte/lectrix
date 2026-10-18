@@ -339,6 +339,10 @@ Nothing has been run interactively there.
   by which one is on top (only the Windows build asks the system for the window under the
   cursor), and moving tabs between windows has not been run there. Nor has full screen
   (on macOS the system's own, with its animation and its menu bar at the top edge).
+- **Show in folder** (2026-10-18, built, not run there): a recent file's Show in Finder is
+  `open -R`; Linux's Show in folder asks the file manager over D-Bus (`dbus-send`,
+  FileManager1's ShowItems) and opens the folder alone without it. Neither has been tried,
+  nor how a desktop without `dbus-send` falls back.
 - **Touchpad pinch on Linux** (2026-10-08, built, not yet tried with a real touchpad):
   WebKitGTK magnified the whole app. `platform/linux.rs` now stops the pinch on the
   webview widget's `event` signal (before WebKit's bubble-phase zoom gesture) and emits

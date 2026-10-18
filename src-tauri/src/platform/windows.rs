@@ -1,5 +1,6 @@
 //! Windows 10 (1809+) and Windows 11.
 
+use std::os::windows::ffi::OsStrExt;
 use std::path::Path;
 
 use super::Platform;
@@ -52,41 +53,76 @@ impl Platform for Windows {
 
     /// The shell opens the address with the default browser, as Run (Win+R) would.
     fn open_web_page(&self, url: &str) -> std::io::Result<()> {
+        shell_open(url)
+    }
+
+    /// The shell opens the folder in File Explorer.
+    fn open_folder(&self, folder: &Path) -> std::io::Result<()> {
+        shell_open(&folder.to_string_lossy())
+    }
+
+    /// File Explorer opens the file's folder with the file selected, as Open file location
+    /// does in Windows; a window already showing that folder is reused.
+    fn show_in_folder(&self, file: &Path) -> std::io::Result<()> {
+        use std::ffi::c_void;
         #[link(name = "shell32")]
         unsafe extern "system" {
-            fn ShellExecuteW(
-                hwnd: *mut std::ffi::c_void,
-                operation: *const u16,
-                file: *const u16,
-                parameters: *const u16,
-                directory: *const u16,
-                show: i32,
-            ) -> isize;
+            fn ILCreateFromPathW(path: *const u16) -> *mut c_void;
+            fn ILFree(pidl: *mut c_void);
+            fn SHOpenFolderAndSelectItems(
+                folder: *const c_void,
+                count: u32,
+                items: *const *const c_void,
+                flags: u32,
+            ) -> i32;
         }
-        /// SW_SHOWNORMAL: the browser's window as it last was.
-        const SW_SHOWNORMAL: i32 = 1;
-        let wide = |s: &str| s.encode_utf16().chain([0]).collect::<Vec<u16>>();
-        let (operation, file) = (wide("open"), wide(url));
-        // SAFETY: both strings are NUL-terminated UTF-16 that outlive the call; the window,
-        // parameters and directory may be null. ShellExecuteW returns a value above 32 on
-        // success and an error code otherwise.
-        let result = unsafe {
-            ShellExecuteW(
-                std::ptr::null_mut(),
-                operation.as_ptr(),
-                file.as_ptr(),
-                std::ptr::null(),
-                std::ptr::null(),
-                SW_SHOWNORMAL,
-            )
-        };
-        if result > 32 {
-            Ok(())
-        } else {
-            Err(std::io::Error::other(format!(
-                "ShellExecuteW returned {result}"
-            )))
+        #[link(name = "ole32")]
+        unsafe extern "system" {
+            fn CoInitializeEx(reserved: *mut c_void, model: u32) -> i32;
+            fn CoUninitialize();
         }
+        /// COINIT_APARTMENTTHREADED: the shell's objects want a single-threaded apartment.
+        const COINIT_APARTMENTTHREADED: u32 = 2;
+
+        let wide: Vec<u16> = file
+            .as_os_str()
+            .encode_wide()
+            .chain([0])
+            .collect::<Vec<u16>>();
+        // On a thread of its own, which can enter the apartment the shell wants whatever
+        // the caller's thread has entered.
+        std::thread::spawn(move || {
+            // SAFETY: CoInitializeEx takes a null reserved pointer; it is balanced by
+            // CoUninitialize below when it succeeds (S_OK or S_FALSE, both >= 0). `wide` is
+            // a NUL-terminated UTF-16 path that outlives ILCreateFromPathW, which returns
+            // null for a path it cannot parse. A full item ID list with no children names
+            // the item itself, which SHOpenFolderAndSelectItems shows selected in its
+            // folder; the list is freed with ILFree once the call has returned.
+            unsafe {
+                let initialized =
+                    CoInitializeEx(std::ptr::null_mut(), COINIT_APARTMENTTHREADED) >= 0;
+                let pidl = ILCreateFromPathW(wide.as_ptr());
+                let result = if pidl.is_null() {
+                    Err(std::io::Error::other("ILCreateFromPathW failed"))
+                } else {
+                    let hr = SHOpenFolderAndSelectItems(pidl, 0, std::ptr::null(), 0);
+                    ILFree(pidl);
+                    if hr >= 0 {
+                        Ok(())
+                    } else {
+                        Err(std::io::Error::other(format!(
+                            "SHOpenFolderAndSelectItems returned {hr:#x}"
+                        )))
+                    }
+                };
+                if initialized {
+                    CoUninitialize();
+                }
+                result
+            }
+        })
+        .join()
+        .unwrap_or_else(|_| Err(std::io::Error::other("the shell's thread panicked")))
     }
 
     /// The window on top at the cursor, if it is one of Lectrix's.
@@ -190,6 +226,45 @@ fn merge_browser_args(first: &str, second: &str) -> String {
     }
     out.extend(rest.into_iter().map(str::to_owned));
     out.join(" ")
+}
+
+/// Hands `target` (a web address or a folder) to the shell's Open, as Run (Win+R) would.
+fn shell_open(target: &str) -> std::io::Result<()> {
+    #[link(name = "shell32")]
+    unsafe extern "system" {
+        fn ShellExecuteW(
+            hwnd: *mut std::ffi::c_void,
+            operation: *const u16,
+            file: *const u16,
+            parameters: *const u16,
+            directory: *const u16,
+            show: i32,
+        ) -> isize;
+    }
+    /// SW_SHOWNORMAL: the window as it last was.
+    const SW_SHOWNORMAL: i32 = 1;
+    let wide = |s: &str| s.encode_utf16().chain([0]).collect::<Vec<u16>>();
+    let (operation, file) = (wide("open"), wide(target));
+    // SAFETY: both strings are NUL-terminated UTF-16 that outlive the call; the window,
+    // parameters and directory may be null. ShellExecuteW returns a value above 32 on
+    // success and an error code otherwise.
+    let result = unsafe {
+        ShellExecuteW(
+            std::ptr::null_mut(),
+            operation.as_ptr(),
+            file.as_ptr(),
+            std::ptr::null(),
+            std::ptr::null(),
+            SW_SHOWNORMAL,
+        )
+    };
+    if result > 32 {
+        Ok(())
+    } else {
+        Err(std::io::Error::other(format!(
+            "ShellExecuteW returned {result}"
+        )))
+    }
 }
 
 #[cfg(test)]

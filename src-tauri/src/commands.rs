@@ -189,6 +189,85 @@ pub fn remove_recent(state: State<'_, AppState>, index: u32) -> Result<(), AppEr
     Ok(())
 }
 
+/// Pins the recent file at `index` to the top of the list, or unpins it (section 6.1).
+#[tauri::command]
+pub fn set_recent_pinned(
+    state: State<'_, AppState>,
+    index: u32,
+    pinned: bool,
+) -> Result<(), AppError> {
+    state
+        .store
+        .lock()
+        .map_err(|_| AppError::bad_state())?
+        .set_recent_pinned(index as usize, pinned);
+    Ok(())
+}
+
+/// Shows the recent file at `index` in the system's file manager, selected in its folder;
+/// the folder alone when the file is no longer there (section 6.1). The path is the recent
+/// list's, never one from the webview.
+#[tauri::command(async)]
+pub fn show_recent_in_folder(state: State<'_, AppState>, index: u32) -> Result<(), AppError> {
+    let path = state
+        .store
+        .lock()
+        .map_err(|_| AppError::bad_state())?
+        .recent()
+        .get(index as usize)
+        .map(|e| e.path.clone())
+        .ok_or_else(|| AppError::new("That file is no longer in the recent list.", None))?;
+    show_in_folder(state.platform, &path)
+}
+
+/// What the system's file manager is called, for messages.
+const FILE_MANAGER: &str = if cfg!(windows) {
+    "File Explorer"
+} else if cfg!(target_os = "macos") {
+    "Finder"
+} else {
+    "your file manager"
+};
+
+/// The file selected in its folder, or the folder alone if the file is gone. With
+/// LECTRIX_FOLDER_LOG set (automation, tests/e2e), what would be shown is written to that
+/// file instead and nothing opens.
+fn show_in_folder(platform: &dyn Platform, path: &std::path::Path) -> Result<(), AppError> {
+    let folder = path.parent().filter(|f| f.is_dir()).ok_or_else(|| {
+        AppError::new(
+            "The file’s folder is no longer there.",
+            Some("It may have been moved, renamed or deleted, or be on a drive that isn’t connected."),
+        )
+    })?;
+    let file = path.is_file().then_some(path);
+    if let Some(log) = std::env::var_os("LECTRIX_FOLDER_LOG") {
+        use std::io::Write;
+        let shown = file.unwrap_or(folder);
+        return std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(log)
+            .and_then(|mut f| writeln!(f, "{}", shown.display()))
+            .map_err(|e| {
+                AppError::new("The folder log couldn’t be written.", Some(&e.to_string()))
+            });
+    }
+    let shown = match file {
+        Some(file) => platform.show_in_folder(file),
+        None => platform.open_folder(folder),
+    };
+    shown.map_err(|e| {
+        crate::applog::warn(format!(
+            "could not show {} in its folder: {e}",
+            path.display()
+        ));
+        AppError::new(
+            "The file’s folder couldn’t be opened.",
+            Some(&format!("Open it from {FILE_MANAGER} instead.")),
+        )
+    })
+}
+
 #[tauri::command]
 pub fn list_recent_files(state: State<'_, AppState>) -> Result<Vec<RecentFile>, AppError> {
     let store = state.store.lock().map_err(|_| AppError::bad_state())?;
@@ -216,6 +295,7 @@ pub fn list_recent_files(state: State<'_, AppState>) -> Result<Vec<RecentFile>, 
                 exists: size.is_some(),
                 opened_at: e.opened_at.saturating_mul(1000),
                 size,
+                pinned: e.pinned,
             }
         })
         .collect())
@@ -610,6 +690,8 @@ fn settings_of(stored: &StoredSettings, platform: &dyn Platform) -> Settings {
         tooltip_delay_ms: stored.tooltip_delay_ms,
         open_comment_after_markup: stored.open_comment_after_markup,
         remember_annotation_style: stored.remember_annotation_style,
+        remember_annotation_sort: stored.remember_annotation_sort,
+        annotation_sort: stored.annotation_sort,
         selection_handles: stored.selection_handles,
         pdfa_read_only: stored.pdfa_read_only,
         highlight_links: stored.highlight_links,
@@ -672,6 +754,13 @@ pub fn set_settings(
             .min(crate::store::MAX_TOOLTIP_DELAY_MS),
         open_comment_after_markup: settings.open_comment_after_markup,
         remember_annotation_style: settings.remember_annotation_style,
+        remember_annotation_sort: settings.remember_annotation_sort,
+        // Not remembering it forgets it.
+        annotation_sort: if settings.remember_annotation_sort {
+            settings.annotation_sort
+        } else {
+            Default::default()
+        },
         selection_handles: settings.selection_handles,
         pdfa_read_only: settings.pdfa_read_only,
         highlight_links: settings.highlight_links,

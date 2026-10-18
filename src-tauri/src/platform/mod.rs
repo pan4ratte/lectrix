@@ -110,6 +110,28 @@ pub trait Platform: Send + Sync {
             .map(|_| ())
     }
 
+    /// Opens `folder` in the system's file manager.
+    fn open_folder(&self, folder: &Path) -> std::io::Result<()> {
+        let program = if cfg!(target_os = "macos") {
+            "open"
+        } else {
+            "xdg-open"
+        };
+        std::process::Command::new(program)
+            .arg(folder)
+            .spawn()
+            .map(|_| ())
+    }
+
+    /// Opens the folder of `file` in the system's file manager with the file selected
+    /// (section 6.1, recent files); here, the folder alone.
+    fn show_in_folder(&self, file: &Path) -> std::io::Result<()> {
+        match file.parent() {
+            Some(folder) => self.open_folder(folder),
+            None => Err(std::io::Error::other("the file has no folder")),
+        }
+    }
+
     /// The window buttons the app draws in its title bar (section 8): Windows' three at the
     /// right, unless the platform places them otherwise or draws them itself.
     fn window_chrome(&self) -> WindowChrome {
@@ -189,9 +211,34 @@ pub fn parse_decoration_layout(layout: &str) -> Option<WindowChrome> {
     Some(WindowChrome { left, right })
 }
 
+/// A `file://` URI for an absolute path given as its bytes: everything but the characters a
+/// URI may carry as they are (letters, digits, `-._~` and the slashes) percent-encoded,
+/// so spaces, commas and non-ASCII names survive D-Bus and the file manager.
+#[cfg_attr(not(target_os = "linux"), allow(dead_code))]
+pub fn file_uri(path: &[u8]) -> String {
+    let mut uri = String::from("file://");
+    for &b in path {
+        if b.is_ascii_alphanumeric() || b"-._~/".contains(&b) {
+            uri.push(char::from(b));
+        } else {
+            uri.push_str(&format!("%{b:02X}"));
+        }
+    }
+    uri
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn file_uris_encode_what_a_uri_cannot_carry() {
+        assert_eq!(file_uri(b"/home/ada/a.pdf"), "file:///home/ada/a.pdf");
+        assert_eq!(
+            file_uri("/home/ada/My files, 100%/Ü b.pdf".as_bytes()),
+            "file:///home/ada/My%20files%2C%20100%25/%C3%9C%20b.pdf"
+        );
+    }
     use WindowButton::{Close, Maximize, Minimize};
 
     fn chrome(left: &[WindowButton], right: &[WindowButton]) -> Option<WindowChrome> {

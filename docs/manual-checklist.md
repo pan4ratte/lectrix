@@ -248,6 +248,16 @@ Needs an installed earlier release and a newer one published (ADR 0011,
 - [ ] With a second monitor: leave the window on it, close, unplug the monitor, start:
       the window is on the remaining monitor, its title bar reachable.
 
+## Recent files
+
+- [ ] Right-click a recent file on the start screen, **Open file location**: File Explorer
+      opens its folder with the file selected; again with that window open, it is reused.
+      The same for a file in a folder whose name has spaces and non-Latin letters.
+- [ ] Move a recent file elsewhere, then **Open file location**: its folder opens alone.
+      Delete the folder too: a notification says the folder is no longer there.
+- [ ] Pin a file with its star, close Lectrix and start it again: still at the top, its
+      star filled.
+
 ## Full screen
 
 - [ ] With a document open, press F11: the title bar, the view bar and the side panes slide

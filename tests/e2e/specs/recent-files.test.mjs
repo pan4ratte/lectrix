@@ -4,9 +4,11 @@
 // Also the start screen shown over open documents, from the title bar's icon and name.
 
 import assert from 'node:assert/strict';
+import { existsSync, readFileSync, rmSync } from 'node:fs';
+import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { launch, waitForDocument } from '../lib/app.mjs';
+import { OUT, launch, waitForDocument } from '../lib/app.mjs';
 import { sample } from '../lib/pdfcli.mjs';
 
 const pageBox = (browser) => browser.execute(() => document.querySelector('#page-box')?.value ?? null);
@@ -227,6 +229,83 @@ test('a closed document reopens from the recent list where it was left', async (
 			timeoutMsg: 'the document did not reopen on page 6'
 		});
 		assert.equal(await zoomText(browser), zoom, 'the zoom is remembered too');
+	} finally {
+		await stop();
+	}
+});
+
+test('a recent file can be pinned to the top of the list, and its menu shows it in its folder', async () => {
+	const first = sample('pin-a.pdf', 1);
+	const second = sample('pin-b.pdf', 1);
+	const shownLog = join(OUT, 'pin-folder.log');
+	rmSync(shownLog, { force: true });
+	const { browser, stop } = await launch([first, second], { env: { LECTRIX_FOLDER_LOG: shownLog } });
+	try {
+		await waitForDocument(browser);
+		await browser.keys(['Control', 'w']);
+		await browser.keys(['Control', 'w']);
+		await (await browser.$('button*=pin-a.pdf')).waitForDisplayed({ timeoutMsg: 'pin-a.pdf is not in the recent list' });
+		const names = () => browser.execute(() => [...document.querySelectorAll('table tbody tr')].map((tr) => tr.cells[0].textContent?.trim() ?? ''));
+		/** Each row's star: pinned or not, and whether it shows. */
+		const stars = () =>
+			browser.execute(() =>
+				[...document.querySelectorAll('.recent-pin')].map((b) => ({
+					pressed: b.getAttribute('aria-pressed'),
+					opacity: getComputedStyle(b).opacity
+				}))
+			);
+		assert.deepEqual(await names(), ['pin-b.pdf', 'pin-a.pdf']);
+
+		// The star shows under the pointer; pressed, the file goes to the top and its star stays.
+		const row = await browser.$('.recent-row*=pin-a.pdf');
+		await row.moveTo();
+		await (await browser.$('button[aria-label="Pin pin-a.pdf"]')).click();
+		await browser.waitUntil(async () => (await names())[0] === 'pin-a.pdf', { timeoutMsg: 'the pinned file did not go to the top' });
+		await (await browser.$('h2=Recent files')).moveTo();
+		await browser.waitUntil(
+			async () => {
+				const [pinned, other] = await stars();
+				return pinned.pressed === 'true' && pinned.opacity === '1' && other.pressed === 'false' && other.opacity === '0';
+			},
+			{ timeoutMsg: `the stars are ${JSON.stringify(await stars())}` }
+		);
+
+		// In the grid, the star is at the preview's top left, remove at its top right.
+		await (await browser.$('button[aria-label="Grid"]')).click();
+		await (await browser.$('.recent-card')).waitForDisplayed();
+		const corners = await browser.execute(() => {
+			const card = document.querySelector('.recent-card');
+			const box = card.getBoundingClientRect();
+			const pin = card.querySelector('.recent-pin').getBoundingClientRect();
+			const remove = card.querySelector('.recent-remove').getBoundingClientRect();
+			return { pin: [pin.left - box.left, pin.top - box.top], remove: [box.right - remove.right, remove.top - box.top] };
+		});
+		assert.ok(corners.pin.every((d) => d >= 0 && d <= 16), `the star is not at the top left: ${corners.pin}`);
+		assert.ok(corners.remove.every((d) => d >= 0 && d <= 16), `remove is not at the top right: ${corners.remove}`);
+		assert.equal(await browser.execute(() => document.querySelector('.recent-card .recent-name').textContent.trim()), 'pin-a.pdf');
+
+		// A right-click offers what can be done with the file; Open file location shows it.
+		await (await browser.$('.recent-card*=pin-b.pdf')).click({ button: 'right' });
+		const menu = await browser.$('[role=menu]');
+		await menu.waitForDisplayed({ timeoutMsg: 'no context menu on a recent file' });
+		const items = await browser.execute(() => [...document.querySelectorAll('[role=menu] [role=menuitem]')].map((i) => i.textContent.trim()));
+		assert.deepEqual(items, ['Open', 'Pin to the top of the list', 'Open file location', 'Remove from the list']);
+		await (await browser.$('//*[@role="menuitem"][contains(., "Open file location")]')).click();
+		await browser.waitUntil(() => existsSync(shownLog) && readFileSync(shownLog, 'utf8').trim() !== '', { timeoutMsg: 'nothing was shown in its folder' });
+		const shown = readFileSync(shownLog, 'utf8').trim();
+		assert.equal(shown.toLowerCase().replaceAll('\\', '/'), second.toLowerCase().replaceAll('\\', '/'), `shown: ${shown}`);
+
+		// From the keyboard (Shift+F10 on a file), Unpin.
+		await browser.execute(() => document.querySelector('.recent-card .recent-open').focus());
+		await browser.keys(['Shift', 'F10']);
+		await (await browser.$('[role=menu]')).waitForDisplayed({ timeoutMsg: 'Shift+F10 did not open the menu' });
+		await (await browser.$('//*[@role="menuitem"][contains(., "Unpin")]')).click();
+		await browser.waitUntil(
+			() => browser.execute(() => [...document.querySelectorAll('.recent-pin')].every((b) => b.getAttribute('aria-pressed') === 'false')),
+			{ timeoutMsg: 'Unpin left the file pinned' }
+		);
+		const order = await browser.execute(() => [...document.querySelectorAll('.recent-card .recent-name')].map((n) => n.textContent.trim()));
+		assert.deepEqual(order, ['pin-b.pdf', 'pin-a.pdf'], 'unpinned, the file did not go back by when it was opened');
 	} finally {
 		await stop();
 	}

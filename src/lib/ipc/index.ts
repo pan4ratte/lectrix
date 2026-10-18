@@ -107,6 +107,9 @@ export type { Appearance } from './generated/Appearance';
 export type { PageLayout } from './generated/PageLayout';
 export type { PdfaLevel } from './generated/PdfaLevel';
 export type { ScrollMode } from './generated/ScrollMode';
+export type { AnnotationSort } from './generated/AnnotationSort';
+export type { AnnotationSortKey } from './generated/AnnotationSortKey';
+export type { SortOrder } from './generated/SortOrder';
 export type { Settings } from './generated/Settings';
 export type { SettingsInput } from './generated/SettingsInput';
 export type { QuickTool } from './generated/QuickTool';
@@ -142,6 +145,8 @@ export const openWithDialog = () => invoke<OpenResult[]>('open_with_dialog');
 export const openStartupDocuments = () => invoke<OpenResult[]>('open_startup_documents');
 export const openRecent = (index: number) => invoke<OpenResult>('open_recent', { index });
 export const removeRecent = (index: number) => invoke<void>('remove_recent', { index });
+export const setRecentPinned = (index: number, pinned: boolean) => invoke<void>('set_recent_pinned', { index, pinned });
+export const showRecentInFolder = (index: number) => invoke<void>('show_recent_in_folder', { index });
 export const listRecentFiles = () => invoke<RecentFile[]>('list_recent_files');
 // Crash recovery (section 7): unsaved changes a crash left behind.
 export const listRecovered = () => invoke<RecoveredDocument[]>('list_recovered');

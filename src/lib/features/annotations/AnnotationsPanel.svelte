@@ -25,7 +25,7 @@
 
 	import { chain } from '#lib/components/chain.ts';
 	import { motionMs } from '#lib/components/panes.ts';
-	import type { Annotation } from '#lib/ipc/index.ts';
+	import type { Annotation, AnnotationSort } from '#lib/ipc/index.ts';
 	import { pageName } from '#lib/features/viewer/pagebox.ts';
 	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import { app, type AnnotationRows } from '#lib/stores/app.svelte.ts';
@@ -61,6 +61,7 @@
 		type ListSort,
 		type SortOrder
 	} from './listing.ts';
+	import { ownSort as ownSortOf, pickSort, shownSort } from './sort.ts';
 	import { tools } from './state.svelte.ts';
 	import { PROBLEM_SUMMARY, capabilities, formatDate, shortDate, typeName } from './tools.ts';
 
@@ -175,8 +176,16 @@
 
 	// ----- sort -----
 
-	let sort = $state<ListSort>('page');
-	let order = $state<SortOrder>('asc');
+	// The sort Settings keep, or this document's own (the panel is made again for each
+	// document).
+	let ownSort = $state<AnnotationSort>(untrack(() => ownSortOf(tab)));
+	const sorting = $derived(shownSort(app.settings, ownSort));
+	const sort = $derived(sorting.sort);
+	const order = $derived(sorting.order);
+	function pick(choice: AnnotationSort) {
+		ownSort = choice;
+		void pickSort(tab, choice);
+	}
 	const orders = $derived(orderLabels(sort));
 	const sortLabel = $derived(`Sort by ${(SORTS.find((s) => s.id === sort)?.label ?? '').toLowerCase()}, ${orders[order]}`);
 
@@ -449,7 +458,7 @@
 				</DropdownMenu.Trigger>
 				<DropdownMenu.Portal>
 					<DropdownMenu.Content class="menu-content" align="end" sideOffset={4}>
-						<DropdownMenu.RadioGroup value={sort} onValueChange={(v) => (sort = v as ListSort)}>
+						<DropdownMenu.RadioGroup value={sort} onValueChange={(v) => pick({ sort: v as ListSort, order })}>
 							{#each SORTS as s (s.id)}
 								<DropdownMenu.RadioItem class="menu-item" value={s.id}>
 									{#snippet children({ checked })}
@@ -459,7 +468,7 @@
 							{/each}
 						</DropdownMenu.RadioGroup>
 						<DropdownMenu.Separator class="menu-separator" />
-						<DropdownMenu.RadioGroup value={order} onValueChange={(v) => (order = v as SortOrder)}>
+						<DropdownMenu.RadioGroup value={order} onValueChange={(v) => pick({ sort, order: v as SortOrder })}>
 							{#each ['asc', 'desc'] as const as o (o)}
 								<DropdownMenu.RadioItem class="menu-item" value={o}>
 									{#snippet children({ checked })}

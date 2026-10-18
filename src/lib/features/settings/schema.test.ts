@@ -25,6 +25,8 @@ const STORED: Settings = {
 	tooltipDelayMs: 300,
 	openCommentAfterMarkup: false,
 	rememberAnnotationStyle: true,
+	rememberAnnotationSort: true,
+	annotationSort: { sort: 'author', order: 'desc' },
 	selectionHandles: false,
 	pdfaReadOnly: true,
 	highlightLinks: true,
@@ -46,7 +48,9 @@ describe('settings schema', () => {
 	it('has a row for every setting, and unique ids', () => {
 		// A setting shows as a row, or in a group's own panel (the shortcuts).
 		const shown = new Set<string>([...rows.flatMap((r) => ('key' in r ? [r.key] : [])), ...SETTING_GROUPS.flatMap((g) => (g.panel ? [g.panel.key] : []))]);
-		for (const key of Object.keys(toInput(toDraft(STORED)))) expect(shown, key).toContain(key);
+		// Kept with the settings, but picked elsewhere: the annotation list's sort, in the list.
+		const pickedElsewhere = new Set(['annotationSort']);
+		for (const key of Object.keys(toInput(toDraft(STORED)))) if (!pickedElsewhere.has(key)) expect(shown, key).toContain(key);
 		expect(new Set(rows.map((r) => r.id)).size).toBe(rows.length);
 		expect(new Set(SETTING_GROUPS.map((g) => g.id)).size).toBe(SETTING_GROUPS.length);
 	});

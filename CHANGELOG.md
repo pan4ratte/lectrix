@@ -10,6 +10,8 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ### Start screen
 
+- A star on a recent file pins it to the top of the list, where it stays however many other files you open. In the grid of previews, the star is in the top left corner of the preview.
+- Right-click a recent file to open it, pin it, show it in its folder or remove it from the list.
 - On macOS and Linux, clicking **Open…**, **Combine files…** or **Organize pages…** while recent files are listed as a table opened one of the recent files instead. The tools now do what they say.
 
 ### Viewer and tabs
@@ -27,6 +29,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ### Annotations
 
+- The annotation list keeps the sort you picked in every document, and after Lectrix restarts. **Settings > Annotations** can turn this off, so that each document starts sorted by page.
 - With the Select tool, a click on a highlight (or another text markup) selects it, and a drag that starts on it now selects the text under it, as a drag anywhere else does.
 - The text cursor works with the Highlight, Underline, Strikeout and Squiggly tools too: select from it with Shift and the arrow keys, let go of **Shift**, and what you selected is marked.
 - Marking text that starts or ends on a superscript or a subscript (a footnote number, a squared x) gives a straight highlight, underline or strikeout along the line. Before, it slanted up or down towards the raised or lowered character.

@@ -18,6 +18,8 @@
     "allow-open-startup-documents",
     "allow-open-recent",
     "allow-remove-recent",
+    "allow-set-recent-pinned",
+    "allow-show-recent-in-folder",
     "allow-list-recent-files",
     "allow-list-recovered",
     "allow-restore-recovered",

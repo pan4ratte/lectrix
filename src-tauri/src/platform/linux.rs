@@ -25,6 +25,37 @@ const COVER_DELAY: Duration = Duration::from_millis(500);
 pub struct Linux;
 
 impl Platform for Linux {
+    /// The file manager's ShowItems (the freedesktop FileManager1 interface, which Nautilus,
+    /// Dolphin, Nemo and others offer over D-Bus) opens the folder with the file selected;
+    /// without it, the folder alone opens.
+    fn show_in_folder(&self, file: &std::path::Path) -> std::io::Result<()> {
+        let shown = std::process::Command::new("dbus-send")
+            .args([
+                "--session",
+                "--print-reply",
+                "--dest=org.freedesktop.FileManager1",
+                "--type=method_call",
+                "/org/freedesktop/FileManager1",
+                "org.freedesktop.FileManager1.ShowItems",
+            ])
+            .arg(format!(
+                "array:string:{}",
+                super::file_uri(std::os::unix::ffi::OsStrExt::as_bytes(file.as_os_str()))
+            ))
+            .arg("string:")
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status()
+            .is_ok_and(|s| s.success());
+        if shown {
+            return Ok(());
+        }
+        match file.parent() {
+            Some(folder) => self.open_folder(folder),
+            None => Err(std::io::Error::other("the file has no folder")),
+        }
+    }
+
     /// The buttons and the side the desktop puts them on (GNOME: close alone, at the
     /// right), as GTK's own title bars have them. Windows' three at the right where GTK
     /// has no layout to give.
