@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-compress-save"
+description = "Enables the compress_save command without any pre-configured scope."
+commands.allow = ["compress_save"]
+
+[[permission]]
+identifier = "deny-compress-save"
+description = "Denies the compress_save command without any pre-configured scope."
+commands.deny = ["compress_save"]

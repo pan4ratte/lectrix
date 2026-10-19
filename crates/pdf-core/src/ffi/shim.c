@@ -16,13 +16,9 @@
 #endif
 #include "mupdf/fitz.h"
 #include "mupdf/pdf.h"
+#include "shim.h"
 
-typedef struct lectrix_error {
-	int code;
-	char message[256];
-} lectrix_error;
-
-static int lectrix_caught(fz_context *ctx, lectrix_error *err)
+int lectrix_caught(fz_context *ctx, lectrix_error *err)
 {
 	err->code = fz_caught(ctx);
 	fz_strlcpy(err->message, fz_caught_message(ctx), sizeof err->message);
@@ -157,6 +153,19 @@ int lectrix_pdf_dirty_annot(fz_context *ctx, pdf_annot *annot, lectrix_error *er
 {
 	fz_try(ctx)
 		pdf_dirty_annot(ctx, annot);
+	fz_catch(ctx)
+		return lectrix_caught(ctx, err);
+	return 0;
+}
+
+/*
+ * 1 in `*incremental` if `obj` (indirect) was created or changed since the document was
+ * opened: it is in the incremental section, so no object from the file shares it.
+ */
+int lectrix_pdf_obj_is_incremental(fz_context *ctx, pdf_obj *obj, int *incremental, lectrix_error *err)
+{
+	fz_try(ctx)
+		*incremental = pdf_obj_is_incremental(ctx, obj);
 	fz_catch(ctx)
 		return lectrix_caught(ctx, err);
 	return 0;

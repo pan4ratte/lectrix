@@ -310,6 +310,9 @@ fn serve(state: &AppState, request: &Request<Vec<u8>>) -> Result<Response<Body>,
     if uri.path().starts_with("/recent/") {
         return serve_preview(state, parse_preview(uri.path(), uri.query())?);
     }
+    if uri.path().starts_with("/compress/") {
+        return serve_compressed(state, parse_compressed(uri.path(), uri.query())?);
+    }
     let req = parse(uri.path(), uri.query())?;
     let session = state
         .documents
@@ -553,6 +556,83 @@ fn serve_preview(state: &AppState, req: PreviewRequest) -> Result<Response<Body>
     respond("image/png", width, height, 0, &timing, png.as_ref().clone())
 }
 
+/// A page of Compress's before-and-after preview (section 6.11): of the file waiting under
+/// `token` (`after`: of its result), at `scale`. The webview names no path.
+#[derive(Debug, Clone, Copy, PartialEq)]
+struct CompressedRequest {
+    token: u32,
+    after: bool,
+    page: usize,
+    scale: f32,
+}
+
+/// The longest side of a preview page, in pixels.
+const COMPRESSED_MAX_SIDE: u32 = 6000;
+
+fn parse_compressed(path: &str, query: Option<&str>) -> Result<CompressedRequest, Failure> {
+    let mut segments = path.trim_matches('/').split('/');
+    let (Some("compress"), Some(token), Some(which), Some(page), None) = (
+        segments.next(),
+        segments.next(),
+        segments.next(),
+        segments.next(),
+        segments.next(),
+    ) else {
+        return Err((StatusCode::NOT_FOUND, "unknown resource"));
+    };
+    let bad = (StatusCode::BAD_REQUEST, "bad compress preview");
+    let after = match which {
+        "before" => false,
+        "after" => true,
+        _ => return Err(bad),
+    };
+    let scale = query
+        .unwrap_or("")
+        .split('&')
+        .find_map(|pair| match pair.split_once('=') {
+            Some(("scale", v)) => v.parse::<f32>().ok(),
+            _ => None,
+        })
+        .filter(|s| s.is_finite() && *s > 0.0 && *s <= 8.0)
+        .ok_or(bad)?;
+    Ok(CompressedRequest {
+        token: token.parse().map_err(|_| bad)?,
+        after,
+        page: page.parse().map_err(|_| bad)?,
+        scale,
+    })
+}
+
+fn serve_compressed(state: &AppState, req: CompressedRequest) -> Result<Response<Body>, Failure> {
+    let gone = (StatusCode::NOT_FOUND, "no such compressed file");
+    let (original, password) = state.compress.ready(req.token).map_err(|_| gone)?;
+    let path = if req.after {
+        state.compress.result(req.token).map_err(|_| gone)?.file
+    } else {
+        original
+    };
+    let t0 = Instant::now();
+    let image = state
+        .render_gate
+        .run(|| {
+            pdf_core::render::page_of_file(
+                &path,
+                password.as_deref(),
+                req.page,
+                req.scale,
+                COMPRESSED_MAX_SIDE,
+            )
+        })
+        .map_err(|e| {
+            crate::applog::warn(format!("compress preview failed: {e:?}"));
+            (StatusCode::INTERNAL_SERVER_ERROR, "render failed")
+        })?;
+    let png = pdf_core::render::encode_rgba_png(&image)
+        .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "encode failed"))?;
+    let timing = format!("render={:.2}", t0.elapsed().as_secs_f64() * 1000.0);
+    respond("image/png", image.width, image.height, 0, &timing, png)
+}
+
 /// A file that needs a password or cannot be read has no preview; the start screen shows
 /// its icon instead. Only unexpected failures are logged.
 fn preview_failed(e: pdf_core::Error) -> Failure {
@@ -634,6 +714,28 @@ fn error_response(status: StatusCode, message: &'static str) -> Response<Body> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn parses_compress_previews() {
+        let r = parse_compressed("/compress/12/after/3", Some("scale=2")).unwrap();
+        assert_eq!(
+            r,
+            CompressedRequest {
+                token: 12,
+                after: true,
+                page: 3,
+                scale: 2.0
+            }
+        );
+        assert!(
+            !parse_compressed("/compress/12/before/0", Some("scale=1"))
+                .unwrap()
+                .after
+        );
+        assert!(parse_compressed("/compress/12/sideways/0", Some("scale=1")).is_err());
+        assert!(parse_compressed("/compress/12/after/0", Some("scale=99")).is_err());
+        assert!(parse_compressed("/compress/12/after/0", None).is_err());
+    }
 
     #[test]
     fn parses_whole_pages_tiles_and_formats() {

@@ -24,6 +24,9 @@ async function open(file) {
 		cMapUrl: asDirUrl('cmaps'),
 		cMapPacked: true,
 		iccUrl: asDirUrl('iccs'),
+		// The WebAssembly decoders of JPEG 2000, JBIG2 and CCITT fax images, which Firefox
+		// ships: without them pdf.js draws such images blank.
+		wasmUrl: asDirUrl('wasm'),
 		verbosity: 0
 	});
 	const doc = await task.promise;

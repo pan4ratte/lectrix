@@ -8,6 +8,7 @@
     python tests/interop/run.py phase4-local  # three real files from the local corpus, combined
     python tests/interop/run.py phase5      # every annotation type on every page geometry; edits; repair
     python tests/interop/run.py phase5-local  # repair on the local corpus files that need it
+    python tests/interop/run.py compress    # images, fonts and structure compressed as the app does it
 
     python tests/interop/run.py check FILE  # render/visibility checks for one existing file
 
@@ -1119,6 +1120,65 @@ def phase5_local(report: Report) -> None:
         annotation_checks(out, report, case, pages=pages)
 
 
+# Compress (section 6.11, ADR 0027): how close each engine's render of a compressed page
+# must stay to its own render of the original, in dB of PSNR over the whole page. Lossless
+# allows nothing but rounding in an engine's own image scaling.
+COMPRESS_CASES = [
+    ("lossless", ["--preset", "lossless"], 60.0),
+    ("high", ["--preset", "high"], 35.0),
+    ("balanced", ["--preset", "balanced"], 32.0),
+    ("smallest", ["--preset", "smallest"], 27.0),
+    ("jpeg2000", ["--preset", "balanced", "--compression", "jpeg2000"], 30.0),
+    # Images only turn grey: the page's colour text and drawings stay, so the floor is low.
+    ("grey", ["--preset", "high", "--color-mode", "gray"], 18.0),
+    ("bw", ["--preset", "high", "--color-mode", "bw"], 10.0),
+]
+
+
+def psnr(a: np.ndarray, b: np.ndarray) -> float:
+    mse = float(((a.astype(np.float64) - b.astype(np.float64)) ** 2).mean())
+    return float("inf") if mse == 0 else 10 * np.log10(255 * 255 / mse)
+
+
+def compress(report: Report) -> None:
+    """The generated sample whose images cover what Compress handles (pdf-cli gen-images:
+    Flate photographs and screenshots, grey stored as RGB, black and white stored as grey,
+    an image mask, a soft mask, RGB and CMYK JPEG, a palette, a form, a stamp's appearance
+    and a tiling pattern), compressed with each preset and some options. Every engine must
+    draw each page of the result close to how it draws the original: an engine that reads
+    a new image wrongly (CMYK polarity, Group 4, PNG predictors, JPEG 2000) falls far
+    below the floor."""
+    work = OUT / "compress"
+    shutil.rmtree(work, ignore_errors=True)
+    work.mkdir(parents=True)
+    cli = pdf_cli()
+    original = work / "images.pdf"
+    run([cli, "gen-images", str(original)])
+    pages = info_pdfjs(original)["pages"]
+    before = {
+        (name, page): load(fn(original, page, True, work / f"original-p{page}-{name}.png"))
+        for name, fn in ENGINES.items()
+        for page in range(1, pages + 1)
+    }
+    size = original.stat().st_size
+    for case, args, floor in COMPRESS_CASES:
+        out = work / f"{case}.pdf"
+        run([cli, "compress", str(original), str(out), *args])
+        qpdf_check(out, report)
+        report.check(out.stat().st_size < size, f"{out.name}: {out.stat().st_size} bytes, smaller than {size}")
+        for name, fn in ENGINES.items():
+            for page in range(1, pages + 1):
+                after = load(fn(out, page, True, work / f"{case}-p{page}-{name}.png"))
+                a = before[(name, page)]
+                if a.shape != after.shape:
+                    report.check(False, f"{out.name}: {name} draws page {page} at another size")
+                    continue
+                quality = psnr(a, after)
+                ok = report.check(quality >= floor, f"{out.name}: {name} page {page} at {quality:.1f} dB (floor {floor})")
+                if not ok:
+                    save_diff(work / f"diff-{case}-p{page}-{name}.png", a, after)
+
+
 def main(argv: list[str]) -> int:
     # Titles in the checks are Unicode; Windows consoles (CI) default to a code page.
     sys.stdout.reconfigure(encoding="utf-8", errors="replace")
@@ -1139,6 +1199,8 @@ def main(argv: list[str]) -> int:
         phase5(report)
     elif argv[:1] == ["phase5-local"]:
         phase5_local(report)
+    elif argv[:1] == ["compress"]:
+        compress(report)
     elif argv[:1] == ["check"] and len(argv) == 2:
         pdf = Path(argv[1]).resolve()
         work = OUT / "check" / pdf.stem

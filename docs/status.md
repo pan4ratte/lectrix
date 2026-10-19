@@ -36,7 +36,8 @@ ahead, so that pages slow to render (scans) are there when scrolled to. Organizi
 where they are moved, rotated, deleted, inserted from other files and extracted into a
 new document, which is not a file until it is saved (ADR 0019), and where the page labels
 are set in a dialog, in place of their side panel. The start screen has it among its
-tools. Rotating in the viewer turns a page on screen only, remembered per file.
+tools. Rotating in the viewer turns a page on screen only, remembered per file. Unlock, Protect,
+Document properties and Compress (sections 6.8 to 6.11).
 
 ## Performance
 
@@ -352,6 +353,28 @@ pages, `tests/perf/organize.mjs` (its numbers are under "Organizing pages" below
   the others, and several authors become one ("Ann; Bob"). "Fast web view" reports a
   linearization dictionary at the start of the file even after an incremental save broke
   its linearization (section 6.10, "Settled details").
+- **Compress** (section 6.11, ADR 0027):
+  - Scans gain little: JBIG2 images are kept, and JBIG2 and MRC for scans come with OCR
+    (Leptonica). Group 4 images are written again only from Group 3 or byte-aligned
+    rows.
+  - Inline images, images in Type 3 glyphs, and images only in an optional-content layer
+    hidden by default are not downsampled (their resolution on the page is not found).
+  - Images in separations, DeviceN or Lab, with colour-key masks, or with alpha in
+    their JPEG 2000 data are left as they were. A JPEG 2000 image that names no colour
+    space and is re-encoded is written in a device space, without an ICC profile its
+    codestream may carry.
+  - Black and white from colour or grey (the Colour setting) is Otsu's one threshold for
+    the whole image: uneven lighting in a scan loses detail where an adaptive threshold
+    would keep it.
+  - A JPEG or JPEG 2000 image under 0.4 bits a pixel is not re-encoded at its own size,
+    to save decoding time: a scan in layers (a 2,474-image book) took 137 s, now 20.
+  - Not yet compared with Acrobat's Reduced Size PDF and FineReader by a person
+    (`docs/manual-checklist.md`, "Compress").
+  - Measured on the local corpus (2026-10-19, release build, mains), Lossless: 29 of 30
+    files smaller (up to 56%), every sampled page drawn pixel for pixel as before; the
+    slowest, 371 byte-aligned Group 4 pages written again, 17 s; a 2,881-page book 4.3 s;
+    a 2,597-page book with 100,000 objects 7.7 s.
+    Merging duplicates is Lectrix's own (MuPDF's took 150 s on that book).
 
 ## Split view
 
@@ -574,11 +597,13 @@ AGENTS.md section 1 change in the commit that builds it.
    Not yet tried by hand in Acrobat: each restriction as its Security tab lists it, a
    password outside ASCII, and a description changed in a PDF/A file passing Preflight
    (`docs/manual-checklist.md`, "Protect" and "Document properties").
-2. **Compress** documents made on a computer: images downsampled and recompressed
-   (`pdf_rewrite_images`), fonts subset (`pdf_subset_fonts`), and unused objects,
-   metadata and thumbnails left out. It offers a few presets and shows the size before and
-   after. Annotations and their appearances come through unchanged, and only what the
-   chosen preset covers is recompressed.
+2. **Compress:** built 2026-10-19 (section 6.11, ADR 0027). Presets, or resolution,
+   compression, quality and colour for images (separately for colour, greyscale and
+   black-and-white ones); fonts subset, removals offered only for what a file has,
+   duplicates merged; the result shown with a before-and-after preview before it is
+   saved over the file or as a copy. Images are replaced where they are, with a pipeline
+   of Lectrix's own: MuPDF's `pdf_rewrite_images` rewrites every content stream and
+   misjudges images in forms. Gaps under "Known gaps".
 3. **Compare** two documents: a word-by-word diff of their structured text, shown side by
    side in split view (ADR 0023). It lines pages up across pages added or removed, has a
    visual mode for scans and drawings, a list of changes to step through and a summary

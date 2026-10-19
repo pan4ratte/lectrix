@@ -35,6 +35,12 @@ pub enum SaveKind {
     /// Rewrite the whole file, keeping all objects, without its encryption: the password
     /// and the restrictions go (the start screen's Unlock, ADR 0025).
     Decrypted,
+    /// Rewrite as small as MuPDF writes (Compress, ADR 0027): garbage collection, objects
+    /// renumbered, uncompressed streams compressed at Flate's highest level, and objects in
+    /// object streams if `object_streams`. Duplicates are merged before (MuPDF's merging
+    /// compares every object with every other; `compress::dedupe`). Renumbers the
+    /// document's objects in memory, as [`SaveKind::Optimized`] does.
+    Compressed { object_streams: bool },
 }
 
 /// What a save does with the document's encryption.
@@ -157,6 +163,15 @@ fn write_to(
                 .set_compress_images(true)
                 .set_compress_fonts(true);
         }
+        SaveKind::Compressed { object_streams } => {
+            options
+                .set_garbage_level(2)
+                .set_compress(true)
+                .set_compress_images(true)
+                .set_compress_fonts(true)
+                .set_compression_effort(100)
+                .set_use_object_streams(object_streams);
+        }
     }
     match encrypt {
         Encrypt::Keep => {}
@@ -170,6 +185,22 @@ fn write_to(
     })?;
     doc.save_with_options(temp_str, options)?;
     Ok(())
+}
+
+/// Puts a copy of the finished file `source` in place of `target`, atomically: copied
+/// beside the target, flushed, then renamed over it (Compress's result, written to a
+/// folder of Lectrix's own first, ADR 0027). On failure the target is left as it was.
+pub fn replace_with_copy(source: &Path, target: &Path) -> Result<()> {
+    let temp = temp_path_for(target)?;
+    let result = fs::copy(source, &temp).map_err(Error::from).and_then(|_| {
+        OpenOptions::new().write(true).open(&temp)?.sync_all()?;
+        replace(&temp, target)
+    });
+    if result.is_err() {
+        // Best effort: the copy may not exist if copying failed early.
+        let _ = fs::remove_file(&temp);
+    }
+    result
 }
 
 static TEMP_COUNTER: AtomicU64 = AtomicU64::new(0);

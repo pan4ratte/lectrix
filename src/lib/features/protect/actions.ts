@@ -94,7 +94,7 @@ async function advance(step: ProtectStep) {
 					}
 					app.handleOpenResults([saved.opened]);
 					app.notify(protectedMessage(saved.name, saved.replaced));
-					if (saved.pdfaRemoved) app.notifyPdfaRemoved(saved.name, saved.pdfaRemoved, true);
+					if (saved.pdfaRemoved) app.notifyPdfaRemoved(saved.name, saved.pdfaRemoved, 'protection');
 					return;
 				}
 			}

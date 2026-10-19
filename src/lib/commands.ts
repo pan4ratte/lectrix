@@ -10,6 +10,7 @@ import { showLabels } from '#lib/features/labels/actions.ts';
 import { toggleTheme } from '#lib/features/settings/apply.ts';
 import { insertFromFile, toggleOrganize } from '#lib/features/organize/actions.ts';
 import { openProperties } from '#lib/features/properties/actions.ts';
+import { compressDocument, compressFile } from '#lib/features/compress/actions.ts';
 import { protectDocument, protectFile } from '#lib/features/protect/actions.ts';
 import { unlockDocument, unlockFile } from '#lib/features/unprotect/actions.ts';
 import { update } from '#lib/features/update/update.svelte.ts';
@@ -126,6 +127,13 @@ export const commands = {
 		const tab = app.combineActive || app.startShown ? null : app.active;
 		if (tab) void protectDocument(tab);
 		else void protectFile();
+	},
+	/** A PDF written smaller (section 6.11): the document shown's file, or else a file the
+	 * Open dialog asks for. */
+	compressFile: () => {
+		const tab = app.combineActive || app.startShown ? null : app.active;
+		if (tab) void compressDocument(tab);
+		else void compressFile();
 	},
 	/** The active tab into a window of its own (section 8). */
 	moveTabToNewWindow: withTab(() => {

@@ -4,7 +4,7 @@ use std::ffi::{c_int, c_uchar};
 
 use mupdf::Context;
 use mupdf::pdf::{PdfDocument, PdfObject};
-use mupdf_sys::{fz_context, pdf_document};
+use mupdf_sys::{fz_context, pdf_document, pdf_obj};
 
 use super::{LectrixError, check};
 use crate::error::{Error, Result};
@@ -18,6 +18,28 @@ unsafe extern "C" {
         len: usize,
         err: *mut LectrixError,
     ) -> c_int;
+    fn lectrix_pdf_obj_is_incremental(
+        ctx: *mut fz_context,
+        obj: *mut pdf_obj,
+        incremental: *mut c_int,
+        err: *mut LectrixError,
+    ) -> c_int;
+}
+
+/// True if `obj`, an indirect object, was created or changed since its document was
+/// opened (MuPDF's incremental section). One that was not came from the file, where other
+/// objects may refer to it too: an appearance stream shared by several annotations.
+pub fn is_incremental(obj: &PdfObject) -> Result<bool> {
+    let ctx = Context::get().as_raw_ptr();
+    let mut incremental = 0;
+    let mut err = LectrixError::new();
+    // SAFETY: `ctx` is this thread's context and `obj` a live object of a document owned
+    // by this thread, only read; `incremental` and `err` are live locals.
+    let rc = unsafe {
+        lectrix_pdf_obj_is_incremental(ctx, obj.as_raw_ptr(), &mut incremental, &mut err)
+    };
+    check(rc, err)?;
+    Ok(incremental != 0)
 }
 
 /// Sets the raw (still encoded) data of `stream`, an indirect stream object of `doc` that
@@ -53,6 +75,23 @@ pub fn set_new_stream(doc: &mut PdfDocument, stream: &PdfObject, data: &[u8]) ->
 mod tests {
     use super::*;
     use crate::ffi::Journal;
+
+    #[test]
+    fn objects_from_the_file_are_not_incremental() {
+        let dir = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("../../target/test-output/ffi-incremental");
+        std::fs::create_dir_all(&dir).unwrap();
+        let path = dir.join("sample.pdf");
+        let doc = crate::testgen::sample_document(&crate::testgen::SampleSpec::default()).unwrap();
+        crate::save::save_atomic(&doc, crate::save::SaveKind::Full, None, &path).unwrap();
+        let mut doc = PdfDocument::open(path.to_str().unwrap()).unwrap();
+        let page = doc.find_page(0).unwrap();
+        assert!(!is_incremental(&page).unwrap());
+        let made = doc
+            .add_object(&doc.new_object_from_str("<< /New true >>").unwrap())
+            .unwrap();
+        assert!(is_incremental(&made).unwrap());
+    }
 
     #[test]
     fn new_streams_are_undone_and_redone_with_their_object() {

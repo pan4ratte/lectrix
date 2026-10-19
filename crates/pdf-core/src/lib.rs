@@ -1,6 +1,7 @@
 //! All PDF logic for Lectrix. No Tauri dependency.
 
 pub mod annot;
+pub mod compress;
 pub mod docinfo;
 pub mod error;
 pub mod ffi;
@@ -24,3 +25,6 @@ pub mod text;
 pub mod unprotect;
 
 pub use error::{Error, Result};
+
+// libjpeg, which Compress's encoder calls from the C shim (ADR 0027).
+use mozjpeg_sys as _;

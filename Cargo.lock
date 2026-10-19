@@ -2794,6 +2794,7 @@ name = "pdf-core"
 version = "0.1.0"
 dependencies = [
  "cc",
+ "mozjpeg-sys",
  "mupdf",
  "mupdf-sys",
  "png 0.18.1",

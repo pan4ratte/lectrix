@@ -425,7 +425,7 @@ pub(crate) fn grow_with_appearance(
     let ap = obj
         .get_dict("AP")?
         .and_then(|ap| ap.get_dict("N").ok().flatten());
-    let Some(mut normal) = ap else {
+    let Some(normal) = ap else {
         return Ok(true);
     };
     if !normal.is_stream()? {
@@ -456,9 +456,35 @@ pub(crate) fn grow_with_appearance(
     };
     let a = to_form(wanted.x0, wanted.y0);
     let b = to_form(wanted.x1, wanted.y1);
+    let mut normal = own_appearance(obj, normal)?;
     normal.dict_put(
         "BBox",
         objects::rect_array(doc, Rect::new(a.x, a.y, b.x, b.y))?,
     )?;
     Ok(true)
+}
+
+/// `normal`, the normal appearance stream of annotation `obj`, as one the annotation alone
+/// has, to change. One from the file may be shared with other annotations (files written
+/// by Acrobat, by MuPDF's garbage collection, by Compress): it is copied into a new object
+/// first, as MuPDF's appearance synthesis does, so changing it changes no other annotation.
+fn own_appearance(obj: &PdfObject, normal: PdfObject) -> Result<PdfObject> {
+    if ffi::is_incremental(&normal)? {
+        return Ok(normal);
+    }
+    let Some(mut doc) = obj.document() else {
+        return Ok(normal);
+    };
+    let Some(dict) = normal.resolve()? else {
+        return Ok(normal);
+    };
+    // A deep copy of the dictionary (its references still point where they did), and the
+    // stream as it is, still encoded.
+    let dict = dict.try_clone()?;
+    let raw = normal.read_raw_stream()?;
+    let copy = doc.add_stream(&mupdf::Buffer::from_copied_bytes(&raw)?, Some(&dict), true)?;
+    if let Some(mut ap) = obj.get_dict("AP")? {
+        ap.dict_put("N", copy.clone())?;
+    }
+    Ok(copy)
 }

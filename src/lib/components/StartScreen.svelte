@@ -7,7 +7,7 @@
 	// to the top of the list, and a right-click offers opening it, pinning it, showing it in
 	// its folder and removing it. After an update, a block beside the app's name links to
 	// What's new. Also shown over open documents, from the title bar's icon and name.
-	import { FolderOpen, LayoutGrid, Layers, List, Lock, LockOpen, Sparkles, Star, X } from '@lucide/svelte';
+	import { FolderOpen, LayoutGrid, Layers, List, Lock, LockOpen, Shrink, Sparkles, Star, X } from '@lucide/svelte';
 	import { ContextMenu } from 'bits-ui';
 	import type { Component } from 'svelte';
 
@@ -16,6 +16,7 @@
 	import { APP_NAME } from '#lib/config.ts';
 	import { openWhatsNew } from '#lib/features/changelog/announce.ts';
 	import { toolMark } from '#lib/features/annotations/toolMark.ts';
+	import { compressFile } from '#lib/features/compress/actions.ts';
 	import { organizeFile } from '#lib/features/organize/actions.ts';
 	import { protectFile } from '#lib/features/protect/actions.ts';
 	import { unlockFile } from '#lib/features/unprotect/actions.ts';
@@ -47,7 +48,8 @@
 		{ id: 'combine', label: 'Combine files…', icon: Layers, run: () => app.openCombine() },
 		{ id: 'organize', label: 'Organize pages…', icon: LayoutGrid, run: () => void organizeFile() },
 		{ id: 'unlock', label: 'Unlock…', icon: LockOpen, command: 'unlockFile', run: () => void unlockFile() },
-		{ id: 'protect', label: 'Protect…', icon: Lock, command: 'protectFile', run: () => void protectFile() }
+		{ id: 'protect', label: 'Protect…', icon: Lock, command: 'protectFile', run: () => void protectFile() },
+		{ id: 'compress', label: 'Compress…', icon: Shrink, command: 'compressFile', run: () => void compressFile() }
 	];
 
 	/** Lucide icons are drawn on a 24-unit grid. */

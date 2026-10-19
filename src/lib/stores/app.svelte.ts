@@ -45,6 +45,7 @@ import {
 	type PaneLayout,
 	type PanelId,
 	type PdfaLevel,
+	type CompressStep,
 	type PendingProtection,
 	type ProtectionInfo,
 	type ProtectionInput,
@@ -103,12 +104,15 @@ export interface PasswordRequest {
 	name: string;
 	retry: boolean;
 	/** What the file is opened for: a tab, the Combine view, inserting its pages, removing
-	 * its password (Unlock) or changing its protection (Protect). */
-	purpose: 'open' | 'combine' | 'insert' | 'unlock' | 'protect';
-	/** Takes the password (null for Cancel) in place of opening the file: Unlock's and
-	 * Protect's. */
+	 * its password (Unlock), changing its protection (Protect) or compressing it. */
+	purpose: 'open' | 'combine' | 'insert' | 'unlock' | 'protect' | 'compress';
+	/** Takes the password (null for Cancel) in place of opening the file: Unlock's,
+	 * Protect's and Compress's. */
 	answer?: (password: string | null) => Promise<void>;
 }
+
+/** The Compress dialog (section 6.11), for a file Rust holds under `token`. */
+export type CompressRequest = Extract<CompressStep, { kind: 'ready' }>;
 
 /** A tab of a document's properties (section 6.10). */
 export type PropertiesSection = 'description' | 'security' | 'fonts';
@@ -280,6 +284,7 @@ class AppStore {
 			this.labelsRequest !== null ||
 			this.insertRequest !== null ||
 			this.protectRequest !== null ||
+			this.compressRequest !== null ||
 			this.propertiesRequest !== null
 		);
 	}
@@ -292,6 +297,8 @@ class AppStore {
 	labelsRequest = $state<LabelsRequest | null>(null);
 	/** The Protect dialog is open (section 6.9). */
 	protectRequest = $state<ProtectRequest | null>(null);
+	/** The Compress dialog is open (section 6.11). */
+	compressRequest = $state<CompressRequest | null>(null);
 	/** A document's properties are open (section 6.10). */
 	propertiesRequest = $state<PropertiesRequest | null>(null);
 	/** The Combine view, while it is open (shown as a tab of its own). */
@@ -1435,14 +1442,17 @@ class AppStore {
 	 */
 	/** Says that a save took the PDF/A claim out of a file: because of what was changed, or
 	 * because it was given a password or restrictions, which PDF/A forbids (section 6.9). */
-	notifyPdfaRemoved(name: string, level: PdfaLevel, protection = false) {
+	notifyPdfaRemoved(name: string, level: PdfaLevel, reason: 'edits' | 'protection' | 'compression' = 'edits') {
 		this.notify(
 			{
 				kind: 'info',
 				message: `${name} no longer claims to be ${pdfaName(level)}.`,
-				suggestion: protection
-					? 'PDF/A doesn’t allow a password or restrictions, so Lectrix removed the claim when saving the file with them.'
-					: 'Annotations, and pages inserted or deleted, may leave a file that no longer complies with that standard, so Lectrix removed the claim when saving. Changes to bookmarks, page labels, page rotation and the order of the pages alone keep it.'
+				suggestion:
+					reason === 'protection'
+						? 'PDF/A doesn’t allow a password or restrictions, so Lectrix removed the claim when saving the file with them.'
+						: reason === 'compression'
+							? 'Compressing rewrites a file’s images, fonts and structure, and Lectrix can’t vouch that the result still complies with that standard, so it removed the claim.'
+							: 'Annotations, and pages inserted or deleted, may leave a file that no longer complies with that standard, so Lectrix removed the claim when saving. Changes to bookmarks, page labels, page rotation and the order of the pages alone keep it.'
 			},
 			20000
 		);
@@ -1507,7 +1517,7 @@ class AppStore {
 		// Saved, a document is its file's from then on.
 		tab.untitled = false;
 		tab.banner = null;
-		if (result.pdfaRemoved) this.notifyPdfaRemoved(tab.name, result.pdfaRemoved, protecting);
+		if (result.pdfaRemoved) this.notifyPdfaRemoved(tab.name, result.pdfaRemoved, protecting ? 'protection' : 'edits');
 		if (result.fellBackToFull && repaired) {
 			tab.fileFlags = { ...tab.fileFlags, repaired: false };
 			this.notify(

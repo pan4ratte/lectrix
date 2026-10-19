@@ -2342,3 +2342,460 @@ impl From<pdf_core::Error> for AppError {
         }
     }
 }
+
+// ----- Compress (section 6.11, ADR 0027) -----
+
+/// The dialog's presets; `Custom` once a setting differs from the one chosen.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum CompressPreset {
+    Lossless,
+    HighQuality,
+    Balanced,
+    Smallest,
+    Custom,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum ResampleMethod {
+    Bicubic,
+    Average,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum ImageCompression {
+    Keep,
+    Jpeg,
+    Jpeg2000,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum ImageColorMode {
+    Keep,
+    Gray,
+    BlackAndWhite,
+}
+
+/// Downsampling: images drawn finer than `aboveDpi` go to `toDpi`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DownsampleSettings {
+    pub enabled: bool,
+    pub to_dpi: u32,
+    pub above_dpi: u32,
+    pub method: ResampleMethod,
+}
+
+/// How colour or greyscale images are written.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ImageSettings {
+    pub downsample: DownsampleSettings,
+    pub compression: ImageCompression,
+    /// 1 to 100.
+    pub quality: u8,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CompressRemovals {
+    pub thumbnails: bool,
+    pub private_data: bool,
+    pub attachments: bool,
+    pub javascript: bool,
+    pub tags: bool,
+}
+
+/// The Compress dialog's settings, as it sends them to `compress_run` and as they are
+/// remembered for the next time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CompressSettings {
+    pub preset: CompressPreset,
+    /// The separate settings for colour, greyscale and black-and-white images are shown.
+    pub separate: bool,
+    pub color: ImageSettings,
+    pub gray: ImageSettings,
+    /// Black-and-white images: always lossless.
+    pub mono: DownsampleSettings,
+    pub color_mode: ImageColorMode,
+    pub subset_fonts: bool,
+    pub object_streams: bool,
+    pub remove: CompressRemovals,
+}
+
+impl From<pdf_core::compress::Resample> for ResampleMethod {
+    fn from(m: pdf_core::compress::Resample) -> Self {
+        match m {
+            pdf_core::compress::Resample::Bicubic => ResampleMethod::Bicubic,
+            pdf_core::compress::Resample::Average => ResampleMethod::Average,
+        }
+    }
+}
+
+impl From<ResampleMethod> for pdf_core::compress::Resample {
+    fn from(m: ResampleMethod) -> Self {
+        match m {
+            ResampleMethod::Bicubic => pdf_core::compress::Resample::Bicubic,
+            ResampleMethod::Average => pdf_core::compress::Resample::Average,
+        }
+    }
+}
+
+impl DownsampleSettings {
+    /// Settings for `d`; one turned off keeps the preset's numbers to show.
+    fn from_core(d: Option<pdf_core::compress::Downsample>, shown: u32) -> Self {
+        match d {
+            Some(d) => DownsampleSettings {
+                enabled: true,
+                to_dpi: d.to_dpi,
+                above_dpi: d.above_dpi,
+                method: d.method.into(),
+            },
+            None => DownsampleSettings {
+                enabled: false,
+                to_dpi: shown,
+                above_dpi: shown * 3 / 2,
+                method: ResampleMethod::Bicubic,
+            },
+        }
+    }
+
+    fn to_core(self) -> Option<pdf_core::compress::Downsample> {
+        self.enabled.then_some(pdf_core::compress::Downsample {
+            to_dpi: self.to_dpi,
+            above_dpi: self.above_dpi,
+            method: self.method.into(),
+        })
+    }
+}
+
+impl ImageSettings {
+    fn from_core(s: pdf_core::compress::ImageSettings, shown: u32) -> Self {
+        use pdf_core::compress::Compression;
+        ImageSettings {
+            downsample: DownsampleSettings::from_core(s.downsample, shown),
+            compression: match s.compression {
+                Compression::Keep => ImageCompression::Keep,
+                Compression::Jpeg => ImageCompression::Jpeg,
+                Compression::Jpeg2000 => ImageCompression::Jpeg2000,
+            },
+            quality: s.quality,
+        }
+    }
+
+    fn to_core(self) -> pdf_core::compress::ImageSettings {
+        use pdf_core::compress::Compression;
+        pdf_core::compress::ImageSettings {
+            downsample: self.downsample.to_core(),
+            compression: match self.compression {
+                ImageCompression::Keep => Compression::Keep,
+                ImageCompression::Jpeg => Compression::Jpeg,
+                ImageCompression::Jpeg2000 => Compression::Jpeg2000,
+            },
+            quality: self.quality,
+        }
+    }
+}
+
+impl CompressSettings {
+    /// The settings of `preset`, which must not be `Custom`.
+    pub fn of_preset(preset: CompressPreset) -> CompressSettings {
+        use pdf_core::compress::{ColorMode, Preset};
+        let core = match preset {
+            CompressPreset::Lossless => Preset::Lossless,
+            CompressPreset::HighQuality => Preset::HighQuality,
+            CompressPreset::Balanced | CompressPreset::Custom => Preset::Balanced,
+            CompressPreset::Smallest => Preset::Smallest,
+        }
+        .options();
+        CompressSettings {
+            preset,
+            separate: false,
+            color: ImageSettings::from_core(core.color, 150),
+            gray: ImageSettings::from_core(core.gray, 150),
+            mono: DownsampleSettings::from_core(core.mono, 300),
+            color_mode: match core.color_mode {
+                ColorMode::Keep => ImageColorMode::Keep,
+                ColorMode::Gray => ImageColorMode::Gray,
+                ColorMode::BlackAndWhite => ImageColorMode::BlackAndWhite,
+            },
+            subset_fonts: core.subset_fonts,
+            object_streams: core.object_streams,
+            remove: CompressRemovals {
+                thumbnails: core.remove.thumbnails,
+                private_data: core.remove.private_data,
+                attachments: core.remove.attachments,
+                javascript: core.remove.javascript,
+                tags: core.remove.tags,
+            },
+        }
+    }
+
+    pub fn to_core(self) -> pdf_core::compress::CompressOptions {
+        use pdf_core::compress::{ColorMode, CompressOptions, Removals};
+        CompressOptions {
+            color: self.color.to_core(),
+            gray: self.gray.to_core(),
+            mono: self.mono.to_core(),
+            color_mode: match self.color_mode {
+                ImageColorMode::Keep => ColorMode::Keep,
+                ImageColorMode::Gray => ColorMode::Gray,
+                ImageColorMode::BlackAndWhite => ColorMode::BlackAndWhite,
+            },
+            subset_fonts: self.subset_fonts,
+            object_streams: self.object_streams,
+            remove: Removals {
+                thumbnails: self.remove.thumbnails,
+                private_data: self.remove.private_data,
+                attachments: self.remove.attachments,
+                javascript: self.remove.javascript,
+                tags: self.remove.tags,
+            },
+        }
+    }
+}
+
+/// The settings of each preset, so the dialog has them from Rust (`pdf_core::compress`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CompressPresets {
+    pub lossless: CompressSettings,
+    pub high_quality: CompressSettings,
+    pub balanced: CompressSettings,
+    pub smallest: CompressSettings,
+}
+
+impl CompressPresets {
+    pub fn new() -> Self {
+        CompressPresets {
+            lossless: CompressSettings::of_preset(CompressPreset::Lossless),
+            high_quality: CompressSettings::of_preset(CompressPreset::HighQuality),
+            balanced: CompressSettings::of_preset(CompressPreset::Balanced),
+            smallest: CompressSettings::of_preset(CompressPreset::Smallest),
+        }
+    }
+}
+
+/// Bytes, and how many objects hold them.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SizeUsage {
+    #[ts(type = "number")]
+    pub bytes: u64,
+    pub count: u32,
+}
+
+impl From<pdf_core::compress::Usage> for SizeUsage {
+    fn from(u: pdf_core::compress::Usage) -> Self {
+        SizeUsage {
+            bytes: u.bytes,
+            count: u32::try_from(u.count).unwrap_or(u32::MAX),
+        }
+    }
+}
+
+/// What the file has that Compress can remove (the dialog offers only these).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CompressFound {
+    pub thumbnails: u32,
+    pub private_data: u32,
+    pub attachments: u32,
+    pub javascript: u32,
+    pub tags: bool,
+}
+
+/// What a file's size is made of.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CompressAnalysis {
+    #[ts(type = "number")]
+    pub file_size: u64,
+    pub pages: u32,
+    pub images: SizeUsage,
+    pub fonts: SizeUsage,
+    pub content: SizeUsage,
+    pub attachments: SizeUsage,
+    pub thumbnails: SizeUsage,
+    pub private_data: SizeUsage,
+    pub metadata: SizeUsage,
+    #[ts(type = "number")]
+    pub other: u64,
+    pub found: CompressFound,
+}
+
+impl From<pdf_core::compress::Analysis> for CompressAnalysis {
+    fn from(a: pdf_core::compress::Analysis) -> Self {
+        let n = |v: usize| u32::try_from(v).unwrap_or(u32::MAX);
+        CompressAnalysis {
+            file_size: a.file_size,
+            pages: n(a.pages),
+            images: a.images.into(),
+            fonts: a.fonts.into(),
+            content: a.content.into(),
+            attachments: a.attachments.into(),
+            thumbnails: a.thumbnails.into(),
+            private_data: a.private_data.into(),
+            metadata: a.metadata.into(),
+            other: a.other,
+            found: CompressFound {
+                thumbnails: n(a.found.thumbnails),
+                private_data: n(a.found.private_data),
+                attachments: n(a.found.attachments),
+                javascript: n(a.found.javascript),
+                tags: a.found.tags,
+            },
+        }
+    }
+}
+
+/// What follows picking a file to compress, or typing its password.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[ts(export)]
+pub enum CompressStep {
+    /// No file was picked.
+    Cancelled,
+    /// Ask for the password and call `compress_password`.
+    NeedsPassword {
+        token: u32,
+        name: String,
+        /// True after a wrong password.
+        retry: bool,
+    },
+    /// The file is open: show the dialog, then call `compress_run`, `compress_save` and
+    /// `compress_cancel`.
+    Ready {
+        token: u32,
+        name: String,
+        analysis: CompressAnalysis,
+        /// Its signatures will not match the file written whole: say so.
+        signed: bool,
+        /// The PDF/A level it claims, which compressing takes away.
+        pdfa: Option<PdfaLevel>,
+        presets: Box<CompressPresets>,
+        /// The settings used last, to start from.
+        remembered: Option<Box<CompressSettings>>,
+    },
+    Failed {
+        name: String,
+        error: AppError,
+    },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum CompressStage {
+    Reading,
+    Images,
+    Fonts,
+    Writing,
+}
+
+/// Sent on `compress_run`'s channel while compressing.
+#[derive(Debug, Clone, Copy, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CompressProgress {
+    pub stage: CompressStage,
+    /// Pages read or images done so far, of `total` (0 for the stages without a count).
+    pub done: u32,
+    pub total: u32,
+}
+
+/// What compressing made, waiting to be saved or given up.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CompressOutcome {
+    #[ts(type = "number")]
+    pub before: u64,
+    #[ts(type = "number")]
+    pub after: u64,
+    pub images: u32,
+    pub images_replaced: u32,
+    pub images_downsampled: u32,
+    pub images_skipped: u32,
+    pub fonts_subset: u32,
+    pub removed: CompressFound,
+    /// The page to preview first (0-based).
+    pub preview_page: u32,
+    pub pages: u32,
+}
+
+/// The outcome of `compress_save`.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[ts(export)]
+pub enum CompressSaved {
+    /// The Save dialog was given up: nothing was written, and the result is still waiting.
+    Cancelled,
+    /// The result was written, and opened as `opened` says.
+    Saved {
+        name: String,
+        /// The user saved it over the file itself.
+        replaced: bool,
+        opened: OpenResult,
+        /// The file was open in a tab, with no unsaved changes: its document as read again.
+        reloaded: Option<Box<DocumentInfo>>,
+        #[ts(type = "number")]
+        before: u64,
+        #[ts(type = "number")]
+        after: u64,
+        /// The PDF/A level the file no longer claims.
+        pdfa_removed: Option<PdfaLevel>,
+    },
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The Compress dialog's simple form sets black-and-white images from the colour
+    /// settings (`simpleMono` in src/lib/features/compress/compress.ts): twice their
+    /// resolution, at least 300 dpi, above one and a half times that. The presets agree, so
+    /// choosing one in the simple form keeps its name.
+    #[test]
+    fn presets_are_what_the_simple_form_makes_of_them() {
+        for preset in [
+            CompressPreset::Lossless,
+            CompressPreset::HighQuality,
+            CompressPreset::Balanced,
+            CompressPreset::Smallest,
+        ] {
+            let s = CompressSettings::of_preset(preset);
+            assert_eq!(s.gray, s.color, "{preset:?}");
+            let to = (s.color.downsample.to_dpi * 2).max(300);
+            assert_eq!(s.mono.enabled, s.color.downsample.enabled, "{preset:?}");
+            assert_eq!(s.mono.to_dpi, to, "{preset:?}");
+            assert_eq!(s.mono.above_dpi, to * 3 / 2, "{preset:?}");
+            assert_eq!(s.mono.method, s.color.downsample.method, "{preset:?}");
+            pdf_core::compress::validate(&s.to_core()).unwrap();
+        }
+    }
+}

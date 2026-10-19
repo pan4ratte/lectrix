@@ -1192,6 +1192,75 @@ fn repair_fixes_other_apps_problems_without_changing_content() {
 }
 
 #[test]
+fn repair_changes_no_appearance_another_annotation_shares() {
+    // Two drawings drawn by one appearance stream (as Acrobat, MuPDF's garbage collection
+    // and Compress write them); the first one's /Rect is too small for its ink.
+    let dir = out_dir("annotations-shared-appearance");
+    let objects = vec![
+        "<< /Type /Catalog /Pages 2 0 R >>".to_owned(),
+        "<< /Type /Pages /Kids [3 0 R] /Count 1 >>".to_owned(),
+        "<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << >> \
+         /Annots [4 0 R 5 0 R] >>"
+            .to_owned(),
+        "<< /Type /Annot /Subtype /Ink /Rect [300 300 350 350] /C [0 0 1] /NM (ink-a) /F 4 \
+         /M (D:20200101000000Z) /P 3 0 R /T (Other App) /BS << /W 2 >> \
+         /InkList [[300 300 380 380]] /AP << /N 6 0 R >> >>"
+            .to_owned(),
+        "<< /Type /Annot /Subtype /Ink /Rect [90 90 160 160] /C [0 0 1] /NM (ink-b) /F 4 \
+         /M (D:20200101000000Z) /P 3 0 R /T (Other App) /BS << /W 2 >> \
+         /InkList [[100 100 150 150]] /AP << /N 6 0 R >> >>"
+            .to_owned(),
+        {
+            let ap = "q 0 0 1 RG 1 w 0 0 m 50 50 l S Q";
+            format!(
+                "<< /Type /XObject /Subtype /Form /BBox [0 0 50 50] /Length {} >>\nstream\n{ap}\nendstream",
+                ap.len()
+            )
+        },
+    ];
+    let src = dir.join("shared.pdf");
+    std::fs::write(&src, assemble(&objects)).unwrap();
+    let mut doc = open(&src);
+    let changes = repair(&mut doc).unwrap();
+    assert!(
+        changes
+            .iter()
+            .any(|c| c.id == 4 && c.fixed == Problem::RectTooSmall),
+        "{changes:?}"
+    );
+
+    let normal = |num: i32| get(&get(&doc.new_indirect(num, 0).unwrap(), "AP"), "N");
+    assert_ne!(
+        normal(4).as_indirect().unwrap(),
+        6,
+        "the repaired drawing has an appearance of its own"
+    );
+    assert_eq!(
+        normal(5).as_indirect().unwrap(),
+        6,
+        "the other keeps the shared one"
+    );
+    let shared = objects::rect(&get(&doc.new_indirect(6, 0).unwrap(), "BBox"))
+        .unwrap()
+        .unwrap();
+    assert_eq!(
+        shared,
+        Rect::new(0.0, 0.0, 50.0, 50.0),
+        "the shared one is unchanged"
+    );
+    let own = objects::rect(&get(&normal(4), "BBox")).unwrap().unwrap();
+    assert!(own.x1 > 50.0, "the copy's BBox grew with its Rect: {own:?}");
+    assert_eq!(
+        normal(4).read_stream().unwrap(),
+        normal(5).read_stream().unwrap()
+    );
+
+    let out = dir.join("repaired.pdf");
+    save_and_reopen(&doc, &src, &out);
+    qpdf_check(&out);
+}
+
+#[test]
 fn annotations_are_undoable_steps_through_the_session() {
     let dir = out_dir("annotations-session");
     let src = sample_file(&dir, "src.pdf", SampleSpec::default());

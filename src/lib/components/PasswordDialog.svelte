@@ -51,7 +51,9 @@
 							? `${prompt.name} is protected. Enter its password to remove it.`
 							: prompt.purpose === 'protect'
 								? `${prompt.name} is protected. Enter its password to change its protection.`
-								: `${prompt.name} is protected. Enter its password to open it.`}
+								: prompt.purpose === 'compress'
+									? `${prompt.name} is protected. Enter its password to compress it.`
+									: `${prompt.name} is protected. Enter its password to open it.`}
 				</Dialog.Description>
 				<form class="mt-4 flex flex-col gap-4" onsubmit={submit}>
 					<input
@@ -67,7 +69,11 @@
 					<div class="flex justify-end gap-2">
 						<button type="button" class="button" onclick={cancel}>Cancel</button>
 						<button type="submit" class="button button-primary">
-							{prompt.purpose === 'unlock' ? 'Unlock' : prompt.purpose === 'protect' ? 'Continue' : 'Open'}
+							{prompt.purpose === 'unlock'
+								? 'Unlock'
+								: prompt.purpose === 'protect' || prompt.purpose === 'compress'
+									? 'Continue'
+									: 'Open'}
 						</button>
 					</div>
 				</form>

@@ -104,6 +104,7 @@ lectrix/
 │  │  │  ├─ labels.rs        # page labels
 │  │  │  ├─ merge/           # stitching, and extracting pages into a new file
 │  │  │  ├─ pages.rs         # moving and deleting pages (ADR 0018)
+│  │  │  ├─ compress/        # Compress: images, fonts, removals, duplicates (ADR 0027)
 │  │  │  ├─ save.rs          # incremental / full / atomic replace
 │  │  │  ├─ ops.rs           # operation enum, undo/redo
 │  │  │  ├─ fonts/           # installed-font index (ADR 0005)
@@ -201,6 +202,7 @@ What each feature does is specified in `docs/spec/`, one file per feature, under
 - **6.8 Unlock** ([docs/spec/unlock.md](docs/spec/unlock.md)): on the start screen and in the File menu, a PDF's password and restrictions removed, given any password that opens it (ADR 0025): the file is written whole, in place (Save) or as a copy, and opens in a tab.
 - **6.9 Protect** ([docs/spec/protect.md](docs/spec/protect.md)): a password to open the file, restrictions with a permissions password, or both (ADR 0026), as a tool on a file (in place or as a copy) and as a change of a document's protection that its next save writes; not an undo step.
 - **6.10 Document properties** ([docs/spec/properties.md](docs/spec/properties.md)): Document > Properties… (Ctrl+D): the file, its title, author, subject and keywords (changed as one undo step, in the information dictionary and the XMP alike), its security and its fonts.
+- **6.11 Compress** ([docs/spec/compress.md](docs/spec/compress.md)): on the start screen and in the File menu, a PDF written smaller (ADR 0027): presets, or resolution, compression, quality and colour for images (separately for colour, greyscale and black-and-white ones), fonts subset, chosen removals, duplicates merged. Images are replaced where they are, at the resolution they are drawn largest; the result is computed into a file of Lectrix's own, shown with a before-and-after preview, then saved over the file or as a copy.
 
 ## 7. Document model, undo/redo and saving
 
@@ -306,7 +308,7 @@ Real-world files the user owns but cannot publish (for example books from their 
 2. Inside each annotation's `/Rect`, compare the render against the same page rendered without annotations. If any engine shows no visible change, the test fails: that annotation is invisible in that engine.
 3. Compare engines against each other with a tolerance, and save diff images for any failure.
 
-The suites keep the names they got during the build: `phase0` (labels, outline, merge and highlight from `pdf-cli`), `phase2` (bookmarks), `phase3` (labels), `phase4` and `phase4-local` (combining), `pages` (moving and deleting pages, named for what it checks), `phase5` and `phase5-local` (annotations and repair). SumatraPDF and similar apps are built on MuPDF and do not count as an independent check.
+The suites keep the names they got during the build: `phase0` (labels, outline, merge and highlight from `pdf-cli`), `phase2` (bookmarks), `phase3` (labels), `phase4` and `phase4-local` (combining), `pages` (moving and deleting pages, named for what it checks), `phase5` and `phase5-local` (annotations and repair), and `compress` (the presets and options of Compress on a generated file of every kind of image, each engine's render against its own of the original). SumatraPDF and similar apps are built on MuPDF and do not count as an independent check.
 
 **Manual release checklist** (`docs/manual-checklist.md`, performed by the user before every release; the agent prepares the files and keeps the checklist current): open the interop sample files in Acrobat Reader, Edge, Firefox and Foxit; for every annotation type confirm it is visible, has the right color and opacity, appears in the comments list, prints, and can be edited and deleted. Then the installers, a real crash, and a Narrator walk.
 

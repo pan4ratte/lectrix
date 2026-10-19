@@ -319,6 +319,30 @@ Make a plain file with `pdf-cli gen plain.pdf`, and a protected one with
 - [ ] The same on a PDF/A file opened ready to edit: Acrobat still says it claims PDF/A,
       and its Preflight finds the title and author in agreement with the XMP.
 
+## Compress
+
+Make the sample with `pdf-cli gen-images images.pdf` (it lists the kinds of images in it),
+and run `python tests/interop/run.py compress`, which writes each preset's result to
+`target/test-output/interop/compress/` (`lossless.pdf`, `balanced.pdf`, `smallest.pdf`,
+`jpeg2000.pdf`, `grey.pdf`, `bw.pdf`).
+
+- [ ] Open `images.pdf` and `lossless.pdf` side by side in Acrobat Reader: every page looks
+      the same, the red ellipse (an image mask) and the soft-edged square (a soft mask)
+      included. The same in Edge, Firefox and Foxit.
+- [ ] `balanced.pdf` and `jpeg2000.pdf` in all four readers: every picture shows, in its
+      colours (the CMYK one on page 3 too, not inverted), the stamp on page 3 and the
+      tiled pattern beside it included. Print page 3 from Acrobat Reader.
+- [ ] In Acrobat Pro, if you have it: **File > Save as Other > Reduced Size PDF** on
+      `images.pdf`, and compare its size with `balanced.pdf`'s, and the two at 400%.
+- [ ] **Compress…** on the start screen with a book of your own (a large one from the
+      local corpus): the sizes, the preset, Compress; the progress counts the pages, then
+      the images. The result's preview at 400% shows the same page before and after.
+      **Save as a copy**: it opens in a tab, and in Acrobat Reader.
+- [ ] A file with form fields of your own, compressed with **Subset embedded fonts**:
+      typing new text in a field in Acrobat Reader shows every character.
+- [ ] A signed file of your own: the dialog says its signatures will not be valid; Acrobat
+      shows the copy's signature as invalid, the original's still valid.
+
 ## Full screen
 
 - [ ] With a document open, press F11: the title bar, the view bar and the side panes slide

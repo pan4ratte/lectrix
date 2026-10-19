@@ -99,6 +99,49 @@ enum Command {
     },
     /// Print page count, PDF/A claim, page labels, outline and annotations.
     Info { input: PathBuf },
+    /// Generate a three-page sample whose images cover what Compress handles.
+    GenImages { out: PathBuf },
+    /// Print what a file's size is made of, and what Compress could remove from it.
+    Analyze {
+        input: PathBuf,
+        #[arg(long)]
+        password: Option<String>,
+    },
+    /// Write a file smaller (Compress): a preset, changed by the options after it.
+    Compress {
+        input: PathBuf,
+        out: PathBuf,
+        #[arg(long)]
+        password: Option<String>,
+        #[arg(long, value_enum, default_value_t = PresetArg::Balanced)]
+        preset: PresetArg,
+        /// Downsample colour and greyscale images to this resolution (0: never).
+        #[arg(long)]
+        dpi: Option<u32>,
+        /// Downsample black-and-white images to this resolution (0: never).
+        #[arg(long)]
+        mono_dpi: Option<u32>,
+        /// Downsample only images finer than this many times the resolution.
+        #[arg(long, default_value_t = 1.5)]
+        above: f32,
+        #[arg(long, value_enum)]
+        method: Option<MethodArg>,
+        #[arg(long, value_enum)]
+        compression: Option<CompressionArg>,
+        /// JPEG or JPEG 2000 quality, 1 to 100.
+        #[arg(long)]
+        quality: Option<u8>,
+        #[arg(long, value_enum, default_value_t = ColorModeArg::Keep)]
+        color_mode: ColorModeArg,
+        #[arg(long)]
+        no_subset_fonts: bool,
+        #[arg(long)]
+        no_object_streams: bool,
+        /// What to remove, comma-separated: thumbnails, private, attachments, javascript,
+        /// tags; or none. Default: the preset's (thumbnails and private data).
+        #[arg(long)]
+        remove: Option<String>,
+    },
     /// Page labels.
     Labels {
         #[command(subcommand)]
@@ -444,6 +487,34 @@ impl KindArg {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, ValueEnum)]
+enum PresetArg {
+    Lossless,
+    High,
+    Balanced,
+    Smallest,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum MethodArg {
+    Bicubic,
+    Average,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum CompressionArg {
+    Keep,
+    Jpeg,
+    Jpeg2000,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum ColorModeArg {
+    Keep,
+    Gray,
+    Bw,
+}
+
 #[derive(Clone, Copy, ValueEnum)]
 enum PrintingArg {
     None,
@@ -490,6 +561,72 @@ impl From<BookmarksArg> for BookmarkMode {
             BookmarksArg::Drop => BookmarkMode::Drop,
         }
     }
+}
+
+fn parse_removals(s: &str) -> Result<pdf_core::compress::Removals> {
+    let mut removals = pdf_core::compress::Removals::default();
+    for item in s.split(',').map(str::trim).filter(|i| !i.is_empty()) {
+        match item {
+            "none" => {}
+            "thumbnails" => removals.thumbnails = true,
+            "private" => removals.private_data = true,
+            "attachments" => removals.attachments = true,
+            "javascript" => removals.javascript = true,
+            "tags" => removals.tags = true,
+            other => {
+                return Err(Error::InvalidArgument(format!(
+                    "unknown removal {other:?}: thumbnails, private, attachments, javascript, tags or none"
+                )));
+            }
+        }
+    }
+    Ok(removals)
+}
+
+fn analyze(input: &Path, password: Option<&str>) -> Result<()> {
+    let a = pdf_core::compress::analyze(input, password)?;
+    let mb = |b: u64| b as f64 / 1_048_576.0;
+    println!(
+        "{}: {:.2} MB, {} pages",
+        input.display(),
+        mb(a.file_size),
+        a.pages
+    );
+    let rows = [
+        ("images", a.images),
+        ("fonts", a.fonts),
+        ("page content", a.content),
+        ("attachments", a.attachments),
+        ("thumbnails", a.thumbnails),
+        ("private data", a.private_data),
+        ("metadata", a.metadata),
+    ];
+    for (name, usage) in rows {
+        if usage.count > 0 {
+            println!(
+                "  {name:<14} {:>9.2} MB  ({} objects)",
+                mb(usage.bytes),
+                usage.count
+            );
+        }
+    }
+    println!("  {:<14} {:>9.2} MB", "other", mb(a.other));
+    let f = a.found;
+    println!(
+        "found: {} thumbnails, {} with private data, {} attachments, {} scripts, tags: {}",
+        f.thumbnails,
+        f.private_data,
+        f.attachments,
+        f.javascript,
+        if f.tags { "yes" } else { "no" }
+    );
+    println!(
+        "encrypted: {}, signed: {}, PDF/A: {}",
+        a.encrypted,
+        a.signed,
+        a.pdfa.map(|p| p.to_string()).unwrap_or_else(|| "no".into())
+    );
+    Ok(())
 }
 
 fn main() -> ExitCode {
@@ -595,6 +732,135 @@ fn run(command: Command) -> Result<()> {
             }
         }
         Command::Info { input } => info(&input)?,
+        Command::GenImages { out } => {
+            let doc = testgen::image_sample()?;
+            save::save_atomic(&doc, SaveKind::Full, None, &out)?;
+            println!("wrote {}", out.display());
+            for (name, what) in testgen::IMAGE_SAMPLE_CASES {
+                println!("  {name}: {what}");
+            }
+        }
+        Command::Analyze { input, password } => analyze(&input, password.as_deref())?,
+        Command::Compress {
+            input,
+            out,
+            password,
+            preset,
+            dpi,
+            mono_dpi,
+            above,
+            method,
+            compression,
+            quality,
+            color_mode,
+            no_subset_fonts,
+            no_object_streams,
+            remove,
+        } => {
+            use pdf_core::compress::{self, ColorMode, Compression, Downsample, Preset, Resample};
+            let mut options = match preset {
+                PresetArg::Lossless => Preset::Lossless,
+                PresetArg::High => Preset::HighQuality,
+                PresetArg::Balanced => Preset::Balanced,
+                PresetArg::Smallest => Preset::Smallest,
+            }
+            .options();
+            let method = method.map(|m| match m {
+                MethodArg::Bicubic => Resample::Bicubic,
+                MethodArg::Average => Resample::Average,
+            });
+            let downsample = |to: u32, was: Option<Downsample>| {
+                (to > 0).then(|| Downsample {
+                    to_dpi: to,
+                    above_dpi: (to as f32 * above).round() as u32,
+                    method: method
+                        .or(was.map(|d| d.method))
+                        .unwrap_or(Resample::Bicubic),
+                })
+            };
+            for settings in [&mut options.color, &mut options.gray] {
+                if let Some(dpi) = dpi {
+                    settings.downsample = downsample(dpi, settings.downsample);
+                } else if let (Some(d), Some(m)) = (settings.downsample.as_mut(), method) {
+                    d.method = m;
+                }
+                if let Some(c) = compression {
+                    settings.compression = match c {
+                        CompressionArg::Keep => Compression::Keep,
+                        CompressionArg::Jpeg => Compression::Jpeg,
+                        CompressionArg::Jpeg2000 => Compression::Jpeg2000,
+                    };
+                }
+                if let Some(q) = quality {
+                    settings.quality = q;
+                }
+            }
+            if let Some(dpi) = mono_dpi {
+                options.mono = downsample(dpi, options.mono);
+            }
+            options.color_mode = match color_mode {
+                ColorModeArg::Keep => ColorMode::Keep,
+                ColorModeArg::Gray => ColorMode::Gray,
+                ColorModeArg::Bw => ColorMode::BlackAndWhite,
+            };
+            options.subset_fonts = !no_subset_fonts;
+            options.object_streams = !no_object_streams;
+            if let Some(remove) = remove {
+                options.remove = parse_removals(&remove)?;
+            }
+            let started = Instant::now();
+            // When each stage began, to say how long each took.
+            let mut stages: Vec<(&str, Instant)> = Vec::new();
+            let report =
+                compress::compress_file(&input, password.as_deref(), &options, &out, &mut |p| {
+                    let stage = match p {
+                        compress::Progress::Reading { .. } => "reading pages",
+                        compress::Progress::Images { .. } => "images",
+                        compress::Progress::Fonts => "fonts and removals",
+                        compress::Progress::Writing => "writing",
+                    };
+                    if stages.last().is_none_or(|(s, _)| *s != stage) {
+                        stages.push((stage, Instant::now()));
+                    }
+                    true
+                })?;
+            let ended = Instant::now();
+            let timings: Vec<String> = stages
+                .iter()
+                .enumerate()
+                .map(|(i, (stage, at))| {
+                    let until = stages.get(i + 1).map_or(ended, |(_, t)| *t);
+                    format!("{stage} {:.2} s", (until - *at).as_secs_f64())
+                })
+                .collect();
+            let percent = 100.0 - report.after as f64 * 100.0 / report.before.max(1) as f64;
+            println!(
+                "wrote {}: {} -> {} bytes ({percent:.1}% smaller) in {:.2} s",
+                out.display(),
+                report.before,
+                report.after,
+                started.elapsed().as_secs_f64()
+            );
+            let i = report.images;
+            println!(
+                "images: {} in all, {} replaced ({} downsampled), {} left as they were",
+                i.total, i.replaced, i.downsampled, i.skipped
+            );
+            println!("fonts subset: {}", report.fonts_subset);
+            println!("time: {}", timings.join(", "));
+            let r = report.removed;
+            println!(
+                "removed: {} thumbnails, {} private data, {} attachments, {} scripts{}",
+                r.thumbnails,
+                r.private_data,
+                r.attachments,
+                r.javascript,
+                if r.tags { ", tags" } else { "" }
+            );
+            if let Some(level) = report.pdfa_removed {
+                println!("it no longer claims {level}");
+            }
+        }
         Command::Fonts { find, document } => {
             let mut find = find;
             if let Some(path) = document {

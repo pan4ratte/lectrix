@@ -20,9 +20,10 @@ use tauri_plugin_dialog::DialogExt;
 use crate::annotations::RepairSummary;
 use crate::combine::{self, Progress};
 use crate::ipc::{
-    AppError, DocumentChange, DocumentInfo, DocumentSaved, ImageFormat, LabelMode, LinkPlace,
-    MenuEntry, MergeOutcome, MergePlan, MergeProgress, MergeRequest, MergeStage, MoveTarget,
-    OpenResult, OperationInput, PageHits, PageText, PaneLayout, ProtectSaved, ProtectStep,
+    AppError, CompressOutcome, CompressProgress, CompressSaved, CompressSettings, CompressStep,
+    DocumentChange, DocumentInfo, DocumentSaved, ImageFormat, LabelMode, LinkPlace, MenuEntry,
+    MergeOutcome, MergePlan, MergeProgress, MergeRequest, MergeStage, MoveTarget, OpenResult,
+    OperationInput, PageHits, PageText, PaneLayout, ProtectSaved, ProtectStep,
     ProtectionChangeInput, ProtectionInfo, ProtectionInput, RecentFile, RecoveredDocument,
     SaveResult, SearchChunk, SearchWord, Settings, SettingsInput, StartupInfo, TabHandoff,
     UnprotectSaved, UnprotectStep, UnsavedSource, ViewState, WebPage, WindowChrome, WindowDocument,
@@ -596,6 +597,153 @@ pub fn protect_save(
 #[tauri::command]
 pub fn protect_cancel(state: State<'_, AppState>, token: u32) {
     state.protect.cancel(token);
+}
+
+/// The Compress dialog's settings used last.
+fn remembered_compress(state: &AppState) -> Option<CompressSettings> {
+    state.store.lock().ok().and_then(|s| s.compress_settings())
+}
+
+/// Compress (section 6.11, ADR 0027): asks for a PDF, opens it and reads what its size is
+/// made of.
+#[tauri::command(async)]
+pub fn compress_pick(app: AppHandle, state: State<'_, AppState>) -> Result<CompressStep, AppError> {
+    let Some(path) = pick_pdfs(&app, Some("Compress a PDF"), false)?
+        .into_iter()
+        .next()
+    else {
+        return Ok(CompressStep::Cancelled);
+    };
+    let token = state.documents.new_token();
+    Ok(state
+        .compress
+        .inspect(token, path, None, remembered_compress(&state)))
+}
+
+/// Tries the password the user typed for the file Compress is waiting on.
+#[tauri::command(async)]
+pub fn compress_password(
+    state: State<'_, AppState>,
+    token: u32,
+    password: String,
+) -> Result<CompressStep, AppError> {
+    state
+        .compress
+        .with_password(token, password, remembered_compress(&state))
+}
+
+/// Compress for document `id`, open in a tab: its file as saved, opened with the password
+/// the document was opened with.
+#[tauri::command(async)]
+pub fn compress_document(state: State<'_, AppState>, id: u32) -> Result<CompressStep, AppError> {
+    let (path, password) = state.documents.file_of(id)?;
+    let token = state.documents.new_token();
+    Ok(state
+        .compress
+        .inspect(token, path, password, remembered_compress(&state)))
+}
+
+/// Compresses the file waiting under `token` with `settings` into a file of Lectrix's own,
+/// reporting progress on `on_progress`, and remembers the settings. Stopped with
+/// `compress_stop`, it fails with the `cancelled` code.
+#[tauri::command(async)]
+pub fn compress_run(
+    state: State<'_, AppState>,
+    token: u32,
+    settings: CompressSettings,
+    on_progress: Channel<CompressProgress>,
+) -> Result<CompressOutcome, AppError> {
+    if let Ok(mut store) = state.store.lock() {
+        store.set_compress_settings(settings);
+    }
+    state.compress.run(token, settings, move |p| {
+        // The webview may have gone away; compressing finishes regardless.
+        let _ = on_progress.send(p);
+    })
+}
+
+#[tauri::command]
+pub fn compress_stop(state: State<'_, AppState>, token: u32) {
+    state.compress.stop(token);
+}
+
+/// Writes the result made for `token` and opens it in a tab: over the file itself, or
+/// (`copy`) to a file the Save dialog names, the original then only read. A Save dialog
+/// given up writes nothing and keeps the result waiting.
+#[tauri::command(async)]
+pub fn compress_save(
+    app: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    token: u32,
+    copy: bool,
+) -> Result<CompressSaved, AppError> {
+    let (path, password) = state.compress.ready(token)?;
+    let done = state.compress.result(token)?;
+    let target = if copy {
+        let stem = path
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "Document".into());
+        let Some(target) = pick_save_target(
+            &app,
+            Some("Save a compressed copy"),
+            Some(format!("{stem} (compressed).pdf")),
+            path.parent(),
+        )?
+        else {
+            return Ok(CompressSaved::Cancelled);
+        };
+        target
+    } else {
+        path.clone()
+    };
+    let replaced = state.platform.same_file(&path, &target);
+    let write = || -> Result<(), AppError> {
+        pdf_core::save::replace_with_copy(&done.file, &target)?;
+        crate::applog::info(format!(
+            "compressed {} into {}",
+            path.display(),
+            target.display()
+        ));
+        Ok(())
+    };
+    // A file open in a tab is read again there.
+    let reloaded = match state.documents.clean_tab_of(&target, state.platform) {
+        Some(id) => {
+            state.image_cache.remove_document(id);
+            Some(
+                state
+                    .documents
+                    .rewrite(id, write, password.clone(), state.platform, &state.store)
+                    .map(Box::new)?,
+            )
+        }
+        None => {
+            write()?;
+            None
+        }
+    };
+    state.compress.cancel(token);
+    let opened = match reloaded {
+        Some(_) => state.open(&target),
+        None => state.open_with_password(&target, password.as_deref()),
+    };
+    Ok(CompressSaved::Saved {
+        name: file_name(&target),
+        replaced,
+        opened: windows::adopt(&app, window.label(), opened),
+        reloaded,
+        before: done.report.before,
+        after: done.report.after,
+        pdfa_removed: done.report.pdfa_removed.map(Into::into),
+    })
+}
+
+/// Forgets the file waiting under `token`, and deletes its result.
+#[tauri::command]
+pub fn compress_cancel(state: State<'_, AppState>, token: u32) {
+    state.compress.cancel(token);
 }
 
 /// Sets the protection document `id` is saved with next (section 6.9): `null` for its

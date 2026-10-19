@@ -98,6 +98,28 @@ import type { ProtectSaved } from './generated/ProtectSaved';
 export type { ProtectStep } from './generated/ProtectStep';
 import type { ProtectStep } from './generated/ProtectStep';
 export type { Restrictions } from './generated/Restrictions';
+export type { CompressAnalysis } from './generated/CompressAnalysis';
+export type { CompressFound } from './generated/CompressFound';
+export type { CompressOutcome } from './generated/CompressOutcome';
+import type { CompressOutcome } from './generated/CompressOutcome';
+export type { CompressPreset } from './generated/CompressPreset';
+export type { CompressPresets } from './generated/CompressPresets';
+export type { CompressProgress } from './generated/CompressProgress';
+import type { CompressProgress } from './generated/CompressProgress';
+export type { CompressRemovals } from './generated/CompressRemovals';
+export type { CompressSaved } from './generated/CompressSaved';
+import type { CompressSaved } from './generated/CompressSaved';
+export type { CompressSettings } from './generated/CompressSettings';
+import type { CompressSettings } from './generated/CompressSettings';
+export type { CompressStage } from './generated/CompressStage';
+export type { CompressStep } from './generated/CompressStep';
+import type { CompressStep } from './generated/CompressStep';
+export type { DownsampleSettings } from './generated/DownsampleSettings';
+export type { ImageColorMode } from './generated/ImageColorMode';
+export type { ImageCompression } from './generated/ImageCompression';
+export type { ImageSettings } from './generated/ImageSettings';
+export type { ResampleMethod } from './generated/ResampleMethod';
+export type { SizeUsage } from './generated/SizeUsage';
 export type { DocumentDescription } from './generated/DocumentDescription';
 export type { DocumentProperties } from './generated/DocumentProperties';
 import type { DocumentProperties } from './generated/DocumentProperties';
@@ -195,6 +217,23 @@ export const unprotectSave = (token: number, copy: boolean) =>
 export const unprotectCancel = (token: number) => invoke<void>('unprotect_cancel', { token });
 /** Unlock for a document open in a tab: its file, with the password it was opened with. */
 export const unprotectDocument = (id: number) => invoke<UnprotectStep>('unprotect_document', { id });
+// Compress (section 6.11, ADR 0027): a file written smaller, computed first into a file of
+// Lectrix's own, then saved over the file or as a copy.
+export const compressPick = () => invoke<CompressStep>('compress_pick');
+export const compressPassword = (token: number, password: string) =>
+	invoke<CompressStep>('compress_password', { token, password });
+/** Compress for a document open in a tab: its file as saved. */
+export const compressDocument = (id: number) => invoke<CompressStep>('compress_document', { id });
+/** Compresses the waiting file with `settings`, with progress; `compressStop` stops it (the
+ * `cancelled` code). */
+export function compressRun(token: number, settings: CompressSettings, onProgress: (p: CompressProgress) => void) {
+	const channel = new Channel<CompressProgress>();
+	channel.onmessage = onProgress;
+	return invoke<CompressOutcome>('compress_run', { token, settings, onProgress: channel });
+}
+export const compressStop = (token: number) => invoke<void>('compress_stop', { token });
+export const compressSave = (token: number, copy: boolean) => invoke<CompressSaved>('compress_save', { token, copy });
+export const compressCancel = (token: number) => invoke<void>('compress_cancel', { token });
 // Protect (section 6.9, ADR 0026): a file given a password, restrictions or both, as a tool
 // on a file or as a change of a document's protection that its next save writes.
 export const protectPick = () => invoke<ProtectStep>('protect_pick');
@@ -417,6 +456,13 @@ export function pageUrl(
 	if (layer) url += `&layer=${layer}`;
 	if (format === 'png') url += '&fmt=png';
 	return url;
+}
+
+/** URL of page `page` (0-based) of a file Compress is working on, as it was or (`after`)
+ * as compressing made it, at `scale`. */
+export function compressPreviewUrl(token: number, after: boolean, page: number, scale: number): string {
+	const base = isWindows() ? 'http://lectrix.localhost' : 'lectrix://localhost';
+	return `${base}/compress/${token}/${after ? 'after' : 'before'}/${page}?scale=${scale.toFixed(3)}`;
 }
 
 /**

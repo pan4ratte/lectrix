@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-compress-stop"
+description = "Enables the compress_stop command without any pre-configured scope."
+commands.allow = ["compress_stop"]
+
+[[permission]]
+identifier = "deny-compress-stop"
+description = "Denies the compress_stop command without any pre-configured scope."
+commands.deny = ["compress_stop"]

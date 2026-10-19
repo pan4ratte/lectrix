@@ -5,6 +5,7 @@ mod annotations;
 mod applog;
 mod combine;
 mod commands;
+mod compress;
 mod documents;
 mod ipc;
 mod menu;
@@ -82,6 +83,8 @@ pub struct AppState {
     unprotect: unprotect::Unprotect,
     /// Files waiting to be protected (Protect as a tool on a file).
     protect: protect::Protect,
+    /// Files waiting to be compressed, and their results (section 6.11).
+    compress: compress::Compress,
 }
 
 impl AppState {
@@ -363,6 +366,7 @@ pub fn run() {
                     .ok()
                     .map(|d| d.join("state.json"))
             };
+            let compress_folder = compress::folder(recovery_dir(app.handle()).as_deref());
             let recovery = Recovery::new(recovery_dir(app.handle()));
             let recovering = recovery.enabled();
             app.manage(AppState {
@@ -392,11 +396,14 @@ pub fn run() {
                 updates: update::Updates::default(),
                 unprotect: unprotect::Unprotect::default(),
                 protect: protect::Protect::default(),
+                compress: compress::Compress::new(compress_folder),
             });
             app.manage(menu::Menus::default());
             // Working copies of documents an earlier run never saved, and that no recovery
             // copy waits to bring back.
             app.state::<AppState>().documents.sweep_working_copies();
+            // Compressed files an earlier run left waiting to be saved.
+            app.state::<AppState>().compress.sweep();
             watch_files(app.handle().clone());
             if recovering {
                 write_recovery_copies(app.handle().clone());
@@ -491,6 +498,13 @@ pub fn run() {
             commands::unprotect_save,
             commands::unprotect_cancel,
             commands::unprotect_document,
+            commands::compress_pick,
+            commands::compress_password,
+            commands::compress_document,
+            commands::compress_run,
+            commands::compress_stop,
+            commands::compress_save,
+            commands::compress_cancel,
             commands::protect_pick,
             commands::protect_password,
             commands::protect_save,
@@ -563,6 +577,8 @@ pub fn run() {
                     state.documents.recovery().close();
                     // And so do the working copies of documents never saved under a name.
                     state.documents.discard_unsaved();
+                    // And compressed files waiting to be saved.
+                    state.compress.sweep();
                     // Windows: an update downloaded in this run is installed now.
                     update::install_on_exit(&state);
                 }

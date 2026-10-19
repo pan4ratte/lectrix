@@ -10,8 +10,8 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 use crate::ipc::{
-    AnnotationSort, Appearance, PageAdjustments, PaneLayout, QuickTool, ScrollMode, ToolbarDock,
-    ToolbarPosition, ToolbarStyle, ToolbarVisibility, ViewState,
+    AnnotationSort, Appearance, CompressSettings, PageAdjustments, PaneLayout, QuickTool,
+    ScrollMode, ToolbarDock, ToolbarPosition, ToolbarStyle, ToolbarVisibility, ViewState,
 };
 use crate::placement::WindowPlacement;
 
@@ -61,6 +61,18 @@ struct Data {
     /// (What's new, section 6.6). Not kept before 1.1.0.
     #[serde(default)]
     last_version: Option<String>,
+    /// The Compress dialog's settings used last (section 6.11). Settings this version can't
+    /// read are forgotten, not an unreadable state file.
+    #[serde(default, deserialize_with = "or_none")]
+    compress: Option<CompressSettings>,
+}
+
+/// `T` if it can be read, `None` otherwise.
+fn or_none<'de, D: serde::Deserializer<'de>, T: serde::de::DeserializeOwned>(
+    d: D,
+) -> Result<Option<T>, D::Error> {
+    let value = serde_json::Value::deserialize(d)?;
+    Ok(serde_json::from_value(value).ok())
 }
 
 /// The pane layout, reading files from before panels could move, which named the left
@@ -391,6 +403,17 @@ impl Store {
     pub fn set_settings(&mut self, settings: StoredSettings) {
         if self.data.settings != settings {
             self.data.settings = settings;
+            self.persist();
+        }
+    }
+
+    pub fn compress_settings(&self) -> Option<CompressSettings> {
+        self.data.compress
+    }
+
+    pub fn set_compress_settings(&mut self, settings: CompressSettings) {
+        if self.data.compress != Some(settings) {
+            self.data.compress = Some(settings);
             self.persist();
         }
     }

@@ -55,6 +55,8 @@ the wording, translations): docs/releasing.md, "The changelog".
 - Selecting an annotation in the annotation list slides its tools open, instead of making them appear at once. They rise out from under the comment, which stays where it is. The selected row also has the same room on every side, so its tools and comment sit evenly in it.
 - With **Add a comment after marking text** on, **Ctrl+Z** in the new annotation’s empty comment removes the annotation itself, and so it does in a new sticky note. Before, it did nothing there. Text you typed in the comment is undone first.
 
+- **Repair annotations** no longer changes how another annotation looks when the two share their appearance, as files saved by some apps have them.
+
 ### Bookmarks
 
 - An empty Bookmarks panel is clearer: it says what bookmarks are for and has an **Add bookmark** button. A document that can't have bookmarks added says why.
@@ -71,6 +73,14 @@ the wording, translations): docs/releasing.md, "The changelog".
 ### Organizing pages
 
 - The same goes for the page grid: the size buttons and keys change the size in one step, and the pages start at the top left.
+
+### Compressing files
+
+- **Compress…** on the start screen and in the **File** menu writes a PDF smaller. Choose a preset (**Lossless**, **High quality**, **Balanced** or **Smallest**) or set the image resolution, the compression (JPEG, JPEG 2000 or as it is), the quality and the colour (greyscale or black and white) yourself, with separate settings for colour, greyscale and black-and-white images if you want them.
+- Before anything is saved, Compress shows the size before and after, what it did, and a page as it was and as it will be, side by side at 100%, 200% or 400%. Then save the file itself or a compressed copy, or go back and change the settings.
+- **Lossless** changes nothing you can see: pictures are packed tighter without losing a pixel, fonts keep only the characters the document uses, and copies of the same picture or font are kept once.
+- Compress can also remove page thumbnails and other apps' editing data, and, when you tick them, attached files, JavaScript and accessibility tags. It offers only what the file has.
+- With a document open, **File > Compress…** compresses that document's file.
 
 ### Settings
 

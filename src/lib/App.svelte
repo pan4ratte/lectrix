@@ -36,6 +36,7 @@
 	import PageLabelsDialog from '#lib/features/labels/PageLabelsDialog.svelte';
 	import PropertiesDialog from '#lib/features/properties/PropertiesDialog.svelte';
 	import ProtectDialog from '#lib/features/protect/ProtectDialog.svelte';
+	import CompressDialog from '#lib/features/compress/CompressDialog.svelte';
 	import InsertPagesDialog from '#lib/features/merge/InsertPagesDialog.svelte';
 	import SettingsDialog from '#lib/features/settings/SettingsDialog.svelte';
 	import { update } from '#lib/features/update/update.svelte.ts';
@@ -518,6 +519,7 @@
 <PageLabelsDialog />
 <PropertiesDialog />
 <ProtectDialog />
+<CompressDialog />
 <SettingsDialog />
 <AboutDialog />
 <WhatsNewDialog />

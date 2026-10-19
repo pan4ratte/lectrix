@@ -324,6 +324,36 @@ pub fn first_page_preview(path: &Path, width: u32) -> Result<RgbaImage> {
     render_rgba(&list, scale, None)
 }
 
+/// Page `index` of the PDF at `path`, opened with `password`, with its annotations, at
+/// `scale`, made smaller if needed so neither side passes `max_side` pixels: a page of a
+/// file that is not open (Compress's before-and-after preview, section 6.11). The file is
+/// read through the share-delete stream and closed again.
+pub fn page_of_file(
+    path: &Path,
+    password: Option<&str>,
+    index: usize,
+    scale: f32,
+    max_side: u32,
+) -> Result<RgbaImage> {
+    check_scale(scale)?;
+    let mut doc = crate::ffi::open_pdf_shared(path)?;
+    if doc.needs_password()? {
+        let Some(password) = password else {
+            return Err(Error::PasswordRequired);
+        };
+        if !doc.authenticate(password)? {
+            return Err(Error::WrongPassword);
+        }
+    }
+    let list = display_list(&doc, index)?;
+    let bounds = list.bounds();
+    let longest = bounds.width().max(bounds.height());
+    if longest.is_nan() || longest <= 0.0 {
+        return Err(Error::InvalidArgument("the page has no area".into()));
+    }
+    render_rgba(&list, scale.min(max_side as f32 / longest), None)
+}
+
 /// Encodes RGBA pixels as PNG at the fastest compression level: RGB for an opaque image (a
 /// page: the alpha channel is always 255, so it is dropped), RGBA for one that is not (an
 /// [`annotation_layer`]).

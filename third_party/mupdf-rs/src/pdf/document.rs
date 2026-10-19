@@ -140,6 +140,26 @@ impl PdfWriteOptions {
         self
     }
 
+    pub fn use_object_streams(&self) -> bool {
+        self.inner.do_use_objstms != 0
+    }
+
+    /// Writes objects in object streams with a cross-reference stream (PDF 1.5).
+    pub fn set_use_object_streams(&mut self, value: bool) -> &mut Self {
+        self.inner.do_use_objstms = if value { 1 } else { 0 };
+        self
+    }
+
+    pub fn compression_effort(&self) -> i32 {
+        self.inner.compression_effort
+    }
+
+    /// How hard compression works: 0 for MuPDF's default, 1 (least) to 100 (most).
+    pub fn set_compression_effort(&mut self, value: i32) -> &mut Self {
+        self.inner.compression_effort = value.clamp(0, 100);
+        self
+    }
+
     pub fn linear(self) -> bool {
         self.inner.do_linear != 0
     }
