@@ -8,6 +8,7 @@ import type { AppError } from './generated/AppError';
 import type { DocumentChange } from './generated/DocumentChange';
 import type { DocumentInfo } from './generated/DocumentInfo';
 import type { DocumentSaved } from './generated/DocumentSaved';
+import type { DocumentState } from './generated/DocumentState';
 import type { FileChangedEvent } from './generated/FileChangedEvent';
 import type { MergeOutcome } from './generated/MergeOutcome';
 import type { MergePlan } from './generated/MergePlan';
@@ -81,6 +82,22 @@ export type { UnprotectSaved } from './generated/UnprotectSaved';
 import type { UnprotectSaved } from './generated/UnprotectSaved';
 export type { UnprotectStep } from './generated/UnprotectStep';
 import type { UnprotectStep } from './generated/UnprotectStep';
+export type { Allowed } from './generated/Allowed';
+export type { Changes } from './generated/Changes';
+export type { Cipher } from './generated/Cipher';
+export type { PendingProtection } from './generated/PendingProtection';
+export type { Printing } from './generated/Printing';
+export type { ProtectionInfo } from './generated/ProtectionInfo';
+import type { ProtectionInfo } from './generated/ProtectionInfo';
+export type { ProtectionInput } from './generated/ProtectionInput';
+import type { ProtectionInput } from './generated/ProtectionInput';
+export type { ProtectionChangeInput } from './generated/ProtectionChangeInput';
+import type { ProtectionChangeInput } from './generated/ProtectionChangeInput';
+export type { ProtectSaved } from './generated/ProtectSaved';
+import type { ProtectSaved } from './generated/ProtectSaved';
+export type { ProtectStep } from './generated/ProtectStep';
+import type { ProtectStep } from './generated/ProtectStep';
+export type { Restrictions } from './generated/Restrictions';
 export type { BookmarkTarget } from './generated/BookmarkTarget';
 export type { PanelId } from './generated/PanelId';
 export type { DocumentFlags } from './generated/DocumentFlags';
@@ -172,6 +189,19 @@ export const unprotectSave = (token: number, copy: boolean) =>
 export const unprotectCancel = (token: number) => invoke<void>('unprotect_cancel', { token });
 /** Unlock for a document open in a tab: its file, with the password it was opened with. */
 export const unprotectDocument = (id: number) => invoke<UnprotectStep>('unprotect_document', { id });
+// Protect (section 6.9, ADR 0026): a file given a password, restrictions or both, as a tool
+// on a file or as a change of a document's protection that its next save writes.
+export const protectPick = () => invoke<ProtectStep>('protect_pick');
+export const protectPassword = (token: number, password: string) =>
+	invoke<ProtectStep>('protect_password', { token, password });
+export const protectSave = (token: number, copy: boolean, protection: ProtectionInput) =>
+	invoke<ProtectSaved>('protect_save', { token, copy, protection });
+export const protectCancel = (token: number) => invoke<void>('protect_cancel', { token });
+/** The protection a document's next save writes; null for its file's own. */
+export const setDocumentProtection = (id: number, protection: ProtectionChangeInput | null) =>
+	invoke<DocumentState>('set_document_protection', { id, protection });
+export const getDocumentProtection = (id: number) =>
+	invoke<ProtectionInfo | null>('get_document_protection', { id });
 export const closeDocument = (id: number) => invoke<void>('close_document', { id });
 export const getDocumentInfo = (id: number) => invoke<DocumentInfo>('get_document_info', { id });
 /** The documents this window shows in tabs, as Rust has them: the tabs of a window made

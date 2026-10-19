@@ -53,12 +53,17 @@ pub fn save_and_reopen(doc: &PdfDocument, original: &Path, out: &Path) -> PdfDoc
 /// Runs `qpdf --check` on `path`; any warning fails the test (AGENTS.md section 9).
 /// qpdf is required in CI. Locally, the check is skipped with a note if qpdf is missing.
 pub fn qpdf_check(path: &Path) {
+    qpdf_check_with(path, None);
+}
+
+/// [`qpdf_check`] for an encrypted file, opened with `password`.
+pub fn qpdf_check_with(path: &Path, password: Option<&str>) {
     let _guard = SPAWN_LOCK.write().unwrap_or_else(|e| e.into_inner());
-    let output = match std::process::Command::new(qpdf_program())
-        .arg("--check")
-        .arg(path)
-        .output()
-    {
+    let mut command = std::process::Command::new(qpdf_program());
+    if let Some(password) = password {
+        command.arg(format!("--password={password}"));
+    }
+    let output = match command.arg("--check").arg(path).output() {
         Ok(output) => output,
         Err(e) if std::env::var_os("CI").is_none() => {
             eprintln!("qpdf not found ({e}); skipping the structural check");
@@ -91,6 +96,28 @@ fn qpdf_program() -> PathBuf {
         }
     }
     PathBuf::from("qpdf")
+}
+
+/// What `qpdf --show-encryption` says of `path` opened with `password` (an independent
+/// reader's view of its protection): `Some(Err(..))` with qpdf's message when it cannot
+/// open the file, `None` if qpdf is not installed (outside CI).
+pub fn qpdf_encryption(path: &Path, password: Option<&str>) -> Option<Result<String, String>> {
+    let _guard = SPAWN_LOCK.write().unwrap_or_else(|e| e.into_inner());
+    let mut command = std::process::Command::new(qpdf_program());
+    if let Some(password) = password {
+        command.arg(format!("--password={password}"));
+    }
+    match command.arg("--show-encryption").arg(path).output() {
+        Ok(output) if output.status.success() => {
+            Some(Ok(String::from_utf8_lossy(&output.stdout).into_owned()))
+        }
+        Ok(output) => Some(Err(String::from_utf8_lossy(&output.stderr).into_owned())),
+        Err(e) if std::env::var_os("CI").is_none() => {
+            eprintln!("qpdf not found ({e}); skipping its view of the encryption");
+            None
+        }
+        Err(e) => panic!("qpdf is required in CI: {e}"),
+    }
 }
 
 /// `qpdf --check` severity for real-world files that may already have problems: 0 clean,

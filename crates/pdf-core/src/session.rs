@@ -20,6 +20,11 @@
 //! copy but belongs to the original file, and is dirty until saved. Its undo history
 //! starts at the restore (ADR 0001: MuPDF 1.27.2 cannot load a saved journal).
 //!
+//! **Protection** (section 6.9, ADR 0026) is how the file is written, not what it holds: a
+//! change of it waits in the actor, makes the document dirty without being an undo step,
+//! and is written by the next save, which then writes the file whole. Its passwords are
+//! never written anywhere else, so a recovery copy does not hold it.
+//!
 //! **Expanded bookmarks** are not edits: expanding or collapsing a bookmark in the panel
 //! neither dirties the document nor adds an undo step. The actor keeps
 //! the panel's states and writes them into the outline when the document is next saved.
@@ -47,8 +52,11 @@ use crate::merge::{self, MergeReport};
 use crate::ops::{NumberedDests, Operation, OutlineEffect};
 use crate::outline::{self, Outline};
 use crate::pages::DeleteReport;
+use crate::protection::{self, ProtectionInfo, ProtectionSettings, Restrictions};
 use crate::render::{self, Part, PixelRect, RgbaImage};
-use crate::save::{SaveKind, SaveOutcome, save_atomic, save_atomic_checked};
+use crate::save::{
+    Encrypt, SaveKind, SaveOutcome, save_atomic, save_atomic_checked, save_atomic_encrypted,
+};
 use crate::text::{self, FoundWord, PageText, SearchHit};
 
 /// Size of a page in view space at zoom 1 (points), after rotation and cropping.
@@ -69,6 +77,40 @@ pub struct DocumentState {
     pub undo_name: Option<String>,
     /// Name of the step Redo would re-apply.
     pub redo_name: Option<String>,
+    /// The protection the next save writes in place of the file's, if it was changed.
+    pub protection: Option<PendingProtection>,
+}
+
+/// A change of the document's protection, written by its next save (section 6.9).
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ProtectionChange {
+    /// The file is written without encryption.
+    Remove,
+    /// The file is written with this protection in place of any it had.
+    Set(ProtectionSettings),
+}
+
+/// A [`ProtectionChange`] without its passwords, for the UI.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PendingProtection {
+    Remove,
+    Set {
+        open_password: bool,
+        /// What the file allows without its permissions password, if it restricts anything.
+        restrictions: Option<Restrictions>,
+    },
+}
+
+impl ProtectionChange {
+    fn pending(&self) -> PendingProtection {
+        match self {
+            ProtectionChange::Remove => PendingProtection::Remove,
+            ProtectionChange::Set(settings) => PendingProtection::Set {
+                open_password: settings.open_password.is_some(),
+                restrictions: settings.restrict.as_ref().map(|r| r.restrictions),
+            },
+        }
+    }
 }
 
 /// The document's page labels: the rules as stored, and the label they give each page.
@@ -154,6 +196,12 @@ pub struct SaveResult {
     /// The PDF/A level the file claimed until this save took the claim out of it, because
     /// the changes saved may not comply (section 5.4).
     pub pdfa_removed: Option<PdfA>,
+    /// The password the session now opens its file with, when the save changed the file's
+    /// protection (`Some(None)`: it has none now).
+    pub password: Option<Option<String>>,
+    /// What the document allows and how it is saved, after the save: a change of
+    /// protection changes them.
+    pub flags: DocumentFlags,
 }
 
 /// How [`Session::open_with`] opens a file.
@@ -238,6 +286,13 @@ enum Command {
         target: Option<PathBuf>,
         reply: Reply<SaveResult>,
     },
+    SetProtection {
+        change: Option<ProtectionChange>,
+        reply: Reply<DocumentState>,
+    },
+    Protection {
+        reply: Reply<Option<ProtectionInfo>>,
+    },
     WriteRecovery {
         target: PathBuf,
         written: Option<u64>,
@@ -250,6 +305,8 @@ enum Command {
         reply: Reply<MergeReport>,
     },
     Reload {
+        /// The password to open the file with from now on, if it changed.
+        password: Option<Option<String>>,
         reply: Reply<DocumentInfo>,
     },
     Close,
@@ -533,6 +590,20 @@ impl Session {
         })
     }
 
+    /// Sets the protection the next save writes (section 6.9): `None` for the file's own,
+    /// as it was opened. Not an undo step; the document is dirty while a change waits.
+    /// Removing the protection of a file that has none changes nothing. Refused while the
+    /// document is open for reading only. Its own restrictions do not refuse it: whatever
+    /// password opened it is enough, as for Unlock (ADR 0025).
+    pub fn set_protection(&self, change: Option<ProtectionChange>) -> Result<DocumentState> {
+        self.call(|reply| Command::SetProtection { change, reply })
+    }
+
+    /// The protection the document's file has, `None` if it has none.
+    pub fn protection(&self) -> Result<Option<ProtectionInfo>> {
+        self.call(|reply| Command::Protection { reply })
+    }
+
     /// Writes a recovery copy to `target` if the document has unsaved changes and
     /// `written` (the revision of the last copy) is not the current revision. The document
     /// and its undo history stay as they were. Documents MuPDF repaired on open are copied
@@ -568,7 +639,19 @@ impl Session {
     /// Discards the in-memory document and opens the file again (after it changed on
     /// disk).
     pub fn reload(&self) -> Result<DocumentInfo> {
-        self.call(|reply| Command::Reload { reply })
+        self.call(|reply| Command::Reload {
+            password: None,
+            reply,
+        })
+    }
+
+    /// [`Session::reload`] for a file whose protection changed (Protect, section 6.9): it
+    /// opens with `password` from now on.
+    pub fn reload_with(&self, password: Option<String>) -> Result<DocumentInfo> {
+        self.call(|reply| Command::Reload {
+            password: Some(password),
+            reply,
+        })
     }
 
     pub fn close(&self) {
@@ -643,6 +726,8 @@ struct Actor {
     /// Set when a save succeeded but the saved file could not be reopened: the in-memory
     /// document no longer matches the file, so only a full save is safe.
     needs_full_save: bool,
+    /// The protection the next save writes in place of the file's (section 6.9).
+    protection: Option<ProtectionChange>,
 }
 
 fn actor(origin: Origin, rx: Receiver<Command>, ready: SyncSender<Result<DocumentInfo>>) {
@@ -703,6 +788,13 @@ fn actor(origin: Origin, rx: Receiver<Command>, ready: SyncSender<Result<Documen
             } => {
                 let _ = reply.send(actor.save(kind, target));
             }
+            Command::SetProtection { change, reply } => {
+                let _ = reply.send(actor.set_protection(change));
+            }
+            Command::Protection { reply } => {
+                let password = actor.password.clone();
+                let _ = reply.send(protection::read(&mut actor.doc, password.as_deref()));
+            }
             Command::WriteRecovery {
                 target,
                 written,
@@ -718,7 +810,10 @@ fn actor(origin: Origin, rx: Receiver<Command>, ready: SyncSender<Result<Documen
             } => {
                 let _ = reply.send(actor.extract(&pages, &target, &mut *step));
             }
-            Command::Reload { reply } => {
+            Command::Reload { password, reply } => {
+                if let Some(password) = password {
+                    actor.password = password;
+                }
                 let start = Instant::now();
                 let _ = reply.send(actor.reload().map(|()| actor.info(start.elapsed())));
             }
@@ -809,6 +904,7 @@ impl Actor {
             next_revision,
             lists: VecDeque::new(),
             needs_full_save: false,
+            protection: None,
         })
     }
 
@@ -822,10 +918,25 @@ impl Actor {
         let revision = self.revision();
         DocumentState {
             revision,
-            dirty: revision != self.saved_revision,
+            dirty: revision != self.saved_revision || self.protection.is_some(),
             undo_name: journal.as_ref().and_then(|j| j.undo_name.clone()),
             redo_name: journal.and_then(|j| j.redo_name),
+            protection: self.protection.as_ref().map(ProtectionChange::pending),
         }
+    }
+
+    fn set_protection(&mut self, change: Option<ProtectionChange>) -> Result<DocumentState> {
+        if self.read_only {
+            return Err(Error::ReadOnly);
+        }
+        if let Some(ProtectionChange::Set(settings)) = &change {
+            settings.validate()?;
+        }
+        self.protection = match change {
+            Some(ProtectionChange::Remove) if !self.flags.encrypted => None,
+            change => change,
+        };
+        Ok(self.state())
     }
 
     fn info(&mut self, open_time: Duration) -> DocumentInfo {
@@ -1163,23 +1274,43 @@ impl Actor {
 
     fn save(&mut self, kind: SaveKind, target: Option<PathBuf>) -> Result<SaveResult> {
         let target = target.unwrap_or_else(|| self.path.clone());
+        let protection = self.protection.clone();
         // A signed document is always saved incrementally (section 5.4), so the original
-        // signed bytes stay intact.
-        let kind = if self.needs_full_save && kind == SaveKind::Incremental {
+        // signed bytes stay intact; unless its protection changes, which can only be
+        // written whole (the user was warned).
+        let kind = if protection.is_some() {
+            if kind == SaveKind::Optimized {
+                SaveKind::Optimized
+            } else {
+                SaveKind::Full
+            }
+        } else if self.needs_full_save && kind == SaveKind::Incremental {
             SaveKind::Full
         } else if self.flags.signed {
             SaveKind::Incremental
         } else {
             kind
         };
+        let encrypt = match &protection {
+            None => Encrypt::Keep,
+            Some(ProtectionChange::Remove) => Encrypt::Remove,
+            Some(ProtectionChange::Set(settings)) => Encrypt::Set(settings),
+        };
         // Until the saved file is read back, the outline held is not the one written.
         self.outline_stale |= !self.open_states.is_empty();
         self.write_open_states()?;
         let claim = self.remove_broken_pdfa_claim()?;
         let saved = if kind == SaveKind::Optimized {
-            self.save_optimized(&target)
+            self.save_optimized(&target, encrypt)
         } else {
-            save_atomic(&self.doc, kind, Some(&self.file), &target)
+            save_atomic_encrypted(
+                &self.doc,
+                kind,
+                Some(&self.file),
+                &target,
+                encrypt,
+                &mut || Ok(()),
+            )
         };
         let outcome = match saved {
             Ok(outcome) => outcome,
@@ -1194,6 +1325,14 @@ impl Actor {
             }
         };
         let pdfa_removed = claim.map(|claim| claim.level);
+        // The file is written with its new protection: it opens with the new password.
+        let password = protection.as_ref().map(|change| match change {
+            ProtectionChange::Remove => None,
+            ProtectionChange::Set(settings) => settings.reopen_password().map(str::to_owned),
+        });
+        if let Some(password) = &password {
+            self.password = password.clone();
+        }
         let revision = self.revision();
         self.saved_revision = revision;
         let mut outline = None;
@@ -1205,6 +1344,7 @@ impl Actor {
                 self.doc = doc;
                 self.file = target.clone();
                 self.needs_full_save = false;
+                self.protection = None;
                 self.flags = read_flags(&self.doc)?;
                 self.lists.clear();
                 self.history = vec![revision];
@@ -1218,7 +1358,8 @@ impl Actor {
                 outline = self.reread_outline()?;
                 annotations = self.reread_annotations()?;
             }
-            // The file is saved; keep working on the old in-memory document.
+            // The file is saved; keep working on the old in-memory document. A protection
+            // change stays waiting: the old document would write its old encryption back.
             Err(_) => {
                 self.needs_full_save = true;
                 if pdfa_removed.is_some() {
@@ -1236,6 +1377,8 @@ impl Actor {
             outline,
             annotations,
             pdfa_removed,
+            password,
+            flags: self.flags,
         })
     }
 
@@ -1284,11 +1427,13 @@ impl Actor {
     /// expanded states, this is written as an unnamed journal change. Returns what was
     /// removed, with the metadata as it was.
     fn remove_broken_pdfa_claim(&mut self) -> Result<Option<RemovedClaim>> {
+        // PDF/A forbids encryption, so new protection breaks the claim too.
         let broken = self
             .breaks_pdfa
             .iter()
             .take(self.position + 1)
-            .any(|&breaks| breaks);
+            .any(|&breaks| breaks)
+            || matches!(self.protection, Some(ProtectionChange::Set(_)));
         if self.flags.pdfa.is_none() || !broken {
             return Ok(None);
         }
@@ -1323,11 +1468,18 @@ impl Actor {
     /// file, and its next incremental save lost changes. So the optimizing is done on a
     /// second document: this one written whole (which changes nothing in it) to a file
     /// beside the target, and opened from there.
-    fn save_optimized(&self, target: &Path) -> Result<SaveOutcome> {
+    fn save_optimized(&self, target: &Path, encrypt: Encrypt<'_>) -> Result<SaveOutcome> {
         let staging = crate::save::temp_path_for(target)?;
         let result = save_atomic(&self.doc, SaveKind::Full, None, &staging).and_then(|_| {
             let copy = load(&staging, self.password.as_deref())?;
-            save_atomic(&copy, SaveKind::Optimized, None, target)
+            save_atomic_encrypted(
+                &copy,
+                SaveKind::Optimized,
+                None,
+                target,
+                encrypt,
+                &mut || Ok(()),
+            )
         });
         // Best effort: it may not exist if writing failed early.
         let _ = std::fs::remove_file(&staging);
@@ -1369,6 +1521,7 @@ impl Actor {
         self.open_states.clear();
         self.lists.clear();
         self.needs_full_save = false;
+        self.protection = None;
 
         let revision = self.next_revision;
         self.next_revision += 1;

@@ -21,7 +21,7 @@ function info(pdfa: PdfaLevel | null, readOnly = pdfa !== null): DocumentInfo {
 		flags: { encrypted: false, signed: false, repaired: false, canAssemble: true, canAnnotate: true, canCopy: true, pdfa },
 		readOnly,
 		pageLayout: null,
-		state: { revision: 0, dirty: false, undoName: null, redoName: null },
+		state: { revision: 0, dirty: false, undoName: null, redoName: null, protection: null },
 		outline: { items: [], damaged: false },
 		annotations: [],
 		view: null,
@@ -29,15 +29,26 @@ function info(pdfa: PdfaLevel | null, readOnly = pdfa !== null): DocumentInfo {
 	};
 }
 
-function saved(pdfaRemoved: PdfaLevel | null): SaveResult {
+/** What Rust says after a save: the claim gone if the save removed it, and the file
+ * `encrypted` as its protection now is. */
+function saved(pdfaRemoved: PdfaLevel | null, encrypted = false): SaveResult {
 	return {
-		state: { revision: 1, dirty: false, undoName: null, redoName: null },
+		state: { revision: 1, dirty: false, undoName: null, redoName: null, protection: null },
 		name: 'archive.pdf',
 		path: 'C:\\docs\\archive.pdf',
 		fellBackToFull: false,
 		outline: null,
 		annotations: [],
-		pdfaRemoved
+		pdfaRemoved,
+		flags: {
+			encrypted,
+			signed: false,
+			repaired: false,
+			canAssemble: true,
+			canAnnotate: true,
+			canCopy: true,
+			pdfa: pdfaRemoved ? null : PDFA_1B
+		}
 	};
 }
 
@@ -86,6 +97,23 @@ describe('a file that claims PDF/A, opened ready to edit', () => {
 		tab.applySaved(saved(PDFA_1B));
 		expect(tab.flags.pdfa).toBeNull();
 		expect(tab.fileFlags.pdfa).toBeNull();
+	});
+});
+
+describe('a change of protection', () => {
+	it('shows the lock the document will be saved with, and the file’s after the save', () => {
+		const tab = new DocTab(info(null));
+		expect(tab.protectedNow).toBe(false);
+		tab.state = { ...tab.state, dirty: true, protection: { kind: 'set', openPassword: true, restrictions: null } };
+		expect(tab.protectedNow).toBe(true);
+		const result = saved(null, true);
+		tab.state = result.state;
+		tab.applySaved(result);
+		expect(tab.fileFlags.encrypted).toBe(true);
+		expect(tab.protectedNow).toBe(true);
+		// Removing it takes the lock away at once.
+		tab.state = { ...tab.state, dirty: true, protection: { kind: 'remove' } };
+		expect(tab.protectedNow).toBe(false);
 	});
 });
 
@@ -200,7 +228,7 @@ describe('pages turned as they are shown', () => {
 		const tab = new DocTab(info(PDFA_1B));
 		tab.turnPages([0], 90);
 		expect(tab.shownRotation(0)).toBe(90);
-		expect(tab.state).toEqual({ revision: 0, dirty: false, undoName: null, redoName: null });
+		expect(tab.state).toEqual({ revision: 0, dirty: false, undoName: null, redoName: null, protection: null });
 		expect(tab.pages[0]).toEqual(size);
 		expect(tab.readOnly).toBe(true);
 	});
@@ -232,7 +260,7 @@ describe('pages turned as they are shown', () => {
 		tab.turnPages([2], 180);
 		// The third page to the front, then that page deleted.
 		const moved = (pageMap: (number | null)[]): DocumentChange => ({
-			state: { revision: tab.state.revision + 1, dirty: true, undoName: 'Move page', redoName: null },
+			state: { revision: tab.state.revision + 1, dirty: true, undoName: 'Move page', redoName: null, protection: null },
 			changedPages: [],
 			labelsChanged: false,
 			labels: null,
@@ -271,7 +299,7 @@ describe('pages moved, deleted or inserted', () => {
 	/** What Rust reports: the pages now by where they were, and the sizes that differ. */
 	function change(pageMap: (number | null)[], changedPages: DocumentChange['changedPages']): DocumentChange {
 		return {
-			state: { revision: 1, dirty: true, undoName: 'Move page', redoName: null },
+			state: { revision: 1, dirty: true, undoName: 'Move page', redoName: null, protection: null },
 			changedPages,
 			labelsChanged: false,
 			labels: null,
@@ -370,7 +398,7 @@ describe('one document in two views (split view)', () => {
 	it('both take a change, and each keeps its own selection', () => {
 		const { first, second } = twoViews();
 		const change = (pageMap: (number | null)[] | null, annotations: DocumentChange['annotations'] = []): DocumentChange => ({
-			state: { revision: first.state.revision + 1, dirty: true, undoName: 'Edit', redoName: null },
+			state: { revision: first.state.revision + 1, dirty: true, undoName: 'Edit', redoName: null, protection: null },
 			changedPages: [],
 			labelsChanged: false,
 			labels: null,

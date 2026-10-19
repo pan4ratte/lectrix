@@ -96,6 +96,9 @@ pub struct DocumentState {
     pub dirty: bool,
     pub undo_name: Option<String>,
     pub redo_name: Option<String>,
+    /// The protection the next save writes in place of the file's, if it was changed
+    /// (section 6.9).
+    pub protection: Option<PendingProtection>,
 }
 
 impl From<core::DocumentState> for DocumentState {
@@ -105,6 +108,7 @@ impl From<core::DocumentState> for DocumentState {
             dirty: s.dirty,
             undo_name: s.undo_name,
             redo_name: s.redo_name,
+            protection: s.protection.map(Into::into),
         }
     }
 }
@@ -361,6 +365,296 @@ pub enum UnprotectSaved {
         opened: OpenResult,
         /// The file was open in a tab, with no unsaved changes: its document as read again.
         reloaded: Option<Box<DocumentInfo>>,
+    },
+}
+
+/// What a file allows printing (section 6.9).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum Printing {
+    NotAllowed,
+    LowResolution,
+    HighResolution,
+}
+
+/// What a file allows changing, as the Protect dialog names it (section 6.9).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum Changes {
+    None,
+    /// Inserting, deleting and rotating pages.
+    PageAssembly,
+    FormsAndSigning,
+    CommentsFormsAndSigning,
+    AnyExceptExtracting,
+}
+
+/// What a file allows to whoever opens it without its permissions password.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Restrictions {
+    pub printing: Printing,
+    pub changes: Changes,
+    pub copying: bool,
+}
+
+impl From<pdf_core::protection::Restrictions> for Restrictions {
+    fn from(r: pdf_core::protection::Restrictions) -> Self {
+        use pdf_core::protection::{Changes as C, Printing as P};
+        Restrictions {
+            printing: match r.printing {
+                P::NotAllowed => Printing::NotAllowed,
+                P::LowResolution => Printing::LowResolution,
+                P::HighResolution => Printing::HighResolution,
+            },
+            changes: match r.changes {
+                C::None => Changes::None,
+                C::PageAssembly => Changes::PageAssembly,
+                C::FormsAndSigning => Changes::FormsAndSigning,
+                C::CommentsFormsAndSigning => Changes::CommentsFormsAndSigning,
+                C::AnyExceptExtracting => Changes::AnyExceptExtracting,
+            },
+            copying: r.copying,
+        }
+    }
+}
+
+impl From<Restrictions> for pdf_core::protection::Restrictions {
+    fn from(r: Restrictions) -> Self {
+        use pdf_core::protection::{Changes as C, Printing as P};
+        pdf_core::protection::Restrictions {
+            printing: match r.printing {
+                Printing::NotAllowed => P::NotAllowed,
+                Printing::LowResolution => P::LowResolution,
+                Printing::HighResolution => P::HighResolution,
+            },
+            changes: match r.changes {
+                Changes::None => C::None,
+                Changes::PageAssembly => C::PageAssembly,
+                Changes::FormsAndSigning => C::FormsAndSigning,
+                Changes::CommentsFormsAndSigning => C::CommentsFormsAndSigning,
+                Changes::AnyExceptExtracting => C::AnyExceptExtracting,
+            },
+            copying: r.copying,
+        }
+    }
+}
+
+/// Each permission a file sets, as its `/P` has it.
+#[derive(Debug, Clone, Copy, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Allowed {
+    pub print: bool,
+    pub print_high_resolution: bool,
+    pub modify: bool,
+    pub copy: bool,
+    pub annotate: bool,
+    pub fill_forms: bool,
+    pub assemble: bool,
+}
+
+/// The cipher a file is encrypted with.
+#[derive(Debug, Clone, Copy, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum Cipher {
+    Aes,
+    Rc4,
+    Unknown,
+}
+
+/// The protection a file has (section 6.9).
+#[derive(Debug, Clone, Copy, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ProtectionInfo {
+    /// It needs a password to open.
+    pub open_password: bool,
+    /// It restricts something to whoever opens it without its permissions password.
+    pub restricted: bool,
+    pub allowed: Allowed,
+    /// The Protect dialog's choices nearest to what it sets.
+    pub restrictions: Restrictions,
+    pub cipher: Cipher,
+    pub key_bits: u32,
+    /// It was opened with its permissions password: nothing it restricts applies.
+    pub unrestricted: bool,
+}
+
+impl From<pdf_core::protection::ProtectionInfo> for ProtectionInfo {
+    fn from(p: pdf_core::protection::ProtectionInfo) -> Self {
+        let a = p.allowed;
+        ProtectionInfo {
+            open_password: p.open_password,
+            restricted: p.restricted,
+            allowed: Allowed {
+                print: a.print,
+                print_high_resolution: a.print_high_resolution,
+                modify: a.modify,
+                copy: a.copy,
+                annotate: a.annotate,
+                fill_forms: a.fill_forms,
+                assemble: a.assemble,
+            },
+            restrictions: p.restrictions.into(),
+            cipher: match p.cipher {
+                pdf_core::protection::Cipher::Aes => Cipher::Aes,
+                pdf_core::protection::Cipher::Rc4 => Cipher::Rc4,
+                pdf_core::protection::Cipher::Unknown => Cipher::Unknown,
+            },
+            key_bits: p.key_bits,
+            unrestricted: p.unrestricted,
+        }
+    }
+}
+
+/// A document's protection as its next save writes it, when it was changed (section 6.9).
+#[derive(Debug, Clone, Copy, Serialize, TS)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[ts(export)]
+pub enum PendingProtection {
+    /// Written without encryption.
+    Remove,
+    Set {
+        open_password: bool,
+        /// What the file allows without its permissions password, if it restricts anything.
+        restrictions: Option<Restrictions>,
+    },
+}
+
+impl From<core::PendingProtection> for PendingProtection {
+    fn from(p: core::PendingProtection) -> Self {
+        match p {
+            core::PendingProtection::Remove => PendingProtection::Remove,
+            core::PendingProtection::Set {
+                open_password,
+                restrictions,
+            } => PendingProtection::Set {
+                open_password,
+                restrictions: restrictions.map(Into::into),
+            },
+        }
+    }
+}
+
+/// A protection chosen in the Protect dialog (section 6.9): a password to open the file,
+/// a permissions password with what the file allows without it, or both.
+#[derive(Debug, Clone, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ProtectionInput {
+    pub open_password: Option<String>,
+    pub permissions_password: Option<String>,
+    /// Used only with a permissions password.
+    pub restrictions: Restrictions,
+}
+
+impl From<ProtectionInput> for pdf_core::protection::ProtectionSettings {
+    fn from(p: ProtectionInput) -> Self {
+        pdf_core::protection::ProtectionSettings {
+            open_password: p.open_password,
+            restrict: p
+                .permissions_password
+                .map(|password| pdf_core::protection::Restrict {
+                    password,
+                    restrictions: p.restrictions.into(),
+                }),
+        }
+    }
+}
+
+/// A change of a document's protection, written by its next save (section 6.9).
+#[derive(Debug, Clone, Deserialize, TS)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[ts(export)]
+pub enum ProtectionChangeInput {
+    /// The file is written without encryption.
+    Remove,
+    Set {
+        protection: ProtectionInput,
+    },
+}
+
+impl From<ProtectionChangeInput> for core::ProtectionChange {
+    fn from(c: ProtectionChangeInput) -> Self {
+        match c {
+            ProtectionChangeInput::Remove => core::ProtectionChange::Remove,
+            ProtectionChangeInput::Set { protection } => {
+                core::ProtectionChange::Set(protection.into())
+            }
+        }
+    }
+}
+
+/// A step of Protect as a tool on a file (section 6.9).
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[ts(export)]
+pub enum ProtectStep {
+    /// No file was picked.
+    Cancelled,
+    /// Ask for the password and call `protect_password`.
+    NeedsPassword {
+        token: u32,
+        name: String,
+        /// True after a wrong password.
+        retry: bool,
+    },
+    /// The file is open: show the Protect dialog, then ask whether to save it or a copy,
+    /// and call `protect_save`, or `protect_cancel`.
+    Ready {
+        token: u32,
+        name: String,
+        /// The protection it has now, to start the dialog from.
+        protection: Option<ProtectionInfo>,
+        /// Its signatures will not match the file written whole: say so when asking.
+        signed: bool,
+        /// The PDF/A level it claims, which protection takes away.
+        pdfa: Option<PdfaLevel>,
+    },
+    Failed {
+        name: String,
+        error: AppError,
+    },
+}
+
+/// The outcome of `protect_save`.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[ts(export)]
+pub enum ProtectSaved {
+    /// The Save dialog was given up: nothing was written, and the file is still waiting.
+    Cancelled,
+    /// The file was written, and opened as `opened` says.
+    Saved {
+        name: String,
+        /// The user saved it over the file itself.
+        replaced: bool,
+        opened: OpenResult,
+        /// The file was open in a tab, with no unsaved changes: its document as read again.
+        reloaded: Option<Box<DocumentInfo>>,
+        /// The PDF/A level the file no longer claims.
+        pdfa_removed: Option<PdfaLevel>,
     },
 }
 
@@ -1007,6 +1301,9 @@ pub struct SaveResult {
     /// The PDF/A level the file claimed until this save took the claim out of it: what
     /// was saved (annotations, inserted pages) may not comply (section 5.4).
     pub pdfa_removed: Option<PdfaLevel>,
+    /// What the document allows after the save: a change of its protection (section 6.9)
+    /// changes it.
+    pub flags: DocumentFlags,
 }
 
 /// A change to a document, sent from the frontend.

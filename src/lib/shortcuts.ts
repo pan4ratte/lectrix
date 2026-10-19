@@ -35,6 +35,7 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 			{ command: 'open', label: 'Open', keys: ['Ctrl+O'], inInputs: true },
 			{ command: 'combineFiles', label: 'Combine files', keys: [], inInputs: true },
 			{ command: 'unlockFile', label: 'Unlock', keys: [], inInputs: true },
+			{ command: 'protectFile', label: 'Protect', keys: [], inInputs: true },
 			{ command: 'save', label: 'Save', keys: ['Ctrl+S'], inInputs: true },
 			{ command: 'saveAs', label: 'Save as', keys: ['Ctrl+Shift+S'], inInputs: true },
 			{ command: 'saveAsOptimized', label: 'Save as (optimized)', keys: [], inInputs: true },

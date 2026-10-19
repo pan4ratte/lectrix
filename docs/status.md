@@ -344,6 +344,10 @@ pages, `tests/perf/organize.mjs` (its numbers are under "Organizing pages" below
   notes turn with rotated pages in PDFium and pdf.js) are listed in
   `docs/interop-profile.md`.
 
+- **A change of a document's protection is lost in a crash:** a recovery copy holds the
+  document's content, never its passwords (ADR 0026), so a restored document has its
+  file's protection and the change is to be made again.
+
 ## Split view
 
 - **A joined tab moved to another window** (its menu, File > Move tab to new window, a drag) arrives there as one tab per document, not joined: a window gets its tabs from Rust (`list_open_documents`), which knows documents, not views. A second view of a document stays behind and goes. To keep them joined, the handoff would carry the group.
@@ -558,6 +562,11 @@ AGENTS.md section 1 change in the commit that builds it.
    file, in the file itself or a copy.
    Not yet tried by hand in Acrobat: the copy opening there without a password and with
    nothing forbidden (`docs/manual-checklist.md`, "Unlock").
+   **Protect** was added beside it the same day (section 6.9, ADR 0026): a password,
+   restrictions or both, as a tool on a file or as a document's setting saved with it
+   next, AES-256 only.
+   Not yet tried by hand in Acrobat: each restriction as its Security tab lists it, and a
+   password outside ASCII (`docs/manual-checklist.md`, "Protect").
 2. **Compress** documents made on a computer: images downsampled and recompressed
    (`pdf_rewrite_images`), fonts subset (`pdf_subset_fonts`), and unused objects,
    metadata and thumbnails left out. It offers a few presets and shows the size before and

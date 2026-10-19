@@ -15,6 +15,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 - On macOS and Linux, clicking **Open…**, **Combine files…** or **Organize pages…** while recent files are listed as a table opened one of the recent files instead. The tools now do what they say.
 - **Unlock…** on the start screen and in the **File** menu removes a PDF's password and restrictions, so it opens, prints and copies anywhere without asking. Enter the file's password if it has one, then save the file itself or an unlocked copy. With a protected document open, **File > Unlock…** unlocks that document.
 - A protected document shows a lock before its name in its tab.
+- **Protect…** on the start screen and in the **File** menu gives a PDF a password to open it, restrictions on printing, changing and copying it, or both. Save the file itself or a protected copy. The file is encrypted with AES-256, which Acrobat, Edge, Chrome, Firefox and Foxit all open.
 
 ### Viewer and tabs
 
@@ -78,6 +79,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ### General
 
+- With a document open, **File > Protect…** chooses the password and restrictions it is saved with next, or removes them.
 - Files whose security settings forbid changes, such as adding comments, changing pages or copying text, now open with those changes turned off, as in other readers. Before, Lectrix let you make them. When one is refused, the notification has an **Unlock…** button that removes the file's restrictions, with no password needed. Clicking an annotation tool such a file locks, or pressing its shortcut, now says why instead of doing nothing.
 - About and What’s new no longer show a blue ring inside them as they open.
 - On macOS, the window has the system’s own buttons at the top left, with its shadow, rounded corners and full screen. Dialogs come down from under the title bar as sheets, and questions look like the system’s alerts, with the main button where macOS puts it: press Return to choose it.

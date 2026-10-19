@@ -10,6 +10,7 @@ mod ipc;
 mod menu;
 mod placement;
 mod platform;
+mod protect;
 mod protocol;
 mod recovery;
 mod store;
@@ -79,6 +80,8 @@ pub struct AppState {
     updates: update::Updates,
     /// Files waiting to be unlocked (the start screen's Unlock).
     unprotect: unprotect::Unprotect,
+    /// Files waiting to be protected (Protect as a tool on a file).
+    protect: protect::Protect,
 }
 
 impl AppState {
@@ -86,6 +89,12 @@ impl AppState {
     /// recent list. The webview never supplies paths itself (section 2, security).
     fn open(&self, path: &Path) -> OpenResult {
         self.documents.open(path, None, self.platform, &self.store)
+    }
+
+    /// [`AppState::open`] for a file whose password Lectrix knows (one it just protected).
+    fn open_with_password(&self, path: &Path, password: Option<&str>) -> OpenResult {
+        self.documents
+            .open(path, password, self.platform, &self.store)
     }
 
     /// Opens a path from the same places as a source for combining or inserting pages.
@@ -382,6 +391,7 @@ pub fn run() {
                 merge_cancel: Mutex::new(None),
                 updates: update::Updates::default(),
                 unprotect: unprotect::Unprotect::default(),
+                protect: protect::Protect::default(),
             });
             app.manage(menu::Menus::default());
             // Working copies of documents an earlier run never saved, and that no recovery
@@ -481,6 +491,12 @@ pub fn run() {
             commands::unprotect_save,
             commands::unprotect_cancel,
             commands::unprotect_document,
+            commands::protect_pick,
+            commands::protect_password,
+            commands::protect_save,
+            commands::protect_cancel,
+            commands::set_document_protection,
+            commands::get_document_protection,
             commands::close_document,
             commands::get_document_info,
             commands::list_open_documents,

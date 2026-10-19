@@ -383,7 +383,12 @@ export class DocModel {
 	flags = $derived<DocumentFlags>(
 		this.readOnly ? { ...this.fileFlags, canAssemble: false, canAnnotate: false } : this.fileFlags
 	);
-	state = $state<DocumentState>({ revision: 0, dirty: false, undoName: null, redoName: null });
+	state = $state<DocumentState>({ revision: 0, dirty: false, undoName: null, redoName: null, protection: null });
+	/** The document's file is protected, or will be once a change of its protection is
+	 * saved (section 6.9): its tab shows a lock. */
+	protectedNow = $derived(
+		this.state.protection ? this.state.protection.kind === 'set' : this.fileFlags.encrypted
+	);
 	outline = $state<Outline>({ items: [], damaged: false });
 	/** The bookmark selected in the panel. */
 	selectedBookmark = $state<number | null>(null);
@@ -475,6 +480,8 @@ export class DocModel {
 	/** What a save changed beyond the state: ids, after Save As (optimized) renumbered objects. */
 	applySaved(result: SaveResult) {
 		if (result.outline) this.setOutline(result.outline);
+		// What the file allows now: a change of its protection changes it (section 6.9).
+		this.fileFlags = result.flags;
 		// A save that may have broken PDF/A took the claim out of the file (section 5.4).
 		if (result.pdfaRemoved) {
 			this.fileFlags = { ...this.fileFlags, pdfa: null };
@@ -659,6 +666,9 @@ export class DocTab {
 	}
 	get flags() {
 		return this.doc.flags;
+	}
+	get protectedNow() {
+		return this.doc.protectedNow;
 	}
 	get state() {
 		return this.doc.state;

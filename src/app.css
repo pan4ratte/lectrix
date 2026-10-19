@@ -1334,6 +1334,34 @@ button.shortcut-key:hover,
 	width: 26px;
 	height: 26px;
 }
+/* The Protect dialog's fields under their checkbox, names at the left (section 6.9), in a
+   column as wide in both parts of the dialog, so the fields line up. */
+.protect-fields {
+	display: grid;
+	grid-template-columns: 11rem minmax(0, 1fr);
+	align-items: center;
+	gap: 8px 12px;
+	margin-left: 24px;
+}
+/* A password field with its show/hide button at the end (PasswordField.svelte). The field
+   shows the focus (.field:focus-within), so the input inside it has no ring. */
+.password-field {
+	display: flex;
+	height: 28px;
+	min-width: 0;
+	align-items: center;
+	gap: 2px;
+	padding-right: 1px;
+}
+.password-field input:focus-visible {
+	outline: none;
+}
+.password-field-invalid,
+.password-field-invalid:hover,
+.password-field-invalid:focus-within {
+	border-color: var(--lectrix-danger);
+	box-shadow: inset 0 0 0 1px var(--lectrix-danger);
+}
 .annotation-page {
 	margin: 12px 4px 4px;
 	/* Lined up with the rows' text. */

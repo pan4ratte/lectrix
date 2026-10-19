@@ -45,6 +45,9 @@ import {
 	type PaneLayout,
 	type PanelId,
 	type PdfaLevel,
+	type PendingProtection,
+	type ProtectionInfo,
+	type ProtectionInput,
 	type RecentFile,
 	type UpdateInfo,
 	type SaveResult,
@@ -99,11 +102,27 @@ export interface PasswordRequest {
 	token: number;
 	name: string;
 	retry: boolean;
-	/** What the file is opened for: a tab, the Combine view, inserting its pages, or
-	 * removing its password (the start screen's Unlock). */
-	purpose: 'open' | 'combine' | 'insert' | 'unlock';
-	/** Takes the password (null for Cancel) in place of opening the file: Unlock's. */
+	/** What the file is opened for: a tab, the Combine view, inserting its pages, removing
+	 * its password (Unlock) or changing its protection (Protect). */
+	purpose: 'open' | 'combine' | 'insert' | 'unlock' | 'protect';
+	/** Takes the password (null for Cancel) in place of opening the file: Unlock's and
+	 * Protect's. */
 	answer?: (password: string | null) => Promise<void>;
+}
+
+/** The Protect dialog (section 6.9), for a file or for a document in a tab. */
+export interface ProtectRequest {
+	name: string;
+	/** The protection the file has now, which the dialog starts from. */
+	protection: ProtectionInfo | null;
+	/** A change of the document's protection not saved yet, which it starts from instead. */
+	pending: PendingProtection | null;
+	/** Say that its signatures will not be valid (a document: nothing is asked after). */
+	signedWarning: boolean;
+	/** It has protection to remove (a document protected, or with a change waiting). */
+	canRemove: boolean;
+	/** The protection chosen, 'remove', or null for Cancel. */
+	resolve: (choice: ProtectionInput | 'remove' | null) => void;
 }
 
 /** "Insert pages from file": the files chosen, waiting for the dialog's options. */
@@ -250,7 +269,8 @@ class AppStore {
 			this.whatsNewOpen ||
 			this.annotationPropertiesOpen ||
 			this.labelsRequest !== null ||
-			this.insertRequest !== null
+			this.insertRequest !== null ||
+			this.protectRequest !== null
 		);
 	}
 	toasts = $state<Toast[]>([]);
@@ -260,6 +280,8 @@ class AppStore {
 	private adopting: Promise<void> = Promise.resolve();
 	/** The Page labels dialog is open, over the grid of a document's pages (section 6.3). */
 	labelsRequest = $state<LabelsRequest | null>(null);
+	/** The Protect dialog is open (section 6.9). */
+	protectRequest = $state<ProtectRequest | null>(null);
 	/** The Combine view, while it is open (shown as a tab of its own). */
 	combine = $state<CombineState | null>(null);
 	/** The Combine view is the tab on screen. */
@@ -327,6 +349,13 @@ class AppStore {
 					resolve(id);
 				}
 			};
+		});
+	}
+
+	/** Shows the Protect dialog and resolves with what was chosen (section 6.9). */
+	askProtection(request: Omit<ProtectRequest, 'resolve'>): Promise<ProtectionInput | 'remove' | null> {
+		return new Promise((resolve) => {
+			this.protectRequest = { ...request, resolve };
 		});
 	}
 
@@ -1392,13 +1421,16 @@ class AppStore {
 	 * Says that saving took the PDF/A claim out of a file (section 5.4): it can't be put
 	 * back, so the reason and what would have kept it are part of the message.
 	 */
-	notifyPdfaRemoved(name: string, level: PdfaLevel) {
+	/** Says that a save took the PDF/A claim out of a file: because of what was changed, or
+	 * because it was given a password or restrictions, which PDF/A forbids (section 6.9). */
+	notifyPdfaRemoved(name: string, level: PdfaLevel, protection = false) {
 		this.notify(
 			{
 				kind: 'info',
 				message: `${name} no longer claims to be ${pdfaName(level)}.`,
-				suggestion:
-					'Annotations, and pages inserted or deleted, may leave a file that no longer complies with that standard, so Lectrix removed the claim when saving. Changes to bookmarks, page labels, page rotation and the order of the pages alone keep it.'
+				suggestion: protection
+					? 'PDF/A doesn’t allow a password or restrictions, so Lectrix removed the claim when saving the file with them.'
+					: 'Annotations, and pages inserted or deleted, may leave a file that no longer complies with that standard, so Lectrix removed the claim when saving. Changes to bookmarks, page labels, page rotation and the order of the pages alone keep it.'
 			},
 			20000
 		);
@@ -1454,6 +1486,8 @@ class AppStore {
 	// ----- saving -----
 
 	private afterSave(tab: DocTab, result: SaveResult) {
+		const repaired = tab.fileFlags.repaired;
+		const protecting = tab.state.protection?.kind === 'set';
 		tab.state = result.state;
 		tab.applySaved(result);
 		tab.name = result.name;
@@ -1461,8 +1495,8 @@ class AppStore {
 		// Saved, a document is its file's from then on.
 		tab.untitled = false;
 		tab.banner = null;
-		if (result.pdfaRemoved) this.notifyPdfaRemoved(tab.name, result.pdfaRemoved);
-		if (result.fellBackToFull && tab.fileFlags.repaired) {
+		if (result.pdfaRemoved) this.notifyPdfaRemoved(tab.name, result.pdfaRemoved, protecting);
+		if (result.fellBackToFull && repaired) {
 			tab.fileFlags = { ...tab.fileFlags, repaired: false };
 			this.notify(
 				{

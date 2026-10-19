@@ -329,6 +329,35 @@ int lectrix_pdf_was_repaired(fz_context *ctx, pdf_document *doc, int *repaired, 
 	return 0;
 }
 
+/*
+ * How the file is encrypted, as its security handler says: *encrypted 0 for a file
+ * without encryption (the rest is then left alone). `permissions` is the file's own /P,
+ * whichever password opened it (pdf_document_permissions grants everything to the owner
+ * password), and `method` the streams' cipher ("AES", "RC4", "None" or "Unknown"), the
+ * strings' where the streams have none.
+ */
+int lectrix_pdf_crypt_info(fz_context *ctx, pdf_document *doc, int *encrypted, int *revision, int *length, int *permissions, char *method, size_t method_len, lectrix_error *err)
+{
+	fz_try(ctx)
+	{
+		pdf_crypt *crypt = doc->crypt;
+		*encrypted = crypt != NULL;
+		if (crypt)
+		{
+			const char *name = pdf_crypt_stream_method(ctx, crypt);
+			if (!strcmp(name, "None"))
+				name = pdf_crypt_string_method(ctx, crypt);
+			*revision = pdf_crypt_revision(ctx, crypt);
+			*length = pdf_crypt_length(ctx, crypt);
+			*permissions = pdf_crypt_permissions(ctx, crypt);
+			fz_strlcpy(method, name, method_len);
+		}
+	}
+	fz_catch(ctx)
+		return lectrix_caught(ctx, err);
+	return 0;
+}
+
 
 int lectrix_pdf_trim_unused_objects(pdf_document *doc);
 

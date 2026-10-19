@@ -9,6 +9,7 @@ import { toggleFullScreen } from '#lib/features/fullscreen/actions.ts';
 import { showLabels } from '#lib/features/labels/actions.ts';
 import { toggleTheme } from '#lib/features/settings/apply.ts';
 import { insertFromFile, toggleOrganize } from '#lib/features/organize/actions.ts';
+import { protectDocument, protectFile } from '#lib/features/protect/actions.ts';
 import { unlockDocument, unlockFile } from '#lib/features/unprotect/actions.ts';
 import { update } from '#lib/features/update/update.svelte.ts';
 import { copySelection } from '#lib/features/viewer/actions.ts';
@@ -117,6 +118,13 @@ export const commands = {
 		const tab = app.combineActive || app.startShown ? null : app.active;
 		if (tab?.flags.encrypted) void unlockDocument(tab);
 		else void unlockFile();
+	},
+	/** A password, restrictions or both (section 6.9): for the document shown, saved with
+	 * it next; or else for a file the Open dialog asks for. */
+	protectFile: () => {
+		const tab = app.combineActive || app.startShown ? null : app.active;
+		if (tab) void protectDocument(tab);
+		else void protectFile();
 	},
 	/** The active tab into a window of its own (section 8). */
 	moveTabToNewWindow: withTab(() => {

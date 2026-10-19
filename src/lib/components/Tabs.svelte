@@ -365,7 +365,7 @@
 							{#if i > 0}
 								<span class="doc-tab-divider" aria-hidden="true"></span>
 							{/if}
-							{#if view.flags.encrypted}
+							{#if view.protectedNow}
 								<span
 									class="flex shrink-0 text-fg-muted"
 									role="img"

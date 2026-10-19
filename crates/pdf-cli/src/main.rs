@@ -75,6 +75,28 @@ enum Command {
         #[arg(long)]
         password: Option<String>,
     },
+    /// Give a file a password to open it, restrictions, or both (Protect), in place of any
+    /// protection it had: AES-256, written whole. `--password` opens a protected input.
+    Protect {
+        input: PathBuf,
+        out: PathBuf,
+        #[arg(long)]
+        password: Option<String>,
+        /// The password to open the written file.
+        #[arg(long)]
+        open_password: Option<String>,
+        /// The permissions password; with it, the file restricts what the options below
+        /// leave out.
+        #[arg(long)]
+        permissions_password: Option<String>,
+        #[arg(long, value_enum, default_value_t = PrintingArg::High)]
+        printing: PrintingArg,
+        #[arg(long, value_enum, default_value_t = ChangesArg::None)]
+        changes: ChangesArg,
+        /// Allow copying text and images.
+        #[arg(long)]
+        copying: bool,
+    },
     /// Print page count, PDF/A claim, page labels, outline and annotations.
     Info { input: PathBuf },
     /// Page labels.
@@ -423,6 +445,22 @@ impl KindArg {
 }
 
 #[derive(Clone, Copy, ValueEnum)]
+enum PrintingArg {
+    None,
+    Low,
+    High,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum ChangesArg {
+    None,
+    Pages,
+    Forms,
+    Comments,
+    Any,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
 enum BookmarksArg {
     Nest,
     Flat,
@@ -513,6 +551,48 @@ fn run(command: Command) -> Result<()> {
         } => {
             pdf_core::unprotect::remove_protection(&input, password.as_deref(), &out)?;
             println!("wrote {} without a password or restrictions", out.display());
+        }
+        Command::Protect {
+            input,
+            out,
+            password,
+            open_password,
+            permissions_password,
+            printing,
+            changes,
+            copying,
+        } => {
+            use pdf_core::protection::{
+                Changes, Printing, ProtectionSettings, Restrict, Restrictions,
+            };
+            let restrictions = Restrictions {
+                printing: match printing {
+                    PrintingArg::None => Printing::NotAllowed,
+                    PrintingArg::Low => Printing::LowResolution,
+                    PrintingArg::High => Printing::HighResolution,
+                },
+                changes: match changes {
+                    ChangesArg::None => Changes::None,
+                    ChangesArg::Pages => Changes::PageAssembly,
+                    ChangesArg::Forms => Changes::FormsAndSigning,
+                    ChangesArg::Comments => Changes::CommentsFormsAndSigning,
+                    ChangesArg::Any => Changes::AnyExceptExtracting,
+                },
+                copying,
+            };
+            let settings = ProtectionSettings {
+                open_password,
+                restrict: permissions_password.map(|password| Restrict {
+                    password,
+                    restrictions,
+                }),
+            };
+            let removed =
+                pdf_core::protection::protect_file(&input, password.as_deref(), &settings, &out)?;
+            println!("wrote {} protected", out.display());
+            if let Some(level) = removed {
+                println!("it no longer claims {level}");
+            }
         }
         Command::Info { input } => info(&input)?,
         Command::Fonts { find, document } => {

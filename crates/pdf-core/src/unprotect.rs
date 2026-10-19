@@ -41,7 +41,7 @@ pub fn remove_protection(path: &Path, password: Option<&str>, target: &Path) -> 
     Ok(())
 }
 
-fn load(path: &Path, password: Option<&str>) -> Result<PdfDocument> {
+pub(crate) fn load(path: &Path, password: Option<&str>) -> Result<PdfDocument> {
     let mut doc = open_pdf_shared(path)?;
     if doc.needs_password()? {
         let Some(password) = password else {

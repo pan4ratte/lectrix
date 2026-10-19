@@ -4,6 +4,7 @@
 //! errors before they can reach Rust frames.
 
 mod annot;
+mod crypt;
 mod journal;
 mod objects;
 mod snapshot;
@@ -11,6 +12,7 @@ mod stream;
 mod xref;
 
 pub use annot::{request_appearance, run_annotation};
+pub use crypt::{CryptInfo, crypt_info};
 pub use journal::{Journal, JournalState};
 pub use objects::set_new_stream;
 pub use snapshot::{has_unsaved_changes, save_incremental, save_snapshot};

@@ -22,7 +22,8 @@ use crate::combine::{self, Progress};
 use crate::ipc::{
     AppError, DocumentChange, DocumentInfo, DocumentSaved, ImageFormat, LabelMode, LinkPlace,
     MenuEntry, MergeOutcome, MergePlan, MergeProgress, MergeRequest, MergeStage, MoveTarget,
-    OpenResult, OperationInput, PageHits, PageText, PaneLayout, RecentFile, RecoveredDocument,
+    OpenResult, OperationInput, PageHits, PageText, PaneLayout, ProtectSaved, ProtectStep,
+    ProtectionChangeInput, ProtectionInfo, ProtectionInput, RecentFile, RecoveredDocument,
     SaveResult, SearchChunk, SearchWord, Settings, SettingsInput, StartupInfo, TabHandoff,
     UnprotectSaved, UnprotectStep, UnsavedSource, ViewState, WebPage, WindowChrome, WindowDocument,
     WindowEntry,
@@ -460,7 +461,7 @@ pub fn unprotect_save(
             Some(
                 state
                     .documents
-                    .rewrite(id, write, state.platform, &state.store)
+                    .rewrite(id, write, None, state.platform, &state.store)
                     .map(Box::new)?,
             )
         }
@@ -489,6 +490,134 @@ pub fn unprotect_document(state: State<'_, AppState>, id: u32) -> Result<Unprote
 #[tauri::command]
 pub fn unprotect_cancel(state: State<'_, AppState>, token: u32) {
     state.unprotect.cancel(token);
+}
+
+/// Protect as a tool on a file (section 6.9, ADR 0026): asks for a PDF and opens it, to
+/// give it a password, restrictions or both.
+#[tauri::command(async)]
+pub fn protect_pick(app: AppHandle, state: State<'_, AppState>) -> Result<ProtectStep, AppError> {
+    let Some(path) = pick_pdfs(&app, Some("Protect a PDF"), false)?
+        .into_iter()
+        .next()
+    else {
+        return Ok(ProtectStep::Cancelled);
+    };
+    let token = state.documents.new_token();
+    Ok(state.protect.inspect(token, path, None))
+}
+
+/// Tries the password the user typed for the file Protect is waiting on.
+#[tauri::command(async)]
+pub fn protect_password(
+    state: State<'_, AppState>,
+    token: u32,
+    password: String,
+) -> Result<ProtectStep, AppError> {
+    state.protect.with_password(token, password)
+}
+
+/// Writes the file Protect opened with `protection` in place of any it had, and opens it
+/// in a tab: over the file itself, or (`copy`) to a file the Save dialog names, the
+/// original then only read. A Save dialog given up writes nothing and keeps the file
+/// waiting, so the choice can be made again.
+#[tauri::command(async)]
+pub fn protect_save(
+    app: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    token: u32,
+    copy: bool,
+    protection: ProtectionInput,
+) -> Result<ProtectSaved, AppError> {
+    let settings = pdf_core::protection::ProtectionSettings::from(protection);
+    settings.validate()?;
+    let (path, password) = state.protect.ready(token)?;
+    let target = if copy {
+        let stem = path
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "Document".into());
+        let Some(target) = pick_save_target(
+            &app,
+            Some("Save a protected copy"),
+            Some(format!("{stem} (protected).pdf")),
+            path.parent(),
+        )?
+        else {
+            return Ok(ProtectSaved::Cancelled);
+        };
+        target
+    } else {
+        path.clone()
+    };
+    state.protect.cancel(token);
+    let replaced = state.platform.same_file(&path, &target);
+    let mut pdfa_removed = None;
+    let mut write = || -> Result<(), AppError> {
+        pdfa_removed =
+            pdf_core::protection::protect_file(&path, password.as_deref(), &settings, &target)?;
+        crate::applog::info(format!(
+            "protected {} into {}",
+            path.display(),
+            target.display()
+        ));
+        Ok(())
+    };
+    let reopen = settings.reopen_password().map(str::to_owned);
+    // A file open in a tab is read again there, with its new password.
+    let reloaded = match state.documents.clean_tab_of(&target, state.platform) {
+        Some(id) => {
+            state.image_cache.remove_document(id);
+            Some(
+                state
+                    .documents
+                    .rewrite(id, write, reopen.clone(), state.platform, &state.store)
+                    .map(Box::new)?,
+            )
+        }
+        None => {
+            write()?;
+            None
+        }
+    };
+    let opened = match reloaded {
+        Some(_) => state.open(&target),
+        None => state.open_with_password(&target, reopen.as_deref()),
+    };
+    Ok(ProtectSaved::Saved {
+        name: file_name(&target),
+        replaced,
+        opened: windows::adopt(&app, window.label(), opened),
+        reloaded,
+        pdfa_removed: pdfa_removed.map(Into::into),
+    })
+}
+
+#[tauri::command]
+pub fn protect_cancel(state: State<'_, AppState>, token: u32) {
+    state.protect.cancel(token);
+}
+
+/// Sets the protection document `id` is saved with next (section 6.9): `null` for its
+/// file's own. Not an undo step.
+#[tauri::command(async)]
+pub fn set_document_protection(
+    state: State<'_, AppState>,
+    id: u32,
+    protection: Option<ProtectionChangeInput>,
+) -> Result<crate::ipc::DocumentState, AppError> {
+    let session = state.documents.session(id)?;
+    Ok(session.set_protection(protection.map(Into::into))?.into())
+}
+
+/// The protection document `id`'s file has, `null` if none (section 6.9).
+#[tauri::command(async)]
+pub fn get_document_protection(
+    state: State<'_, AppState>,
+    id: u32,
+) -> Result<Option<ProtectionInfo>, AppError> {
+    let session = state.documents.session(id)?;
+    Ok(session.protection()?.map(Into::into))
 }
 
 #[tauri::command]

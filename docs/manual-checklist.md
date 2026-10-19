@@ -288,6 +288,27 @@ Make the protected files with `pdf-cli` (`target/release/pdf-cli.exe`):
       **Save as a copy**, Acrobat shows the copy's signature as invalid, the original's
       still valid.
 
+## Protect
+
+Make a plain file with `pdf-cli gen plain.pdf`, and a protected one with
+`pdf-cli protect plain.pdf both.pdf --open-password user --permissions-password owner --printing low --changes comments`.
+
+- [ ] Open `both.pdf` in Acrobat Reader: it asks for a password; `user` opens it.
+      **File > Properties > Security** shows Password Security, 256-bit AES, printing at
+      low resolution, commenting and form filling allowed, copying and page changes not.
+- [ ] The same file opens with `user` in Edge, Firefox and Foxit, and not without it.
+- [ ] **Protect…** on the start screen with `plain.pdf`: tick **Restrict printing, changes
+      and copying**, permissions password `owner`, printing Not allowed, changes None,
+      copying off. **Save as a copy**: in Acrobat Reader the copy opens without a password
+      and can't be printed or have its text copied; **File > Properties > Security** lists
+      exactly that.
+- [ ] With `plain.pdf` open in Lectrix, **File > Protect…** with a password to open made of
+      letters outside ASCII (`пароль`), then Ctrl+S: Acrobat Reader opens the file with
+      that password.
+- [ ] A signed file of your own, protected as a copy: the question says its signatures will
+      not be valid; Acrobat shows the copy's signature as invalid, the original's still
+      valid.
+
 ## Full screen
 
 - [ ] With a document open, press F11: the title bar, the view bar and the side panes slide

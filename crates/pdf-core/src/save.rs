@@ -20,6 +20,7 @@ use std::time::{Duration, Instant};
 use mupdf::pdf::{Encryption, PdfDocument, PdfWriteOptions};
 
 use crate::error::{Error, Result};
+use crate::protection::ProtectionSettings;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SaveKind {
@@ -34,6 +35,18 @@ pub enum SaveKind {
     /// Rewrite the whole file, keeping all objects, without its encryption: the password
     /// and the restrictions go (the start screen's Unlock, ADR 0025).
     Decrypted,
+}
+
+/// What a save does with the document's encryption.
+#[derive(Debug, Clone, Copy)]
+pub enum Encrypt<'a> {
+    /// Writes the encryption the document has (none, if it has none).
+    Keep,
+    /// Writes it without encryption: its password and restrictions go.
+    Remove,
+    /// Writes it with this protection in place of any it had (Protect, ADR 0026). The file
+    /// is opened again and checked before it replaces anything.
+    Set(&'a ProtectionSettings),
 }
 
 /// What actually happened, so the UI can explain a fallback.
@@ -66,21 +79,45 @@ pub fn save_atomic_checked(
     target: &Path,
     before_replace: &mut dyn FnMut() -> Result<()>,
 ) -> Result<SaveOutcome> {
+    save_atomic_encrypted(doc, kind, original, target, Encrypt::Keep, before_replace)
+}
+
+/// Like [`save_atomic_checked`], with `encrypt` saying what becomes of the document's
+/// encryption. Anything but [`Encrypt::Keep`] writes the file whole: an incremental update
+/// cannot change the encryption. [`SaveKind::Optimized`] stays optimized.
+pub fn save_atomic_encrypted(
+    doc: &PdfDocument,
+    kind: SaveKind,
+    original: Option<&Path>,
+    target: &Path,
+    encrypt: Encrypt<'_>,
+    before_replace: &mut dyn FnMut() -> Result<()>,
+) -> Result<SaveOutcome> {
     let mut outcome = SaveOutcome {
         kind,
         fell_back_to_full: false,
     };
-    if kind == SaveKind::Incremental && (original.is_none() || !doc.can_be_saved_incrementally()) {
+    if kind == SaveKind::Incremental && !matches!(encrypt, Encrypt::Keep) {
+        outcome.kind = SaveKind::Full;
+    } else if kind == SaveKind::Incremental
+        && (original.is_none() || !doc.can_be_saved_incrementally())
+    {
         outcome = SaveOutcome {
             kind: SaveKind::Full,
             fell_back_to_full: true,
         };
     }
+    if let Encrypt::Set(settings) = encrypt {
+        settings.validate()?;
+    }
 
     let temp = temp_path_for(target)?;
-    let result = write_to(doc, outcome.kind, original, &temp).and_then(|()| {
+    let result = write_to(doc, outcome.kind, original, &temp, encrypt).and_then(|()| {
         // FlushFileBuffers on Windows needs a handle with write access.
         OpenOptions::new().write(true).open(&temp)?.sync_all()?;
+        if let Encrypt::Set(settings) = encrypt {
+            crate::protection::verify(&temp, settings)?;
+        }
         before_replace()?;
         replace(&temp, target)
     });
@@ -91,7 +128,13 @@ pub fn save_atomic_checked(
     result.map(|()| outcome)
 }
 
-fn write_to(doc: &PdfDocument, kind: SaveKind, original: Option<&Path>, temp: &Path) -> Result<()> {
+fn write_to(
+    doc: &PdfDocument,
+    kind: SaveKind,
+    original: Option<&Path>,
+    temp: &Path,
+    encrypt: Encrypt<'_>,
+) -> Result<()> {
     let mut options = PdfWriteOptions::default();
     match kind {
         SaveKind::Incremental => {
@@ -114,6 +157,13 @@ fn write_to(doc: &PdfDocument, kind: SaveKind, original: Option<&Path>, temp: &P
                 .set_compress_images(true)
                 .set_compress_fonts(true);
         }
+    }
+    match encrypt {
+        Encrypt::Keep => {}
+        Encrypt::Remove => {
+            options.set_encryption(Encryption::None);
+        }
+        Encrypt::Set(settings) => settings.apply(&mut options),
     }
     let temp_str = temp.to_str().ok_or_else(|| {
         Error::InvalidArgument(format!("path is not valid Unicode: {}", temp.display()))

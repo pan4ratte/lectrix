@@ -343,12 +343,14 @@ impl Documents {
     }
 
     /// Runs `write`, which writes over the file of document `id`, then reads the document
-    /// again from it. Meanwhile the watcher leaves the file alone, so the change is not
-    /// reported as one made by another program.
+    /// again from it, with `password` from now on (`None`: the file has none). Meanwhile
+    /// the watcher leaves the file alone, so the change is not reported as one made by
+    /// another program.
     pub fn rewrite(
         &self,
         id: u32,
         write: impl FnOnce() -> Result<(), AppError>,
+        password: Option<String>,
         platform: &dyn Platform,
         store: &Mutex<Store>,
     ) -> Result<DocumentInfo, AppError> {
@@ -361,7 +363,7 @@ impl Documents {
             doc.saving = false;
         }
         written?;
-        self.reload(id, platform, store)
+        self.reload_as(id, Some(password), platform, store)
     }
 
     fn find_open(&self, path: &Path, platform: &dyn Platform) -> Option<u32> {
@@ -733,6 +735,10 @@ impl Documents {
         let doc = docs.get_mut(&id).ok_or_else(AppError::document_closed)?;
         doc.saving = false;
         let saved = result?;
+        // Its protection changed: it opens with another password now.
+        if let Some(password) = &saved.password {
+            doc.password = password.clone();
+        }
         let save_as = !platform.same_file(&doc.path, &saved.path);
         let working_copy = doc
             .unsaved
@@ -767,6 +773,7 @@ impl Documents {
             outline: saved.outline.map(Into::into),
             annotations: crate::annotations::changed(saved.annotations),
             pdfa_removed: saved.pdfa_removed.map(Into::into),
+            flags: saved.flags.into(),
         })
     }
 
@@ -777,6 +784,18 @@ impl Documents {
         platform: &dyn Platform,
         store: &Mutex<Store>,
     ) -> Result<DocumentInfo, AppError> {
+        self.reload_as(id, None, platform, store)
+    }
+
+    /// [`Documents::reload`], with the password to open the file with from now on, when
+    /// its protection changed.
+    fn reload_as(
+        &self,
+        id: u32,
+        password: Option<Option<String>>,
+        platform: &dyn Platform,
+        store: &Mutex<Store>,
+    ) -> Result<DocumentInfo, AppError> {
         if self.is_unsaved(id) {
             return Err(AppError::new(
                 "This document has not been saved yet, so there is no file to read again.",
@@ -784,11 +803,17 @@ impl Documents {
             ));
         }
         let session = self.session(id)?;
-        let info = session.reload()?;
+        let info = match &password {
+            Some(password) => session.reload_with(password.clone())?,
+            None => session.reload()?,
+        };
         self.recovery.discard(id);
         let path = {
             let mut docs = lock(&self.docs)?;
             let doc = docs.get_mut(&id).ok_or_else(AppError::document_closed)?;
+            if let Some(password) = password {
+                doc.password = password;
+            }
             doc.stamp = FileStamp::of(&doc.path);
             doc.reported = None;
             doc.path.clone()

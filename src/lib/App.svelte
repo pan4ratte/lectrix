@@ -34,6 +34,7 @@
 	import { applySettings } from '#lib/features/settings/apply.ts';
 	import CombineView from '#lib/features/merge/CombineView.svelte';
 	import PageLabelsDialog from '#lib/features/labels/PageLabelsDialog.svelte';
+	import ProtectDialog from '#lib/features/protect/ProtectDialog.svelte';
 	import InsertPagesDialog from '#lib/features/merge/InsertPagesDialog.svelte';
 	import SettingsDialog from '#lib/features/settings/SettingsDialog.svelte';
 	import { update } from '#lib/features/update/update.svelte.ts';
@@ -514,6 +515,7 @@
 
 <InsertPagesDialog />
 <PageLabelsDialog />
+<ProtectDialog />
 <SettingsDialog />
 <AboutDialog />
 <WhatsNewDialog />

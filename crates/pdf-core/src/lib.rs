@@ -14,6 +14,7 @@ pub mod ops;
 pub mod outline;
 pub mod pages;
 pub mod platform;
+pub mod protection;
 pub mod render;
 pub mod save;
 pub mod session;
