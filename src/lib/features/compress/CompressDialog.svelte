@@ -7,6 +7,7 @@
 	import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from '@lucide/svelte';
 	import { Dialog } from 'bits-ui';
 	import { untrack } from 'svelte';
+	import { innerHeight } from 'svelte/reactivity/window';
 
 	import Dropdown from '#lib/components/Dropdown.svelte';
 	import { held } from '#lib/components/held.svelte.ts';
@@ -120,6 +121,7 @@
 		try {
 			outcome = await compressRun(token, settings, (p) => (progress = p));
 			page = Math.min(outcome.previewPage, Math.max(0, outcome.pages - 1));
+			base = null;
 			step = 'result';
 		} catch (e) {
 			const error = toAppError(e);
@@ -164,21 +166,54 @@
 
 	const scale = $derived(Number(zoom) * (typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1));
 	const ratio = $derived(typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1);
-	/** An image's width in CSS pixels, once loaded. */
-	let widths = $state<Record<string, number>>({});
-	const key = (which: 'before' | 'after') => `${which}-${page}-${zoom}`;
+	/** The page's size at 100% in CSS pixels, as first loaded (both panes show the same page);
+	 * kept while the next page loads, and not measured again at another zoom, whose image
+	 * rounds to a slightly different size. */
+	let base = $state<{ page: number; width: number; height: number } | null>(null);
+
+	/** The width of a scroll bar, measured once. */
+	let scrollbar = 0;
+	function measureScrollbar(): number {
+		const probe = document.createElement('div');
+		probe.style.cssText = 'position:absolute;top:-200px;width:100px;height:100px;overflow:scroll';
+		document.body.append(probe);
+		const width = probe.offsetWidth - probe.clientWidth;
+		probe.remove();
+		return width;
+	}
+
+	let row = $state(0);
+	/** The panes' box: the page at 100% with the scroll bars it needs there (and the 1 px
+	 * border), up to half the row and a height the window leaves room for. The same at every
+	 * zoom, so zooming changes only what the panes show. */
+	const box = $derived.by(() => {
+		const maxWidth = Math.floor(Math.max(0, (row - 12) / 2));
+		const maxHeight = Math.min(720, Math.max(300, (innerHeight.current ?? 0) - 340));
+		if (!base) return { width: maxWidth, height: maxHeight };
+		const width = Math.ceil(base.width) + 2;
+		const height = Math.ceil(base.height) + 2;
+		let vertical = height > maxHeight;
+		const horizontal = width + (vertical ? scrollbar : 0) > maxWidth;
+		vertical ||= height + (horizontal ? scrollbar : 0) > maxHeight;
+		return {
+			width: Math.min(maxWidth, width + (vertical ? scrollbar : 0)),
+			height: Math.min(maxHeight, height + (horizontal ? scrollbar : 0))
+		};
+	});
 </script>
 
 {#snippet pane(which: 'before' | 'after')}
 	{#if request}
-		<div class="flex min-w-0 flex-1 flex-col gap-1">
+		<div class="flex min-w-0 flex-col gap-1">
 			<span class="text-xs text-fg-muted">
 				{which === 'before' ? 'Before' : 'After'} · {formatSize(which === 'before' ? (outcome?.before ?? 0) : (outcome?.after ?? 0))}
 			</span>
 			<!-- A scrolled region takes the focus, so the arrow keys scroll it (both panes). -->
 			<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 			<div
-				class="h-[300px] overflow-auto rounded-[6px] border border-line bg-canvas"
+				class="overflow-auto rounded-[6px] border border-line bg-canvas"
+				style:width="{box.width}px"
+				style:height="{box.height}px"
 				bind:this={
 					() => (which === 'before' ? before : after),
 					(el) => {
@@ -194,11 +229,15 @@
 				<img
 					src={compressPreviewUrl(request.token, which === 'after', page, scale)}
 					alt=""
-					style:width={widths[key(which)] ? `${widths[key(which)]}px` : undefined}
-					style:max-width="none"
+					class="block max-w-none"
+					style:width={base ? `${base.width * Number(zoom)}px` : undefined}
+					style:height={base ? `${base.height * Number(zoom)}px` : undefined}
 					onload={(e) => {
 						const image = e.currentTarget as HTMLImageElement;
-						widths = { ...widths, [key(which)]: image.naturalWidth / ratio };
+						scrollbar ||= measureScrollbar();
+						if (base?.page === page) return;
+						const at = ratio * Number(zoom);
+						base = { page, width: image.naturalWidth / at, height: image.naturalHeight / at };
 					}}
 				/>
 			</div>
@@ -218,7 +257,7 @@
 	<Dialog.Portal>
 		<Dialog.Overlay class="dialog-overlay" />
 		<Dialog.Content
-			class="dialog-content flex max-h-[calc(100vh-48px)] w-[600px] flex-col"
+			class="dialog-content flex max-h-[calc(100vh-48px)] flex-col {step === 'result' && smaller ? 'w-[1000px]' : 'w-[600px]'}"
 			data-compress-dialog
 			data-step={step}
 			interactOutsideBehavior="ignore"
@@ -438,7 +477,7 @@
 										/>
 									</div>
 								</div>
-								<div class="flex gap-3">
+								<div class="flex justify-center gap-3" bind:clientWidth={row}>
 									{@render pane('before')}
 									{@render pane('after')}
 								</div>
