@@ -10,6 +10,7 @@ import {
 	type AnnotationEditInput,
 	type NewAnnotationInput
 } from '#lib/ipc/index.ts';
+import { refuseRestricted } from '#lib/features/unprotect/actions.ts';
 import { commandFor } from '#lib/shortcuts.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -26,11 +27,7 @@ import { PROBLEM_SUMMARY, showsComment, type DrawTool, type MarkupKind } from '.
 export function refuseIfLocked(tab: DocTab): boolean {
 	if (tab.flags.canAnnotate) return false;
 	if (app.refuseReadOnly(tab)) return true;
-	app.notify({
-		kind: 'error',
-		message: 'This document’s security settings don’t allow adding or changing annotations.',
-		suggestion: 'Ask the document’s author for a copy that allows annotating.'
-	});
+	refuseRestricted(tab, 'This document’s security settings don’t allow adding or changing annotations.');
 	return true;
 }
 

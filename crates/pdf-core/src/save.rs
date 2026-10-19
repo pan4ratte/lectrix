@@ -17,7 +17,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::{Duration, Instant};
 
-use mupdf::pdf::{PdfDocument, PdfWriteOptions};
+use mupdf::pdf::{Encryption, PdfDocument, PdfWriteOptions};
 
 use crate::error::{Error, Result};
 
@@ -31,6 +31,9 @@ pub enum SaveKind {
     /// Garbage collection renumbers the document's objects in memory: only for a document
     /// that is not used afterwards (a session optimizes a copy of its own).
     Optimized,
+    /// Rewrite the whole file, keeping all objects, without its encryption: the password
+    /// and the restrictions go (the start screen's Unlock, ADR 0025).
+    Decrypted,
 }
 
 /// What actually happened, so the UI can explain a fallback.
@@ -101,6 +104,9 @@ fn write_to(doc: &PdfDocument, kind: SaveKind, original: Option<&Path>, temp: &P
             return crate::ffi::save_incremental(doc, temp);
         }
         SaveKind::Full => {}
+        SaveKind::Decrypted => {
+            options.set_encryption(Encryption::None);
+        }
         SaveKind::Optimized => {
             options
                 .set_garbage_level(3)

@@ -12,7 +12,7 @@
 	// the tabs (the title bar's icon and name), none is selected; the one it was shown over
 	// keeps the row's place in the Tab order. A tab grows into the row as it opens and shrinks
 	// away as it closes.
-	import { FileText, Layers, X } from '@lucide/svelte';
+	import { FileText, Layers, Lock, X } from '@lucide/svelte';
 	import { ContextMenu } from 'bits-ui';
 	import { tick } from 'svelte';
 
@@ -364,6 +364,17 @@
 						{#each group.views as view, i (view.key)}
 							{#if i > 0}
 								<span class="doc-tab-divider" aria-hidden="true"></span>
+							{/if}
+							{#if view.flags.encrypted}
+								<span
+									class="flex shrink-0 text-fg-muted"
+									role="img"
+									aria-label="protected"
+									data-tip="Protected: File > Unlock… removes its password and restrictions"
+									data-protected
+								>
+									<Lock size={12} aria-hidden="true" />
+								</span>
 							{/if}
 							<span class="min-w-0 truncate" class:text-fg-muted={!active}>{group.names[i]}</span>
 							<!-- A document shown twice says its state once. -->

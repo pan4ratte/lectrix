@@ -4,9 +4,10 @@
 	// from a file and into a new document, and the page labels, each with its name beside
 	// its icon; the size of the pictures; how many pages are selected; and at the end Done,
 	// which goes back to reading.
-	import { FileOutput, FilePlus, RotateCcw, RotateCw, Tag, Trash, ZoomIn, ZoomOut } from '@lucide/svelte';
+	import { FileOutput, FilePlus, LockOpen, RotateCcw, RotateCw, Tag, Trash, ZoomIn, ZoomOut } from '@lucide/svelte';
 
 	import { showLabels } from '#lib/features/labels/actions.ts';
+	import { unlockDocument } from '#lib/features/unprotect/actions.ts';
 
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -120,7 +121,10 @@
 	<!-- Open for reading only (PDF/A), the banner under this bar says why and how to change it. -->
 	{#if !organize.editable && !tab.readOnly}
 		{@render rule()}
-		<span role="note">This document’s security settings don’t allow changing its pages.</span>
+		<span role="note">Its security settings don’t allow changes.</span>
+		<button type="button" class="button h-[28px] gap-1" onclick={() => void unlockDocument(tab)}>
+			<LockOpen size={16} aria-hidden="true" />Unlock…
+		</button>
 	{/if}
 	{@render rule()}
 	<button

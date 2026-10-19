@@ -319,6 +319,51 @@ impl Documents {
         }
     }
 
+    /// The file of document `id`, open in a tab, and the password that opened it: for
+    /// Unlock (section 6.8). A document not saved under a name yet has no file.
+    pub fn file_of(&self, id: u32) -> Result<(PathBuf, Option<String>), AppError> {
+        let docs = lock(&self.docs)?;
+        let doc = docs.get(&id).ok_or_else(AppError::document_closed)?;
+        if doc.unsaved.is_some() {
+            return Err(AppError::new(
+                "This document has not been saved yet, so it has no password or restrictions.",
+                None,
+            ));
+        }
+        Ok((doc.path.clone(), doc.password.clone()))
+    }
+
+    /// The tab whose file `path` is, with no unsaved changes: Unlock writes over its file
+    /// and reads it again ([`Documents::rewrite`]). One with unsaved changes is left to
+    /// the watcher, which warns that its file changed (section 7).
+    pub fn clean_tab_of(&self, path: &Path, platform: &dyn Platform) -> Option<u32> {
+        let id = self.find_open(path, platform)?;
+        let session = self.session(id).ok()?;
+        (!session.info().ok()?.state.dirty).then_some(id)
+    }
+
+    /// Runs `write`, which writes over the file of document `id`, then reads the document
+    /// again from it. Meanwhile the watcher leaves the file alone, so the change is not
+    /// reported as one made by another program.
+    pub fn rewrite(
+        &self,
+        id: u32,
+        write: impl FnOnce() -> Result<(), AppError>,
+        platform: &dyn Platform,
+        store: &Mutex<Store>,
+    ) -> Result<DocumentInfo, AppError> {
+        lock(&self.docs)?
+            .get_mut(&id)
+            .ok_or_else(AppError::document_closed)?
+            .saving = true;
+        let written = write();
+        if let Some(doc) = lock(&self.docs)?.get_mut(&id) {
+            doc.saving = false;
+        }
+        written?;
+        self.reload(id, platform, store)
+    }
+
     fn find_open(&self, path: &Path, platform: &dyn Platform) -> Option<u32> {
         let docs = self.docs.lock().ok()?;
         docs.iter()
@@ -434,7 +479,7 @@ impl Documents {
         name: String,
         error: &pdf_core::Error,
     ) -> OpenResult {
-        let token = self.next_token.fetch_add(1, Ordering::Relaxed) + 1;
+        let token = self.new_token();
         if let Ok(mut pending) = self.pending.lock() {
             pending.insert(
                 token,
@@ -565,6 +610,12 @@ impl Documents {
         for (id, session, path) in tabs {
             self.recovery.write(id, &session, &path);
         }
+    }
+
+    /// A token for a file waiting for its password. Unlock's files (`unprotect.rs`) take
+    /// theirs from here too, so the frontend's prompts never share one.
+    pub fn new_token(&self) -> u32 {
+        self.next_token.fetch_add(1, Ordering::Relaxed) + 1
     }
 
     /// Retries an encrypted file with a password.

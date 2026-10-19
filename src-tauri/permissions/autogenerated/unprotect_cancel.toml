@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-unprotect-cancel"
+description = "Enables the unprotect_cancel command without any pre-configured scope."
+commands.allow = ["unprotect_cancel"]
+
+[[permission]]
+identifier = "deny-unprotect-cancel"
+description = "Denies the unprotect_cancel command without any pre-configured scope."
+commands.deny = ["unprotect_cancel"]

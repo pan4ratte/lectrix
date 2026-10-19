@@ -3,6 +3,7 @@
 // picked in it; every applied change sends the whole list of rules to Rust as one
 // operation, so it is one undo step.
 
+import { refuseRestricted } from '#lib/features/unprotect/actions.ts';
 import type { LabelRule } from '#lib/ipc/index.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -18,11 +19,7 @@ export function shownRules(tab: DocTab): LabelRule[] {
 function refuseEdit(tab: DocTab): boolean {
 	if (tab.canEditLabels) return false;
 	if (app.refuseReadOnly(tab)) return true;
-	app.notify({
-		kind: 'error',
-		message: 'This document’s security settings don’t allow changing page labels.',
-		suggestion: 'Ask the document’s author for an unrestricted copy.'
-	});
+	refuseRestricted(tab, 'This document’s security settings don’t allow changing page labels.');
 	return true;
 }
 

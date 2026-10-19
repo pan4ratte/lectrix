@@ -208,7 +208,7 @@
 				aria-pressed={active === t.id}
 				aria-label={t.label}
 				data-tip={t.key ? `${t.label} (${t.key})` : t.label}
-				disabled={t.id !== 'select' && locked}
+				aria-disabled={t.id !== 'select' && locked}
 				onclick={() => pick(t.id)}
 			>
 				<Icon size={18} aria-hidden="true" />

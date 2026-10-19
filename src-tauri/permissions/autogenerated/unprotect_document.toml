@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-unprotect-document"
+description = "Enables the unprotect_document command without any pre-configured scope."
+commands.allow = ["unprotect_document"]
+
+[[permission]]
+identifier = "deny-unprotect-document"
+description = "Denies the unprotect_document command without any pre-configured scope."
+commands.deny = ["unprotect_document"]

@@ -270,6 +270,24 @@ Needs an installed earlier release and a newer one published (ADR 0011,
 - [ ] Pin a file with its star, close Lectrix and start it again: still at the top, its
       star filled.
 
+## Unlock
+
+Make the protected files with `pdf-cli` (`target/release/pdf-cli.exe`):
+`pdf-cli gen locked.pdf --password open --owner-password owner` and
+`pdf-cli gen restricted.pdf --owner-password owner`. Check in Acrobat Reader first that
+`locked.pdf` asks for a password and `restricted.pdf` can't be printed.
+
+- [ ] **Unlock…** on the start screen with `locked.pdf`: it asks for the password; type
+      `open`. Choose **Save as a copy** and save where suggested ("locked (unlocked).pdf"):
+      it opens in a tab.
+- [ ] Open the copy in Acrobat Reader: no password is asked, and **File > Properties >
+      Security** says No Security. It prints, and its text can be copied.
+- [ ] **File > Unlock…** with `restricted.pdf`: no password is asked. Choose **Save**: the
+      file itself opens in Acrobat Reader with No Security.
+- [ ] A signed file of your own: the question says its signatures will not be valid; after
+      **Save as a copy**, Acrobat shows the copy's signature as invalid, the original's
+      still valid.
+
 ## Full screen
 
 - [ ] With a document open, press F11: the title bar, the view bar and the side panes slide

@@ -6,6 +6,7 @@
 
 import { GridSelection } from '#lib/components/gridselection.svelte.ts';
 import { GridZoom } from '#lib/components/gridzoom.svelte.ts';
+import { refuseRestricted } from '#lib/features/unprotect/actions.ts';
 import { cancelMerge, extractPages, toAppError, type MergeProgress } from '#lib/ipc/index.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -126,11 +127,7 @@ export class OrganizeState extends GridSelection {
 	private refused(): boolean {
 		if (this.editable) return false;
 		if (app.refuseReadOnly(this.tab)) return true;
-		app.notify({
-			kind: 'error',
-			message: 'This document’s security settings don’t allow changing its pages.',
-			suggestion: 'Ask the document’s author for an unrestricted copy.'
-		});
+		refuseRestricted(this.tab, 'This document’s security settings don’t allow changing its pages.');
 		return true;
 	}
 
@@ -193,11 +190,7 @@ export class OrganizeState extends GridSelection {
 			const pages = this.indexes(keys);
 			if (!pages.length || this.extracting) return;
 			if (!tab.flags.canCopy) {
-				app.notify({
-					kind: 'error',
-					message: 'This document’s security settings don’t allow copying its pages into another file.',
-					suggestion: 'Ask the document’s author for an unrestricted copy.'
-				});
+				refuseRestricted(tab, 'This document’s security settings don’t allow copying its pages into another file.');
 				return;
 			}
 			this.extracting = { progress: null, stopping: false };

@@ -99,8 +99,11 @@ export interface PasswordRequest {
 	token: number;
 	name: string;
 	retry: boolean;
-	/** What the file is opened for: a tab, the Combine view, or inserting its pages. */
-	purpose: 'open' | 'combine' | 'insert';
+	/** What the file is opened for: a tab, the Combine view, inserting its pages, or
+	 * removing its password (the start screen's Unlock). */
+	purpose: 'open' | 'combine' | 'insert' | 'unlock';
+	/** Takes the password (null for Cancel) in place of opening the file: Unlock's. */
+	answer?: (password: string | null) => Promise<void>;
 }
 
 /** "Insert pages from file": the files chosen, waiting for the dialog's options. */
@@ -597,13 +600,23 @@ class AppStore {
 		}
 	}
 
-	askPassword(token: number, name: string, retry: boolean, purpose: PasswordRequest['purpose']) {
-		this.passwordPrompts = [...this.passwordPrompts, { token, name, retry, purpose }];
+	askPassword(
+		token: number,
+		name: string,
+		retry: boolean,
+		purpose: PasswordRequest['purpose'],
+		answer?: PasswordRequest['answer']
+	) {
+		this.passwordPrompts = [...this.passwordPrompts, { token, name, retry, purpose, answer }];
 	}
 
 	async submitPassword(token: number, password: string | null) {
 		const prompt = this.passwordPrompts.find((p) => p.token === token);
 		this.passwordPrompts = this.passwordPrompts.filter((p) => p.token !== token);
+		if (prompt?.answer) {
+			await prompt.answer(password);
+			return;
+		}
 		if (password === null) {
 			await cancelUnlock(token);
 			if (prompt?.purpose === 'insert') this.insertPasswordDone(token, null);
@@ -885,11 +898,9 @@ class AppStore {
 	canInsert(tab: DocTab): boolean {
 		if (this.refuseReadOnly(tab)) return false;
 		if (tab.flags.canAssemble) return true;
-		this.notify({
-			kind: 'error',
-			message: 'This document’s security settings don’t allow inserting pages.',
-			suggestion: 'Combine it with the other file into a new one instead (File > Combine files).'
-		});
+		void import('#lib/features/unprotect/actions.ts').then((m) =>
+			m.refuseRestricted(tab, 'This document’s security settings don’t allow inserting pages.')
+		);
 		return false;
 	}
 
@@ -971,7 +982,7 @@ class AppStore {
 				{
 					kind: 'error',
 					message: `${source.name} doesn’t allow copying its pages into another document.`,
-					suggestion: 'Its security settings forbid it. Ask its author for an unrestricted copy.'
+					suggestion: 'Its security settings forbid it. Unlock it first (File > Unlock…), then add the unlocked file.'
 				},
 				12000
 			);
@@ -1525,19 +1536,23 @@ class AppStore {
 		// A document not saved under a name yet has no file to read again.
 		if (tab.untitled) return;
 		try {
-			const info = await reloadDocument(tab.id);
-			const views = [...tab.doc.views];
-			const positions = views.map((v) => v.viewer?.position());
-			tab.update(info);
-			tab.banner = null;
-			views.forEach((v, i) => {
-				const position = positions[i];
-				if (position) v.viewer?.goTo(position, { recordHistory: false });
-				v.search.refresh();
-			});
+			this.showReloaded(tab, await reloadDocument(tab.id));
 		} catch (e) {
 			this.showError(toAppError(e));
 		}
+	}
+
+	/** Shows `tab`'s document as read again from its file (`info`), each view where it was. */
+	showReloaded(tab: DocTab, info: DocumentInfo) {
+		const views = [...tab.doc.views];
+		const positions = views.map((v) => v.viewer?.position());
+		tab.update(info);
+		tab.banner = null;
+		views.forEach((v, i) => {
+			const position = positions[i];
+			if (position) v.viewer?.goTo(position, { recordHistory: false });
+			v.search.refresh();
+		});
 	}
 }
 

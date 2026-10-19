@@ -304,6 +304,66 @@ pub enum OpenResult {
     },
 }
 
+/// A step of the start screen's Unlock (ADR 0025): removing a file's password and
+/// restrictions into a new file.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[ts(export)]
+pub enum UnprotectStep {
+    /// No file was picked.
+    Cancelled,
+    /// The file has no password and no restrictions: there is nothing to remove.
+    NotProtected {
+        name: String,
+    },
+    /// Ask for the password and call `unprotect_password`. Its token is shared with the
+    /// passwords asked for opening files, so the prompts never mix up.
+    NeedsPassword {
+        token: u32,
+        name: String,
+        /// True after a wrong password.
+        retry: bool,
+    },
+    /// The file is open: ask whether to save it or a copy, then call `unprotect_save`, or
+    /// `unprotect_cancel`.
+    Ready {
+        token: u32,
+        name: String,
+        /// Its signatures will not match the file written whole: say so when asking.
+        signed: bool,
+    },
+    Failed {
+        name: String,
+        error: AppError,
+    },
+}
+
+/// The outcome of `unprotect_save`.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(
+    tag = "kind",
+    rename_all = "camelCase",
+    rename_all_fields = "camelCase"
+)]
+#[ts(export)]
+pub enum UnprotectSaved {
+    /// The Save dialog was given up: nothing was written, and the file is still waiting.
+    Cancelled,
+    /// The file was written, and opened as `opened` says.
+    Saved {
+        name: String,
+        /// The user saved it over the protected file itself.
+        replaced: bool,
+        opened: OpenResult,
+        /// The file was open in a tab, with no unsaved changes: its document as read again.
+        reloaded: Option<Box<DocumentInfo>>,
+    },
+}
+
 /// What a tab keeps of its own, outside the document, and takes along when it moves to
 /// another window (section 8): its page display (section 6.1), and that the warning about
 /// editing a signed document was accepted.
@@ -1804,7 +1864,7 @@ impl From<pdf_core::Error> for AppError {
             .with_code(ErrorCode::FileLocked),
             E::NotPermitted => AppError::new(
                 "This document's security settings don't allow that change.",
-                Some("Ask the document's author for an unrestricted copy."),
+                Some("Unlock it to remove its restrictions (File > Unlock…)."),
             )
             .with_code(ErrorCode::NotPermitted),
             E::ReadOnly => AppError::new(
@@ -1827,7 +1887,7 @@ impl From<pdf_core::Error> for AppError {
                 .with_code(ErrorCode::Cancelled),
             E::CopyNotPermitted(name) => AppError::new(
                 format!("{name} doesn’t allow copying its pages into another document."),
-                Some("Its security settings forbid it. Ask its author for an unrestricted copy."),
+                Some("Its security settings forbid it. Unlock it first (File > Unlock…), then try again."),
             )
             .with_code(ErrorCode::NotPermitted),
             E::DamagedOutline => AppError::new(

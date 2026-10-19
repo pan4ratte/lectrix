@@ -24,9 +24,10 @@
 	// stays on that annotation's panel; another annotation's takes its width, and its height
 	// only as a limit, so a short comment gets a shorter panel. Where it was put
 	// is kept for each annotation. The author and dates are in the Properties dialog.
-	import { TriangleAlert, Wrench } from '@lucide/svelte';
+	import { LockOpen, TriangleAlert, Wrench } from '@lucide/svelte';
 	import { untrack } from 'svelte';
 
+	import { unlockDocument } from '#lib/features/unprotect/actions.ts';
 	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -240,6 +241,9 @@
 				<p class="text-xs text-fg-muted">This document is open for reading only. Enable editing to change annotations.</p>
 			{:else if !tab.flags.canAnnotate}
 				<p class="text-xs text-fg-muted">This document’s security settings don’t allow changing annotations.</p>
+				<button type="button" class="button h-7 gap-1 self-start text-xs" onclick={() => void unlockDocument(tab)}>
+					<LockOpen size={14} aria-hidden="true" />Unlock…
+				</button>
 			{:else if a.id === 0}
 				<p class="text-xs text-fg-muted">This annotation is stored in a way Lectrix can show but not change.</p>
 			{/if}

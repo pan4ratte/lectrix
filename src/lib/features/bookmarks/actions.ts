@@ -4,6 +4,7 @@
 import { selectedText } from '#lib/features/viewer/actions.ts';
 import { copyLink, follow } from '#lib/features/viewer/links.ts';
 import { pageName } from '#lib/features/viewer/pagebox.ts';
+import { refuseRestricted } from '#lib/features/unprotect/actions.ts';
 import { logError, setBookmarkOpen, type Bookmark } from '#lib/ipc/index.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 import type { DocTab } from '#lib/stores/doc.svelte.ts';
@@ -30,11 +31,7 @@ function refuseEdit(tab: DocTab): boolean {
 	}
 	if (app.refuseReadOnly(tab)) return true;
 	if (!tab.flags.canAssemble) {
-		app.notify({
-			kind: 'error',
-			message: 'This document’s security settings don’t allow changing bookmarks.',
-			suggestion: 'Ask the document’s author for an unrestricted copy.'
-		});
+		refuseRestricted(tab, 'This document’s security settings don’t allow changing bookmarks.');
 		return true;
 	}
 	return false;

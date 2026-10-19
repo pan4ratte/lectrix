@@ -6,7 +6,7 @@
 	//
 	// Dragging uses pointer events: with Tauri's file drop enabled, the webview gets no
 	// HTML5 drag-and-drop events.
-	import { Bookmark, BookmarkPlus, ChevronRight, TriangleAlert } from '@lucide/svelte';
+	import { Bookmark, BookmarkPlus, ChevronRight, LockOpen, TriangleAlert } from '@lucide/svelte';
 	import { ContextMenu } from 'bits-ui';
 	import { tick } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
@@ -15,6 +15,7 @@
 	import { ClickCounter } from '#lib/components/clicks.ts';
 	import PanelEmpty from '#lib/components/PanelEmpty.svelte';
 	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
+	import { unlockDocument } from '#lib/features/unprotect/actions.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 	import { legibleOnPane } from '#lib/theme.ts';
@@ -352,9 +353,20 @@
 		</button>
 	{/snippet}
 
+	{#snippet unlockAction()}
+		<button type="button" class="button h-7 gap-1 text-xs" onclick={() => void unlockDocument(tab)}>
+			<LockOpen size={14} aria-hidden="true" />Unlock…
+		</button>
+	{/snippet}
+
 	{#if rows.length === 0}
-		<!-- A damaged outline's banner above says why nothing can be added. -->
-		<PanelEmpty icon={Bookmark} heading="No bookmarks" action={editable ? addAction : undefined}>
+		<!-- A damaged outline's banner above says why nothing can be added. A document whose
+		     security settings refuse bookmarks offers to unlock it (section 6.8). -->
+		<PanelEmpty
+			icon={Bookmark}
+			heading="No bookmarks"
+			action={editable ? addAction : !tab.readOnly && !tab.flags.canAssemble ? unlockAction : undefined}
+		>
 			{#if tab.readOnly}
 				This document is open for reading only.
 			{:else if !tab.flags.canAssemble}

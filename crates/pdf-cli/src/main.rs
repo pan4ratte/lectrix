@@ -8,7 +8,7 @@ use std::time::Instant;
 mod survey;
 
 use clap::{Parser, Subcommand, ValueEnum};
-use mupdf::pdf::PdfDocument;
+use mupdf::pdf::{Encryption, PdfDocument, PdfWriteOptions, Permission};
 use mupdf::text_page::TextPageFlags;
 
 use pdf_core::annot::quads::Quad;
@@ -55,6 +55,25 @@ enum Command {
         /// file does not comply).
         #[arg(long, value_parser = parse_pdfa)]
         pdfa: Option<PdfA>,
+        /// Encrypt it (AES-256) with this open password.
+        #[arg(long)]
+        password: Option<String>,
+        /// Encrypt it (AES-256) with this permissions password, allowing what `--allow`
+        /// says. Alone, the file opens without a password.
+        #[arg(long)]
+        owner_password: Option<String>,
+        /// What an encrypted file allows, comma-separated: print, print-hq, modify, copy,
+        /// annotate, form, accessibility, assemble; or none. Annotating alone by default.
+        #[arg(long, value_parser = parse_permissions, default_value = "annotate")]
+        allow: u32,
+    },
+    /// Remove a file's password and restrictions (the start screen's Unlock), writing it
+    /// whole without encryption. Any password that opens it will do.
+    Unlock {
+        input: PathBuf,
+        out: PathBuf,
+        #[arg(long)]
+        password: Option<String>,
     },
     /// Print page count, PDF/A claim, page labels, outline and annotations.
     Info { input: PathBuf },
@@ -458,6 +477,9 @@ fn run(command: Command) -> Result<()> {
             user_unit,
             title,
             pdfa,
+            password,
+            owner_password,
+            allow,
         } => {
             let doc = testgen::sample_document(&SampleSpec {
                 pages,
@@ -468,8 +490,29 @@ fn run(command: Command) -> Result<()> {
                 pdfa,
                 ..SampleSpec::default()
             })?;
-            save::save_atomic(&doc, SaveKind::Full, None, &out)?;
+            if password.is_some() || owner_password.is_some() {
+                let mut options = PdfWriteOptions::default();
+                options
+                    .set_encryption(Encryption::Aes256)
+                    .set_permissions(Permission::from_bits_truncate(allow))
+                    .set_user_password(password.as_deref().unwrap_or(""))
+                    .set_owner_password(owner_password.as_deref().unwrap_or(""));
+                let out_str = out.to_str().ok_or_else(|| {
+                    Error::InvalidArgument(format!("path is not valid Unicode: {}", out.display()))
+                })?;
+                doc.save_with_options(out_str, options)?;
+            } else {
+                save::save_atomic(&doc, SaveKind::Full, None, &out)?;
+            }
             println!("wrote {} ({pages} pages)", out.display());
+        }
+        Command::Unlock {
+            input,
+            out,
+            password,
+        } => {
+            pdf_core::unprotect::remove_protection(&input, password.as_deref(), &out)?;
+            println!("wrote {} without a password or restrictions", out.display());
         }
         Command::Info { input } => info(&input)?,
         Command::Fonts { find, document } => {
@@ -906,6 +949,25 @@ fn info(path: &Path) -> Result<()> {
     println!("pages: {count}");
     if let Some(level) = docinfo::read_pdfa(&doc) {
         println!("claims: {level}");
+    }
+    let flags = docinfo::read_flags(&doc)?;
+    if flags.encrypted {
+        let allowed: Vec<&str> = [
+            (flags.can_annotate, "annotating"),
+            (flags.can_assemble, "changing pages"),
+            (flags.can_copy, "copying"),
+        ]
+        .into_iter()
+        .filter_map(|(yes, what)| yes.then_some(what))
+        .collect();
+        println!(
+            "encrypted; allows: {}",
+            if allowed.is_empty() {
+                "none of annotating, changing pages, copying".into()
+            } else {
+                allowed.join(", ")
+            }
+        );
     }
     let mut rotated = Vec::new();
     for p in 0..count {
@@ -1537,6 +1599,26 @@ fn parse_rect(s: &str) -> std::result::Result<Rect, String> {
 }
 
 /// A PDF/A level as it is usually written after "PDF/A-": 1b, 2u, 3a, 4, 4f.
+/// The bits of `/P` for `gen --allow`.
+fn parse_permissions(s: &str) -> std::result::Result<u32, String> {
+    let mut allowed = Permission::empty();
+    for name in s.split(',').map(str::trim).filter(|n| !n.is_empty()) {
+        allowed |= match name {
+            "none" => Permission::empty(),
+            "print" => Permission::PRINT,
+            "print-hq" => Permission::PRINT_HQ,
+            "modify" => Permission::MODIFY,
+            "copy" => Permission::COPY,
+            "annotate" => Permission::ANNOTATE,
+            "form" => Permission::FORM,
+            "accessibility" => Permission::ACCESSIBILITY,
+            "assemble" => Permission::ASSEMBLE,
+            other => return Err(format!("unknown permission: {other}")),
+        };
+    }
+    Ok(allowed.bits())
+}
+
 fn parse_pdfa(s: &str) -> std::result::Result<PdfA, String> {
     let bad = || "expected a part and a conformance level, such as 1b, 2u or 4".to_string();
     let mut chars = s.trim().chars();

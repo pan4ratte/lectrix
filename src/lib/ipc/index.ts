@@ -77,6 +77,10 @@ export type { MergeReport } from './generated/MergeReport';
 export type { DeleteReport } from './generated/DeleteReport';
 export type { MergeStage } from './generated/MergeStage';
 export type { UnsavedSource } from './generated/UnsavedSource';
+export type { UnprotectSaved } from './generated/UnprotectSaved';
+import type { UnprotectSaved } from './generated/UnprotectSaved';
+export type { UnprotectStep } from './generated/UnprotectStep';
+import type { UnprotectStep } from './generated/UnprotectStep';
 export type { BookmarkTarget } from './generated/BookmarkTarget';
 export type { PanelId } from './generated/PanelId';
 export type { DocumentFlags } from './generated/DocumentFlags';
@@ -158,6 +162,16 @@ export const exitConfirmed = () => invoke<void>('exit_confirmed');
 export const unlockDocument = (token: number, password: string) =>
 	invoke<OpenResult>('unlock_document', { token, password });
 export const cancelUnlock = (token: number) => invoke<void>('cancel_unlock', { token });
+// Unlock (section 6.8, ADR 0025): a file's password and restrictions removed, in the file
+// itself or a copy.
+export const unprotectPick = () => invoke<UnprotectStep>('unprotect_pick');
+export const unprotectPassword = (token: number, password: string) =>
+	invoke<UnprotectStep>('unprotect_password', { token, password });
+export const unprotectSave = (token: number, copy: boolean) =>
+	invoke<UnprotectSaved>('unprotect_save', { token, copy });
+export const unprotectCancel = (token: number) => invoke<void>('unprotect_cancel', { token });
+/** Unlock for a document open in a tab: its file, with the password it was opened with. */
+export const unprotectDocument = (id: number) => invoke<UnprotectStep>('unprotect_document', { id });
 export const closeDocument = (id: number) => invoke<void>('close_document', { id });
 export const getDocumentInfo = (id: number) => invoke<DocumentInfo>('get_document_info', { id });
 /** The documents this window shows in tabs, as Rust has them: the tabs of a window made

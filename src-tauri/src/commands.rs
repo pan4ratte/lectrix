@@ -24,7 +24,8 @@ use crate::ipc::{
     MenuEntry, MergeOutcome, MergePlan, MergeProgress, MergeRequest, MergeStage, MoveTarget,
     OpenResult, OperationInput, PageHits, PageText, PaneLayout, RecentFile, RecoveredDocument,
     SaveResult, SearchChunk, SearchWord, Settings, SettingsInput, StartupInfo, TabHandoff,
-    UnsavedSource, ViewState, WebPage, WindowChrome, WindowDocument, WindowEntry,
+    UnprotectSaved, UnprotectStep, UnsavedSource, ViewState, WebPage, WindowChrome, WindowDocument,
+    WindowEntry,
 };
 use crate::platform::Platform;
 use crate::store::StoredSettings;
@@ -381,6 +382,113 @@ pub fn unlock_document(
 #[tauri::command]
 pub fn cancel_unlock(state: State<'_, AppState>, token: u32) {
     state.documents.cancel_unlock(token);
+}
+
+/// The start screen's Unlock (ADR 0025): asks for a PDF and opens it to remove its
+/// password and restrictions.
+#[tauri::command(async)]
+pub fn unprotect_pick(
+    app: AppHandle,
+    state: State<'_, AppState>,
+) -> Result<UnprotectStep, AppError> {
+    let Some(path) = pick_pdfs(&app, Some("Unlock a PDF"), false)?
+        .into_iter()
+        .next()
+    else {
+        return Ok(UnprotectStep::Cancelled);
+    };
+    let token = state.documents.new_token();
+    Ok(state.unprotect.inspect(token, path, None))
+}
+
+/// Tries the password the user typed for the file Unlock is waiting on.
+#[tauri::command(async)]
+pub fn unprotect_password(
+    state: State<'_, AppState>,
+    token: u32,
+    password: String,
+) -> Result<UnprotectStep, AppError> {
+    state.unprotect.with_password(token, password)
+}
+
+/// Writes the file Unlock opened without its password and restrictions, and opens it in a
+/// tab: over the file itself, or (`copy`) to a file the Save dialog names, the original
+/// then only read. A Save dialog given up writes nothing and keeps the file waiting, so
+/// the choice can be made again.
+#[tauri::command(async)]
+pub fn unprotect_save(
+    app: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    token: u32,
+    copy: bool,
+) -> Result<UnprotectSaved, AppError> {
+    let (path, password) = state.unprotect.ready(token)?;
+    let target = if copy {
+        let stem = path
+            .file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "Document".into());
+        let Some(target) = pick_save_target(
+            &app,
+            Some("Save an unlocked copy"),
+            Some(format!("{stem} (unlocked).pdf")),
+            path.parent(),
+        )?
+        else {
+            return Ok(UnprotectSaved::Cancelled);
+        };
+        target
+    } else {
+        path.clone()
+    };
+    state.unprotect.cancel(token);
+    let replaced = state.platform.same_file(&path, &target);
+    let write = || -> Result<(), AppError> {
+        pdf_core::unprotect::remove_protection(&path, password.as_deref(), &target)?;
+        crate::applog::info(format!(
+            "unlocked {} into {}",
+            path.display(),
+            target.display()
+        ));
+        Ok(())
+    };
+    // A file open in a tab is read again there: its document has no restrictions now.
+    let reloaded = match state.documents.clean_tab_of(&target, state.platform) {
+        Some(id) => {
+            state.image_cache.remove_document(id);
+            Some(
+                state
+                    .documents
+                    .rewrite(id, write, state.platform, &state.store)
+                    .map(Box::new)?,
+            )
+        }
+        None => {
+            write()?;
+            None
+        }
+    };
+    Ok(UnprotectSaved::Saved {
+        name: file_name(&target),
+        replaced,
+        opened: windows::adopt(&app, window.label(), state.open(&target)),
+        reloaded,
+    })
+}
+
+/// Unlock for document `id`, open in a tab: its file, opened with the password the
+/// document was opened with, if it had one. What follows is as for a picked file.
+#[tauri::command(async)]
+pub fn unprotect_document(state: State<'_, AppState>, id: u32) -> Result<UnprotectStep, AppError> {
+    let (path, password) = state.documents.file_of(id)?;
+    let token = state.documents.new_token();
+    Ok(state.unprotect.inspect(token, path, password))
+}
+
+#[tauri::command]
+pub fn unprotect_cancel(state: State<'_, AppState>, token: u32) {
+    state.unprotect.cancel(token);
 }
 
 #[tauri::command]

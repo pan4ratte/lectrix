@@ -13,6 +13,8 @@ the wording, translations): docs/releasing.md, "The changelog".
 - A star on a recent file pins it to the top of the list, where it stays however many other files you open. In the grid of previews, the star is in the top left corner of the preview.
 - Right-click a recent file to open it, pin it, show it in its folder or remove it from the list.
 - On macOS and Linux, clicking **Open…**, **Combine files…** or **Organize pages…** while recent files are listed as a table opened one of the recent files instead. The tools now do what they say.
+- **Unlock…** on the start screen and in the **File** menu removes a PDF's password and restrictions, so it opens, prints and copies anywhere without asking. Enter the file's password if it has one, then save the file itself or an unlocked copy. With a protected document open, **File > Unlock…** unlocks that document.
+- A protected document shows a lock before its name in its tab.
 
 ### Viewer and tabs
 
@@ -76,7 +78,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ### General
 
-- Files whose security settings forbid changes, such as adding comments, changing pages or copying text, now open with those changes turned off, as in other readers. Before, Lectrix let you make them.
+- Files whose security settings forbid changes, such as adding comments, changing pages or copying text, now open with those changes turned off, as in other readers. Before, Lectrix let you make them. When one is refused, the notification has an **Unlock…** button that removes the file's restrictions, with no password needed. Clicking an annotation tool such a file locks, or pressing its shortcut, now says why instead of doing nothing.
 - About and What’s new no longer show a blue ring inside them as they open.
 - On macOS, the window has the system’s own buttons at the top left, with its shadow, rounded corners and full screen. Dialogs come down from under the title bar as sheets, and questions look like the system’s alerts, with the main button where macOS puts it: press Return to choose it.
 - On macOS, the menus are in the menu bar at the top of the screen, arranged as in other Mac apps: Settings, About and Quit are in the Lectrix menu, and there is a Window menu. Shortcuts use the Command key and are shown as macOS shows them (⇧⌘S), and some follow Mac conventions: ⌘Q quits, ⇧⌘Z redoes, ⌘G finds the next match, ⌥⌘G goes to a page, ⌘[ and ⌘] go back and forward, ⇧⌘F turns on full screen.

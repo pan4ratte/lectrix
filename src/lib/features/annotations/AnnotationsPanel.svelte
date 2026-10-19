@@ -21,6 +21,7 @@
 		ArrowDownUp,
 		FunnelX,
 		ListFilter,
+		LockOpen,
 		MessageSquareText,
 		Search,
 		SearchX,
@@ -39,6 +40,7 @@
 	import PanelEmpty from '#lib/components/PanelEmpty.svelte';
 	import { motionMs } from '#lib/components/panes.ts';
 	import type { Annotation, AnnotationSort } from '#lib/ipc/index.ts';
+	import { unlockDocument } from '#lib/features/unprotect/actions.ts';
 	import { pageName } from '#lib/features/viewer/pagebox.ts';
 	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import { app, type AnnotationRows } from '#lib/stores/app.svelte.ts';
@@ -704,8 +706,19 @@
 		</button>
 	{/snippet}
 
+	{#snippet unlockAction()}
+		<button type="button" class="button h-7 gap-1 text-xs" onclick={() => void unlockDocument(tab)}>
+			<LockOpen size={14} aria-hidden="true" />Unlock…
+		</button>
+	{/snippet}
+
 	{#if all.length === 0}
-		<PanelEmpty icon={MessageSquareText} heading="No annotations">
+		<!-- A document whose security settings refuse annotating offers to unlock it (section 6.8). -->
+		<PanelEmpty
+			icon={MessageSquareText}
+			heading="No annotations"
+			action={!tab.readOnly && !tab.flags.canAnnotate ? unlockAction : undefined}
+		>
 			{#if tab.readOnly}
 				This document is open for reading only.
 			{:else if !tab.flags.canAnnotate}

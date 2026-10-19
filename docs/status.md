@@ -546,6 +546,38 @@ Nothing has been run interactively there.
   is back after Esc closes the adjustments panel; 2026-10-18, with and without that day's
   change to how pages are shown).
 
+## Planned tools
+
+Decided 2026-10-19, to be built in this order, from easiest to hardest. Each is a tool
+on the start screen. The bar is quality competitive with Acrobat (and, for OCR, ABBYY
+FineReader) wherever an open-source approach can reach it. Each feature's spec and
+AGENTS.md section 1 change in the commit that builds it.
+
+1. **Unlock:** built 2026-10-19 (section 6.8, ADR 0025). On the start screen and in the
+   File menu: the password and restrictions removed, given any password that opens the
+   file, in the file itself or a copy.
+   Not yet tried by hand in Acrobat: the copy opening there without a password and with
+   nothing forbidden (`docs/manual-checklist.md`, "Unlock").
+2. **Compress** documents made on a computer: images downsampled and recompressed
+   (`pdf_rewrite_images`), fonts subset (`pdf_subset_fonts`), and unused objects,
+   metadata and thumbnails left out. It offers a few presets and shows the size before and
+   after. Annotations and their appearances come through unchanged, and only what the
+   chosen preset covers is recompressed.
+3. **Compare** two documents: a word-by-word diff of their structured text, shown side by
+   side in split view (ADR 0023). It lines pages up across pages added or removed, has a
+   visual mode for scans and drawings, a list of changes to step through and a summary
+   report. It needs no new engine or dependency.
+4. **OCR, with compression for scans:** the best result that is realistic with
+   open-source engines, offline and still lightweight. The engine (Tesseract 5, which
+   MuPDF supports, or PaddleOCR through ONNX Runtime; both Apache-2.0) is chosen by
+   measuring accuracy, speed and size on scanned files from the local corpus, with
+   preprocessing (deskew, despeckle, binarization). The invisible text layer is written
+   into the existing pages: MuPDF's own OCR writer renders every page to an image, losing
+   vector content and annotations. That layer has to select and search correctly in
+   Acrobat, Edge, Firefox and Foxit. Compression for scans (JBIG2 for black-and-white
+   pages, MRC for the rest) shares its image analysis with OCR (Leptonica, jbig2enc). OCR
+   is under "Not in v1" in AGENTS.md section 1.
+
 ## Upstream work
 
 - `docs/upstream/mupdf-1.27.2-jpx-reduced-decoding.patch`: decoding JPEG 2000 at the

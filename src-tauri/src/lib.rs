@@ -13,6 +13,7 @@ mod platform;
 mod protocol;
 mod recovery;
 mod store;
+mod unprotect;
 mod update;
 mod windows;
 
@@ -76,6 +77,8 @@ pub struct AppState {
     /// Set while combining; storing `true` in it stops the merge.
     merge_cancel: Mutex<Option<Arc<AtomicBool>>>,
     updates: update::Updates,
+    /// Files waiting to be unlocked (the start screen's Unlock).
+    unprotect: unprotect::Unprotect,
 }
 
 impl AppState {
@@ -378,6 +381,7 @@ pub fn run() {
                 windows: windows::Windows::default(),
                 merge_cancel: Mutex::new(None),
                 updates: update::Updates::default(),
+                unprotect: unprotect::Unprotect::default(),
             });
             app.manage(menu::Menus::default());
             // Working copies of documents an earlier run never saved, and that no recovery
@@ -472,6 +476,11 @@ pub fn run() {
             commands::exit_confirmed,
             commands::unlock_document,
             commands::cancel_unlock,
+            commands::unprotect_pick,
+            commands::unprotect_password,
+            commands::unprotect_save,
+            commands::unprotect_cancel,
+            commands::unprotect_document,
             commands::close_document,
             commands::get_document_info,
             commands::list_open_documents,

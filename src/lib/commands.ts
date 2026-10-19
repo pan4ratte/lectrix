@@ -1,6 +1,6 @@
 // App commands, shared by the menus and the keyboard shortcuts (section 8).
 
-import { repair } from '#lib/features/annotations/actions.ts';
+import { refuseIfLocked, repair } from '#lib/features/annotations/actions.ts';
 import { tools } from '#lib/features/annotations/state.svelte.ts';
 import type { Tool } from '#lib/features/annotations/tools.ts';
 import { addBookmark } from '#lib/features/bookmarks/actions.ts';
@@ -9,6 +9,7 @@ import { toggleFullScreen } from '#lib/features/fullscreen/actions.ts';
 import { showLabels } from '#lib/features/labels/actions.ts';
 import { toggleTheme } from '#lib/features/settings/apply.ts';
 import { insertFromFile, toggleOrganize } from '#lib/features/organize/actions.ts';
+import { unlockDocument, unlockFile } from '#lib/features/unprotect/actions.ts';
 import { update } from '#lib/features/update/update.svelte.ts';
 import { copySelection } from '#lib/features/viewer/actions.ts';
 import { normalizeRotation, type ViewMode } from '#lib/features/viewer/layout.ts';
@@ -92,7 +93,7 @@ function useTool(tool: Tool) {
 	return withTab((t) => {
 		// The grid of pages being organized has no annotation tools.
 		if (t.organize) return;
-		if (tool !== 'select' && (app.refuseReadOnly(t) || !t.flags.canAnnotate)) return;
+		if (tool !== 'select' && refuseIfLocked(t)) return;
 		tools.tool = tool;
 	});
 }
@@ -110,6 +111,13 @@ export const commands = {
 		else if (app.active) void app.closeTab(app.active.id);
 	},
 	combineFiles: () => app.openCombine(),
+	/** A PDF without its password and restrictions (section 6.8): the protected document
+	 * shown, or else a file the Open dialog asks for. */
+	unlockFile: () => {
+		const tab = app.combineActive || app.startShown ? null : app.active;
+		if (tab?.flags.encrypted) void unlockDocument(tab);
+		else void unlockFile();
+	},
 	/** The active tab into a window of its own (section 8). */
 	moveTabToNewWindow: withTab(() => {
 		const group = app.activeGroup;

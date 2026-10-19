@@ -422,14 +422,16 @@ input[type='color'],
 }
 /* A button keeps the tint while the menu or panel it opened is open, with the pointer gone
    into it. */
-.icon-button:hover:not(:disabled),
+.icon-button:hover:not(:disabled, [aria-disabled='true']),
 .icon-button[aria-expanded='true'] {
 	background: var(--lectrix-hover);
 }
-.icon-button:active:not(:disabled) {
+.icon-button:active:not(:disabled, [aria-disabled='true']) {
 	background: var(--lectrix-pressed);
 }
-.icon-button:disabled {
+/* aria-disabled: a button that looks unavailable but still answers a click by saying why
+   (a locked annotation tool, section 6.5). */
+.icon-button:is(:disabled, [aria-disabled='true']) {
 	opacity: 0.4;
 }
 /* A bar's button with its name beside its icon (Insert, Extract and Labels in the bar of

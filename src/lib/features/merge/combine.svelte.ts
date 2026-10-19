@@ -150,7 +150,7 @@ export class CombineState extends GridSelection {
 							{
 								kind: 'error',
 								message: `${doc.name} doesn’t allow copying its pages into another document.`,
-								suggestion: 'Its security settings forbid it. Ask its author for an unrestricted copy.'
+								suggestion: 'Its security settings forbid it. Unlock it first (File > Unlock…), then add the unlocked file.'
 							},
 							12000
 						);

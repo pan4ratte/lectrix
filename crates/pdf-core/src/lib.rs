@@ -19,5 +19,6 @@ pub mod save;
 pub mod session;
 pub mod testgen;
 pub mod text;
+pub mod unprotect;
 
 pub use error::{Error, Result};

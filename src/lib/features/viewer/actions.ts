@@ -1,5 +1,6 @@
 // Viewer actions used by menus, shortcuts and the context menu.
 
+import { refuseRestricted } from '#lib/features/unprotect/actions.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -10,11 +11,7 @@ export async function copySelection(tab: DocTab): Promise<void> {
 	const sel = tab.selection;
 	if (!sel) return;
 	if (!tab.flags.canCopy) {
-		app.notify({
-			kind: 'error',
-			message: 'This document’s security settings don’t allow copying text.',
-			suggestion: 'Ask the document’s author for an unrestricted copy.'
-		});
+		refuseRestricted(tab, 'This document’s security settings don’t allow copying text.');
 		return;
 	}
 	const text = await selectedText(tab);

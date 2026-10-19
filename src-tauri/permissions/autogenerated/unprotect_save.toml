@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-unprotect-save"
+description = "Enables the unprotect_save command without any pre-configured scope."
+commands.allow = ["unprotect_save"]
+
+[[permission]]
+identifier = "deny-unprotect-save"
+description = "Denies the unprotect_save command without any pre-configured scope."
+commands.deny = ["unprotect_save"]

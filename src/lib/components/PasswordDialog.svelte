@@ -1,5 +1,6 @@
 <script lang="ts">
-	// Asks for the password of an encrypted document (section 5.4).
+	// Asks for the password of an encrypted document (section 5.4), to open it or, for the
+	// start screen's Unlock, to remove the password (ADR 0025).
 	import { Lock } from '@lucide/svelte';
 	import { Dialog } from 'bits-ui';
 
@@ -46,7 +47,9 @@
 				<Dialog.Description class="mt-2 text-sm text-fg-muted">
 					{prompt.retry
 						? `That password didn’t open ${prompt.name}. Check it and try again.`
-						: `${prompt.name} is protected. Enter its password to open it.`}
+						: prompt.purpose === 'unlock'
+							? `${prompt.name} is protected. Enter its password to remove it.`
+							: `${prompt.name} is protected. Enter its password to open it.`}
 				</Dialog.Description>
 				<form class="mt-4 flex flex-col gap-4" onsubmit={submit}>
 					<input
@@ -61,7 +64,7 @@
 					/>
 					<div class="flex justify-end gap-2">
 						<button type="button" class="button" onclick={cancel}>Cancel</button>
-						<button type="submit" class="button button-primary">Open</button>
+						<button type="submit" class="button button-primary">{prompt.purpose === 'unlock' ? 'Unlock' : 'Open'}</button>
 					</div>
 				</form>
 			{/if}
