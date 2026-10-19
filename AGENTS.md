@@ -200,6 +200,7 @@ What each feature does is specified in `docs/spec/`, one file per feature, under
 - **6.7 Organize pages** ([docs/spec/organize.md](docs/spec/organize.md)): a mode of the document's tab that shows its pages as a grid to move, rotate (`/Rotate`), delete, insert from files, extract into a new document and label. Each change is made in the document at once as one undo step (ADR 0018), and what is kept by page follows its page (`DocumentChange.pageMap`).
 - **6.8 Unlock** ([docs/spec/unlock.md](docs/spec/unlock.md)): on the start screen and in the File menu, a PDF's password and restrictions removed, given any password that opens it (ADR 0025): the file is written whole, in place (Save) or as a copy, and opens in a tab.
 - **6.9 Protect** ([docs/spec/protect.md](docs/spec/protect.md)): a password to open the file, restrictions with a permissions password, or both (ADR 0026), as a tool on a file (in place or as a copy) and as a change of a document's protection that its next save writes; not an undo step.
+- **6.10 Document properties** ([docs/spec/properties.md](docs/spec/properties.md)): Document > Properties… (Ctrl+D): the file, its title, author, subject and keywords (changed as one undo step, in the information dictionary and the XMP alike), its security and its fonts.
 
 ## 7. Document model, undo/redo and saving
 

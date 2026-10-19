@@ -467,7 +467,7 @@ pub enum Cipher {
     Unknown,
 }
 
-/// The protection a file has (section 6.9).
+/// The protection a file has (sections 6.9 and 6.10).
 #[derive(Debug, Clone, Copy, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
@@ -594,6 +594,134 @@ impl From<ProtectionChangeInput> for core::ProtectionChange {
             ProtectionChangeInput::Set { protection } => {
                 core::ProtectionChange::Set(protection.into())
             }
+        }
+    }
+}
+
+/// What the Description tab of a document's properties changes (section 6.10). An empty
+/// value is one the document does not have.
+#[derive(Debug, Clone, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DocumentDescription {
+    pub title: String,
+    pub author: String,
+    pub subject: String,
+    pub keywords: String,
+}
+
+impl From<pdf_core::properties::Description> for DocumentDescription {
+    fn from(d: pdf_core::properties::Description) -> Self {
+        DocumentDescription {
+            title: d.title,
+            author: d.author,
+            subject: d.subject,
+            keywords: d.keywords,
+        }
+    }
+}
+
+impl From<DocumentDescription> for pdf_core::properties::Description {
+    fn from(d: DocumentDescription) -> Self {
+        pdf_core::properties::Description {
+            title: d.title,
+            author: d.author,
+            subject: d.subject,
+            keywords: d.keywords,
+        }
+    }
+}
+
+/// A document's properties (section 6.10): its file, what it declares about itself, and
+/// its protection.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DocumentProperties {
+    /// The folder the file is in; null for a document that is no file yet.
+    pub folder: Option<String>,
+    /// The file's size in bytes, as it is on disk.
+    #[ts(type = "number | null")]
+    pub file_size: Option<u64>,
+    /// "1.7".
+    pub version: String,
+    pub description: DocumentDescription,
+    /// Milliseconds since the Unix epoch.
+    #[ts(type = "number | null")]
+    pub created: Option<i64>,
+    #[ts(type = "number | null")]
+    pub modified: Option<i64>,
+    /// The application it was made with (`/Creator`).
+    pub creator: Option<String>,
+    /// What wrote the PDF (`/Producer`).
+    pub producer: Option<String>,
+    pub tagged: bool,
+    /// Linearized ("fast web view").
+    pub linearized: bool,
+    /// How many signature fields hold a signature.
+    pub signatures: u32,
+    /// The protection its file has.
+    pub protection: Option<ProtectionInfo>,
+}
+
+/// The kind of a font, as the Fonts tab names it (section 6.10).
+#[derive(Debug, Clone, Copy, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum FontKind {
+    Type1,
+    Type1Compact,
+    MultipleMaster,
+    TrueType,
+    OpenType,
+    Type3,
+    CidType0,
+    CidTrueType,
+    Unknown,
+}
+
+/// A font a document uses (section 6.10).
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct UsedFont {
+    /// Its object number (0 for a font written directly into its resources).
+    pub id: u32,
+    /// Without a subset's prefix.
+    pub name: String,
+    pub subset: bool,
+    pub kind: FontKind,
+    pub embedded: bool,
+    /// One of the 14 standard fonts every reader has, not embedded.
+    pub standard: bool,
+    /// Its `/Encoding` name; "Custom" for its own differences, null for the font's own.
+    pub encoding: Option<String>,
+    /// The first page (0-based) of those asked about that uses it.
+    pub first_page: u32,
+}
+
+impl From<pdf_core::properties::UsedFont> for UsedFont {
+    fn from(f: pdf_core::properties::UsedFont) -> Self {
+        use pdf_core::properties::FontKind as K;
+        UsedFont {
+            id: f.id,
+            name: f.name,
+            subset: f.subset,
+            kind: match f.kind {
+                K::Type1 => FontKind::Type1,
+                K::Type1Compact => FontKind::Type1Compact,
+                K::MultipleMaster => FontKind::MultipleMaster,
+                K::TrueType => FontKind::TrueType,
+                K::OpenType => FontKind::OpenType,
+                K::Type3 => FontKind::Type3,
+                K::CidType0 => FontKind::CidType0,
+                K::CidTrueType => FontKind::CidTrueType,
+                K::Unknown => FontKind::Unknown,
+            },
+            embedded: f.embedded,
+            standard: f.standard,
+            encoding: f.encoding,
+            first_page: u32::try_from(f.first_page).unwrap_or(u32::MAX),
         }
     }
 }
@@ -1400,6 +1528,11 @@ pub enum OperationInput {
         parent: u32,
         text: String,
     },
+    /// Change the document's title, author, subject and keywords (its properties, section
+    /// 6.10); an empty one is taken out.
+    SetDescription {
+        description: DocumentDescription,
+    },
 }
 
 impl OperationInput {
@@ -1508,6 +1641,9 @@ impl OperationInput {
             },
             OperationInput::SetPageLabels { rules } => Op::SetPageLabels {
                 rules: rules.into_iter().map(Into::into).collect(),
+            },
+            OperationInput::SetDescription { description } => Op::SetDescription {
+                description: description.into(),
             },
             OperationInput::UpdateAnnotation { page, id, edit } => Op::UpdateAnnotation {
                 page: page as usize,

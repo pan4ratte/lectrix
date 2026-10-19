@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-get-document-fonts"
+description = "Enables the get_document_fonts command without any pre-configured scope."
+commands.allow = ["get_document_fonts"]
+
+[[permission]]
+identifier = "deny-get-document-fonts"
+description = "Denies the get_document_fonts command without any pre-configured scope."
+commands.deny = ["get_document_fonts"]

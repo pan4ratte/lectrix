@@ -25,6 +25,8 @@ const COMMANDS: &[&str] = &[
     "protect_cancel",
     "set_document_protection",
     "get_document_protection",
+    "get_document_properties",
+    "get_document_fonts",
     "close_document",
     "get_document_info",
     "list_open_documents",

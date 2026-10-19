@@ -497,6 +497,8 @@ pub fn run() {
             commands::protect_cancel,
             commands::set_document_protection,
             commands::get_document_protection,
+            commands::get_document_properties,
+            commands::get_document_fonts,
             commands::close_document,
             commands::get_document_info,
             commands::list_open_documents,

@@ -309,6 +309,16 @@ Make a plain file with `pdf-cli gen plain.pdf`, and a protected one with
       not be valid; Acrobat shows the copy's signature as invalid, the original's still
       valid.
 
+## Document properties
+
+- [ ] Ctrl+D on a book from the local corpus: the folder, size, version, title, author,
+      dates and producer match Acrobat Reader's **File > Properties > Description**, and
+      the fonts match its **Fonts** tab (embedded or not, subset or not).
+- [ ] Change the title and author, OK, Ctrl+S: Acrobat Reader's Description shows them,
+      and so does File Explorer's Details pane for the file (which reads the XMP).
+- [ ] The same on a PDF/A file opened ready to edit: Acrobat still says it claims PDF/A,
+      and its Preflight finds the title and author in agreement with the XMP.
+
 ## Full screen
 
 - [ ] With a document open, press F11: the title bar, the view bar and the side panes slide

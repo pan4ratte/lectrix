@@ -9,6 +9,7 @@ import { toggleFullScreen } from '#lib/features/fullscreen/actions.ts';
 import { showLabels } from '#lib/features/labels/actions.ts';
 import { toggleTheme } from '#lib/features/settings/apply.ts';
 import { insertFromFile, toggleOrganize } from '#lib/features/organize/actions.ts';
+import { openProperties } from '#lib/features/properties/actions.ts';
 import { protectDocument, protectFile } from '#lib/features/protect/actions.ts';
 import { unlockDocument, unlockFile } from '#lib/features/unprotect/actions.ts';
 import { update } from '#lib/features/update/update.svelte.ts';
@@ -216,6 +217,7 @@ export const commands = {
 	showBookmarks: reading(() => app.togglePanel('bookmarks')),
 	showAnnotations: reading(() => app.togglePanel('annotations')),
 	repairAnnotations: withTab((t) => repair(t)),
+	documentProperties: withTab((t) => openProperties(t)),
 	toolSelect: useTool('select'),
 	toolHighlight: useTool('highlight'),
 	toolUnderline: useTool('underline'),

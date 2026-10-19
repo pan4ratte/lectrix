@@ -2138,6 +2138,56 @@ button.shortcut-key:hover,
 .settings-page:focus-visible {
 	outline-offset: -2px;
 }
+/* A document's properties (section 6.10): laid out as Settings, with OK and Cancel under
+   the chosen tab's page. */
+.properties-dialog {
+	width: 720px;
+}
+.properties-body {
+	display: flex;
+	min-width: 0;
+	flex: 1;
+	flex-direction: column;
+}
+.properties-footer {
+	display: flex;
+	justify-content: flex-end;
+	gap: 8px;
+	padding: 12px 24px 16px;
+	border-top: 1px solid var(--lectrix-line);
+}
+/* Names at the left, values at the right. */
+.properties-grid {
+	display: grid;
+	grid-template-columns: 140px minmax(0, 1fr);
+	align-items: center;
+	gap: 8px 16px;
+	font-size: 13px;
+}
+.properties-grid :is(dt, label) {
+	color: var(--lectrix-fg-muted);
+}
+.properties-grid dd {
+	min-width: 0;
+	overflow-wrap: anywhere;
+}
+.properties-fonts {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: 13px;
+}
+.properties-fonts th {
+	padding: 0 8px 6px 0;
+	border-bottom: 1px solid var(--lectrix-line);
+	color: var(--lectrix-fg-muted);
+	font-weight: 500;
+	text-align: left;
+}
+.properties-fonts td {
+	padding: 6px 8px 6px 0;
+	border-bottom: 1px solid var(--lectrix-line);
+	vertical-align: top;
+}
 .settings-heading {
 	margin-bottom: 4px;
 	color: var(--lectrix-fg-strong);

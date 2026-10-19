@@ -1,5 +1,5 @@
 //! Giving a file a password to open it, restrictions, or both (Protect, section 6.9,
-//! ADR 0026), and reading the protection a file has.
+//! ADR 0026), and reading the protection a document has (its properties, section 6.10).
 //!
 //! Lectrix writes AES-256 only (security handler revision 6, as Acrobat X and later), with
 //! Acrobat's choices of restrictions. Encryption is written on a full save

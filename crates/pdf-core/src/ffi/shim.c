@@ -330,6 +330,22 @@ int lectrix_pdf_was_repaired(fz_context *ctx, pdf_document *doc, int *repaired, 
 }
 
 /*
+ * The PDF version the file's header declares (17 for 1.7), and whether the file starts
+ * with a linearization dictionary ("fast web view").
+ */
+int lectrix_pdf_file_facts(fz_context *ctx, pdf_document *doc, int *version, int *linearized, lectrix_error *err)
+{
+	fz_try(ctx)
+	{
+		*version = doc->version;
+		*linearized = pdf_doc_was_linearized(ctx, doc);
+	}
+	fz_catch(ctx)
+		return lectrix_caught(ctx, err);
+	return 0;
+}
+
+/*
  * How the file is encrypted, as its security handler says: *encrypted 0 for a file
  * without encryption (the rest is then left alone). `permissions` is the file's own /P,
  * whichever password opened it (pdf_document_permissions grants everything to the owner

@@ -610,7 +610,53 @@ pub fn set_document_protection(
     Ok(session.set_protection(protection.map(Into::into))?.into())
 }
 
-/// The protection document `id`'s file has, `null` if none (section 6.9).
+/// Document `id`'s properties (section 6.10): its file, what it declares, its protection.
+#[tauri::command(async)]
+pub fn get_document_properties(
+    state: State<'_, AppState>,
+    id: u32,
+) -> Result<crate::ipc::DocumentProperties, AppError> {
+    let session = state.documents.session(id)?;
+    let properties = session.properties()?;
+    let protection = session.protection()?.map(Into::into);
+    let file = state.documents.saved_file(id)?;
+    Ok(crate::ipc::DocumentProperties {
+        folder: file
+            .as_ref()
+            .and_then(|p| p.parent())
+            .map(|p| p.display().to_string()),
+        file_size: file
+            .as_ref()
+            .and_then(|p| std::fs::metadata(p).ok())
+            .map(|m| m.len()),
+        version: properties.version,
+        description: properties.description.into(),
+        created: properties.created,
+        modified: properties.modified,
+        creator: properties.creator,
+        producer: properties.producer,
+        tagged: properties.tagged,
+        linearized: properties.linearized,
+        signatures: properties.signatures,
+        protection,
+    })
+}
+
+/// The fonts pages `from` to `to` (0-based, `to` not included) of document `id` use, each
+/// once (section 6.10): asked for a few pages at a time.
+#[tauri::command(async)]
+pub fn get_document_fonts(
+    state: State<'_, AppState>,
+    id: u32,
+    from: u32,
+    to: u32,
+) -> Result<Vec<crate::ipc::UsedFont>, AppError> {
+    let session = state.documents.session(id)?;
+    let fonts = session.fonts(from as usize..to as usize)?;
+    Ok(fonts.into_iter().map(Into::into).collect())
+}
+
+/// The protection document `id`'s file has, `null` if none (sections 6.9 and 6.10).
 #[tauri::command(async)]
 pub fn get_document_protection(
     state: State<'_, AppState>,

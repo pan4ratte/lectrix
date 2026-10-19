@@ -347,6 +347,11 @@ pages, `tests/perf/organize.mjs` (its numbers are under "Organizing pages" below
 - **A change of a document's protection is lost in a crash:** a recovery copy holds the
   document's content, never its passwords (ADR 0026), so a restored document has its
   file's protection and the change is to be made again.
+- **Document properties** writes `dc:title` and `dc:description` in the default language
+  only, and `dc:creator` as one item: titles another app gave in several languages lose
+  the others, and several authors become one ("Ann; Bob"). "Fast web view" reports a
+  linearization dictionary at the start of the file even after an incremental save broke
+  its linearization (section 6.10, "Settled details").
 
 ## Split view
 
@@ -562,11 +567,13 @@ AGENTS.md section 1 change in the commit that builds it.
    file, in the file itself or a copy.
    Not yet tried by hand in Acrobat: the copy opening there without a password and with
    nothing forbidden (`docs/manual-checklist.md`, "Unlock").
-   **Protect** was added beside it the same day (section 6.9, ADR 0026): a password,
-   restrictions or both, as a tool on a file or as a document's setting saved with it
-   next, AES-256 only.
-   Not yet tried by hand in Acrobat: each restriction as its Security tab lists it, and a
-   password outside ASCII (`docs/manual-checklist.md`, "Protect").
+   **Protect** and **Document properties** were added beside it the same day (sections
+   6.9 and 6.10, ADR 0026): a password, restrictions or both, as a tool on a file or as a
+   document's setting saved with it next, AES-256 only; and the document's file,
+   description (editable), security and fonts in one dialog.
+   Not yet tried by hand in Acrobat: each restriction as its Security tab lists it, a
+   password outside ASCII, and a description changed in a PDF/A file passing Preflight
+   (`docs/manual-checklist.md`, "Protect" and "Document properties").
 2. **Compress** documents made on a computer: images downsampled and recompressed
    (`pdf_rewrite_images`), fonts subset (`pdf_subset_fonts`), and unused objects,
    metadata and thumbnails left out. It offers a few presets and shows the size before and

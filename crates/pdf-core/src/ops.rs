@@ -15,6 +15,7 @@ use crate::labels::{self, LabelRule};
 use crate::merge::{self, InsertOptions, MergeReport, MergeSource};
 use crate::outline::{ViewDest, edit};
 use crate::pages::{self, DeleteReport};
+use crate::properties::{self, Description};
 
 /// The file pages are inserted from.
 #[derive(Clone, PartialEq)]
@@ -186,6 +187,11 @@ pub enum Operation {
     },
     /// Fixes every problem the repair scan finds that can be fixed (section 5.3).
     RepairAnnotations,
+    /// Changes the document's title, author, subject and keywords (its properties,
+    /// section 6.10), in the information dictionary and the XMP metadata alike.
+    SetDescription {
+        description: Description,
+    },
 }
 
 impl Operation {
@@ -221,6 +227,7 @@ impl Operation {
             Operation::DeleteAnnotation { .. } => "Delete annotation".into(),
             Operation::AddReply { .. } => "Add reply".into(),
             Operation::RepairAnnotations => "Repair annotations".into(),
+            Operation::SetDescription { .. } => "Change properties".into(),
         }
     }
 
@@ -304,7 +311,8 @@ impl Operation {
             | Operation::SetBookmarkDestination { .. }
             | Operation::SetBookmarkColor { .. }
             | Operation::SetPageLabels { .. }
-            | Operation::InsertPages { .. } => true,
+            | Operation::InsertPages { .. }
+            | Operation::SetDescription { .. } => true,
             Operation::AddAnnotation { .. }
             | Operation::AddAnnotations { .. }
             | Operation::UpdateAnnotation { .. }
@@ -334,7 +342,8 @@ impl Operation {
             | Operation::UpdateAnnotation { .. }
             | Operation::DeleteAnnotation { .. }
             | Operation::AddReply { .. }
-            | Operation::RepairAnnotations => OutlineEffect::None,
+            | Operation::RepairAnnotations
+            | Operation::SetDescription { .. } => OutlineEffect::None,
         }
     }
 
@@ -434,7 +443,7 @@ impl Operation {
                 }
                 Ok(())
             }
-            Operation::RepairAnnotations => Ok(()),
+            Operation::RepairAnnotations | Operation::SetDescription { .. } => Ok(()),
         }
     }
 
@@ -520,6 +529,9 @@ impl Operation {
             }
             Operation::SetPageLabels { rules } => {
                 labels::set_rules(doc, rules.clone()).map(|_| None)
+            }
+            Operation::SetDescription { description } => {
+                properties::write_description(doc, description).map(|()| None)
             }
             Operation::AddAnnotation { annotation } => {
                 let created = annot::create(doc, annotation)?;

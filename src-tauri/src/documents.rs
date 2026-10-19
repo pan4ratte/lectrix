@@ -333,6 +333,14 @@ impl Documents {
         Ok((doc.path.clone(), doc.password.clone()))
     }
 
+    /// The file of document `id`, `None` for a document that is no file yet (its
+    /// properties, section 6.10).
+    pub fn saved_file(&self, id: u32) -> Result<Option<PathBuf>, AppError> {
+        let docs = lock(&self.docs)?;
+        let doc = docs.get(&id).ok_or_else(AppError::document_closed)?;
+        Ok(doc.unsaved.is_none().then(|| doc.path.clone()))
+    }
+
     /// The tab whose file `path` is, with no unsaved changes: Unlock writes over its file
     /// and reads it again ([`Documents::rewrite`]). One with unsaved changes is left to
     /// the watcher, which warns that its file changed (section 7).

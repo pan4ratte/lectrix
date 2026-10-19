@@ -75,7 +75,7 @@ const PDFA_ID_NAMESPACE: &str = "http://www.aiim.org/pdfa/ns/id/";
 const PDFA_ID_PROPERTIES: [&str; 5] = ["part", "conformance", "amd", "corr", "rev"];
 
 /// The catalog's XMP `/Metadata` stream, if it has one.
-fn metadata_stream(doc: &PdfDocument) -> Option<PdfObject> {
+pub(crate) fn metadata_stream(doc: &PdfDocument) -> Option<PdfObject> {
     let metadata = doc.catalog().ok()?.get_dict("Metadata").ok()??;
     metadata.is_stream().ok()?.then_some(metadata)
 }
@@ -176,7 +176,7 @@ fn without_pdfa_claim(xmp: &[u8]) -> Option<Vec<u8>> {
 
 /// How an XMP packet's bytes became text, to turn the text back into the same bytes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-enum XmpEncoding {
+pub(crate) enum XmpEncoding {
     Utf8,
     /// Not valid UTF-8: each byte stands as the character with its number, so that
     /// whatever the bytes are, they come back as they were.
@@ -188,7 +188,7 @@ enum XmpEncoding {
 
 /// XMP in a PDF is UTF-8, but the format also allows UTF-16, which starts with a byte
 /// order mark or with the packet's first `<`.
-fn decode_xmp(bytes: &[u8]) -> (String, XmpEncoding) {
+pub(crate) fn decode_xmp(bytes: &[u8]) -> (String, XmpEncoding) {
     let utf16 = |big_endian: bool| {
         let unit = if big_endian {
             u16::from_be_bytes
@@ -219,7 +219,7 @@ fn decode_xmp(bytes: &[u8]) -> (String, XmpEncoding) {
     }
 }
 
-fn encode_xmp(text: &str, encoding: XmpEncoding) -> Vec<u8> {
+pub(crate) fn encode_xmp(text: &str, encoding: XmpEncoding) -> Vec<u8> {
     match encoding {
         XmpEncoding::Utf8 => text.as_bytes().to_vec(),
         // Every character came from one byte, and removing some of them made no new one.
@@ -241,12 +241,12 @@ fn encode_xmp(text: &str, encoding: XmpEncoding) -> Vec<u8> {
 }
 
 /// White space as XML defines it (and nothing else that Unicode calls white space).
-fn is_xml_space(c: char) -> bool {
+pub(crate) fn is_xml_space(c: char) -> bool {
     matches!(c, ' ' | '\t' | '\r' | '\n')
 }
 
 /// The prefixes `text` declares for `namespace` (`xmlns:prefix="namespace"`).
-fn namespace_prefixes<'a>(text: &'a str, namespace: &str) -> Vec<&'a str> {
+pub(crate) fn namespace_prefixes<'a>(text: &'a str, namespace: &str) -> Vec<&'a str> {
     const DECLARATION: &str = "xmlns:";
     let mut prefixes = Vec::new();
     let mut rest = text;
@@ -278,15 +278,15 @@ fn quoted(text: &str) -> Option<&str> {
 
 /// Where a property is in an XMP packet: its value, and all of it (the element with its
 /// tags, or the attribute with its name).
-struct XmpProperty {
-    value: std::ops::Range<usize>,
-    whole: std::ops::Range<usize>,
+pub(crate) struct XmpProperty {
+    pub(crate) value: std::ops::Range<usize>,
+    pub(crate) whole: std::ops::Range<usize>,
 }
 
 /// The first occurrence of the property `prefix:name` in an XMP packet, written as an
 /// element with nothing but its value in it (`<pdfaid:part>1</pdfaid:part>`) or as an
 /// attribute (`pdfaid:part="1"`).
-fn find_xmp_property(text: &str, prefix: &str, name: &str) -> Option<XmpProperty> {
+pub(crate) fn find_xmp_property(text: &str, prefix: &str, name: &str) -> Option<XmpProperty> {
     let qualified = format!("{prefix}:{name}");
     let closing = format!("</{qualified}");
     let mut from = 0;
@@ -380,20 +380,26 @@ pub fn read_page_layout(doc: &PdfDocument) -> Result<Option<PageLayout>> {
 
 /// True if any form field of type `/Sig` (possibly inherited) has a value.
 pub fn is_signed(doc: &PdfDocument) -> Result<bool> {
-    let Some(form) = doc.catalog()?.get_dict("AcroForm")? else {
-        return Ok(false);
-    };
-    let Some(fields) = form.get_dict("Fields")? else {
-        return Ok(false);
-    };
-    any_signed(&fields, false, 0)
+    Ok(signature_count(doc)? > 0)
 }
 
-fn any_signed(fields: &PdfObject, parent_is_sig: bool, depth: u32) -> Result<bool> {
+/// How many form fields of type `/Sig` (possibly inherited) have a value.
+pub fn signature_count(doc: &PdfDocument) -> Result<u32> {
+    let Some(form) = doc.catalog()?.get_dict("AcroForm")? else {
+        return Ok(0);
+    };
+    let Some(fields) = form.get_dict("Fields")? else {
+        return Ok(0);
+    };
+    count_signed(&fields, false, 0)
+}
+
+fn count_signed(fields: &PdfObject, parent_is_sig: bool, depth: u32) -> Result<u32> {
     // Guards against reference cycles in malformed files.
     if depth > 32 || !fields.is_array()? {
-        return Ok(false);
+        return Ok(0);
     }
+    let mut count = 0;
     for i in 0..i32::try_from(fields.len()?).unwrap_or(i32::MAX) {
         let Some(field) = fields.get_array(i)? else {
             continue;
@@ -410,15 +416,13 @@ fn any_signed(fields: &PdfObject, parent_is_sig: bool, depth: u32) -> Result<boo
                 .get_dict("V")?
                 .is_some_and(|v| v.is_dict().unwrap_or(false))
         {
-            return Ok(true);
+            count += 1;
         }
-        if let Some(kids) = field.get_dict("Kids")?
-            && any_signed(&kids, is_sig, depth + 1)?
-        {
-            return Ok(true);
+        if let Some(kids) = field.get_dict("Kids")? {
+            count += count_signed(&kids, is_sig, depth + 1)?;
         }
     }
-    Ok(false)
+    Ok(count)
 }
 
 #[cfg(test)]

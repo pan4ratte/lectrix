@@ -4,7 +4,7 @@ import type { Cipher } from "./Cipher";
 import type { Restrictions } from "./Restrictions";
 
 /**
- * The protection a file has (section 6.9).
+ * The protection a file has (sections 6.9 and 6.10).
  */
 export type ProtectionInfo = { 
 /**

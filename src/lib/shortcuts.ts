@@ -99,7 +99,8 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 			{ command: 'organizePages', label: 'Organize pages', keys: [] },
 			{ command: 'insertPages', label: 'Insert pages from file', keys: [] },
 			{ command: 'showLabels', label: 'Page labels, while organizing pages', keys: [] },
-			{ command: 'repairAnnotations', label: 'Repair annotations', keys: [] }
+			{ command: 'repairAnnotations', label: 'Repair annotations', keys: [] },
+			{ command: 'documentProperties', label: 'Properties', keys: ['Ctrl+D'], inInputs: true }
 		]
 	},
 	{

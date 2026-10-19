@@ -98,6 +98,12 @@ import type { ProtectSaved } from './generated/ProtectSaved';
 export type { ProtectStep } from './generated/ProtectStep';
 import type { ProtectStep } from './generated/ProtectStep';
 export type { Restrictions } from './generated/Restrictions';
+export type { DocumentDescription } from './generated/DocumentDescription';
+export type { DocumentProperties } from './generated/DocumentProperties';
+import type { DocumentProperties } from './generated/DocumentProperties';
+export type { FontKind } from './generated/FontKind';
+export type { UsedFont } from './generated/UsedFont';
+import type { UsedFont } from './generated/UsedFont';
 export type { BookmarkTarget } from './generated/BookmarkTarget';
 export type { PanelId } from './generated/PanelId';
 export type { DocumentFlags } from './generated/DocumentFlags';
@@ -202,6 +208,11 @@ export const setDocumentProtection = (id: number, protection: ProtectionChangeIn
 	invoke<DocumentState>('set_document_protection', { id, protection });
 export const getDocumentProtection = (id: number) =>
 	invoke<ProtectionInfo | null>('get_document_protection', { id });
+// A document's properties (section 6.10).
+export const getDocumentProperties = (id: number) => invoke<DocumentProperties>('get_document_properties', { id });
+/** The fonts pages `from` to `to` (0-based, `to` left out) use, each once. */
+export const getDocumentFonts = (id: number, from: number, to: number) =>
+	invoke<UsedFont[]>('get_document_fonts', { id, from, to });
 export const closeDocument = (id: number) => invoke<void>('close_document', { id });
 export const getDocumentInfo = (id: number) => invoke<DocumentInfo>('get_document_info', { id });
 /** The documents this window shows in tabs, as Rust has them: the tabs of a window made

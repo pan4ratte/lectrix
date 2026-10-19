@@ -110,6 +110,15 @@ export interface PasswordRequest {
 	answer?: (password: string | null) => Promise<void>;
 }
 
+/** A tab of a document's properties (section 6.10). */
+export type PropertiesSection = 'description' | 'security' | 'fonts';
+
+/** The document's properties, open for the document in tab `tabId`. */
+export interface PropertiesRequest {
+	tabId: number;
+	section: PropertiesSection;
+}
+
 /** The Protect dialog (section 6.9), for a file or for a document in a tab. */
 export interface ProtectRequest {
 	name: string;
@@ -270,7 +279,8 @@ class AppStore {
 			this.annotationPropertiesOpen ||
 			this.labelsRequest !== null ||
 			this.insertRequest !== null ||
-			this.protectRequest !== null
+			this.protectRequest !== null ||
+			this.propertiesRequest !== null
 		);
 	}
 	toasts = $state<Toast[]>([]);
@@ -282,6 +292,8 @@ class AppStore {
 	labelsRequest = $state<LabelsRequest | null>(null);
 	/** The Protect dialog is open (section 6.9). */
 	protectRequest = $state<ProtectRequest | null>(null);
+	/** A document's properties are open (section 6.10). */
+	propertiesRequest = $state<PropertiesRequest | null>(null);
 	/** The Combine view, while it is open (shown as a tab of its own). */
 	combine = $state<CombineState | null>(null);
 	/** The Combine view is the tab on screen. */

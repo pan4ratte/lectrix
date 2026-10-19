@@ -259,7 +259,9 @@ export function appMenus(platform: Platform = PLATFORM): AppMenu[] {
 			separator,
 			command('addBookmark', 'Add bookmark', reading && !!tab?.canEditBookmarks),
 			separator,
-			command('repairAnnotations', 'Repair annotations…', !!tab?.flags.canAnnotate && tab.allAnnotations.length > 0)
+			command('repairAnnotations', 'Repair annotations…', !!tab?.flags.canAnnotate && tab.allAnnotations.length > 0),
+			separator,
+			command('documentProperties', 'Properties…', hasDoc)
 		]
 	};
 

@@ -52,6 +52,7 @@ use crate::merge::{self, MergeReport};
 use crate::ops::{NumberedDests, Operation, OutlineEffect};
 use crate::outline::{self, Outline};
 use crate::pages::DeleteReport;
+use crate::properties::{self, Properties, UsedFont};
 use crate::protection::{self, ProtectionInfo, ProtectionSettings, Restrictions};
 use crate::render::{self, Part, PixelRect, RgbaImage};
 use crate::save::{
@@ -292,6 +293,13 @@ enum Command {
     },
     Protection {
         reply: Reply<Option<ProtectionInfo>>,
+    },
+    Properties {
+        reply: Reply<Properties>,
+    },
+    Fonts {
+        pages: Range<usize>,
+        reply: Reply<Vec<UsedFont>>,
     },
     WriteRecovery {
         target: PathBuf,
@@ -604,6 +612,17 @@ impl Session {
         self.call(|reply| Command::Protection { reply })
     }
 
+    /// What the document declares about itself, as it is now (section 6.10).
+    pub fn properties(&self) -> Result<Properties> {
+        self.call(|reply| Command::Properties { reply })
+    }
+
+    /// The fonts `pages` use, each once (section 6.10). Asked for a few pages at a time,
+    /// so that a long document keeps rendering meanwhile.
+    pub fn fonts(&self, pages: Range<usize>) -> Result<Vec<UsedFont>> {
+        self.call(|reply| Command::Fonts { pages, reply })
+    }
+
     /// Writes a recovery copy to `target` if the document has unsaved changes and
     /// `written` (the revision of the last copy) is not the current revision. The document
     /// and its undo history stay as they were. Documents MuPDF repaired on open are copied
@@ -794,6 +813,13 @@ fn actor(origin: Origin, rx: Receiver<Command>, ready: SyncSender<Result<Documen
             Command::Protection { reply } => {
                 let password = actor.password.clone();
                 let _ = reply.send(protection::read(&mut actor.doc, password.as_deref()));
+            }
+            Command::Properties { reply } => {
+                let _ = reply.send(properties::read(&actor.doc));
+            }
+            Command::Fonts { pages, reply } => {
+                let end = pages.end.min(actor.pages.len());
+                let _ = reply.send(properties::fonts(&actor.doc, pages.start.min(end)..end));
             }
             Command::WriteRecovery {
                 target,

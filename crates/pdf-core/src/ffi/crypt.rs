@@ -1,6 +1,7 @@
-//! How a document is encrypted, read from its security handler (Protect, section 6.9). The
-//! `mupdf` crate gives only the permissions as they apply now, which are every permission
-//! once the permissions password opened the file.
+//! How a document is encrypted, read from its security handler, and what its file declares
+//! (Protect and the document's properties, sections 6.9 and 6.10). The `mupdf` crate gives
+//! only the permissions as they apply now, which are every permission once the permissions
+//! password opened the file.
 
 use std::ffi::{CStr, c_char, c_int};
 
@@ -12,6 +13,13 @@ use super::{LectrixError, check};
 use crate::error::Result;
 
 unsafe extern "C" {
+    fn lectrix_pdf_file_facts(
+        ctx: *mut fz_context,
+        doc: *mut pdf_document,
+        version: *mut c_int,
+        linearized: *mut c_int,
+        err: *mut LectrixError,
+    ) -> c_int;
     fn lectrix_pdf_crypt_info(
         ctx: *mut fz_context,
         doc: *mut pdf_document,
@@ -36,6 +44,28 @@ pub struct CryptInfo {
     pub permissions: i32,
     /// The cipher: "AES", "RC4", or "Unknown".
     pub method: String,
+}
+
+/// The PDF version `doc`'s header declares (17 for 1.7), and whether the file starts with a
+/// linearization dictionary (the document's properties, section 6.10).
+pub fn file_facts(doc: &PdfDocument) -> Result<(i32, bool)> {
+    let ctx = Context::get().as_raw_ptr();
+    let mut version: c_int = 0;
+    let mut linearized: c_int = 0;
+    let mut err = LectrixError::new();
+    // SAFETY: `ctx` is this thread's context; `doc` is alive for the call (PdfDocument is
+    // not Send, so this is its owning thread); the out-pointers are live locals.
+    let rc = unsafe {
+        lectrix_pdf_file_facts(
+            ctx,
+            doc.as_raw_pdf_ptr(),
+            &mut version,
+            &mut linearized,
+            &mut err,
+        )
+    };
+    check(rc, err)?;
+    Ok((version, linearized != 0))
 }
 
 /// How `doc` is encrypted, or `None` for a document without encryption.

@@ -38,6 +38,8 @@
     "allow-protect-cancel",
     "allow-set-document-protection",
     "allow-get-document-protection",
+    "allow-get-document-properties",
+    "allow-get-document-fonts",
     "allow-close-document",
     "allow-get-document-info",
     "allow-list-open-documents",

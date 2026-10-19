@@ -18,6 +18,7 @@
 
 	import { tooManyPanes } from '#lib/commands.ts';
 	import { APP_NAME } from '#lib/config.ts';
+	import { openProperties } from '#lib/features/properties/actions.ts';
 	import { MAX_PANES, joinIndex } from '#lib/features/split/split.ts';
 	import { clearDrop, dropArea, tabDrop } from '#lib/features/split/tabdrop.svelte.ts';
 	import { listWindows, type WindowEntry } from '#lib/ipc/index.ts';
@@ -71,7 +72,7 @@
 			return;
 		}
 		if (event.button !== 0) return;
-		if ((event.target as HTMLElement).closest('[data-close]')) return;
+		if ((event.target as HTMLElement).closest('[data-close], [data-protected]')) return;
 		const shown = app.active ? app.activeGroup : null;
 		const before = shown && shown !== group ? shown : app.shownBefore(group);
 		const left = (event.currentTarget as HTMLElement).getBoundingClientRect().left;
@@ -366,15 +367,18 @@
 								<span class="doc-tab-divider" aria-hidden="true"></span>
 							{/if}
 							{#if view.protectedNow}
-								<span
-									class="flex shrink-0 text-fg-muted"
-									role="img"
-									aria-label="protected"
-									data-tip="Protected: File > Unlock… removes its password and restrictions"
+								<!-- Its properties, at Security (section 6.10). -->
+								<button
+									type="button"
+									class="tab-lock flex shrink-0 text-fg-muted"
+									aria-label="Protected: see its protection"
+									data-tip="Protected: click to see its protection"
+									tabindex={reachable ? 0 : -1}
 									data-protected
+									onclick={() => openProperties(view, 'security')}
 								>
 									<Lock size={12} aria-hidden="true" />
-								</span>
+								</button>
 							{/if}
 							<span class="min-w-0 truncate" class:text-fg-muted={!active}>{group.names[i]}</span>
 							<!-- A document shown twice says its state once. -->
