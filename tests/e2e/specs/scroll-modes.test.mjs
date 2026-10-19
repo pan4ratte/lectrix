@@ -141,6 +141,7 @@ test('Settings choose how documents opened afterwards are laid out', async () =>
 	try {
 		await waitForDocument(browser);
 		await browser.keys(['Control', ',']);
+		await (await browser.$('button[role="tab"]*=Viewing')).click();
 		await (await browser.$('#setting-scrollMode')).click();
 		await (await browser.$('[role="option"]=Two pages, continuous')).click();
 		await (await browser.$('[role="dialog"] button[aria-label="Close"]')).click();

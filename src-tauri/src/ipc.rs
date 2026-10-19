@@ -2085,7 +2085,9 @@ pub struct Settings {
     pub toolbar_dock: ToolbarDock,
     pub toolbar_position: ToolbarPosition,
     pub toolbar_visibility: ToolbarVisibility,
-    /// The buttons of the bar over selected text; empty: no bar.
+    /// Whether the bar of quick tools shows over selected text (section 6.5).
+    pub quick_bar: bool,
+    /// The buttons of that bar, kept while it is switched off; empty: no bar.
     pub quick_tools: Vec<QuickTool>,
     /// Whether Lectrix looks for a new release once a day (ADR 0011).
     pub check_for_updates: bool,
@@ -2155,6 +2157,7 @@ pub struct SettingsInput {
     pub toolbar_dock: ToolbarDock,
     pub toolbar_position: ToolbarPosition,
     pub toolbar_visibility: ToolbarVisibility,
+    pub quick_bar: bool,
     pub quick_tools: Vec<QuickTool>,
     pub check_for_updates: bool,
     pub smooth_zoom: bool,

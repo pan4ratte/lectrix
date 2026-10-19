@@ -78,7 +78,7 @@ test('the theme toggle, the sliders, and restoring the defaults', async () => {
 
 		// A slider: no native look, filled as far as its handle, the fill and the handle in
 		// colours of their own.
-		await (await browser.$('button[role="tab"]*=Annotations')).click();
+		await (await browser.$('button[role="tab"]*=Viewing')).click();
 		const slider = () =>
 			browser.execute(() => {
 				const el = document.querySelector('#setting-tooltipDelayMs');
@@ -127,23 +127,27 @@ test('the theme toggle, the sliders, and restoring the defaults', async () => {
 		assert.equal((await slider()).text, '2.0 s');
 
 		// Restore defaults asks first; Cancel changes nothing.
-		await (await browser.$('button[role="tab"]*=General')).click();
+		await (await browser.$('button[role="tab"]*=Annotations')).click();
 		await (await browser.$('#setting-author')).setValue('E2E Tester');
+		await (await browser.$('button[role="tab"]*=General')).click();
 		await (await browser.$('button=Restore defaults…')).click();
 		await answer(browser, 'Cancel');
+		await (await browser.$('button[role="tab"]*=Annotations')).click();
 		assert.equal(await (await browser.$('#setting-author')).getValue(), 'E2E Tester');
 		assert.equal(await theme(browser), 'light');
 
 		// Confirmed, every setting is as Lectrix came, at once and while Settings stays open.
+		await (await browser.$('button[role="tab"]*=General')).click();
 		await (await browser.$('button=Restore defaults…')).click();
 		await answer(browser, 'Restore defaults');
+		await (await browser.$('button[role="tab"]*=Annotations')).click();
 		await browser.waitUntil(async () => (await (await browser.$('#setting-author')).getValue()) === '', {
 			timeoutMsg: 'the author was not reset'
 		});
 		await (await browser.$('button[role="tab"]*=Appearance')).click();
 		assert.deepEqual(await themeChoice(browser), ['System*', 'Light', 'Dark']);
 		assert.notEqual(await theme(browser), 'light', 'the theme stayed forced to light');
-		await (await browser.$('button[role="tab"]*=Annotations')).click();
+		await (await browser.$('button[role="tab"]*=Viewing')).click();
 		assert.equal((await slider()).text, '0.3 s');
 		await closeSettings(browser);
 	} finally {

@@ -44,7 +44,7 @@ struct Data {
     /// Keyed by `Platform::file_key`.
     #[serde(default)]
     views: HashMap<String, StoredView>,
-    #[serde(default, deserialize_with = "settings_with_old_presets")]
+    #[serde(default, deserialize_with = "settings_of_older_versions")]
     settings: StoredSettings,
     #[serde(default, deserialize_with = "panes_with_old_names")]
     panes: PaneLayout,
@@ -121,12 +121,24 @@ fn panes_with_old_names<'de, D: serde::Deserializer<'de>>(
 /// yellow, green, red, blue, orange, purple, the colours the number keys pick first.
 const OLD_PRESET_PLACES: [u8; 12] = [3, 1, 0, 4, 2, 5, 9, 7, 6, 10, 8, 11];
 
-/// The settings, reading the preset colours of versions up to 1.2 (`preset_colors`, by
-/// their places then) into the places those colours have now (`presets`).
-fn settings_with_old_presets<'de, D: serde::Deserializer<'de>>(
+/// The settings, reading what earlier versions stored as it is stored now: the preset
+/// colours of versions up to 1.2 (`preset_colors`, by their places then) into the places
+/// those colours have now (`presets`), and an empty list of quick tools, which hid their
+/// bar before it had a switch of its own, as the bar switched off with the default tools.
+fn settings_of_older_versions<'de, D: serde::Deserializer<'de>>(
     deserializer: D,
 ) -> Result<StoredSettings, D::Error> {
     let mut value = serde_json::Value::deserialize(deserializer)?;
+    if let Some(map) = value.as_object_mut()
+        && !map.contains_key("quick_bar")
+        && map
+            .get("quick_tools")
+            .and_then(serde_json::Value::as_array)
+            .is_some_and(Vec::is_empty)
+    {
+        map.remove("quick_tools");
+        map.insert("quick_bar".to_string(), serde_json::Value::Bool(false));
+    }
     if let Some(map) = value.as_object_mut()
         && let Some(serde_json::Value::Object(old)) = map.remove("preset_colors")
         && !map.contains_key("presets")
@@ -166,6 +178,9 @@ pub struct StoredSettings {
     pub toolbar_position: ToolbarPosition,
     #[serde(default)]
     pub toolbar_visibility: ToolbarVisibility,
+    /// Whether the bar of quick tools shows over selected text.
+    #[serde(default = "yes")]
+    pub quick_bar: bool,
     #[serde(
         default = "default_quick_tools",
         deserialize_with = "known_quick_tools"
@@ -266,6 +281,7 @@ impl Default for StoredSettings {
             toolbar_dock: ToolbarDock::default(),
             toolbar_position: ToolbarPosition::default(),
             toolbar_visibility: ToolbarVisibility::default(),
+            quick_bar: true,
             quick_tools: default_quick_tools(),
             check_for_updates: true,
             smooth_zoom: true,
@@ -821,6 +837,7 @@ mod tests {
             toolbar_dock: ToolbarDock::Right,
             toolbar_position: ToolbarPosition::Left,
             toolbar_visibility: ToolbarVisibility::OnHover,
+            quick_bar: false,
             quick_tools: vec![QuickTool::Squiggly, QuickTool::Bookmark],
             check_for_updates: false,
             smooth_zoom: false,
@@ -874,6 +891,7 @@ mod tests {
         .unwrap();
         let v1 = Store::load(Some(file.clone()));
         assert_eq!(v1.settings().author.as_deref(), Some("Ada"));
+        assert!(v1.settings().quick_bar);
         assert_eq!(v1.settings().quick_tools, QuickTool::DEFAULT.to_vec());
         assert_eq!(v1.settings().toolbar_style, ToolbarStyle::Panel);
         assert_eq!(v1.settings().toolbar_dock, ToolbarDock::Top);
@@ -913,7 +931,7 @@ mod tests {
                 (17, "#101010".to_string()),
             ])
         );
-        // Tools from a newer version are skipped, not fatal; an empty list stays empty.
+        // Tools from a newer version are skipped, not fatal.
         fs::write(
             &file,
             br#"{"recent":[{"path":"c:/a.pdf","opened_at":1}],"settings":{"quick_tools":["copy","sparkle"]}}"#,
@@ -922,8 +940,20 @@ mod tests {
         let newer = Store::load(Some(file.clone()));
         assert_eq!(newer.settings().quick_tools, vec![QuickTool::Copy]);
         assert_eq!(newer.recent().len(), 1);
+        // An empty list hid the bar before it had a switch: the bar is off, and switched
+        // on again it has the default tools. Stored with the switch, an empty list stays.
         fs::write(&file, br#"{"settings":{"quick_tools":[]}}"#).unwrap();
-        assert!(Store::load(Some(file)).settings().quick_tools.is_empty());
+        let hidden = Store::load(Some(file.clone()));
+        assert!(!hidden.settings().quick_bar);
+        assert_eq!(hidden.settings().quick_tools, QuickTool::DEFAULT.to_vec());
+        fs::write(
+            &file,
+            br#"{"settings":{"quick_bar":true,"quick_tools":[]}}"#,
+        )
+        .unwrap();
+        let emptied = Store::load(Some(file));
+        assert!(emptied.settings().quick_bar);
+        assert!(emptied.settings().quick_tools.is_empty());
     }
 
     #[test]

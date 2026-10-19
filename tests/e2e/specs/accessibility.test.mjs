@@ -201,8 +201,8 @@ test('menus, tabs and lists move with arrow keys; dialogs keep focus inside', as
 		await browser.keys(['ArrowDown']);
 		const group = await focused(browser);
 		assert.equal(group.computedRole, 'tab');
-		assert.equal(group.name, 'Appearance', 'Down moved to the next settings group');
-		assert.ok(await (await browser.$('#setting-appearance')).isDisplayed(), 'the Appearance settings show');
+		assert.equal(group.name, 'Viewing', 'Down moved to the next settings group');
+		assert.ok(await (await browser.$('#setting-scrollMode')).isDisplayed(), 'the Viewing settings show');
 		await browser.keys(['Escape']);
 		await browser.waitUntil(() => browser.execute(() => document.querySelector('[role="dialog"]') === null), {
 			timeoutMsg: 'Escape did not close Settings'

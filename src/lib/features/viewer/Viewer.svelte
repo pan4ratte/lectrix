@@ -1395,7 +1395,8 @@
 	}
 
 	const view: Area = $derived({ x0: scrollLeft, y0: scrollTop, x1: scrollLeft + viewportW, y1: scrollTop + viewportH });
-	const quickTools = $derived(app.settings?.quickTools ?? DEFAULT_QUICK_TOOLS);
+	/** The quick tools over selected text: none while their bar is switched off. */
+	const quickTools = $derived(app.settings?.quickBar === false ? [] : (app.settings?.quickTools ?? DEFAULT_QUICK_TOOLS));
 
 	/** Where the pointer was released after selecting text (page points), and for which
 	 * selection. */

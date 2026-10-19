@@ -1,6 +1,6 @@
 // Going to the next or previous page with the view bar's buttons, and to a bookmark's
 // place (AGENTS.md sections 6.1 and 6.2): the view glides there, a row shown alone comes
-// in, and Settings > Appearance > Motion turns each off by itself.
+// in, and Settings > Viewing > Motion turns each off by itself.
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -45,10 +45,10 @@ async function watch(browser, act) {
 	return { from, to, between: seen.filter((top) => top !== from && top !== to), reduced };
 }
 
-/** Turns a switch of Settings > Appearance on or off. */
+/** Turns a switch of Settings > Viewing on or off. */
 async function setMotion(browser, id, on) {
 	await browser.keys(['Control', ',']);
-	await (await browser.$('button[role="tab"]*=Appearance')).click();
+	await (await browser.$('button[role="tab"]*=Viewing')).click();
 	const toggle = await browser.$(`#setting-${id}`);
 	await toggle.waitForExist({ timeoutMsg: `Settings has no ${id}` });
 	if (((await toggle.getAttribute('aria-checked')) === 'true') !== on) await toggle.click();

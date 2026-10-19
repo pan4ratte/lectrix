@@ -26,7 +26,11 @@ defaultAuthor: string, appearance: Appearance,
  */
 scrollMode: ScrollMode, toolbarStyle: ToolbarStyle, toolbarDock: ToolbarDock, toolbarPosition: ToolbarPosition, toolbarVisibility: ToolbarVisibility, 
 /**
- * The buttons of the bar over selected text; empty: no bar.
+ * Whether the bar of quick tools shows over selected text (section 6.5).
+ */
+quickBar: boolean, 
+/**
+ * The buttons of that bar, kept while it is switched off; empty: no bar.
  */
 quickTools: Array<QuickTool>, 
 /**

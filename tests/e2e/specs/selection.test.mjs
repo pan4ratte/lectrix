@@ -301,7 +301,7 @@ test('a drag from a double-click selects whole words; a click puts a text cursor
 	}
 });
 
-test('Settings puts handles on the sides of the selection, to drag it from', async () => {
+test('Settings puts handles on the sides of the selection, and can put the quick tools away', async () => {
 	const path = sample('selection-handles.pdf', 2);
 	const { browser, stop } = await launch([path]);
 	try {
@@ -320,7 +320,7 @@ test('Settings puts handles on the sides of the selection, to drag it from', asy
 		assert.deepEqual(await handles(), []);
 
 		await browser.keys(['Control', ',']);
-		await (await browser.$('button[role="tab"]*=General')).click();
+		await (await browser.$('button[role="tab"]*=Viewing')).click();
 		await (await browser.$('label*=Show handles on selected text')).click();
 		assert.equal(await (await browser.$('#setting-selectionHandles')).getAttribute('aria-checked'), 'true');
 		await (await browser.$('[role="dialog"] button[aria-label="Close"]')).click();
@@ -344,6 +344,25 @@ test('Settings puts handles on the sides of the selection, to drag it from', asy
 		assert.ok(longer.right > word.right + 40 && near(longer.left, word.left), `dragging the handle left ${JSON.stringify(longer)}`);
 		const moved = (await handles()).find((h) => h.side === 'end');
 		assert.ok(near(moved.x, longer.right), `the end handle is at ${moved.x}, the selection ends at ${longer.right}`);
+
+		// Settings > Toolbars puts the quick tools away with one switch, keeping which ones
+		// are chosen; the selection keeps its handles.
+		const quick = () => browser.$('[role=toolbar][aria-label="Quick tools"]');
+		assert.equal(await (await quick()).isDisplayed(), true, 'no quick tools over the selection');
+		await browser.keys(['Control', ',']);
+		await (await browser.$('button[role="tab"]*=Toolbars')).click();
+		await (await browser.$('label*=Show quick tools over selected text')).click();
+		assert.equal(await (await browser.$('#setting-quickBar')).getAttribute('aria-checked'), 'false');
+		assert.equal(await (await browser.$('#setting-quickTools-highlight')).isEnabled(), false, 'a quick tool can be chosen with the bar off');
+		assert.equal(await (await browser.$('#setting-quickTools-highlight')).getAttribute('aria-checked'), 'true', 'the chosen tools were forgotten');
+		await (await browser.$('[role="dialog"] button[aria-label="Close"]')).click();
+		await browser.waitUntil(() => browser.execute(() => document.querySelector('[role="dialog"]') === null), {
+			timeoutMsg: 'Settings did not close'
+		});
+		await browser.keys('Escape');
+		await selectQuick(browser);
+		await browser.waitUntil(async () => (await handles()).length === 2, { timeoutMsg: 'the selection lost its handles' });
+		assert.equal(await (await quick()).isExisting(), false, 'the quick tools showed with their bar switched off');
 	} finally {
 		await stop();
 	}

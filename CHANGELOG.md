@@ -35,8 +35,8 @@ the wording, translations): docs/releasing.md, "The changelog".
 - With text selected, **Ctrl+F** puts that text in the search bar and starts at the selection itself.
 - With **Greyscale** on in Visual adjustments, annotations keep their colours: only the page turns grey.
 - With **Invert colours** on, annotations keep clear colours on the dark page. A yellow highlight is a gold the light text stays readable on, instead of a dark brown, pale highlights show, and black ink and text boxes turn white.
-- While you search, marks beside the scrollbar show where the matches are in the document, the one shown in a stronger colour. **Settings > General > Search** can turn them off.
-- Going to the next or previous match glides there, as bookmarks do. **Settings > Appearance > Motion** can turn this off.
+- While you search, marks beside the scrollbar show where the matches are in the document, the one shown in a stronger colour. **Settings > Viewing > Search** can turn them off.
+- Going to the next or previous match glides there, as bookmarks do. **Settings > Viewing > Motion** can turn this off.
 - The search bar slides in and fades in as it opens, and goes the same way.
 - Pressed a second time, a shortcut you gave to the Pages, Bookmarks or Annotations panel hides it again. In the **View** menu, the panel on screen has a check mark, and choosing it again hides it.
 
@@ -94,6 +94,10 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 - A new command switches between the light and the dark theme. It has no shortcut until you give it one in **Settings > Shortcuts**, under View.
 - Pressed again while it is open, the shortcut for Settings closes it. The same goes for About and What’s new, once you give them a shortcut.
+- Settings are easier to find. A new **Viewing** group holds what changes how you read: page display, selected text, search, links, tooltips and motion. The author name moved to **Annotations**, and every group is in sections named for what they change.
+- One switch in **Settings > Toolbars > Quick tools** hides the quick tools over selected text, and keeps your choice of tools for when you turn them back on.
+- **Check now** in **Settings > General > Updates** looks for an update at once.
+- On macOS and Linux, Settings no longer says the theme and animations follow Windows.
 
 ### General
 

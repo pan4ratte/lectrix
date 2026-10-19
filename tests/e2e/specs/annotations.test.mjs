@@ -289,7 +289,7 @@ test('create, edit, delete, undo, save and reopen annotations', async () => {
 
 		// Settings: another author and the dark appearance, applied at once, with no Save.
 		await browser.keys(['Control', ',']);
-		await (await browser.$('button[role="tab"]*=General')).click();
+		await (await browser.$('button[role="tab"]*=Annotations')).click();
 		await (await browser.$('#setting-author')).setValue('E2E Tester');
 		await (await browser.$('button[role="tab"]*=Appearance')).click();
 		await (await (await browser.$('#setting-appearance')).$('[role="radio"]*=Dark')).click();

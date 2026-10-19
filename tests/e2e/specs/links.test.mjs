@@ -227,7 +227,7 @@ test('links in the text are followed, and bookmark titles show as in Acrobat', a
 
 		// Settings turn the tint and the tooltip off; links work as before.
 		await browser.keys(['Control', ',']);
-		await (await browser.$('button[role="tab"]*=General')).click();
+		await (await browser.$('button[role="tab"]*=Viewing')).click();
 		await (await browser.$('label*=Highlight the link under the pointer')).click();
 		assert.equal(await (await browser.$('#setting-highlightLinks')).getAttribute('aria-checked'), 'false');
 		await (await browser.$('label*=Show where a link leads')).click();

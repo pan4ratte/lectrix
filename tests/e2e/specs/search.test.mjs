@@ -153,9 +153,9 @@ test('the search bar suggests words, marks its matches and glides to them', asyn
 		assert.equal(await browser.execute(() => document.querySelector('[data-search-suggestions] [role="option"]')), null, 'the list stayed open');
 
 		// Settings: no marks, and no glide.
-		await setSwitch(browser, 'General', 'searchMarkers', false);
+		await setSwitch(browser, 'Viewing', 'searchMarkers', false);
 		assert.equal(await browser.execute(() => document.querySelector('[data-search-marks]')), null, 'the marks stayed with the setting off');
-		await setSwitch(browser, 'Appearance', 'smoothSearchScroll', false);
+		await setSwitch(browser, 'Viewing', 'smoothSearchScroll', false);
 		// Typed, a search moves nothing: the bar counts the matches, and Enter goes to one.
 		// (One match a page, so the next one is off screen.)
 		const scrollTop = () => browser.execute(() => document.querySelector('.viewer-scroll').scrollTop);

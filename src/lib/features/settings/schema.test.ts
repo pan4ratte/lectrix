@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import type { Settings } from '#lib/ipc/index.ts';
 
-import { RESET_ROW, SETTING_GROUPS, toDraft, toInput, type SettingRow } from './schema.ts';
+import { CHECK_UPDATES_ROW, RESET_ROW, SETTING_GROUPS, toDraft, toInput, type SettingRow } from './schema.ts';
 
 /** Every stored setting, as Rust sends them (a new field in Rust fails to compile here). */
 const STORED: Settings = {
@@ -14,6 +14,7 @@ const STORED: Settings = {
 	toolbarDock: 'top',
 	toolbarPosition: 'bottom',
 	toolbarVisibility: 'always',
+	quickBar: true,
 	quickTools: ['highlight', 'copy'],
 	checkForUpdates: true,
 	smoothZoom: true,
@@ -102,18 +103,13 @@ describe('settings schema', () => {
 		expect(draft.toolbarVisibility).toBe('always');
 	});
 
-	it('keeps the floating options while the toolbar is docked, and says what they are for', () => {
+	it('keeps the floating options while the toolbar is docked, in a section that says what they are for', () => {
 		// Full screen floats the toolbar whatever its placement (section 6.1).
 		const draft = toDraft({ ...STORED, toolbarStyle: 'panel' });
-		const says = (id: string, d: typeof draft) => {
-			const { description } = row(id);
-			return typeof description === 'function' ? description(d) : (description ?? '');
-		};
-		for (const id of ['toolbarPosition', 'toolbarVisibility']) {
-			expect(row(id).disabled?.(draft) ?? false, id).toBe(false);
-			expect(says(id, draft), id).toMatch(/full screen/);
-			expect(says(id, toDraft(STORED)), id).not.toMatch(/full screen/);
-		}
+		const floating = SETTING_GROUPS.flatMap((g) => g.sections).find((s) => s.title === 'Floating toolbar');
+		expect(floating?.description).toMatch(/full screen/);
+		expect(floating?.rows.map((r) => r.id)).toEqual(['toolbarPosition', 'toolbarVisibility']);
+		for (const id of ['toolbarPosition', 'toolbarVisibility']) expect(row(id).disabled?.(draft) ?? false, id).toBe(false);
 	});
 
 	it('offers where to dock the toolbar only while it is docked', () => {
@@ -142,10 +138,22 @@ describe('settings schema', () => {
 		expect(draft.quickTools).toEqual(['highlight', 'underline', 'bookmark']);
 	});
 
-	it('offers to restore the defaults with a button, not a value', () => {
-		const reset = row(RESET_ROW);
-		expect(reset.kind).toBe('action');
-		expect('key' in reset).toBe(false);
+	it('keeps the quick tools chosen while their bar is off, and offers them only while it is on', () => {
+		const draft = toDraft(STORED);
+		const bar = row('quickBar');
+		if (bar.kind !== 'switch') throw new Error('quickBar is not a switch');
+		expect(row('quickTools-copy').disabled?.(draft)).toBe(false);
+		bar.write(draft, false);
+		expect(row('quickTools-copy').disabled?.(draft)).toBe(true);
+		expect(toInput(draft)).toMatchObject({ quickBar: false, quickTools: ['highlight', 'copy'] });
+	});
+
+	it('offers to restore the defaults and to check for updates with buttons, not values', () => {
+		for (const id of [RESET_ROW, CHECK_UPDATES_ROW]) {
+			const action = row(id);
+			expect(action.kind, id).toBe('action');
+			expect('key' in action, id).toBe(false);
+		}
 	});
 
 	it('sends the shortcuts as its own copy', () => {

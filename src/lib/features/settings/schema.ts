@@ -7,7 +7,7 @@
 // a switch (the floating toolbar's visibility). Booleans, and choices between "the usual" and
 // one alternative, are switches; choices between peers are dropdowns. The colour panel's
 // presets are a row of their own kind.
-import { Highlighter, Keyboard, Monitor, Moon, Palette, PanelBottom, SlidersHorizontal, Sun } from '@lucide/svelte';
+import { BookOpen, Highlighter, Keyboard, Monitor, Moon, Palette, PanelBottom, SlidersHorizontal, Sun } from '@lucide/svelte';
 import type { Component } from 'svelte';
 
 import { APP_NAME } from '#lib/config.ts';
@@ -25,6 +25,7 @@ import type {
 	ToolbarPosition,
 	ToolbarStyle
 } from '#lib/ipc/index.ts';
+import { PLATFORM, type Platform } from '#lib/platform.ts';
 
 /** The dialog's working copy: the stored settings, with `author` empty when it is the default. */
 export type Draft = Settings;
@@ -187,6 +188,7 @@ function quickTool(tool: QuickTool, label: string): SettingRow {
 		id: `quickTools-${tool}`,
 		key: 'quickTools',
 		label,
+		disabled: (d) => !d.quickBar,
 		read: (d) => d.quickTools.includes(tool),
 		write: (d, on) => {
 			const chosen = new Set(d.quickTools);
@@ -198,8 +200,26 @@ function quickTool(tool: QuickTool, label: string): SettingRow {
 }
 
 const docked = (d: Draft) => d.toolbarStyle === 'panel';
-/** Said of the floating toolbar's options while it is docked: full screen still floats it. */
-const IN_FULL_SCREEN = 'Used in full screen, where the toolbar floats.';
+
+/** What the rows that follow the system say of it, on each. */
+const SYSTEM_WORDS: Record<Platform, { theme: string; motion: string; userName: string }> = {
+	windows: {
+		theme: 'System follows Windows.',
+		motion: 'Off while animations are turned off in Windows.',
+		userName: 'your Windows user name'
+	},
+	macos: {
+		theme: 'System follows macOS.',
+		motion: 'Off while Reduce motion is on in macOS.',
+		userName: 'your user name'
+	},
+	linux: {
+		theme: 'System follows your desktop’s theme.',
+		motion: 'Off while your desktop has animations turned off.',
+		userName: 'your user name'
+	}
+};
+const SYSTEM = SYSTEM_WORDS[PLATFORM];
 
 /** A slider for one of the visual adjustments every document is shown with. */
 function adjustment(part: 'brightness' | 'contrast' | 'sepia', label: string, min: number, max: number, extra: Extra = {}): SettingRow {
@@ -237,6 +257,8 @@ export const RESET_ROW = 'resetSettings';
 export const RESET_ADJUSTMENTS_ROW = 'resetPageAdjustments';
 /** The id of the row that puts the default preset colours back. */
 export const RESET_COLORS_ROW = 'resetPresetColors';
+/** The id of the row that checks for updates now, as the Help menu does. */
+export const CHECK_UPDATES_ROW = 'checkForUpdatesNow';
 
 export const SETTING_GROUPS: readonly SettingGroup[] = [
 	{
@@ -245,26 +267,51 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 		icon: SlidersHorizontal,
 		sections: [
 			{
+				title: 'Opening files',
 				rows: [
-					{
-						kind: 'text',
-						id: 'author',
-						key: 'author',
-						label: 'Author name',
-						description: (d) =>
-							`Shown on annotations you add. Leave empty to use your Windows user name (${d.defaultAuthor}).`,
-						placeholder: (d) => d.defaultAuthor,
-						maxLength: 200,
-						read: (d) => d.author,
-						write: (d, value) => (d.author = value)
-					},
-					toggle('checkForUpdates', 'Check for updates automatically', {
-						description: 'Once a day, from GitHub. Nothing about you or your files is sent.'
+					toggle('pdfaReadOnly', 'Open PDF/A files for reading only', {
+						description:
+							'Files made for long-term archiving open protected from changes, until you choose Enable editing.'
 					})
 				]
 			},
 			{
-				title: 'Documents',
+				title: 'Updates',
+				rows: [
+					toggle('checkForUpdates', 'Check for updates automatically', {
+						description: 'Once a day, from GitHub. Nothing about you or your files is sent.'
+					}),
+					{
+						kind: 'action',
+						id: CHECK_UPDATES_ROW,
+						label: 'Check for updates now',
+						description: 'Settings closes, so that an update found can be installed.',
+						button: 'Check now'
+					}
+				]
+			},
+			{
+				title: 'Reset',
+				rows: [
+					{
+						kind: 'action',
+						id: RESET_ROW,
+						label: 'Restore default settings',
+						description: 'Shortcuts and author name included. Recent files and panes stay as they are.',
+						button: 'Restore defaults…',
+						danger: true
+					}
+				]
+			}
+		]
+	},
+	{
+		id: 'viewing',
+		label: 'Viewing',
+		icon: BookOpen,
+		sections: [
+			{
+				title: 'Pages',
 				rows: [
 					choice(
 						'scrollMode',
@@ -280,11 +327,7 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 							description:
 								'How pages are laid out when a document opens. View > Page display changes it for the open document.'
 						}
-					),
-					toggle('pdfaReadOnly', 'Open PDF/A files for reading only', {
-						description:
-							'Files made for long-term archiving open protected from changes, until you choose Enable editing.'
-					})
+					)
 				]
 			},
 			{
@@ -311,22 +354,47 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 						description: 'A link in the text is tinted while the pointer is on it. Links work either way.'
 					}),
 					toggle('linkPreviews', 'Show where a link leads', {
-						description:
-							'A tooltip on the link under the pointer names the page it goes to, or its web address. It waits as long as a comment’s tooltip (Annotations).'
+						description: 'A tooltip on the link under the pointer names the page it goes to, or its web address.'
 					})
 				]
 			},
 			{
-				title: 'Reset',
+				title: 'Tooltips',
 				rows: [
 					{
-						kind: 'action',
-						id: RESET_ROW,
-						label: 'Restore default settings',
-						description: 'Shortcuts and author name included. Recent files and panes stay as they are.',
-						button: 'Restore defaults…',
-						danger: true
+						kind: 'range',
+						id: 'tooltipDelayMs',
+						key: 'tooltipDelayMs',
+						label: 'Tooltip delay',
+						description: 'How long the pointer rests on a comment or a link before its tooltip shows.',
+						min: 0,
+						max: MAX_TIP_DELAY_MS,
+						step: 100,
+						format: (ms) => `${(ms / 1000).toFixed(1)} s`,
+						read: (d) => d.tooltipDelayMs,
+						write: (d, ms) => (d.tooltipDelayMs = ms)
 					}
+				]
+			},
+			{
+				title: 'Motion',
+				description: SYSTEM.motion,
+				rows: [
+					toggle('smoothZoom', 'Smooth zooming', {
+						description: 'Zoom glides to the new size. A touchpad pinch always follows your fingers.'
+					}),
+					toggle('smoothPageTurn', 'Smooth scrolling to the next and previous page', {
+						description: 'The view glides there when you press the Previous page or Next page button.'
+					}),
+					toggle('smoothBookmarkScroll', 'Smooth scrolling to bookmarks and links', {
+						description: 'The view glides to the place a bookmark or a link in the text leads to.'
+					}),
+					toggle('smoothSearchScroll', 'Smooth scrolling to search results', {
+						description: 'The view glides to the next or previous match of a search.'
+					}),
+					toggle('smoothAnnotationScroll', 'Smooth scrolling to annotations', {
+						description: 'The page glides to an annotation picked in the list.'
+					})
 				]
 			}
 		]
@@ -346,29 +414,8 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 							{ value: 'light', label: 'Light', icon: Sun },
 							{ value: 'dark', label: 'Dark', icon: Moon }
 						] satisfies { value: Appearance; label: string; icon: Icon }[],
-						{ description: 'System follows Windows.' }
+						{ description: SYSTEM.theme }
 					)
-				]
-			},
-			{
-				title: 'Motion',
-				description: 'Off while animations are turned off in Windows.',
-				rows: [
-					toggle('smoothZoom', 'Smooth zooming', {
-						description: 'Zoom glides to the new size. A touchpad pinch always follows your fingers.'
-					}),
-					toggle('smoothAnnotationScroll', 'Smooth scrolling to annotations', {
-						description: 'The page glides to an annotation picked in the list.'
-					}),
-					toggle('smoothPageTurn', 'Smooth scrolling to the next and previous page', {
-						description: 'The view glides there when you press the Previous page or Next page button.'
-					}),
-					toggle('smoothBookmarkScroll', 'Smooth scrolling to bookmarks and links', {
-						description: 'The view glides to the place a bookmark or a link in the text leads to.'
-					}),
-					toggle('smoothSearchScroll', 'Smooth scrolling to search results', {
-						description: 'The view glides to the next or previous match of a search.'
-					})
 				]
 			},
 			{
@@ -400,36 +447,33 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 		sections: [
 			{
 				rows: [
+					{
+						kind: 'text',
+						id: 'author',
+						key: 'author',
+						label: 'Author name',
+						description: (d) => `Shown on annotations you add. Leave empty to use ${SYSTEM.userName} (${d.defaultAuthor}).`,
+						placeholder: (d) => d.defaultAuthor,
+						maxLength: 200,
+						read: (d) => d.author,
+						write: (d, value) => (d.author = value)
+					}
+				]
+			},
+			{
+				title: 'New annotations',
+				rows: [
 					toggle('openCommentAfterMarkup', 'Add a comment after marking text', {
 						description: 'A new highlight, underline, strikeout or squiggly opens its comment, ready to type.'
 					}),
 					toggle('rememberAnnotationStyle', 'Use the last colour and opacity for new annotations', {
 						description: `One colour for every tool, and an opacity for each. When off, the defaults return each time ${APP_NAME} starts.`
-					}),
-					toggle('rememberAnnotationSort', 'Keep the annotation list’s sort for every document', {
-						description: `The order last picked in the annotation list, in every file and after ${APP_NAME} restarts. When off, each document starts sorted by page.`
-					}),
-					{
-						kind: 'range',
-						id: 'tooltipDelayMs',
-						key: 'tooltipDelayMs',
-						label: 'Comment tooltip delay',
-						description: 'How long the pointer rests on an annotation before its comment shows.',
-						min: 0,
-						max: MAX_TIP_DELAY_MS,
-						step: 100,
-						format: (ms) => `${(ms / 1000).toFixed(1)} s`,
-						read: (d) => d.tooltipDelayMs,
-						write: (d, ms) => (d.tooltipDelayMs = ms)
-					}
+					})
 				]
 			},
 			{
 				title: 'Colours',
 				rows: [
-					toggle('colorPanelOnHover', 'Open the colours when the pointer is on their button', {
-						description: 'When off, a colour button shows its colours when you click it.'
-					}),
 					{
 						kind: 'presets',
 						id: 'presetColors',
@@ -446,7 +490,18 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 						description: 'Puts back the colours Lectrix comes with.',
 						button: 'Restore colours',
 						disabled: (d) => Object.keys(d.presetColors).length === 0
-					}
+					},
+					toggle('colorPanelOnHover', 'Open the colours when the pointer is on their button', {
+						description: 'When off, a colour button shows its colours when you click it.'
+					})
+				]
+			},
+			{
+				title: 'Annotation list',
+				rows: [
+					toggle('rememberAnnotationSort', 'Keep the list’s sort for every document', {
+						description: `The order last picked in the annotation list, in every file and after ${APP_NAME} restarts. When off, each document starts sorted by page.`
+					})
 				]
 			}
 		]
@@ -481,7 +536,14 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 								'At the top, in the bar above the pages. At a side, in a bar of its own, with the tools stacked.',
 							disabled: (d) => !docked(d)
 						}
-					),
+					)
+				]
+			},
+			{
+				// Changeable while the toolbar is docked too, since full screen floats it.
+				title: 'Floating toolbar',
+				description: 'Also used in full screen, where the toolbar always floats.',
+				rows: [
 					choice(
 						'toolbarPosition',
 						'Where it floats',
@@ -491,18 +553,21 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 							{ value: 'left', label: 'Left' },
 							{ value: 'right', label: 'Right' }
 						] satisfies { value: ToolbarPosition; label: string }[],
-						{ description: (d) => `At a side, the tools are stacked.${docked(d) ? ` ${IN_FULL_SCREEN}` : ''}` }
+						{ description: 'At a side, the tools are stacked.' }
 					),
 					toggleBetween('toolbarVisibility', 'always', 'onHover', 'Show only when the pointer is near', {
-						description: (d) =>
-							`The toolbar also shows while it has keyboard focus, and briefly after you pick a tool.${docked(d) ? ` ${IN_FULL_SCREEN}` : ''}`
+						description: 'The toolbar also shows while it has keyboard focus, and briefly after you pick a tool.'
 					})
 				]
 			},
 			{
-				title: 'Quick tools for selected text',
-				description: 'Buttons over text you select with the Select tool.',
-				rows: QUICK_TOOLS.map((t) => quickTool(t.id, t.label))
+				title: 'Quick tools',
+				rows: [
+					toggle('quickBar', 'Show quick tools over selected text', {
+						description: 'Buttons over text you select with the Select tool. The ones switched on below stay so while this is off.'
+					}),
+					...QUICK_TOOLS.map((t) => quickTool(t.id, t.label))
+				]
 			}
 		]
 	},
@@ -529,6 +594,7 @@ export function toInput(d: Draft): SettingsInput {
 		toolbarDock: d.toolbarDock,
 		toolbarPosition: d.toolbarPosition,
 		toolbarVisibility: d.toolbarVisibility,
+		quickBar: d.quickBar,
 		quickTools: [...d.quickTools],
 		checkForUpdates: d.checkForUpdates,
 		smoothZoom: d.smoothZoom,
