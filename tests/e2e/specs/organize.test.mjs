@@ -133,9 +133,11 @@ test('pages are moved, turned and deleted in the grid, and the document follows'
 		);
 		assert.deepEqual(named.filter(Boolean), ['Insert', 'Extract', 'Labels', 'Done']);
 		assert.equal(named.at(-1), 'Done', 'Done is not at the end of the bar');
-		// The pages are centered in the view.
-		const centered = await layout(browser);
-		assert.ok(Math.abs(centered.left - centered.right) <= 1.5, `the grid is not centered: ${JSON.stringify(centered)}`);
+		// The pages start at the top left corner (the grid's 16 px padding), and what is left
+		// over is at the right: less than another column would take (a cell and its 8 px gap).
+		const placed = await layout(browser);
+		assert.ok(Math.abs(placed.left - 16) <= 1, `the grid does not start at its left edge: ${JSON.stringify(placed)}`);
+		assert.ok(placed.right >= placed.left - 1, `the columns do not start at the left: ${JSON.stringify(placed)}`);
 
 		// The last page, two places earlier; undo takes one step back, redo brings it again.
 		await clickPage(browser, 5);
