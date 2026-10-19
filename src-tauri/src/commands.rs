@@ -444,10 +444,11 @@ pub fn unprotect_save(
     } else {
         path.clone()
     };
-    state.unprotect.cancel(token);
     let replaced = state.platform.same_file(&path, &target);
     let write = || -> Result<(), AppError> {
         pdf_core::unprotect::remove_protection(&path, password.as_deref(), &target)?;
+        // Written: the file waits no more. Until then a failure can be tried again.
+        state.unprotect.cancel(token);
         crate::applog::info(format!(
             "unlocked {} into {}",
             path.display(),
@@ -468,6 +469,11 @@ pub fn unprotect_save(
         }
         None => {
             write()?;
+            state.documents.protection_written(
+                &target,
+                pdf_core::session::ProtectionChange::Remove,
+                state.platform,
+            );
             None
         }
     };
@@ -551,12 +557,13 @@ pub fn protect_save(
     } else {
         path.clone()
     };
-    state.protect.cancel(token);
     let replaced = state.platform.same_file(&path, &target);
     let mut pdfa_removed = None;
     let mut write = || -> Result<(), AppError> {
         pdfa_removed =
             pdf_core::protection::protect_file(&path, password.as_deref(), &settings, &target)?;
+        // Written: the file waits no more. Until then a failure can be tried again.
+        state.protect.cancel(token);
         crate::applog::info(format!(
             "protected {} into {}",
             path.display(),
@@ -578,6 +585,11 @@ pub fn protect_save(
         }
         None => {
             write()?;
+            state.documents.protection_written(
+                &target,
+                pdf_core::session::ProtectionChange::Set(settings.clone()),
+                state.platform,
+            );
             None
         }
     };

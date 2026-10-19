@@ -24,7 +24,7 @@ use std::sync::{Mutex, MutexGuard};
 use std::time::{Duration, SystemTime};
 
 use pdf_core::save::SaveKind;
-use pdf_core::session::{DocumentInfo as CoreInfo, OpenOptions, Session};
+use pdf_core::session::{DocumentInfo as CoreInfo, OpenOptions, ProtectionChange, Session};
 
 use crate::ipc::{AppError, DocumentInfo, FileChangedEvent, OpenResult, SaveResult, ViewState};
 use crate::platform::Platform;
@@ -372,6 +372,40 @@ impl Documents {
         }
         written?;
         self.reload_as(id, Some(password), platform, store)
+    }
+
+    /// Protect or Unlock wrote `change` into `path`, which may be open in a tab with unsaved
+    /// changes (a clean one is read again instead). That tab keeps its changes and warns
+    /// that its file changed (section 7); its next save writes the same protection, and
+    /// reading the file again opens it with its new password.
+    pub fn protection_written(
+        &self,
+        path: &Path,
+        change: ProtectionChange,
+        platform: &dyn Platform,
+    ) {
+        let Some(id) = self.find_open(path, platform) else {
+            return;
+        };
+        let password = match &change {
+            ProtectionChange::Remove => None,
+            ProtectionChange::Set(settings) => settings.reopen_password().map(str::to_owned),
+        };
+        let session = {
+            let Ok(mut docs) = self.docs.lock() else {
+                return;
+            };
+            let Some(doc) = docs.get_mut(&id) else {
+                return;
+            };
+            doc.password = password;
+            doc.session.clone()
+        };
+        if let Err(e) = session.protection_written(change) {
+            crate::applog::warn(format!(
+                "document {id}: its file's new protection is not waiting for its save: {e:?}"
+            ));
+        }
     }
 
     fn find_open(&self, path: &Path, platform: &dyn Platform) -> Option<u32> {

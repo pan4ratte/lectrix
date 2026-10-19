@@ -2654,6 +2654,9 @@ pub struct PrintProgress {
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct PrintDone {
+    /// The document's pages printed, once each: what the notification counts.
+    pub pages: u32,
+    /// Sheets sent, with the copies Lectrix made and blank backs.
     pub sheets: u32,
 }
 

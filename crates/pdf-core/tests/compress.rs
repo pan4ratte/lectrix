@@ -663,6 +663,11 @@ fn duplicate_objects_are_merged() {
         let mut xobjects = doc.new_dict().unwrap();
         xobjects.dict_put("Logo", image).unwrap();
         resources.dict_put("XObject", xobjects).unwrap();
+        // Equal lists of the page's own: never merged.
+        let annots = doc.new_array().unwrap();
+        page_obj
+            .dict_put("Annots", doc.add_object(&annots).unwrap())
+            .unwrap();
     }
     let input = dir.join("copies.pdf");
     writing(|| save_atomic(&doc, SaveKind::Full, None, &input)).unwrap();
@@ -677,6 +682,16 @@ fn duplicate_objects_are_merged() {
             .unwrap()
     };
     assert_eq!(logo(0), logo(1), "both pages draw one image object");
+    let annots = |page| {
+        doc.find_page(page)
+            .unwrap()
+            .get_dict("Annots")
+            .unwrap()
+            .unwrap()
+            .as_indirect()
+            .unwrap()
+    };
+    assert_ne!(annots(0), annots(1), "each page keeps its own /Annots");
     for (page, (a, b)) in renders(&input, None)
         .iter()
         .zip(renders(&out, None))
@@ -684,6 +699,86 @@ fn duplicate_objects_are_merged() {
     {
         assert_eq!(a.data, b.data, "page {} changed", page + 1);
     }
+}
+
+#[test]
+fn an_image_premultiplied_by_its_mask_keeps_its_size() {
+    // /Matte asks the soft mask and its image to be the same size: drawn at 576 dpi, they
+    // are not downsampled, nor made grey.
+    let dir = out_dir("compress-matte");
+    let mut doc = testgen::sample_document(&SampleSpec {
+        pages: 1,
+        ..SampleSpec::default()
+    })
+    .unwrap();
+    let side = 800usize;
+    let coverage: Vec<u8> = (0..side * side)
+        .map(|i| (i % side * 255 / side) as u8)
+        .collect();
+    let colours: Vec<u8> = (0..side * side * 3)
+        .map(|i| {
+            let a = u32::from(coverage[i / 3]);
+            ((i * 13 % 251) as u32 * a / 255) as u8
+        })
+        .collect();
+    let mask_dict = doc
+        .new_object_from_str(&format!(
+            "<< /Type /XObject /Subtype /Image /Width {side} /Height {side} /ColorSpace /DeviceGray /BitsPerComponent 8 /Matte [0 0 0] >>"
+        ))
+        .unwrap();
+    let mask = doc
+        .add_stream(
+            &Buffer::from_copied_bytes(&coverage).unwrap(),
+            Some(&mask_dict),
+            false,
+        )
+        .unwrap();
+    let mut image_dict = doc
+        .new_object_from_str(&format!(
+            "<< /Type /XObject /Subtype /Image /Width {side} /Height {side} /ColorSpace /DeviceRGB /BitsPerComponent 8 >>"
+        ))
+        .unwrap();
+    image_dict.dict_put("SMask", mask).unwrap();
+    let image_obj = doc
+        .add_stream(
+            &Buffer::from_copied_bytes(&colours).unwrap(),
+            Some(&image_dict),
+            false,
+        )
+        .unwrap();
+    let content = doc
+        .add_stream(
+            &Buffer::from_copied_bytes(b"q 100 0 0 100 300 300 cm /Glow Do Q").unwrap(),
+            None,
+            false,
+        )
+        .unwrap();
+    let mut page_obj = doc.find_page(0).unwrap();
+    let mut contents = doc.new_array().unwrap();
+    contents
+        .array_push(page_obj.get_dict("Contents").unwrap().unwrap())
+        .unwrap();
+    contents.array_push(content).unwrap();
+    page_obj.dict_put("Contents", contents).unwrap();
+    let mut resources = page_obj.get_dict("Resources").unwrap().unwrap();
+    let mut xobjects = doc.new_dict().unwrap();
+    xobjects.dict_put("Glow", image_obj).unwrap();
+    resources.dict_put("XObject", xobjects).unwrap();
+    let input = dir.join("matte.pdf");
+    writing(|| save_atomic(&doc, SaveKind::Full, None, &input)).unwrap();
+
+    let out = dir.join("compressed.pdf");
+    let mut options = Preset::Balanced.options();
+    options.color_mode = ColorMode::Gray;
+    run(&input, &out, &options);
+    qpdf_check(&out);
+    let doc = open(&out);
+    let glow = image(&doc, 0, &["Resources", "XObject", "Glow"]);
+    let mask = glow.get_dict("SMask").unwrap().unwrap();
+    assert_eq!((int(&glow, "Width"), int(&glow, "Height")), (800, 800));
+    assert_eq!((int(&mask, "Width"), int(&mask, "Height")), (800, 800));
+    assert_eq!(name(&glow, "ColorSpace").as_deref(), Some("DeviceRGB"));
+    assert!(mask.get_dict("Matte").unwrap().is_some());
 }
 
 #[test]

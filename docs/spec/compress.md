@@ -36,10 +36,10 @@ A PDF written smaller, in the file itself or in a copy (ADR 0027): its images do
 - **Kinds of images.** An image is colour, greyscale or black and white (one bit a pixel, and image masks) as stored. A colour image whose pixels are all grey is treated, and stored, as greyscale; a greyscale one stored losslessly with nothing but black and white is stored as one bit a pixel. Neither loses anything.
 - **Compression.** With JPEG or JPEG 2000 chosen, a colour or greyscale image is encoded so, at the quality set, unless it looks drawn rather than photographed (a few colours, or mostly flat areas: screenshots, charts, logos), which stays lossless (Flate with PNG predictors) and sharp. JPEG is baseline, colour halved both ways below quality 90. With Keep as it is, JPEG images are re-encoded at the quality set only when downsampled or changed in colour, and lossless images are packed tighter without changing a pixel.
 - **Black and white** is written as CCITT Group 4 or Flate, whichever is smaller, both lossless. Images turned black and white by the Colour setting are split at Otsu's threshold.
-- **Soft masks and stencil masks** follow their image in resolution and are always written losslessly.
+- **Soft masks and stencil masks** follow their image in resolution and are always written losslessly. An image whose soft mask has `/Matte` (colours pre-multiplied by the mask) is only packed tighter, and so is its mask: the two must stay the same size, and the image in its colours.
 - **Only smaller.** An image is replaced only if what replaces it is smaller; a JPEG re-encoded at its own size and colours only if that saves a tenth of it, since each re-encoding loses a little.
 - **Left as they were:** images with colour-key masks, in separations, DeviceN or Lab, and JBIG2 images. Inline images are left too: they are part of the page's contents.
-- **Pages, annotations and form fields are not rewritten**: an image is replaced where it is, under its own object number.
+- **Pages, annotations and form fields are not rewritten**: an image is replaced where it is, under its own object number. Merging duplicates leaves them one object each, and the lists of them too (a page's annotations, a node's kids, a form's fields): two pages sharing one list would both show an annotation added to either.
 
 ## Settled details
 

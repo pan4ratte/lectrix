@@ -9,10 +9,12 @@
 //!
 //! Only objects that may be shared are merged: streams (images, font programs, colour
 //! profiles, page contents, appearances), arrays, and dictionaries of the types below.
-//! Pages, page trees, annotations, fields and outline items stay one object each. An
-//! appearance stream shared by several annotations is never changed in place: MuPDF's
-//! synthesis writes a new one, and Lectrix copies one from the file before changing it
-//! (`annot::write::grow_with_appearance`).
+//! Pages, page trees, annotations, fields and outline items stay one object each, and so
+//! do the arrays that list them or that anything adds to (`/Annots`, `/Kids`, `/Fields`,
+//! the keys in `CONTAINERS`): two pages sharing one empty `/Annots` would both show an
+//! annotation added to either. An appearance stream shared by several annotations is
+//! never changed in place: MuPDF's synthesis writes a new one, and Lectrix copies one from
+//! the file before changing it (`annot::write::grow_with_appearance`).
 
 use std::collections::hash_map::DefaultHasher;
 use std::collections::{HashMap, HashSet};
@@ -35,13 +37,36 @@ const SHARED_TYPES: &[&[u8]] = &[
     b"Mask",
 ];
 
+/// Keys whose arrays are lists of their own: of a page's annotations, a node's kids, a
+/// form's fields, a tree's entries, optional content's groups and their states, a page's
+/// content streams, an article's beads. Such an array (indirect) is never merged.
+const CONTAINERS: &[&[u8]] = &[
+    b"Annots",
+    b"Kids",
+    b"Fields",
+    b"CO",
+    b"K",
+    b"Nums",
+    b"Names",
+    b"Contents",
+    b"OCGs",
+    b"Order",
+    b"ON",
+    b"OFF",
+    b"Locked",
+    b"RBGroups",
+    b"AS",
+    b"Threads",
+    b"B",
+];
+
 /// The most rounds: streams, then what refers to them, then what refers to that.
 const ROUNDS: usize = 4;
 
 /// Merges `doc`'s duplicate objects; says how many objects were left unreferenced.
 pub(super) fn merge_duplicates(doc: &mut PdfDocument) -> Result<usize> {
-    // The duplicates already left for garbage collection.
-    let mut skip = HashSet::new();
+    // The duplicates already left for garbage collection, and the lists never merged.
+    let mut skip = containers(doc)?;
     let mut merged = 0;
     for _ in 0..ROUNDS {
         let remap = duplicates(doc, &skip)?;
@@ -53,6 +78,49 @@ pub(super) fn merge_duplicates(doc: &mut PdfDocument) -> Result<usize> {
         skip.extend(remap.keys());
     }
     Ok(merged)
+}
+
+/// The arrays (indirect) held under a key of `CONTAINERS`, anywhere in `doc`.
+fn containers(doc: &PdfDocument) -> Result<HashSet<i32>> {
+    let mut found = HashSet::new();
+    let len = i32::try_from(doc.xref_len()?).unwrap_or(i32::MAX);
+    for num in 1..len {
+        if let Some(obj) = doc.new_indirect(num, 0)?.resolve()? {
+            containers_in(&obj, &mut found, 0)?;
+        }
+    }
+    containers_in(&doc.trailer()?, &mut found, 0)?;
+    Ok(found)
+}
+
+/// Adds the containers held directly in `obj` (not in the objects it refers to).
+fn containers_in(obj: &PdfObject, found: &mut HashSet<i32>, depth: usize) -> Result<()> {
+    if depth > MAX_DEPTH || obj.is_indirect()? {
+        return Ok(());
+    }
+    if obj.is_dict()? {
+        for i in 0..obj.dict_len()? {
+            let (Some(key), Some(value)) =
+                (obj.get_dict_key(i as i32)?, obj.get_dict_val(i as i32)?)
+            else {
+                continue;
+            };
+            if value.is_indirect()? {
+                if CONTAINERS.contains(&key.as_name()?.as_slice()) {
+                    found.insert(value.as_indirect()?);
+                }
+            } else {
+                containers_in(&value, found, depth + 1)?;
+            }
+        }
+    } else if obj.is_array()? {
+        for i in 0..obj.len()? {
+            if let Some(item) = obj.get_array(i as i32)? {
+                containers_in(&item, found, depth + 1)?;
+            }
+        }
+    }
+    Ok(())
 }
 
 /// Object number of each duplicate, with the number of the object it duplicates.

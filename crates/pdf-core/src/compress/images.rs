@@ -14,7 +14,9 @@
 //!   and white as one bit a pixel, which loses nothing when it was stored losslessly.
 //!
 //! Soft masks and stencil masks follow the image they belong to in resolution and are
-//! always written losslessly.
+//! always written losslessly. An image whose soft mask has `/Matte` (its colours
+//! pre-multiplied by the mask's) is only repacked, and so is that mask: the two must keep
+//! the same size, and the image the colour components `/Matte` gives.
 
 use std::collections::HashMap;
 
@@ -222,6 +224,8 @@ struct Info {
     filters: Vec<String>,
     color_key: bool,
     smask_in_data: bool,
+    /// A soft mask with `/Matte`, or an image that has one.
+    matte: bool,
     raw_len: usize,
 }
 
@@ -276,6 +280,11 @@ impl Info {
         };
         let color_key = matches!(obj.get_dict("Mask")?, Some(m) if m.is_array()?);
         let smask_in_data = int("SMaskInData")? != 0;
+        let matte = obj.get_dict("Matte")?.is_some()
+            || match obj.get_dict("SMask")? {
+                Some(smask) if smask.is_dict()? => smask.get_dict("Matte")?.is_some(),
+                _ => false,
+            };
         Ok(Some(Info {
             width: width as usize,
             height: height as usize,
@@ -285,6 +294,7 @@ impl Info {
             filters,
             color_key,
             smask_in_data,
+            matte,
             raw_len: obj.read_raw_stream()?.len(),
         }))
     }
@@ -404,6 +414,7 @@ fn rewrite_one(
     let compact = info.lossy() && (info.raw_len as f64) < (info.width * info.height) as f64 * 0.05;
     let wants_pixels = class != Class::Other
         && !info.smask_in_data
+        && !info.matte
         && (downsampling
             || target != class
             || (reencode_lossy(target) && !compact)
@@ -802,9 +813,11 @@ fn repack(doc: &mut PdfDocument, obj: &PdfObject, info: &Info) -> Result<bool> {
     }
     data.truncate(row * h);
 
-    let bpp = (colors * bpc / 8).max(1);
     let mut best = Encoded {
-        data: raw::deflate(&pixels::png_predict(&data, row, h, bpp), 9)?,
+        data: raw::deflate(
+            &pixels::png_predict(&data, row, h, predictor_bpp(colors, bpc)),
+            9,
+        )?,
         filter: "FlateDecode",
         parms: Some(format!(
             "<< /Predictor 15 /Colors {colors} /BitsPerComponent {bpc} /Columns {w} >>"
@@ -839,9 +852,26 @@ fn repack(doc: &mut PdfDocument, obj: &PdfObject, info: &Info) -> Result<bool> {
     Ok(true)
 }
 
+/// The bytes a pixel that PNG predictors compare across, as a reader takes them for
+/// `/Colors` and `/BitsPerComponent`: rounded up, so 12 bits a pixel are 2 (PDF 7.4.4.4,
+/// MuPDF's `fz_open_predict`), and at least 1.
+fn predictor_bpp(colors: usize, bpc: usize) -> usize {
+    (colors * bpc).div_ceil(8).max(1)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn predictors_compare_whole_bytes_a_pixel_rounded_up() {
+        assert_eq!(predictor_bpp(1, 1), 1);
+        assert_eq!(predictor_bpp(1, 4), 1);
+        assert_eq!(predictor_bpp(3, 4), 2, "12 bits a pixel");
+        assert_eq!(predictor_bpp(5, 4), 3, "20 bits a pixel");
+        assert_eq!(predictor_bpp(3, 8), 3);
+        assert_eq!(predictor_bpp(4, 16), 8);
+    }
 
     #[test]
     fn resampling_keeps_the_resolution_where_the_image_is_drawn_largest() {

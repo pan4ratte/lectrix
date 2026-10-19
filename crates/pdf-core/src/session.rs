@@ -291,6 +291,10 @@ enum Command {
         change: Option<ProtectionChange>,
         reply: Reply<DocumentState>,
     },
+    ProtectionWritten {
+        change: ProtectionChange,
+        reply: Reply<DocumentState>,
+    },
     Protection {
         reply: Reply<Option<ProtectionInfo>>,
     },
@@ -637,6 +641,14 @@ impl Session {
         self.call(|reply| Command::SetProtection { change, reply })
     }
 
+    /// Protect or Unlock as a tool on the document's file (sections 6.8, 6.9) wrote it
+    /// with `change` while the document has unsaved changes, which it keeps: its next save
+    /// writes the same protection rather than the old one back, and a reload opens the
+    /// file with its new password. The document in memory keeps the password it has.
+    pub fn protection_written(&self, change: ProtectionChange) -> Result<DocumentState> {
+        self.call(|reply| Command::ProtectionWritten { change, reply })
+    }
+
     /// The protection the document's file has, `None` if it has none.
     pub fn protection(&self) -> Result<Option<ProtectionInfo>> {
         self.call(|reply| Command::Protection { reply })
@@ -736,7 +748,13 @@ struct Actor {
     path: PathBuf,
     /// The file MuPDF reads: `path`, or a recovery copy of it after a restore.
     file: PathBuf,
+    /// The password that opened the document in memory: what authenticates it again
+    /// (its protection read) and what opens a copy written with its encryption.
     password: Option<String>,
+    /// The password `path` opens with when it is not `password`: a save wrote a new
+    /// protection but could not open the file again, so the document in memory still has
+    /// the old one. The next reload opens the file with it.
+    file_password: Option<Option<String>>,
     flags: DocumentFlags,
     /// Open for reading only: operations are refused and nothing but what the file
     /// already holds is written.
@@ -846,6 +864,9 @@ fn actor(origin: Origin, rx: Receiver<Command>, ready: SyncSender<Result<Documen
             Command::SetProtection { change, reply } => {
                 let _ = reply.send(actor.set_protection(change));
             }
+            Command::ProtectionWritten { change, reply } => {
+                let _ = reply.send(actor.protection_written(change));
+            }
             Command::Protection { reply } => {
                 let password = actor.password.clone();
                 let _ = reply.send(protection::read(&mut actor.doc, password.as_deref()));
@@ -873,11 +894,8 @@ fn actor(origin: Origin, rx: Receiver<Command>, ready: SyncSender<Result<Documen
                 let _ = reply.send(actor.extract(&pages, &target, &mut *step));
             }
             Command::Reload { password, reply } => {
-                if let Some(password) = password {
-                    actor.password = password;
-                }
                 let start = Instant::now();
-                let _ = reply.send(actor.reload().map(|()| actor.info(start.elapsed())));
+                let _ = reply.send(actor.reload(password).map(|()| actor.info(start.elapsed())));
             }
             Command::Close => break,
         }
@@ -948,6 +966,7 @@ impl Actor {
             path,
             file,
             password,
+            file_password: None,
             flags,
             read_only,
             pages,
@@ -999,6 +1018,14 @@ impl Actor {
             change => change,
         };
         Ok(self.state())
+    }
+
+    fn protection_written(&mut self, change: ProtectionChange) -> Result<DocumentState> {
+        self.file_password = Some(match &change {
+            ProtectionChange::Remove => None,
+            ProtectionChange::Set(settings) => settings.reopen_password().map(str::to_owned),
+        });
+        self.set_protection(Some(change))
     }
 
     fn info(&mut self, open_time: Duration) -> DocumentInfo {
@@ -1392,18 +1419,18 @@ impl Actor {
             ProtectionChange::Remove => None,
             ProtectionChange::Set(settings) => settings.reopen_password().map(str::to_owned),
         });
-        if let Some(password) = &password {
-            self.password = password.clone();
-        }
+        let reopen = password.clone().unwrap_or_else(|| self.password.clone());
         let revision = self.revision();
         self.saved_revision = revision;
         let mut outline = None;
         let mut annotations = Vec::new();
         // The saved file is now the document's file. Reopen it so later incremental saves
         // append to the right bytes (ADR 0003).
-        match load(&target, self.password.as_deref()) {
+        match load(&target, reopen.as_deref()) {
             Ok(doc) => {
                 self.doc = doc;
+                self.password = reopen;
+                self.file_password = None;
                 self.file = target.clone();
                 self.needs_full_save = false;
                 self.protection = None;
@@ -1420,9 +1447,13 @@ impl Actor {
                 outline = self.reread_outline()?;
                 annotations = self.reread_annotations()?;
             }
-            // The file is saved; keep working on the old in-memory document. A protection
-            // change stays waiting: the old document would write its old encryption back.
+            // The file is saved; keep working on the old in-memory document, which still
+            // opens with its old password. A protection change stays waiting: the old
+            // document would write its old encryption back.
             Err(_) => {
+                if password.is_some() {
+                    self.file_password = password.clone();
+                }
                 self.needs_full_save = true;
                 if pdfa_removed.is_some() {
                     self.flags.pdfa = None;
@@ -1568,9 +1599,17 @@ impl Actor {
         Ok(RecoveryWrite::Written { revision })
     }
 
-    fn reload(&mut self) -> Result<()> {
-        let doc = load(&self.path, self.password.as_deref())?;
+    /// Reads `path` again, with `password` if given (its protection changed), else with the
+    /// password it was last written with. Until it opens, the document in memory and its
+    /// password stay as they were.
+    fn reload(&mut self, password: Option<Option<String>>) -> Result<()> {
+        let password = password
+            .or_else(|| self.file_password.clone())
+            .unwrap_or_else(|| self.password.clone());
+        let doc = load(&self.path, password.as_deref())?;
         self.doc = doc;
+        self.password = password;
+        self.file_password = None;
         self.file = self.path.clone();
         self.flags = read_flags(&self.doc)?;
         self.read_only &= self.flags.pdfa.is_some();

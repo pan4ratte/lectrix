@@ -386,6 +386,12 @@ pages, `tests/perf/organize.mjs` (its numbers are under "Organizing pages" below
   - Tried on Windows with Microsoft Print to PDF (the end-to-end test, and `pdf-cli print`
     with pages turned and in greys). Not yet on a paper printer, nor Printer settings… (the
     driver's own dialog) by a person (`docs/manual-checklist.md`, "Print").
+  - Both sides in landscape on Windows: Lectrix swaps `DMDUP_VERTICAL` and
+    `DMDUP_HORIZONTAL` for landscape jobs (`windows_print.rs`), reading them as edges of
+    the page as it lies; Microsoft's documentation and drivers disagree on whether they
+    name the sheet's edges instead, as IPP's do (CUPS gets them unswapped). To be settled
+    on a duplex printer: print two landscape pages with "flip on the long edge" and check
+    the back is upright when the sheet is turned over its long edge.
 
 ## Split view
 

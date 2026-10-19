@@ -75,6 +75,41 @@ fn a_job_becomes_a_pdf_of_its_sheets() {
 }
 
 #[test]
+fn a_document_printed_at_low_resolution_goes_as_images() {
+    let dir = out_dir("print-pdf-low");
+    let source = sample_file(&dir, "source.pdf", SampleSpec::default());
+    let (session, _) = Session::open(&source, None).unwrap();
+    let out = dir.join("printed.pdf");
+    let _ = std::fs::remove_file(&out);
+    let sheet = Sheet::with_margin(595.0, 842.0, 12.0);
+    let target = PdfTarget::new(&out, sheet).unwrap().rasterized(150.0);
+    writing(|| print(&session, &job(vec![0]), Box::new(target), &mut |_, _| true)).unwrap();
+    session.close();
+    qpdf_check(&out);
+    let printed = Document::open(out.to_str().unwrap()).unwrap();
+    assert_eq!(printed.page_count().unwrap(), 1);
+    // No text to copy: the page is one image, at 150 dpi, that is not blank.
+    assert!(text(&printed, 0).trim().is_empty());
+    let pixmap = printed
+        .load_page(0)
+        .unwrap()
+        .to_pixmap(
+            &mupdf::Matrix::new_scale(1.0, 1.0),
+            &mupdf::Colorspace::device_gray(),
+            false,
+            false,
+        )
+        .unwrap();
+    assert!(
+        pixmap.samples().iter().any(|&v| v < 128),
+        "the page is blank"
+    );
+    let bytes = std::fs::read(&out).unwrap();
+    let pdf = String::from_utf8_lossy(&bytes);
+    assert!(pdf.contains("/Subtype/Image") || pdf.contains("/Subtype /Image"));
+}
+
+#[test]
 fn a_stopped_job_leaves_no_file() {
     let dir = out_dir("print-stop");
     let source = sample_file(&dir, "source.pdf", SampleSpec::default());

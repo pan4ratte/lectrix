@@ -15,7 +15,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use super::{Paper, PrinterCapabilities, PrinterEntry, Printers};
 use crate::error::{Error, Result};
 use crate::print::pdf::PdfTarget;
-use crate::print::{Area, Duplex, PrintSetup, Sheet, Target};
+use crate::print::{Area, Duplex, MAX_DPI, PrintSetup, Sheet, Target};
 
 /// The margins pages are fitted inside, in points (a sixth of an inch, about 4 mm: what
 /// most printers leave unprinted).
@@ -200,13 +200,12 @@ pub(crate) fn lp_arguments(
         "-o".to_owned(),
         format!("collate={}", setup.collate),
         "-o".to_owned(),
+        // IPP names the edges of the sheet, as `Duplex` does, in either orientation.
         format!(
             "sides={}",
             match setup.duplex {
                 Duplex::OneSided => "one-sided",
-                Duplex::LongEdge if setup.landscape => "two-sided-short-edge",
                 Duplex::LongEdge => "two-sided-long-edge",
-                Duplex::ShortEdge if setup.landscape => "two-sided-long-edge",
                 Duplex::ShortEdge => "two-sided-short-edge",
             }
         ),
@@ -282,8 +281,13 @@ impl Printers for Cups {
             std::process::id(),
             JOBS.fetch_add(1, Ordering::Relaxed)
         ));
+        let mut pdf = PdfTarget::new(&file, sheet)?;
+        // A document that may be printed at low resolution only goes as images.
+        if setup.max_dpi < MAX_DPI {
+            pdf = pdf.rasterized(setup.max_dpi);
+        }
         Ok(Box::new(CupsJob {
-            pdf: Some(Box::new(PdfTarget::new(&file, sheet)?)),
+            pdf: Some(Box::new(pdf)),
             file,
             printer: printer.to_owned(),
             paper: paper.map(|p| p.name),
@@ -460,5 +464,13 @@ mod tests {
         assert!(joined.contains("-o media=A4"));
         assert!(joined.contains("print-color-mode=monochrome"));
         assert!(joined.ends_with("-- /tmp/job.pdf"));
+
+        // The sheet's long edge is its long edge in landscape too.
+        let landscape = PrintSetup {
+            landscape: true,
+            ..setup
+        };
+        let args = lp_arguments("Office", None, &landscape, Path::new("/tmp/job.pdf"));
+        assert!(args.join(" ").contains("-o sides=two-sided-long-edge"));
     }
 }

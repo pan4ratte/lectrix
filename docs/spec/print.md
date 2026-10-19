@@ -30,14 +30,14 @@ The sheet as it prints, as large as fits: the paper, the page placed on it as th
 
 ## Printing
 
-Print turns the dialog into a progress bar, "Sending page 3 of 12 to the printer…", with **Stop** (also Esc), which stops sending pages; those sent may still print. Once the printer has the job, the dialog closes and a notification says "Sent 12 pages of report.pdf to Office Laser." A printer that can't be reached, or refuses the job, is named in an error notification ("Lectrix couldn’t print on Office Laser." with "Check that the printer is on and connected, then try again, or pick another printer.").
+Print turns the dialog into a progress bar, "Sending page 3 of 12 to the printer…", with **Stop** (also Esc), which stops sending pages; those sent may still print. Once the printer has the job, the dialog closes and a notification says "Sent 12 pages of report.pdf to Office Laser.", counting the document's pages printed once each, whatever the copies and the blank backs A printer that can't be reached, or refuses the job, is named in an error notification ("Lectrix couldn’t print on Office Laser." with "Check that the printer is on and connected, then try again, or pick another printer.").
 
 The dialog's choices are remembered in the app's data for next time: the printer, size and scale, orientation, sides, annotations, greys and collate. Not the pages or the copies.
 
 ## How it prints (ADR 0028)
 
 - **Windows:** each page is drawn by MuPDF as it prints at the printer's resolution, at most 600 dpi (150 for a document that allows low resolution only), in bands of 16 MB, and sent through the print spooler (GDI). The paper, orientation, sides, colour, copies and collation are the driver's settings for the job.
-- **Linux and macOS:** the sheets are written as a PDF, each a page the size of the paper with the document's page placed on it (vector, through MuPDF's PDF writer), and handed to CUPS (`lp`) with the paper, sides, copies, collation and greys as its options. CUPS does not say where a printer's margins are, so pages are fitted inside margins of 12 pt there. There is no Printer settings… button.
+- **Linux and macOS:** the sheets are written as a PDF, each a page the size of the paper with the document's page placed on it (vector, through MuPDF's PDF writer; for a document that allows low resolution only, an image of the page at 150 dpi), and handed to CUPS (`lp`) with the paper, sides, copies, collation and greys as its options. Sides are named as IPP names them, by the edges of the sheet, in landscape too. CUPS does not say where a printer's margins are, so pages are fitted inside margins of 12 pt there. There is no Printer settings… button.
 
 ## Settled details
 

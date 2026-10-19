@@ -149,9 +149,10 @@ export function pagesText(n: number): string {
 	return n === 1 ? '1 page' : `${n.toLocaleString()} pages`;
 }
 
-/** What the notification says once a job is with the printer. */
-export function sentMessage(name: string, printer: string, sheets: number): string {
-	return `Sent ${pagesText(sheets)} of ${name} to ${printer}.`;
+/** What the notification says once a job is with the printer: the document's pages
+ * printed, counted once whatever the copies and blank backs. */
+export function sentMessage(name: string, printer: string, pages: number): string {
+	return `Sent ${pagesText(pages)} of ${name} to ${printer}.`;
 }
 
 /** The printer's name as the dropdown lists it, the system's default marked. */

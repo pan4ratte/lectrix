@@ -160,6 +160,7 @@ impl Print {
             output: test_output(),
             max_dpi,
         };
+        let page_count = u32::try_from(pages.len()).unwrap_or(u32::MAX);
         let job = Job {
             pages,
             sizing: settings.sizing(),
@@ -213,6 +214,7 @@ impl Print {
                     started.elapsed().as_secs_f64()
                 ));
                 Ok(PrintDone {
+                    pages: page_count,
                     sheets: u32::try_from(sheets).unwrap_or(u32::MAX),
                 })
             }

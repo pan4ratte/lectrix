@@ -443,6 +443,102 @@ fn a_documents_protection_change_can_be_taken_back() {
 }
 
 #[test]
+fn a_reload_that_fails_leaves_the_document_with_its_password() {
+    // Protect in place on a file open in a tab: the file gets a new password, and the
+    // tab reads it again with it. If that fails, the document in memory still opens with
+    // the old one.
+    let dir = out_dir("protect-session-reload");
+    let source = plain(&dir);
+    let path = dir.join("protected.pdf");
+    writing(|| protect_file(&source, None, &settings(Some("old"), None), &path)).unwrap();
+    let (session, _) = Session::open(&path, Some("old")).unwrap();
+    writing(|| protect_file(&path, Some("old"), &settings(Some("new"), None), &path)).unwrap();
+
+    assert!(matches!(
+        session.reload_with(Some("wrong".to_owned())),
+        Err(Error::WrongPassword)
+    ));
+    let protection = session.protection().unwrap().unwrap();
+    assert!(protection.open_password);
+    // Its streams still decrypt.
+    for page in 0..3 {
+        let (text, _) = session.page_text(page).unwrap();
+        assert!(
+            text.plain_text().contains(MARKER),
+            "page {page} lost its text"
+        );
+    }
+
+    // The right password opens the file as it is now.
+    session.reload_with(Some("new".to_owned())).unwrap();
+}
+
+#[test]
+fn a_file_protected_under_unsaved_changes_stays_protected_when_they_are_saved() {
+    // Protect as a tool on a file open in a tab with unsaved changes: the tab keeps them,
+    // and is told what its file has now.
+    let dir = out_dir("protect-session-dirty");
+    let path = plain(&dir);
+    let (session, _) = Session::open(&path, None).unwrap();
+    session
+        .apply(Operation::RotatePages {
+            pages: vec![0],
+            degrees: 90,
+        })
+        .unwrap();
+    let new = settings(Some("user"), Some("owner"));
+    writing(|| protect_file(&path, None, &new, &path)).unwrap();
+    let state = session
+        .protection_written(ProtectionChange::Set(new))
+        .unwrap();
+    assert!(state.dirty);
+    assert!(state.protection.is_some());
+
+    // Saved, its changes are in the file, and so is the protection.
+    let saved = writing(|| session.save(SaveKind::Incremental, None)).unwrap();
+    assert_eq!(saved.outcome.kind, SaveKind::Full);
+    let mut doc = open_pdf_shared(&path).unwrap();
+    assert!(doc.needs_password().unwrap());
+    assert!(doc.authenticate("user").unwrap());
+    assert_aes256(&doc);
+    assert_eq!(
+        doc.find_page(0)
+            .unwrap()
+            .get_dict("Rotate")
+            .unwrap()
+            .unwrap()
+            .as_int()
+            .unwrap(),
+        90
+    );
+    assert_text_kept(&doc);
+    qpdf_check_with(&path, Some("user"));
+}
+
+#[test]
+fn a_file_protected_under_unsaved_changes_is_read_again_with_its_new_password() {
+    let dir = out_dir("protect-session-dirty-reload");
+    let path = plain(&dir);
+    let (session, _) = Session::open(&path, None).unwrap();
+    session
+        .apply(Operation::RotatePages {
+            pages: vec![0],
+            degrees: 90,
+        })
+        .unwrap();
+    let new = settings(Some("user"), None);
+    writing(|| protect_file(&path, None, &new, &path)).unwrap();
+    session
+        .protection_written(ProtectionChange::Set(new))
+        .unwrap();
+    // Its changes are given up: the file as it is now, with its password.
+    let info = session.reload().unwrap();
+    assert!(!info.state.dirty);
+    assert!(info.flags.encrypted);
+    assert!(session.protection().unwrap().unwrap().open_password);
+}
+
+#[test]
 fn save_as_optimized_writes_the_protection_too() {
     let dir = out_dir("protect-session-optimized");
     let path = plain(&dir);

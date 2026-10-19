@@ -245,7 +245,7 @@
 		try {
 			const done = await printRun(doc.id, $state.snapshot(wanted) as PrintSettings, (p) => (progress = p));
 			close();
-			app.notify({ kind: 'info', message: sentMessage(doc.name, name, done.sheets) });
+			app.notify({ kind: 'info', message: sentMessage(doc.name, name, done.pages) });
 		} catch (e) {
 			const error = toAppError(e);
 			close();

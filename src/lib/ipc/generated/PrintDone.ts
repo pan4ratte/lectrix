@@ -3,4 +3,12 @@
 /**
  * A job sent to the printer.
  */
-export type PrintDone = { sheets: number, };
+export type PrintDone = { 
+/**
+ * The document's pages printed, once each: what the notification counts.
+ */
+pages: number, 
+/**
+ * Sheets sent, with the copies Lectrix made and blank backs.
+ */
+sheets: number, };

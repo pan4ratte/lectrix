@@ -53,7 +53,8 @@ renders it for the printer itself.
    what each takes. CUPS does not report the printable area, so pages are fitted inside
    12 pt margins there.
 6. **Permissions** are kept: no printing where the file forbids it, 150 dpi where it allows
-   low resolution only.
+   low resolution only (for CUPS, each page then goes as an image at 150 dpi, not as
+   vectors).
 7. **No new dependency.** The Windows calls come from the `windows` crate already pinned
    for DirectWrite, with more of its features (`Win32_Graphics_Gdi`,
    `Win32_Graphics_Printing`, `Win32_Storage_Xps`, `Win32_Foundation`); CUPS's tools are
