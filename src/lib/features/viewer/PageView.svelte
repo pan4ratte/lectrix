@@ -42,6 +42,9 @@
 		/** How far the page is turned on screen. */
 		rotation: Rotation;
 		devicePixelRatio: number;
+		/** Where the box `left` and `top` are measured from begins in the window, in CSS
+		 * pixels, so the page can be laid on the screen's pixels. */
+		origin: { x: number; y: number };
 		/** The area of the link under the pointer on this page (page points), if any. */
 		linkHover: readonly [number, number, number, number] | null;
 		/** The part of the page box that is on screen (plus a margin), CSS pixels relative
@@ -67,6 +70,7 @@
 		zooming,
 		rotation,
 		devicePixelRatio,
+		origin,
 		linkHover,
 		visibleRect,
 		onscreen,
@@ -320,8 +324,8 @@
 	class="page absolute overflow-hidden shadow-[0_1px_3px_var(--color-page-shadow)]"
 	class:bg-white={!tab.pageFilter}
 	class:isolate={tab.pageTone !== null}
-	style:left="{snapToDevice(left, devicePixelRatio)}px"
-	style:top="{snapToDevice(top, devicePixelRatio)}px"
+	style:left="{snapToDevice(left, devicePixelRatio, origin.x)}px"
+	style:top="{snapToDevice(top, devicePixelRatio, origin.y)}px"
 	style:width="{width}px"
 	style:height="{height}px"
 	data-page={index}

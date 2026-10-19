@@ -124,6 +124,10 @@
 	/** How wide the pages' vertical scrollbar is (0 without one). */
 	let scrollbarW = $state(0);
 	let dpr = $state(typeof window === 'undefined' ? 1 : window.devicePixelRatio || 1);
+	/** Where the pages' container begins in the window, in CSS pixels: a fraction of a
+	 * device pixel under a bar of fractional height, which the pages make up for. */
+	let originX = $state(0);
+	let originY = $state(0);
 
 	/** The row shown in the single page and two-page modes (section 6.1, scroll modes). */
 	let shownRow = $state(untrack(() => rowOf(tab.currentPage, tab.columns, tab.cover)));
@@ -1685,6 +1689,10 @@
 		const w = scroller.clientWidth;
 		const h = scroller.clientHeight;
 		scrollbarW = Math.max(0, scroller.offsetWidth - w);
+		// What moves the viewer (the view bar wrapping, a banner, a pane) resizes it too.
+		const at = scroller.getBoundingClientRect();
+		originX = at.left + scroller.clientLeft;
+		originY = at.top + scroller.clientTop;
 		if (w === 0 || (w === viewportW && h === viewportH)) return;
 		const first = viewportW === 0;
 		// A fit mode re-fits on every frame of a pane sliding or being resized, or of the
@@ -1821,6 +1829,7 @@
 								zooming={heldRenderZoom !== null}
 								rotation={rotationOf(index)}
 								devicePixelRatio={dpr}
+								origin={{ x: originX, y: originY }}
 								linkHover={hoveredLink?.page === index && !dragging ? hoveredLink.rect : null}
 								visibleRect={visibleRect(index)}
 								onscreen={isOnscreen(index)}

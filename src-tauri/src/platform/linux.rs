@@ -62,8 +62,10 @@ impl Platform for Linux {
     fn window_chrome(&self) -> WindowChrome {
         gtk::Settings::default()
             .and_then(|s| {
-                s.try_property::<Option<String>>("gtk-decoration-layout")
-                    .ok()
+                // `property` panics on a name the object lacks or a type it does not hold.
+                const LAYOUT: &str = "gtk-decoration-layout";
+                s.has_property(LAYOUT, Some(String::static_type()))
+                    .then(|| s.property::<Option<String>>(LAYOUT))
                     .flatten()
             })
             .and_then(|layout| super::parse_decoration_layout(&layout))

@@ -89,7 +89,7 @@ test('a file that forbids changes opens with them turned off, and what it allows
 		await waitForDocument(browser);
 		const highlight = await browser.$('button.tool-button[aria-label="Highlight"]');
 		await highlight.waitForExist({ timeoutMsg: 'the toolbar has no Highlight tool' });
-		assert.equal(await highlight.isEnabled(), true, 'annotating, which the file allows, is off');
+		assert.notEqual(await highlight.getAttribute('aria-disabled'), 'true', 'annotating, which the file allows, is off');
 		await (await browser.$('.viewer-scroll')).click();
 		await browser.keys(['Control', 'b']);
 		await browser.waitUntil(

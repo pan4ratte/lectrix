@@ -112,10 +112,12 @@ export function cssPerImagePixel(scale: number, zoom: number, devicePixelRatio: 
 	return scale === renderScale(zoom, dpr) ? 1 / dpr : (zoom * CSS_PX_PER_PT) / scale;
 }
 
-/** `css` rounded to the nearest whole device pixel. */
-export function snapToDevice(css: number, devicePixelRatio: number): number {
+/** `css`, an offset from `origin`, moved to the nearest whole device pixel of the screen:
+ * `origin` is where what it is measured from lies on screen, in CSS pixels, which can
+ * itself be a fraction of a device pixel (a bar of fractional height above it). */
+export function snapToDevice(css: number, devicePixelRatio: number, origin = 0): number {
 	const dpr = devicePixelRatio || 1;
-	return Math.round(css * dpr) / dpr;
+	return Math.round((origin + css) * dpr) / dpr - origin;
 }
 
 /** Pixel size of a page rendered at `scale`, rounded like MuPDF (`render::pixel_size`). */

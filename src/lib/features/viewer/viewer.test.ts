@@ -297,6 +297,9 @@ describe('zoom', () => {
 		expect(snapToDevice(10.3, 1.25)).toBe(10.4);
 		expect(snapToDevice(10.5, 2)).toBe(10.5);
 		expect(snapToDevice(10.3, 0)).toBe(10);
+		// Under a bar of fractional height, the page lands on the screen's pixels.
+		expect(snapToDevice(8, 1, 110.5)).toBe(8.5);
+		expect(110.5 + snapToDevice(8, 1.25, 110.5)).toBeCloseTo(118.4, 9);
 	});
 
 	it('follows a touchpad pinch exactly and steps a wheel notch', () => {

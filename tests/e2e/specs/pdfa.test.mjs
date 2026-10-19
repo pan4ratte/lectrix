@@ -10,7 +10,9 @@ import { launch, statusText, waitForDocument } from '../lib/app.mjs';
 import { cli, outlineLines, sample } from '../lib/pdfcli.mjs';
 
 const banner = (browser) => browser.$('[data-pdfa-banner]');
-const toolEnabled = async (browser, label) => (await browser.$(`button[aria-label="${label}"]`)).isEnabled();
+// A locked tool is aria-disabled, not disabled: a click on it still says why it does nothing.
+const toolEnabled = async (browser, label) =>
+	(await (await browser.$(`button[aria-label="${label}"]`)).getAttribute('aria-disabled')) !== 'true';
 
 /** Viewport pixels of a point of page `index`, given in page points. */
 async function pagePoint(browser, index, x, y) {
