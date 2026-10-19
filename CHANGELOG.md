@@ -82,6 +82,14 @@ the wording, translations): docs/releasing.md, "The changelog".
 - Compress can also remove page thumbnails and other apps' editing data, and, when you tick them, attached files, JavaScript and accessibility tags. It offers only what the file has.
 - With a document open, **File > Compress…** compresses that document's file.
 
+### Printing
+
+- **File > Print…** (Ctrl+P) prints the document shown, with its unsaved changes. Choose the printer, the copies, and the pages: all, the current one, or a range typed by number or by page label, such as "i-iv, 1-5". Print only the odd or the even pages to print on both sides by hand, or the last page first.
+- Fit pages to the paper, print them at their actual size, shrink only those too large, or choose a scale. Landscape pages print on landscape paper, and in a document that mixes them they are turned to fit, upright.
+- Choose the paper and, on printers that can, printing on both sides. **Printer settings…** opens the printer's own settings for its trays, quality and finishing.
+- Print with or without annotations, and in colour or in greys. A preview shows each sheet as it will print.
+- Lectrix remembers your choices for the next time you print. Documents whose security settings forbid printing say so, and those that allow only low-quality printing print at 150 dpi, as in other readers.
+
 ### Settings
 
 - A new command switches between the light and the dark theme. It has no shortcut until you give it one in **Settings > Shortcuts**, under View.

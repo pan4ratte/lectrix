@@ -16,8 +16,15 @@ png = "=0.18.1"
 mozjpeg-sys = { version = "=2.2.3", default-features = false, features = ["nasm_simd", "arith_dec", "parallel"] }
 
 [target.'cfg(windows)'.dependencies]
-# DirectWrite for the installed-font index (ADR 0005). Already in the tree through Tauri.
-windows = { version = "=0.62.2", features = ["Win32_Graphics_DirectWrite"] }
+# DirectWrite for the installed-font index (ADR 0005), and the print spooler and GDI for
+# printing (ADR 0028). Already in the tree through Tauri.
+windows = { version = "=0.62.2", features = [
+    "Win32_Foundation",
+    "Win32_Graphics_DirectWrite",
+    "Win32_Graphics_Gdi",
+    "Win32_Graphics_Printing",
+    "Win32_Storage_Xps",
+] }
 
 [dev-dependencies]
 # Reads tests/local-corpus/manifest.json (already in the tree through the app crate).

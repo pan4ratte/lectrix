@@ -10,8 +10,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 use crate::ipc::{
-    AnnotationSort, Appearance, CompressSettings, PageAdjustments, PaneLayout, QuickTool,
-    ScrollMode, ToolbarDock, ToolbarPosition, ToolbarStyle, ToolbarVisibility, ViewState,
+    AnnotationSort, Appearance, CompressSettings, PageAdjustments, PaneLayout, PrintPreferences,
+    QuickTool, ScrollMode, ToolbarDock, ToolbarPosition, ToolbarStyle, ToolbarVisibility,
+    ViewState,
 };
 use crate::placement::WindowPlacement;
 
@@ -65,6 +66,10 @@ struct Data {
     /// read are forgotten, not an unreadable state file.
     #[serde(default, deserialize_with = "or_none")]
     compress: Option<CompressSettings>,
+    /// The Print dialog's choices used last (section 6.12), read as the Compress settings
+    /// are.
+    #[serde(default, deserialize_with = "or_none")]
+    print: Option<PrintPreferences>,
 }
 
 /// `T` if it can be read, `None` otherwise.
@@ -414,6 +419,17 @@ impl Store {
     pub fn set_compress_settings(&mut self, settings: CompressSettings) {
         if self.data.compress != Some(settings) {
             self.data.compress = Some(settings);
+            self.persist();
+        }
+    }
+
+    pub fn print_preferences(&self) -> Option<PrintPreferences> {
+        self.data.print.clone()
+    }
+
+    pub fn set_print_preferences(&mut self, preferences: PrintPreferences) {
+        if self.data.print.as_ref() != Some(&preferences) {
+            self.data.print = Some(preferences);
             self.persist();
         }
     }

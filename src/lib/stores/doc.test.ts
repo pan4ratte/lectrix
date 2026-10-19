@@ -18,7 +18,16 @@ function info(pdfa: PdfaLevel | null, readOnly = pdfa !== null): DocumentInfo {
 		pages: [{ width: 612, height: 792, rotation: 0 }],
 		labels: null,
 		labelRules: [],
-		flags: { encrypted: false, signed: false, repaired: false, canAssemble: true, canAnnotate: true, canCopy: true, pdfa },
+		flags: {
+			encrypted: false,
+			signed: false,
+			repaired: false,
+			canAssemble: true,
+			canAnnotate: true,
+			canCopy: true,
+			printing: 'highResolution',
+			pdfa
+		},
 		readOnly,
 		pageLayout: null,
 		state: { revision: 0, dirty: false, undoName: null, redoName: null, protection: null },
@@ -47,6 +56,7 @@ function saved(pdfaRemoved: PdfaLevel | null, encrypted = false): SaveResult {
 			canAssemble: true,
 			canAnnotate: true,
 			canCopy: true,
+			printing: 'highResolution',
 			pdfa: pdfaRemoved ? null : PDFA_1B
 		}
 	};

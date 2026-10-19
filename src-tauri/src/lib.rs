@@ -11,6 +11,7 @@ mod ipc;
 mod menu;
 mod placement;
 mod platform;
+mod print;
 mod protect;
 mod protocol;
 mod recovery;
@@ -85,6 +86,8 @@ pub struct AppState {
     protect: protect::Protect,
     /// Files waiting to be compressed, and their results (section 6.11).
     compress: compress::Compress,
+    /// Printers' sheets, and jobs printing (section 6.12).
+    print: print::Print,
 }
 
 impl AppState {
@@ -397,6 +400,7 @@ pub fn run() {
                 unprotect: unprotect::Unprotect::default(),
                 protect: protect::Protect::default(),
                 compress: compress::Compress::new(compress_folder),
+                print: print::Print::default(),
             });
             app.manage(menu::Menus::default());
             // Working copies of documents an earlier run never saved, and that no recovery
@@ -505,6 +509,12 @@ pub fn run() {
             commands::compress_stop,
             commands::compress_save,
             commands::compress_cancel,
+            commands::print_start,
+            commands::print_printer,
+            commands::print_printer_settings,
+            commands::print_layout,
+            commands::print_run,
+            commands::print_stop,
             commands::protect_pick,
             commands::protect_password,
             commands::protect_save,

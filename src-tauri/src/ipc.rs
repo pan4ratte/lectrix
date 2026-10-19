@@ -46,10 +46,34 @@ pub struct DocumentFlags {
     pub can_annotate: bool,
     /// Text may be copied.
     pub can_copy: bool,
+    /// What printing the document allows (section 6.12).
+    pub printing: PrintPermission,
     /// The PDF/A level the file claims, if any: it then opens for reading only, unless
     /// Settings says otherwise, until the user enables editing. A save that may have
     /// broken the standard takes the claim out of the file.
     pub pdfa: Option<PdfaLevel>,
+}
+
+/// What printing a document allows.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum PrintPermission {
+    NotAllowed,
+    /// At low resolution only (150 dpi).
+    LowResolution,
+    HighResolution,
+}
+
+impl From<pdf_core::protection::Printing> for PrintPermission {
+    fn from(p: pdf_core::protection::Printing) -> Self {
+        use pdf_core::protection::Printing;
+        match p {
+            Printing::NotAllowed => PrintPermission::NotAllowed,
+            Printing::LowResolution => PrintPermission::LowResolution,
+            Printing::HighResolution => PrintPermission::HighResolution,
+        }
+    }
 }
 
 /// A PDF/A level as a file's XMP metadata claims it: PDF/A-1b is part 1, conformance B.
@@ -71,6 +95,7 @@ impl From<pdf_core::docinfo::DocumentFlags> for DocumentFlags {
             can_assemble: f.can_assemble,
             can_annotate: f.can_annotate,
             can_copy: f.can_copy,
+            printing: f.printing.into(),
             pdfa: f.pdfa.map(Into::into),
         }
     }
@@ -2329,6 +2354,19 @@ impl From<pdf_core::Error> for AppError {
                     "Save a copy with File > Save as (optimized) in another app that can repair it, or leave the bookmarks as they are.",
                 ),
             ),
+            E::Printer { printer, .. } if printer.is_empty() => AppError::new(
+                "Lectrix couldn’t get the list of printers.",
+                Some("Try again. If it keeps happening, check your printers in the system’s settings."),
+            ),
+            E::Printer { printer, .. } => AppError::new(
+                format!("Lectrix couldn’t print on {printer}."),
+                Some("Check that the printer is on and connected, then try again, or pick another printer."),
+            ),
+            E::PrintNotAllowed => AppError::new(
+                "This document’s security settings don’t allow printing it.",
+                Some("Ask its author for a copy that can be printed."),
+            )
+            .with_code(ErrorCode::NotPermitted),
             E::DamagedPageTree => AppError::new(
                 "This document’s page structure is damaged, so its pages can’t be moved or deleted here.",
                 Some(
@@ -2341,6 +2379,279 @@ impl From<pdf_core::Error> for AppError {
             ),
         }
     }
+}
+
+// ----- Print (section 6.12, ADR 0028) -----
+
+/// A printer of the system.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PrinterEntry {
+    pub name: String,
+    /// The system's default printer.
+    pub default: bool,
+}
+
+/// The printers, and the Print dialog's choices used last.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PrintStart {
+    pub printers: Vec<PrinterEntry>,
+    pub remembered: Option<PrintPreferences>,
+}
+
+/// A paper size a printer takes.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PrintPaper {
+    /// The printer's own id for it.
+    pub id: i32,
+    pub name: String,
+    /// In points, portrait.
+    pub width: f32,
+    pub height: f32,
+}
+
+/// What a printer can do, as it is set now.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PrinterDetails {
+    pub papers: Vec<PrintPaper>,
+    /// The paper it is set to.
+    pub paper: Option<i32>,
+    pub duplex: bool,
+    /// Its settings ask for both sides.
+    pub duplex_on: bool,
+    pub colour: bool,
+    /// It has settings of its own to show (a driver's dialog, on Windows).
+    pub settings_dialog: bool,
+}
+
+impl PrinterDetails {
+    pub fn new(c: pdf_core::platform::PrinterCapabilities, settings_dialog: bool) -> Self {
+        PrinterDetails {
+            papers: c
+                .papers
+                .into_iter()
+                .map(|p| PrintPaper {
+                    id: p.id,
+                    name: p.name,
+                    width: p.width,
+                    height: p.height,
+                })
+                .collect(),
+            paper: c.paper,
+            duplex: c.duplex,
+            duplex_on: c.duplex_on,
+            colour: c.colour,
+            settings_dialog,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum PrintSizing {
+    Fit,
+    ActualSize,
+    ShrinkOversized,
+    Custom,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum PrintOrientation {
+    Auto,
+    Portrait,
+    Landscape,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum PrintDuplex {
+    OneSided,
+    LongEdge,
+    ShortEdge,
+}
+
+impl From<PrintDuplex> for pdf_core::print::Duplex {
+    fn from(d: PrintDuplex) -> Self {
+        match d {
+            PrintDuplex::OneSided => pdf_core::print::Duplex::OneSided,
+            PrintDuplex::LongEdge => pdf_core::print::Duplex::LongEdge,
+            PrintDuplex::ShortEdge => pdf_core::print::Duplex::ShortEdge,
+        }
+    }
+}
+
+/// What the Print dialog asks for.
+#[derive(Debug, Clone, PartialEq, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PrintSettings {
+    pub printer: String,
+    /// The pages, in the order they print (0-based).
+    pub pages: Vec<u32>,
+    pub sizing: PrintSizing,
+    /// Percent, for `custom` sizing.
+    pub scale: u16,
+    pub orientation: PrintOrientation,
+    /// The printer's id of the paper; null for the one it is set to.
+    pub paper: Option<i32>,
+    pub duplex: PrintDuplex,
+    pub annotations: bool,
+    pub grey: bool,
+    pub copies: u16,
+    pub collate: bool,
+}
+
+/// Smallest and largest custom scale, percent.
+pub const PRINT_SCALE: (u16, u16) = (10, 1000);
+
+impl PrintSettings {
+    pub fn sizing(&self) -> pdf_core::print::Sizing {
+        use pdf_core::print::Sizing;
+        match self.sizing {
+            PrintSizing::Fit => Sizing::Fit,
+            PrintSizing::ActualSize => Sizing::ActualSize,
+            PrintSizing::ShrinkOversized => Sizing::ShrinkOversized,
+            PrintSizing::Custom => {
+                Sizing::Scale(f32::from(self.scale.clamp(PRINT_SCALE.0, PRINT_SCALE.1)) / 100.0)
+            }
+        }
+    }
+
+    pub fn orientation(&self) -> pdf_core::print::Orientation {
+        use pdf_core::print::Orientation;
+        match self.orientation {
+            PrintOrientation::Auto => Orientation::Auto,
+            PrintOrientation::Portrait => Orientation::Portrait,
+            PrintOrientation::Landscape => Orientation::Landscape,
+        }
+    }
+
+    /// What the dialog keeps for next time: not the pages or the copies.
+    pub fn preferences(&self) -> PrintPreferences {
+        PrintPreferences {
+            printer: Some(self.printer.clone()),
+            sizing: self.sizing,
+            scale: self.scale,
+            orientation: self.orientation,
+            duplex: self.duplex,
+            annotations: self.annotations,
+            grey: self.grey,
+            collate: self.collate,
+        }
+    }
+}
+
+/// The Print dialog's choices used last.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PrintPreferences {
+    pub printer: Option<String>,
+    pub sizing: PrintSizing,
+    pub scale: u16,
+    pub orientation: PrintOrientation,
+    pub duplex: PrintDuplex,
+    pub annotations: bool,
+    pub grey: bool,
+    pub collate: bool,
+}
+
+/// A rectangle on a sheet, in points from its top-left corner.
+#[derive(Debug, Clone, Copy, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SheetArea {
+    pub x: f32,
+    pub y: f32,
+    pub width: f32,
+    pub height: f32,
+}
+
+impl From<pdf_core::print::Area> for SheetArea {
+    fn from(a: pdf_core::print::Area) -> Self {
+        SheetArea {
+            x: a.x,
+            y: a.y,
+            width: a.width,
+            height: a.height,
+        }
+    }
+}
+
+/// Which way a page is turned on its sheet.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum PrintTurn {
+    Upright,
+    /// A quarter to the left: its top along the sheet's left edge.
+    Left,
+    /// A quarter to the right.
+    Right,
+}
+
+impl From<pdf_core::print::Turn> for PrintTurn {
+    fn from(t: pdf_core::print::Turn) -> Self {
+        match t {
+            pdf_core::print::Turn::Upright => PrintTurn::Upright,
+            pdf_core::print::Turn::Left => PrintTurn::Left,
+            pdf_core::print::Turn::Right => PrintTurn::Right,
+        }
+    }
+}
+
+/// Where a page goes on its sheet.
+#[derive(Debug, Clone, Copy, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct SheetPlacement {
+    pub page: u32,
+    pub turn: PrintTurn,
+    /// The page's box on the sheet.
+    pub area: SheetArea,
+}
+
+/// The sheets a job prints (one copy), for the preview.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PrintLayout {
+    /// The paper, in the job's orientation.
+    pub width: f32,
+    pub height: f32,
+    pub printable: SheetArea,
+    pub landscape: bool,
+    pub sheets: Vec<SheetPlacement>,
+    /// The document allows printing at low resolution only.
+    pub low_resolution: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PrintProgress {
+    /// Sheets sent to the printer.
+    pub done: u32,
+    pub total: u32,
+}
+
+/// A job sent to the printer.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PrintDone {
+    pub sheets: u32,
 }
 
 // ----- Compress (section 6.11, ADR 0027) -----

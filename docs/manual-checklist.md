@@ -343,6 +343,31 @@ and run `python tests/interop/run.py compress`, which writes each preset's resul
 - [ ] A signed file of your own: the dialog says its signatures will not be valid; Acrobat
       shows the copy's signature as invalid, the original's still valid.
 
+## Print
+
+On a paper printer of your own, with a document whose pages are not all alike (a book with
+roman front matter and a landscape table, or `pdf-cli merge mixed.pdf a.pdf --pages
+"1:1-2,1:3@90,1:4@270"` from a generated `a.pdf`):
+
+- [ ] **File > Print…** and Ctrl+P open the dialog, with your printers, the default one
+      marked. The preview's sheets match the pages asked for: "ii-1" by label, "5-3"
+      backwards, odd pages only.
+- [ ] **Print**, fitted, as the pages are: every page is on paper upright, the turned ones
+      included, inside the printer's margins, and the text is sharp (600 dpi).
+- [ ] **Actual size** with a form or a drawing of known size: a measured line is as long
+      on paper as the document says.
+- [ ] Two copies on both sides, collated, of three pages: the second copy starts on a sheet
+      of its own.
+- [ ] **Printer settings…**: the driver's dialog opens over Lectrix; a paper or quality
+      chosen there is what prints, and the dialog's Paper follows it.
+- [ ] A document with a highlight and a sticky note: they print with **Annotations** on,
+      the note's icon too, and not with it off. **In greys** prints no colour.
+- [ ] A file made with `pdf-cli gen restricted.pdf --owner-password owner --allow copy`:
+      Ctrl+P says it doesn't allow printing. With `--allow print`: it prints, and the
+      dialog says 150 dpi.
+- [ ] On Linux or macOS: the printers are listed and a page prints through CUPS, on both
+      sides where the printer can.
+
 ## Full screen
 
 - [ ] With a document open, press F11: the title bar, the view bar and the side panes slide

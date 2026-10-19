@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-print-stop"
+description = "Enables the print_stop command without any pre-configured scope."
+commands.allow = ["print_stop"]
+
+[[permission]]
+identifier = "deny-print-stop"
+description = "Denies the print_stop command without any pre-configured scope."
+commands.deny = ["print_stop"]

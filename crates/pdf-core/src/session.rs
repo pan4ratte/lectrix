@@ -317,7 +317,19 @@ enum Command {
         password: Option<Option<String>>,
         reply: Reply<DocumentInfo>,
     },
+    PrintFacts {
+        reply: Reply<PrintFacts>,
+    },
     Close,
+}
+
+/// What printing a document needs to know of it (section 6.12).
+#[derive(Debug, Clone)]
+pub struct PrintFacts {
+    /// Every page's size as shown, after its `/Rotate` and crop.
+    pub pages: Vec<PageSize>,
+    /// What printing the document allows.
+    pub printing: crate::protection::Printing,
 }
 
 /// Handle to a document actor. Cheap to clone; the actor stops on [`Session::close`] or
@@ -445,6 +457,24 @@ impl Session {
             cache: true,
             reply,
         })
+    }
+
+    /// The display list of `page` as it prints ([`Part::Print`]), and the revision it shows.
+    /// Not cached: a print job goes through every page once, and would push the pages on
+    /// screen out of the cache.
+    pub fn print_list(&self, page: usize, annotations: bool) -> Result<(Arc<DisplayList>, u64)> {
+        self.call(|reply| Command::DisplayList {
+            page,
+            hidden: Vec::new(),
+            part: Part::Print { annotations },
+            cache: false,
+            reply,
+        })
+    }
+
+    /// The page sizes and the print permission (section 6.12).
+    pub fn print_facts(&self) -> Result<PrintFacts> {
+        self.call(|reply| Command::PrintFacts { reply })
     }
 
     /// The display lists an annotation layer of `page` is made from
@@ -778,6 +808,12 @@ fn actor(origin: Origin, rx: Receiver<Command>, ready: SyncSender<Result<Documen
             }
             Command::Apply { op, reply } => {
                 let _ = reply.send(actor.apply(&op));
+            }
+            Command::PrintFacts { reply } => {
+                let _ = reply.send(Ok(PrintFacts {
+                    pages: actor.pages.clone(),
+                    printing: actor.flags.printing,
+                }));
             }
             Command::Undo { reply } => {
                 let _ = reply.send(actor.step(false));

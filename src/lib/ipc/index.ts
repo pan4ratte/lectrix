@@ -98,6 +98,27 @@ import type { ProtectSaved } from './generated/ProtectSaved';
 export type { ProtectStep } from './generated/ProtectStep';
 import type { ProtectStep } from './generated/ProtectStep';
 export type { Restrictions } from './generated/Restrictions';
+export type { PrintDone } from './generated/PrintDone';
+import type { PrintDone } from './generated/PrintDone';
+export type { PrintDuplex } from './generated/PrintDuplex';
+export type { PrintLayout } from './generated/PrintLayout';
+import type { PrintLayout } from './generated/PrintLayout';
+export type { PrintOrientation } from './generated/PrintOrientation';
+export type { PrintPaper } from './generated/PrintPaper';
+export type { PrintPermission } from './generated/PrintPermission';
+export type { PrintPreferences } from './generated/PrintPreferences';
+export type { PrintProgress } from './generated/PrintProgress';
+import type { PrintProgress } from './generated/PrintProgress';
+export type { PrintSettings } from './generated/PrintSettings';
+import type { PrintSettings } from './generated/PrintSettings';
+export type { PrintSizing } from './generated/PrintSizing';
+export type { PrintStart } from './generated/PrintStart';
+import type { PrintStart } from './generated/PrintStart';
+export type { PrinterDetails } from './generated/PrinterDetails';
+import type { PrinterDetails } from './generated/PrinterDetails';
+export type { PrinterEntry } from './generated/PrinterEntry';
+export type { SheetArea } from './generated/SheetArea';
+export type { SheetPlacement } from './generated/SheetPlacement';
 export type { CompressAnalysis } from './generated/CompressAnalysis';
 export type { CompressFound } from './generated/CompressFound';
 export type { CompressOutcome } from './generated/CompressOutcome';
@@ -234,6 +255,22 @@ export function compressRun(token: number, settings: CompressSettings, onProgres
 export const compressStop = (token: number) => invoke<void>('compress_stop', { token });
 export const compressSave = (token: number, copy: boolean) => invoke<CompressSaved>('compress_save', { token, copy });
 export const compressCancel = (token: number) => invoke<void>('compress_cancel', { token });
+// Print (section 6.12, ADR 0028): the printers, what each takes, the layout of the sheets
+// for the preview, and the job, with progress.
+export const printStart = () => invoke<PrintStart>('print_start');
+export const printPrinter = (printer: string) => invoke<PrinterDetails>('print_printer', { printer });
+/** Shows the printer's own settings dialog; its details after, or null if cancelled. */
+export const printPrinterSettings = (printer: string) =>
+	invoke<PrinterDetails | null>('print_printer_settings', { printer });
+export const printLayout = (id: number, settings: PrintSettings) =>
+	invoke<PrintLayout>('print_layout', { id, settings });
+/** Prints with progress; `printStop` stops it (the `cancelled` code). */
+export function printRun(id: number, settings: PrintSettings, onProgress: (p: PrintProgress) => void) {
+	const channel = new Channel<PrintProgress>();
+	channel.onmessage = onProgress;
+	return invoke<PrintDone>('print_run', { id, settings, onProgress: channel });
+}
+export const printStop = (id: number) => invoke<void>('print_stop', { id });
 // Protect (section 6.9, ADR 0026): a file given a password, restrictions or both, as a tool
 // on a file or as a change of a document's protection that its next save writes.
 export const protectPick = () => invoke<ProtectStep>('protect_pick');
@@ -424,8 +461,9 @@ export function setImageFormat(format: ImageFormat) {
 }
 
 /** Part of a page an image can show: without its annotations, or its annotations alone
- * (for an inverted page, `annots-dark`). */
-export type PageLayer = 'content' | 'annots' | 'annots-dark';
+ * (for an inverted page, `annots-dark`); or the page as it prints, with or without its
+ * annotations (`print`, `print-content`: the Print dialog's preview). */
+export type PageLayer = 'content' | 'annots' | 'annots-dark' | 'print' | 'print-content';
 
 /** The most annotations a page image can be asked to leave out (mirrors `MAX_HIDDEN` in
  * `protocol.rs`); with more, the page is asked for with all of them. */
@@ -451,8 +489,9 @@ export function pageUrl(
 	const base = isWindows() ? 'http://lectrix.localhost' : 'lectrix://localhost';
 	let url = `${base}/page/${docId}/${pageIndex}?scale=${scale.toFixed(3)}&rev=${rev}`;
 	if (tile) url += `&tile=${tile.x},${tile.y},${tile.width},${tile.height}`;
-	// The content has no annotations to leave out.
-	if (layer !== 'content' && hidden.length > 0 && hidden.length <= MAX_HIDDEN) url += `&hide=${hidden.join(',')}`;
+	// The content has no annotations to leave out, and printing leaves out none.
+	const hides = layer !== 'content' && layer !== 'print' && layer !== 'print-content';
+	if (hides && hidden.length > 0 && hidden.length <= MAX_HIDDEN) url += `&hide=${hidden.join(',')}`;
 	if (layer) url += `&layer=${layer}`;
 	if (format === 'png') url += '&fmt=png';
 	return url;

@@ -185,6 +185,25 @@ int lectrix_pdf_run_annot(fz_context *ctx, pdf_annot *annot, fz_device *dev, lec
 }
 
 /*
+ * Draws a page as it prints (section 6.12): its contents, its annotations (unless
+ * `annots` is 0) and its form fields, each with the 'Print' usage, so annotations without
+ * the Print flag and optional content hidden for printing are left out.
+ */
+int lectrix_pdf_run_page_for_print(fz_context *ctx, pdf_page *page, fz_device *dev, int annots, lectrix_error *err)
+{
+	fz_try(ctx)
+	{
+		pdf_run_page_contents_with_usage(ctx, page, dev, fz_identity, "Print", NULL);
+		if (annots)
+			pdf_run_page_annots_with_usage(ctx, page, dev, fz_identity, "Print", NULL);
+		pdf_run_page_widgets_with_usage(ctx, page, dev, fz_identity, "Print", NULL);
+	}
+	fz_catch(ctx)
+		return lectrix_caught(ctx, err);
+	return 0;
+}
+
+/*
  * A read-only fz_stream over an operating-system file handle that the caller opened.
  *
  * MuPDF's own file stream (fz_open_file) opens files without FILE_SHARE_DELETE on

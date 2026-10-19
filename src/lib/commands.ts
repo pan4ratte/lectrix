@@ -10,6 +10,7 @@ import { showLabels } from '#lib/features/labels/actions.ts';
 import { toggleTheme } from '#lib/features/settings/apply.ts';
 import { insertFromFile, toggleOrganize } from '#lib/features/organize/actions.ts';
 import { openProperties } from '#lib/features/properties/actions.ts';
+import { openPrint } from '#lib/features/print/actions.ts';
 import { compressDocument, compressFile } from '#lib/features/compress/actions.ts';
 import { protectDocument, protectFile } from '#lib/features/protect/actions.ts';
 import { unlockDocument, unlockFile } from '#lib/features/unprotect/actions.ts';
@@ -135,6 +136,8 @@ export const commands = {
 		if (tab) void compressDocument(tab);
 		else void compressFile();
 	},
+	/** The Print dialog for the document shown (section 6.12). */
+	print: withTab(openPrint),
 	/** The active tab into a window of its own (section 8). */
 	moveTabToNewWindow: withTab(() => {
 		const group = app.activeGroup;

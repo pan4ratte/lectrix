@@ -37,7 +37,7 @@ where they are moved, rotated, deleted, inserted from other files and extracted 
 new document, which is not a file until it is saved (ADR 0019), and where the page labels
 are set in a dialog, in place of their side panel. The start screen has it among its
 tools. Rotating in the viewer turns a page on screen only, remembered per file. Unlock, Protect,
-Document properties and Compress (sections 6.8 to 6.11).
+Document properties and Compress (sections 6.8 to 6.11), and Print (section 6.12, ADR 0028).
 
 ## Performance
 
@@ -375,6 +375,17 @@ pages, `tests/perf/organize.mjs` (its numbers are under "Organizing pages" below
     slowest, 371 byte-aligned Group 4 pages written again, 17 s; a 2,881-page book 4.3 s;
     a 2,597-page book with 100,000 objects 7.7 s.
     Merging duplicates is Lectrix's own (MuPDF's took 150 s on that book).
+- **Print** (section 6.12, ADR 0028):
+  - On Windows each sheet is an image, at most 600 dpi: sharp on paper, but a job is a
+    few megabytes a sheet in the spooler (two text pages in colour through Microsoft Print
+    to PDF: 6.5 MB), where Acrobat can send vector drawing. MuPDF has no GDI or XPS
+    device.
+  - Several pages on a sheet, booklets, posters, and choosing the paper tray by page size
+    (Acrobat's) are not offered; trays are the driver's settings (Printer settings…).
+  - The preview shows greys with the webview's filter, not the printer's conversion.
+  - Tried on Windows with Microsoft Print to PDF (the end-to-end test, and `pdf-cli print`
+    with pages turned and in greys). Not yet on a paper printer, nor Printer settings… (the
+    driver's own dialog) by a person (`docs/manual-checklist.md`, "Print").
 
 ## Split view
 
@@ -387,6 +398,11 @@ pages, `tests/perf/organize.mjs` (its numbers are under "Organizing pages" below
 CI builds the app and its tests on both, and runs the tests without failing the job.
 Nothing has been run interactively there.
 
+- **Printing** (section 6.12, ADR 0028) goes through CUPS (`lpstat`, `lpoptions`, `lp`),
+  which both have; built and its parsing tested on Windows, but not yet run on either. CUPS
+  does not report a printer's margins, so pages are fitted inside 12 pt ones, and paper
+  sizes are read from the PPD's names (the common ones and PWG names); a printer offering
+  only others prints on A4 as far as the preview goes.
 - **Fonts:** no index of installed fonts (ADR 0005). Non-embedded fonts other than the
   base 14 render with MuPDF's substitutes, and non-embedded CJK text has no glyphs. This
   needs fontconfig (Linux) and Core Text (macOS) behind the existing `SystemFonts` trait.

@@ -352,6 +352,7 @@ describe('floating bars', () => {
 			canAssemble: true,
 			canAnnotate: true,
 			canCopy: false,
+			printing: 'highResolution',
 			pdfa: null
 		};
 		expect(quickToolAllowed('highlight', flags, true)).toBe(true);

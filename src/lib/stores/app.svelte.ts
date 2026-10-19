@@ -123,6 +123,11 @@ export interface PropertiesRequest {
 	section: PropertiesSection;
 }
 
+/** The Print dialog (section 6.12), for the document in tab `tabId`. */
+export interface PrintRequest {
+	tabId: number;
+}
+
 /** The Protect dialog (section 6.9), for a file or for a document in a tab. */
 export interface ProtectRequest {
 	name: string;
@@ -285,7 +290,8 @@ class AppStore {
 			this.insertRequest !== null ||
 			this.protectRequest !== null ||
 			this.compressRequest !== null ||
-			this.propertiesRequest !== null
+			this.propertiesRequest !== null ||
+			this.printRequest !== null
 		);
 	}
 	toasts = $state<Toast[]>([]);
@@ -301,6 +307,8 @@ class AppStore {
 	compressRequest = $state<CompressRequest | null>(null);
 	/** A document's properties are open (section 6.10). */
 	propertiesRequest = $state<PropertiesRequest | null>(null);
+	/** The Print dialog is open (section 6.12). */
+	printRequest = $state<PrintRequest | null>(null);
 	/** The Combine view, while it is open (shown as a tab of its own). */
 	combine = $state<CombineState | null>(null);
 	/** The Combine view is the tab on screen. */

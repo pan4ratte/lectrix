@@ -90,6 +90,7 @@ Under each version, the sections with changes, in this order (`SECTIONS` in
 | Combining files | the Combine view, Insert pages from file |
 | Organizing pages | the grid of a document's pages: moving, rotating, deleting, extracting |
 | Compressing files | the Compress dialog |
+| Printing | the Print dialog |
 | Settings | the Settings dialog |
 | Installation and updates | installers, file association, the updater |
 | General | what touches the whole app: speed, stability, the look, keyboard, accessibility |

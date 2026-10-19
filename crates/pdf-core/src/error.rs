@@ -48,6 +48,13 @@ pub enum Error {
     /// A file's security settings do not allow copying its pages into another document.
     #[error("{0} does not allow copying its pages")]
     CopyNotPermitted(String),
+    /// A printer is not there any more, or it or the system refused the job (section
+    /// 6.12). `detail` is for the log.
+    #[error("printing on {printer} failed: {detail}")]
+    Printer { printer: String, detail: String },
+    /// The document's permissions do not allow printing it.
+    #[error("the document does not allow printing")]
+    PrintNotAllowed,
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }

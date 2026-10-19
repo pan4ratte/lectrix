@@ -67,6 +67,43 @@ enum Command {
         #[arg(long, value_parser = parse_permissions, default_value = "annotate")]
         allow: u32,
     },
+    /// List the printers the system has (section 6.12), the default one marked, with what
+    /// each takes.
+    Printers,
+    /// Print a file as File > Print does (section 6.12). `--output` has the printer write
+    /// a file instead (Windows' Microsoft Print to PDF; on CUPS, the PDF lp would get).
+    Print {
+        input: PathBuf,
+        #[arg(long)]
+        printer: String,
+        #[arg(long)]
+        output: Option<PathBuf>,
+        /// Physical page numbers, "1-3,7"; all pages by default.
+        #[arg(long)]
+        pages: Option<String>,
+        #[arg(long, value_enum, default_value_t = SizingArg::Fit)]
+        sizing: SizingArg,
+        /// Percent, with `--sizing scale`.
+        #[arg(long, default_value_t = 100.0)]
+        scale: f32,
+        #[arg(long, value_enum, default_value_t = OrientationArg::Auto)]
+        orientation: OrientationArg,
+        /// The printer's paper id (`pdf-cli printers` lists them).
+        #[arg(long)]
+        paper: Option<i32>,
+        #[arg(long)]
+        no_annotations: bool,
+        #[arg(long)]
+        grey: bool,
+        #[arg(long, default_value_t = 1)]
+        copies: u16,
+        #[arg(long)]
+        uncollated: bool,
+        #[arg(long, value_enum, default_value_t = DuplexArg::One)]
+        duplex: DuplexArg,
+        #[arg(long)]
+        password: Option<String>,
+    },
     /// Remove a file's password and restrictions (the start screen's Unlock), writing it
     /// whole without encryption. Any password that opens it will do.
     Unlock {
@@ -516,6 +553,28 @@ enum ColorModeArg {
 }
 
 #[derive(Clone, Copy, ValueEnum)]
+enum SizingArg {
+    Fit,
+    Actual,
+    Shrink,
+    Scale,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum OrientationArg {
+    Auto,
+    Portrait,
+    Landscape,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum DuplexArg {
+    One,
+    Long,
+    Short,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
 enum PrintingArg {
     None,
     Low,
@@ -629,16 +688,122 @@ fn analyze(input: &Path, password: Option<&str>) -> Result<()> {
     Ok(())
 }
 
-fn main() -> ExitCode {
-    let cli = Cli::parse();
-    // The same font policy as the app, so renders and timings match what users see.
-    pdf_core::fonts::install();
-    match run(cli.command) {
-        Ok(()) => ExitCode::SUCCESS,
-        Err(e) => {
-            eprintln!("error: {e}");
-            ExitCode::FAILURE
+/// What `pdf-cli print` was asked for.
+struct CliJob {
+    pages: Option<String>,
+    sizing: pdf_core::print::Sizing,
+    orientation: pdf_core::print::Orientation,
+    paper: Option<i32>,
+    annotations: bool,
+    grey: bool,
+    copies: u16,
+    collate: bool,
+    duplex: pdf_core::print::Duplex,
+}
+
+/// `pdf-cli print`: the job File > Print makes, on `printer`.
+fn print_file(
+    input: &Path,
+    printer: &str,
+    output: Option<PathBuf>,
+    asked: &CliJob,
+    password: Option<&str>,
+) -> Result<()> {
+    use pdf_core::print::{self, Job, PrintSetup};
+    let (session, info) = Session::open(input, password)?;
+    let max_dpi = print::allowed_dpi(info.flags.printing)?;
+    let count = info.pages.len();
+    let pages: Vec<usize> = match &asked.pages {
+        None => (0..count).collect(),
+        Some(text) => {
+            let mut pages = Vec::new();
+            for part in text.split(',') {
+                let (from, to) = part.split_once('-').unwrap_or((part, part));
+                let number = |s: &str| -> Result<usize> {
+                    s.trim()
+                        .parse::<usize>()
+                        .ok()
+                        .filter(|&n| n >= 1 && n <= count)
+                        .ok_or_else(|| Error::InvalidArgument(format!("no page {s}")))
+                };
+                pages.extend(number(from)? - 1..number(to)?);
+            }
+            pages
         }
+    };
+    let landscape = print::job_landscape(
+        asked.orientation,
+        pages
+            .iter()
+            .map(|&p| (info.pages[p].width, info.pages[p].height)),
+    );
+    let setup = PrintSetup {
+        paper: asked.paper,
+        landscape,
+        duplex: asked.duplex,
+        grey: asked.grey,
+        copies: asked.copies,
+        collate: asked.collate,
+        title: input
+            .file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default(),
+        output,
+        max_dpi,
+    };
+    let target = pdf_core::platform::printers().start(printer, &setup)?;
+    let sheet = target.sheet();
+    println!(
+        "sheet {:.0} x {:.0} pt, printable {:.0},{:.0} {:.0} x {:.0}",
+        sheet.width,
+        sheet.height,
+        sheet.printable.x,
+        sheet.printable.y,
+        sheet.printable.width,
+        sheet.printable.height
+    );
+    let job = Job {
+        pages,
+        sizing: asked.sizing,
+        orientation: asked.orientation,
+        annotations: asked.annotations,
+        grey: asked.grey,
+        copies: asked.copies,
+        collate: asked.collate,
+        duplex: asked.duplex,
+    };
+    let start = Instant::now();
+    let mut sheets = 0;
+    print::print(&session, &job, target, &mut |_, total| {
+        sheets = total;
+        true
+    })?;
+    session.close();
+    println!(
+        "printed {sheets} sheets on {printer} in {:.2} s",
+        start.elapsed().as_secs_f64()
+    );
+    Ok(())
+}
+
+fn main() -> ExitCode {
+    // On a thread with room: the parser clap derives for this many commands takes more
+    // than the 1 MB of stack Windows gives the main thread, in debug builds.
+    let main = std::thread::Builder::new().stack_size(16 << 20).spawn(|| {
+        let cli = Cli::parse();
+        // The same font policy as the app, so renders and timings match what users see.
+        pdf_core::fonts::install();
+        match run(cli.command) {
+            Ok(()) => ExitCode::SUCCESS,
+            Err(e) => {
+                eprintln!("error: {e}");
+                ExitCode::FAILURE
+            }
+        }
+    });
+    match main.map(|thread| thread.join()) {
+        Ok(Ok(code)) => code,
+        _ => ExitCode::FAILURE,
     }
 }
 
@@ -680,6 +845,71 @@ fn run(command: Command) -> Result<()> {
                 save::save_atomic(&doc, SaveKind::Full, None, &out)?;
             }
             println!("wrote {} ({pages} pages)", out.display());
+        }
+        Command::Printers => {
+            let printers = pdf_core::platform::printers();
+            for entry in printers.list()? {
+                let mark = if entry.default { " (default)" } else { "" };
+                println!("{}{mark}", entry.name);
+                match printers.capabilities(&entry.name) {
+                    Ok(caps) => {
+                        println!(
+                            "  duplex: {}, colour: {}, paper: {:?}",
+                            caps.duplex, caps.colour, caps.paper
+                        );
+                        for paper in caps.papers {
+                            println!(
+                                "  {:>5}  {} ({:.0} x {:.0} pt)",
+                                paper.id, paper.name, paper.width, paper.height
+                            );
+                        }
+                    }
+                    Err(e) => println!("  capabilities: {e}"),
+                }
+            }
+        }
+        Command::Print {
+            input,
+            printer,
+            output,
+            pages,
+            sizing,
+            scale,
+            orientation,
+            paper,
+            no_annotations,
+            grey,
+            copies,
+            uncollated,
+            duplex,
+            password,
+        } => {
+            use pdf_core::print::{Duplex, Orientation, Sizing};
+            let job = CliJob {
+                pages,
+                sizing: match sizing {
+                    SizingArg::Fit => Sizing::Fit,
+                    SizingArg::Actual => Sizing::ActualSize,
+                    SizingArg::Shrink => Sizing::ShrinkOversized,
+                    SizingArg::Scale => Sizing::Scale(scale / 100.0),
+                },
+                orientation: match orientation {
+                    OrientationArg::Auto => Orientation::Auto,
+                    OrientationArg::Portrait => Orientation::Portrait,
+                    OrientationArg::Landscape => Orientation::Landscape,
+                },
+                paper,
+                annotations: !no_annotations,
+                grey,
+                copies,
+                collate: !uncollated,
+                duplex: match duplex {
+                    DuplexArg::One => Duplex::OneSided,
+                    DuplexArg::Long => Duplex::LongEdge,
+                    DuplexArg::Short => Duplex::ShortEdge,
+                },
+            };
+            print_file(&input, &printer, output, &job, password.as_deref())?;
         }
         Command::Unlock {
             input,

@@ -105,10 +105,11 @@ lectrix/
 │  │  │  ├─ merge/           # stitching, and extracting pages into a new file
 │  │  │  ├─ pages.rs         # moving and deleting pages (ADR 0018)
 │  │  │  ├─ compress/        # Compress: images, fonts, removals, duplicates (ADR 0027)
+│  │  │  ├─ print/           # printing: pages on sheets, bands for printers, the PDF for CUPS (ADR 0028)
 │  │  │  ├─ save.rs          # incremental / full / atomic replace
 │  │  │  ├─ ops.rs           # operation enum, undo/redo
 │  │  │  ├─ fonts/           # installed-font index (ADR 0005)
-│  │  │  ├─ platform/        # platform traits and their Windows implementations
+│  │  │  ├─ platform/        # platform traits (fonts, printers) and their implementations
 │  │  │  ├─ testgen.rs       # generated sample documents
 │  │  │  └─ ffi/             # thin safe wrappers over mupdf-sys, plus shim.c
 │  │  └─ tests/
@@ -203,6 +204,7 @@ What each feature does is specified in `docs/spec/`, one file per feature, under
 - **6.9 Protect** ([docs/spec/protect.md](docs/spec/protect.md)): a password to open the file, restrictions with a permissions password, or both (ADR 0026), as a tool on a file (in place or as a copy) and as a change of a document's protection that its next save writes; not an undo step.
 - **6.10 Document properties** ([docs/spec/properties.md](docs/spec/properties.md)): Document > Properties… (Ctrl+D): the file, its title, author, subject and keywords (changed as one undo step, in the information dictionary and the XMP alike), its security and its fonts.
 - **6.11 Compress** ([docs/spec/compress.md](docs/spec/compress.md)): on the start screen and in the File menu, a PDF written smaller (ADR 0027): presets, or resolution, compression, quality and colour for images (separately for colour, greyscale and black-and-white ones), fonts subset, chosen removals, duplicates merged. Images are replaced where they are, at the resolution they are drawn largest; the result is computed into a file of Lectrix's own, shown with a before-and-after preview, then saved over the file or as a copy.
+- **6.12 Print** ([docs/spec/print.md](docs/spec/print.md)): File > Print… (Ctrl+P), a dialog of Lectrix's own with a preview of each sheet (ADR 0028): the printer and its driver's settings, copies, pages by number or label, size and orientation on the paper, both sides, annotations and greys. Pages print as MuPDF prints them (the Print flags kept), drawn at the printer's resolution through GDI on Windows and sent as a PDF to CUPS on Linux and macOS.
 
 ## 7. Document model, undo/redo and saving
 
@@ -261,6 +263,7 @@ The app should feel like a native Windows 11 app: calm, fast, and keyboard-frien
 | Action | Shortcut |
 | --- | --- |
 | Open / Save / Save As | Ctrl+O / Ctrl+S / Ctrl+Shift+S |
+| Print | Ctrl+P |
 | Undo / Redo | Ctrl+Z / Ctrl+Y |
 | Find | Ctrl+F |
 | Add bookmark | Ctrl+B |
@@ -312,7 +315,7 @@ The suites keep the names they got during the build: `phase0` (labels, outline, 
 
 **Manual release checklist** (`docs/manual-checklist.md`, performed by the user before every release; the agent prepares the files and keeps the checklist current): open the interop sample files in Acrobat Reader, Edge, Firefox and Foxit; for every annotation type confirm it is visible, has the right color and opacity, appears in the comments list, prints, and can be edited and deleted. Then the installers, a real crash, and a Narrator walk.
 
-**Frontend and end-to-end:** Vitest for stores and component logic; `tauri-driver` with WebdriverIO for the critical flows (open, highlight, add bookmark, set labels, combine, save, reopen, crash recovery, recent files, tabs and windows, full screen, organizing pages, and a keyboard-only accessibility walk). The end-to-end tests run beside a Lectrix the user has open and leave it alone: a test run (`LECTRIX_EPHEMERAL`) is an instance of its own, outside the single-instance hand-off, and the launcher ends only copies of the app under test (`tests/e2e/lib/app.mjs`). **Run them as CI shows the app before pushing** (`npm run test:ci --prefix tests/e2e`, one or more test files after `--`): CI's Windows runners ask for reduced motion and have a 1024 x 768 screen, where the window's page is 1028 px wide and the view bar wraps sooner, and a test written on a larger screen with animations on can fail there alone. The mode passes the browser its reduced-motion switch (`LECTRIX_BROWSER_ARGS`) and gives a window without a remembered place that size (`LECTRIX_WINDOW_SIZE`). A test of motion checks the way there only where motion is allowed (`matchMedia('(prefers-reduced-motion: reduce)')`), and where things end up either way.
+**Frontend and end-to-end:** Vitest for stores and component logic; `tauri-driver` with WebdriverIO for the critical flows (open, highlight, add bookmark, set labels, combine, save, reopen, crash recovery, recent files, tabs and windows, full screen, organizing pages, printing, and a keyboard-only accessibility walk). The end-to-end tests run beside a Lectrix the user has open and leave it alone: a test run (`LECTRIX_EPHEMERAL`) is an instance of its own, outside the single-instance hand-off, and the launcher ends only copies of the app under test (`tests/e2e/lib/app.mjs`). **Run them as CI shows the app before pushing** (`npm run test:ci --prefix tests/e2e`, one or more test files after `--`): CI's Windows runners ask for reduced motion and have a 1024 x 768 screen, where the window's page is 1028 px wide and the view bar wraps sooner, and a test written on a larger screen with animations on can fail there alone. The mode passes the browser its reduced-motion switch (`LECTRIX_BROWSER_ARGS`) and gives a window without a remembered place that size (`LECTRIX_WINDOW_SIZE`). A test of motion checks the way there only where motion is allowed (`matchMedia('(prefers-reduced-motion: reduce)')`), and where things end up either way.
 
 **Debug menu** (development builds, or a release build run with `LECTRIX_DEBUG=1`; `LECTRIX_DEBUG=0` hides it): after Help, it shows each notification, notice and prompt on demand, worded as the app words them: the update notice at every stage, the note after an update (start screen or notification), information and error notifications, the notification that a save removed a PDF/A claim, the file-changed banner, the banner of a PDF/A file opened for reading only (the open document can't be changed until Enable editing or Clear all) and the crash recovery offer, plus Clear all. Rehearsals change nothing in Rust or on disk: the update notice's buttons work on a stand-in that pretends to download and to restart. The rehearsed update brings what `CHANGELOG.md` lists under Unreleased, so the next release's notes can be read as users will see them. A new kind of notification gets an item there (`src/lib/features/debug/`).
 

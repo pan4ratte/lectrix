@@ -124,6 +124,8 @@ export function appMenus(platform: Platform = PLATFORM): AppMenu[] {
 					command('saveAs', 'Save as…', hasDoc),
 					command('saveAsOptimized', 'Save as (optimized)…', hasDoc),
 					separator,
+					command('print', 'Print…', hasDoc),
+					separator,
 					command('reload', 'Reload from disk', hasDoc && !tab?.untitled)
 				]
 			: [
@@ -137,6 +139,8 @@ export function appMenus(platform: Platform = PLATFORM): AppMenu[] {
 					command('save', 'Save', hasDoc),
 					command('saveAs', 'Save as…', hasDoc),
 					command('saveAsOptimized', 'Save as (optimized)…', hasDoc),
+					separator,
+					command('print', 'Print…', hasDoc),
 					separator,
 					command('reload', 'Reload from disk', hasDoc && !tab?.untitled),
 					command('closeTab', 'Close', hasDoc || app.combineActive),

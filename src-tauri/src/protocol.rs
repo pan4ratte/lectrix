@@ -10,7 +10,9 @@
 //! `layer` asks for part of the page, for visual adjustments that leave the annotations
 //! out (section 6.1): `content` is the page without its annotations, `annots` its
 //! annotations alone on a transparent image, and `annots-dark` the same for an inverted
-//! page (`render::annotation_layer`). Without it, the page as it is.
+//! page (`render::annotation_layer`). `print` and `print-content` are the page as it prints,
+//! with or without its annotations, for the Print dialog's preview (section 6.12). Without
+//! it, the page as it is.
 //!
 //! Without `fmt`, the response is raw RGBA (`application/octet-stream`, 4 bytes per pixel,
 //! size in the `X-Lectrix-Width` and `X-Lectrix-Height` headers; straight alpha, opaque
@@ -141,6 +143,8 @@ fn parse(path: &str, query: Option<&str>) -> Result<PageRequest, Failure> {
                     "content" => Layer::Content,
                     "annots" => Layer::Annotations,
                     "annots-dark" => Layer::DarkAnnotations,
+                    "print" => Layer::Print,
+                    "print-content" => Layer::PrintContent,
                     _ => return Err((StatusCode::BAD_REQUEST, "bad layer")),
                 };
             }
@@ -326,8 +330,11 @@ fn serve(state: &AppState, request: &Request<Vec<u8>>) -> Result<Response<Body>,
         revision: req.revision,
         scale_milli: ImageKey::scale_milli(req.scale),
         tile: req.tile,
-        // The content has no annotations to hide.
-        hidden: if req.layer == Layer::Content {
+        // The content has no annotations to hide, and printing hides none.
+        hidden: if matches!(
+            req.layer,
+            Layer::Content | Layer::Print | Layer::PrintContent
+        ) {
             0
         } else {
             ImageKey::hidden(&req.hidden)
@@ -348,6 +355,21 @@ fn serve(state: &AppState, request: &Request<Vec<u8>>) -> Result<Response<Body>,
                     .map_err(|e| render_failed(&req, e))?,
                 Layer::Annotations | Layer::DarkAnnotations => {
                     annotation_layer(state, &session, &req, key)?
+                }
+                Layer::Print | Layer::PrintContent => {
+                    let annotations = req.layer == Layer::Print;
+                    state
+                        .render_gate
+                        .run(|| {
+                            session.render_part(
+                                req.page,
+                                req.scale,
+                                req.tile,
+                                &[],
+                                Part::Print { annotations },
+                            )
+                        })
+                        .map_err(|e| render_failed(&req, e))?
                 }
             };
             let image = Arc::new(image);
@@ -766,6 +788,8 @@ mod tests {
             ("content", Layer::Content),
             ("annots", Layer::Annotations),
             ("annots-dark", Layer::DarkAnnotations),
+            ("print", Layer::Print),
+            ("print-content", Layer::PrintContent),
         ] {
             let query = format!("scale=1&rev=0&layer={value}&fmt=png");
             assert_eq!(parse("/page/1/0", Some(&query)).unwrap().layer, layer);

@@ -15,6 +15,7 @@ What each feature of Lectrix does, in detail. [AGENTS.md](../../AGENTS.md) holds
 | 6.9 | [protect.md](protect.md) | Giving a file a password, restrictions or both, as a tool or a document's setting |
 | 6.10 | [properties.md](properties.md) | A document's properties: its file, description, security and fonts |
 | 6.11 | [compress.md](compress.md) | Writing a PDF smaller: image settings, presets, removals, the result and its preview |
+| 6.12 | [print.md](print.md) | Printing: the Print dialog, its preview, and how pages reach the printer |
 | 8.1–8.4 | [ui.md](ui.md) | The window layout, the app's own controls, motion, shortcuts on other keyboards and on macOS |
 
 Each file states the behavior first, then its **settled details**: choices made during the build with the user's agreement. Change them only with that agreement, and write a change in behavior into its file in the same commit as the code.

@@ -438,6 +438,10 @@ pub enum Part {
     Highlights,
     /// Its annotations other than highlights, alone.
     OtherAnnotations,
+    /// The page as it prints (section 6.12): content, annotations that have the Print
+    /// flag (none if `annotations` is false) and form fields, with content hidden for
+    /// printing left out. Annotations hidden in the list are printed all the same.
+    Print { annotations: bool },
 }
 
 /// Display list of `part` of page `index`, without the annotations in `hidden` (as
@@ -456,6 +460,13 @@ pub fn display_list_part(
     }
     let page = doc.load_pdf_page(page_no)?;
     let mut list = DisplayList::new(page.bounds()?)?;
+    if let Part::Print { annotations } = part {
+        {
+            let device = Device::from_display_list(&mut list)?;
+            crate::ffi::run_page_for_print(&page, &device, annotations)?;
+        }
+        return Ok(list);
+    }
     let content = matches!(part, Part::Whole | Part::Content);
     {
         let device = Device::from_display_list(&mut list)?;
@@ -469,7 +480,7 @@ pub fn display_list_part(
                 let wanted = match part {
                     Part::Highlights => highlight()?,
                     Part::OtherAnnotations => !highlight()?,
-                    Part::Whole | Part::Content => true,
+                    Part::Whole | Part::Content | Part::Print { .. } => true,
                 };
                 if !wanted {
                     continue;
@@ -624,6 +635,11 @@ pub enum Layer {
     Annotations,
     /// Its annotations on their own, for an inverted page.
     DarkAnnotations,
+    /// The page as it prints, with its annotations ([`Part::Print`]): the Print dialog's
+    /// preview (section 6.12).
+    Print,
+    /// The page as it prints without its annotations.
+    PrintContent,
 }
 
 impl ImageKey {

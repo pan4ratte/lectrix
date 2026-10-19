@@ -36,6 +36,7 @@ export const SECTIONS = [
 	'Combining files',
 	'Organizing pages',
 	'Compressing files',
+	'Printing',
 	'Settings',
 	'Installation and updates',
 	'General'

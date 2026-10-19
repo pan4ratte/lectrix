@@ -4,6 +4,7 @@ use mupdf::Buffer;
 use mupdf::pdf::{PdfDocument, PdfObject, Permission};
 
 use crate::error::Result;
+use crate::protection::Printing;
 
 /// What the document allows and how it must be saved.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -22,6 +23,8 @@ pub struct DocumentFlags {
     pub can_annotate: bool,
     /// Text may be copied (permission bit 5).
     pub can_copy: bool,
+    /// What printing the file allows (permission bits 3 and 12, section 6.12).
+    pub printing: Printing,
     /// The PDF/A level the file claims, if it claims one: such files open for reading
     /// only until the user enables editing (section 5.4).
     pub pdfa: Option<PdfA>,
@@ -62,6 +65,13 @@ pub fn read_flags(doc: &PdfDocument) -> Result<DocumentFlags> {
         can_assemble: permissions.intersects(Permission::MODIFY | Permission::ASSEMBLE),
         can_annotate: permissions.contains(Permission::ANNOTATE),
         can_copy: permissions.contains(Permission::COPY),
+        printing: if !permissions.contains(Permission::PRINT) {
+            Printing::NotAllowed
+        } else if permissions.contains(Permission::PRINT_HQ) {
+            Printing::HighResolution
+        } else {
+            Printing::LowResolution
+        },
         pdfa: read_pdfa(doc),
     })
 }
@@ -473,6 +483,7 @@ mod tests {
                 can_assemble: true,
                 can_annotate: true,
                 can_copy: true,
+                printing: Printing::HighResolution,
                 pdfa: None,
             }
         );

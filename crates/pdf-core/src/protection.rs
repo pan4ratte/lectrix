@@ -16,11 +16,12 @@ use crate::ffi::{crypt_info, open_pdf_shared};
 use crate::save::{Encrypt, SaveKind, save_atomic_encrypted};
 
 /// What a file allows printing.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
 pub enum Printing {
     NotAllowed,
     /// At low resolution only (bit 3 without bit 12; Acrobat says 150 dpi).
     LowResolution,
+    #[default]
     HighResolution,
 }
 

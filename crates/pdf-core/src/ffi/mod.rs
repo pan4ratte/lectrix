@@ -12,7 +12,7 @@ mod snapshot;
 mod stream;
 mod xref;
 
-pub use annot::{request_appearance, run_annotation};
+pub use annot::{request_appearance, run_annotation, run_page_for_print};
 pub use crypt::{CryptInfo, crypt_info, file_facts};
 pub use journal::{Journal, JournalState};
 pub use objects::{is_incremental, set_new_stream};

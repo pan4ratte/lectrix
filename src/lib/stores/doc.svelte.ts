@@ -371,6 +371,7 @@ export class DocModel {
 		canAssemble: true,
 		canAnnotate: true,
 		canCopy: true,
+		printing: 'highResolution',
 		pdfa: null
 	});
 	/**

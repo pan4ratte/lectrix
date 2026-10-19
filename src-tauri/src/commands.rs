@@ -23,11 +23,11 @@ use crate::ipc::{
     AppError, CompressOutcome, CompressProgress, CompressSaved, CompressSettings, CompressStep,
     DocumentChange, DocumentInfo, DocumentSaved, ImageFormat, LabelMode, LinkPlace, MenuEntry,
     MergeOutcome, MergePlan, MergeProgress, MergeRequest, MergeStage, MoveTarget, OpenResult,
-    OperationInput, PageHits, PageText, PaneLayout, ProtectSaved, ProtectStep,
-    ProtectionChangeInput, ProtectionInfo, ProtectionInput, RecentFile, RecoveredDocument,
-    SaveResult, SearchChunk, SearchWord, Settings, SettingsInput, StartupInfo, TabHandoff,
-    UnprotectSaved, UnprotectStep, UnsavedSource, ViewState, WebPage, WindowChrome, WindowDocument,
-    WindowEntry,
+    OperationInput, PageHits, PageText, PaneLayout, PrintDone, PrintLayout, PrintProgress,
+    PrintSettings, PrintStart, PrinterDetails, ProtectSaved, ProtectStep, ProtectionChangeInput,
+    ProtectionInfo, ProtectionInput, RecentFile, RecoveredDocument, SaveResult, SearchChunk,
+    SearchWord, Settings, SettingsInput, StartupInfo, TabHandoff, UnprotectSaved, UnprotectStep,
+    UnsavedSource, ViewState, WebPage, WindowChrome, WindowDocument, WindowEntry,
 };
 use crate::platform::Platform;
 use crate::store::StoredSettings;
@@ -744,6 +744,84 @@ pub fn compress_save(
 #[tauri::command]
 pub fn compress_cancel(state: State<'_, AppState>, token: u32) {
     state.compress.cancel(token);
+}
+
+/// Print (section 6.12, ADR 0028): the printers, and the dialog's choices used last.
+#[tauri::command(async)]
+pub fn print_start(state: State<'_, AppState>) -> Result<PrintStart, AppError> {
+    Ok(PrintStart {
+        printers: state.print.list()?,
+        remembered: state.store.lock().ok().and_then(|s| s.print_preferences()),
+    })
+}
+
+/// What `printer` takes and how it is set.
+#[tauri::command(async)]
+pub fn print_printer(
+    state: State<'_, AppState>,
+    printer: String,
+) -> Result<PrinterDetails, AppError> {
+    state.print.details(&printer)
+}
+
+/// Shows `printer`'s own settings dialog (its driver's, on Windows) over the window; its
+/// details after, or null if the dialog was cancelled. The settings hold for the jobs that
+/// follow while Lectrix runs.
+#[tauri::command(async)]
+pub fn print_printer_settings(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    printer: String,
+) -> Result<Option<PrinterDetails>, AppError> {
+    #[cfg(windows)]
+    let parent = window.hwnd().ok().map(|h| h.0 as isize);
+    #[cfg(not(windows))]
+    let parent = {
+        let _ = &window;
+        None
+    };
+    state.print.settings_dialog(&printer, parent)
+}
+
+/// Where each page `settings` asks for goes on its sheet: the dialog's preview.
+#[tauri::command(async)]
+pub fn print_layout(
+    state: State<'_, AppState>,
+    id: u32,
+    settings: PrintSettings,
+) -> Result<PrintLayout, AppError> {
+    let session = state.documents.session(id)?;
+    state.print.layout(&session, &settings)
+}
+
+/// Prints document `id` as `settings` asks, reporting progress on `on_progress`, and
+/// remembers the choices. Stopped with `print_stop`, it fails with the `cancelled` code.
+#[tauri::command(async)]
+pub fn print_run(
+    state: State<'_, AppState>,
+    id: u32,
+    settings: PrintSettings,
+    on_progress: Channel<PrintProgress>,
+) -> Result<PrintDone, AppError> {
+    let session = state.documents.session(id)?;
+    let title = state
+        .documents
+        .path(id)?
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "Document".into());
+    if let Ok(mut store) = state.store.lock() {
+        store.set_print_preferences(settings.preferences());
+    }
+    state.print.run(id, session, title, settings, move |p| {
+        // The webview may have gone away; printing finishes regardless.
+        let _ = on_progress.send(p);
+    })
+}
+
+#[tauri::command]
+pub fn print_stop(state: State<'_, AppState>, id: u32) {
+    state.print.stop(id);
 }
 
 /// Sets the protection document `id` is saved with next (section 6.9): `null` for its

@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-print-printer-settings"
+description = "Enables the print_printer_settings command without any pre-configured scope."
+commands.allow = ["print_printer_settings"]
+
+[[permission]]
+identifier = "deny-print-printer-settings"
+description = "Denies the print_printer_settings command without any pre-configured scope."
+commands.deny = ["print_printer_settings"]

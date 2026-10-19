@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-print-run"
+description = "Enables the print_run command without any pre-configured scope."
+commands.allow = ["print_run"]
+
+[[permission]]
+identifier = "deny-print-run"
+description = "Denies the print_run command without any pre-configured scope."
+commands.deny = ["print_run"]
