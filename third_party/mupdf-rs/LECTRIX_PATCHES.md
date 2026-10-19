@@ -12,6 +12,7 @@ are fetched from upstream at the same commit.
 | 2 | `Cargo.toml` | Standalone manifest; features trimmed (no JS, OCR, HTML/EPUB/XPS/CBZ/SVG, DOCX output). Lectrix builds it without `system-fonts` (ADR 0005). |
 | 3 | `src/raw.rs` | `PdfDocument::from_raw_owned`, so `pdf-core/src/ffi/stream.rs` can wrap a document it opened from its own file stream (ADR 0003). |
 | 4 | `src/font.rs` | `Font::from_static_bytes_with_index` public and available without `system-fonts`, so Lectrix's font index (ADR 0005) can hand installed fonts to MuPDF without copying them. |
+| 5 | `src/pdf/document.rs` | `PdfDocument::permissions` and `PdfWriteOptions::permissions` keep the named bits of `/P` (`from_bits_truncate`). Upstream used `from_bits`, which refuses the reserved bits every real file sets: `PdfDocument::permissions` then granted every permission, so restricted files were editable, and `PdfWriteOptions::permissions` panicked. |
 
 To rebase onto a newer upstream: copy upstream `src/`, `LICENSE`, `README.md`, re-apply
 the rows above, update both commit hashes, and bump `third_party/mupdf-include/` to the

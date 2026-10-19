@@ -186,7 +186,8 @@ impl PdfWriteOptions {
     }
 
     pub fn permissions(&self) -> Permission {
-        Permission::from_bits(self.inner.permissions as u32).unwrap()
+        // Lectrix: the bits without a name (reserved, set in written files) are dropped.
+        Permission::from_bits_truncate(self.inner.permissions as u32)
     }
 
     pub fn set_permissions(&mut self, value: Permission) -> &mut Self {
@@ -844,7 +845,9 @@ impl PdfDocument {
 
     pub fn permissions(&self) -> Permission {
         let bits = unsafe { pdf_document_permissions(context(), self.inner) };
-        Permission::from_bits(bits as u32).unwrap_or_else(Permission::all)
+        // Lectrix: `/P` has its reserved bits set (ISO 32000-1, table 22: bits 7, 8 and 13
+        // to 32 are 1), which `from_bits` refused, granting every permission instead.
+        Permission::from_bits_truncate(bits as u32)
     }
 
     pub fn save(&self, filename: &str) -> Result<(), Error> {

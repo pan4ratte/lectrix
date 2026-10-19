@@ -7,7 +7,7 @@ use std::fs;
 use std::path::Path;
 
 use common::{open, out_dir, qpdf_check, sample_file, writing};
-use mupdf::pdf::{Encryption, PdfWriteOptions};
+use mupdf::pdf::{Encryption, PdfWriteOptions, Permission};
 use pdf_core::Error;
 use pdf_core::geometry::{PageGeometry, read_page_boxes};
 use pdf_core::labels::{LabelRule, LabelStyle, write_rules};
@@ -234,6 +234,70 @@ fn encrypted_documents_need_the_password_and_stay_encrypted() {
     assert_eq!(check.info().unwrap().pages[0].width, 792.0);
     session.apply(rotate(vec![1], 90)).unwrap();
     writing(|| session.save(SaveKind::Incremental, None)).unwrap();
+}
+
+/// A file that opens without a password but forbids everything except printing, as
+/// restricted files usually come: `/P` with the reserved bits set, as the standard says
+/// (MuPDF writes them so; -3900 here).
+fn restricted_file(dir: &Path) -> std::path::PathBuf {
+    let path = dir.join("restricted.pdf");
+    let doc = sample_document(&SampleSpec::default()).unwrap();
+    let mut options = PdfWriteOptions::default();
+    options
+        .set_encryption(Encryption::Aes128)
+        .set_permissions(Permission::PRINT | Permission::PRINT_HQ)
+        .set_user_password("")
+        .set_owner_password("owner");
+    writing(|| doc.save_with_options(path.to_str().unwrap(), options)).unwrap();
+    path
+}
+
+#[test]
+fn restrictions_are_respected() {
+    let dir = out_dir("session-restricted");
+    let path = restricted_file(&dir);
+    let p = open(&path)
+        .trailer()
+        .unwrap()
+        .get_dict("Encrypt")
+        .unwrap()
+        .unwrap()
+        .get_dict("P")
+        .unwrap()
+        .unwrap()
+        .as_int()
+        .unwrap();
+    assert!(p < 0, "/P has no reserved bits set: {p}");
+
+    let (session, info) = Session::open(&path, None).unwrap();
+    assert!(info.flags.encrypted);
+    assert!(!info.flags.can_annotate, "annotating is forbidden");
+    assert!(!info.flags.can_assemble, "changing pages is forbidden");
+    assert!(!info.flags.can_copy, "copying is forbidden");
+    assert!(matches!(
+        session.apply(rotate(vec![0], 90)),
+        Err(Error::NotPermitted)
+    ));
+    assert_eq!(rotation_on_disk(&path, 0), 0);
+}
+
+#[test]
+fn an_encrypted_file_that_forbids_nothing_allows_everything() {
+    let dir = out_dir("session-permissive");
+    let path = dir.join("permissive.pdf");
+    let doc = sample_document(&SampleSpec::default()).unwrap();
+    let mut options = PdfWriteOptions::default();
+    options
+        .set_encryption(Encryption::Aes128)
+        .set_permissions(Permission::all())
+        .set_user_password("")
+        .set_owner_password("owner");
+    writing(|| doc.save_with_options(path.to_str().unwrap(), options)).unwrap();
+
+    let (session, info) = Session::open(&path, None).unwrap();
+    assert!(info.flags.encrypted);
+    assert!(info.flags.can_annotate && info.flags.can_assemble && info.flags.can_copy);
+    session.apply(rotate(vec![0], 90)).unwrap();
 }
 
 #[test]
