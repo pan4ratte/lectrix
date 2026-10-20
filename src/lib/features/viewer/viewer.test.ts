@@ -598,6 +598,40 @@ describe('selection', () => {
 		expect(selectionText(new Map([[0, p0]]), ls, le)).toBe('second line');
 	});
 
+	it('selects whole words in every script', () => {
+		const word = (text: string, offset: number) => {
+			const p = page(0, [line(text, 0, 0)]);
+			const [s, e] = wordAt(p, { page: 0, line: 0, offset });
+			return selectionText(new Map([[0, p]]), s, e);
+		};
+		// Georgian, Cyrillic and Greek letters.
+		expect(word('ეგორ გვოზდიკოვ', 7)).toBe('გვოზდიკოვ');
+		// Vowel signs and viramas (marks) belong to their word: Hindi, Bengali, Tamil.
+		expect(word('हिन्दी भाषा', 2)).toBe('हिन्दी');
+		expect(word('বাংলা ভাষা', 1)).toBe('বাংলা');
+		expect(word('தமிழ் மொழி', 4)).toBe('தமிழ்');
+		// Arabic with its vowel points, Hebrew with its.
+		expect(word('السَّلَامُ عَلَيْكُمْ', 3)).toBe('السَّلَامُ');
+		expect(word('שָׁלוֹם עוֹלָם', 2)).toBe('שָׁלוֹם');
+		// Thai, Chinese and Japanese, written without spaces: the dictionary's word.
+		expect(word('สวัสดีครับ', 1)).toBe('สวัสดี');
+		expect(word('สวัสดีครับ', 7)).toBe('ครับ');
+		expect(word('日本語の文章です', 5)).toBe('文章');
+		// A character outside the Basic Multilingual Plane counts as one.
+		expect(word('𠀋日本語の文章', 6)).toBe('文章');
+	});
+
+	it('moves by words in a script written without spaces', async () => {
+		const p = page(0, [line('สวัสดีครับ ภาษาไทย', 0, 0)]);
+		const at = (offset: number) => ({ page: 0, line: 0, offset });
+		const source = () => p;
+		expect(await moveCaret(source, 1, at(0), 1, 'word')).toEqual(at(6));
+		expect(await moveCaret(source, 1, at(6), 1, 'word')).toEqual(at(10));
+		expect(await moveCaret(source, 1, at(10), 1, 'word')).toEqual(at(15));
+		expect(await moveCaret(source, 1, at(15), -1, 'word')).toEqual(at(11));
+		expect(await moveCaret(source, 1, at(8), -1, 'word')).toEqual(at(6));
+	});
+
 	it('goes on by whole words or lines from a double- or triple-click', () => {
 		const at = (line: number, offset: number) => ({ page: 0, line, offset });
 		const texts = new Map([[0, p0]]);

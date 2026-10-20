@@ -6,6 +6,14 @@ shows this file, and each GitHub release is written from it. How to write it (th
 the wording, translations): docs/releasing.md, "The changelog".
 -->
 
+## Unreleased
+
+### Viewer and tabs
+
+- Text in documents whose fonts don't say which letter each character is, as many Georgian, Armenian and Indian documents are written, can now be selected, copied and searched. Before, copying gave only question marks, search found nothing and a double-click selected a single letter.
+- A double-click selects the whole word in Hindi, Bengali, Tamil and other scripts with vowel signs, and in Arabic and Hebrew with vowel points. Before, the selection stopped at the first vowel sign or point. Ctrl with the arrow keys moves by whole words there too.
+- In Thai, Chinese and Japanese, which are written without spaces between words, a double-click selects one word instead of the whole run of text, and Ctrl with the arrow keys moves a word at a time.
+
 ## 1.3.0
 
 ### Start screen

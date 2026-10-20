@@ -2364,7 +2364,7 @@ dependencies = [
 [[package]]
 name = "mupdf-sys"
 version = "0.8.0"
-source = "git+https://github.com/pan4ratte/mupdf-rs?rev=0c9267715f9f90da035be8e03c1cf0e140efeb5a#0c9267715f9f90da035be8e03c1cf0e140efeb5a"
+source = "git+https://github.com/pan4ratte/mupdf-rs?rev=b97382e3ed8fa56e065dda96b3cae4fc03417d2f#b97382e3ed8fa56e065dda96b3cae4fc03417d2f"
 dependencies = [
  "bindgen",
  "cc",
@@ -2800,6 +2800,7 @@ dependencies = [
  "png 0.18.1",
  "serde_json",
  "thiserror 2.0.21",
+ "unicode-segmentation",
  "uuid",
  "windows",
 ]

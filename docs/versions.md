@@ -20,7 +20,7 @@ Recorded at project start (2026-10-02). Versions are pinned exactly in `Cargo.to
 | Component | Version | Source |
 | --- | --- | --- |
 | MuPDF | 1.27.2 | built from source by `mupdf-sys` |
-| `mupdf-sys` | 0.8.0 @ `537d50556ee8e4abf2435f81357dfef3c145d883` + Lectrix patch | git, Lectrix's fork pan4ratte/mupdf-rs, branch `folio-mupdf-1.27.2` @ `0c9267715f9f90da035be8e03c1cf0e140efeb5a` (upstream commit plus `folio_patches.rs`: JPEG 2000 decoded at the resolution drawn, ADR 0008; JPEG decoded by libjpeg-turbo, its `libjpeg-turbo` feature, and JPEG rows copied whole, ADR 0024), via `[patch]` in `Cargo.toml` |
+| `mupdf-sys` | 0.8.0 @ `537d50556ee8e4abf2435f81357dfef3c145d883` + Lectrix patch | git, Lectrix's fork pan4ratte/mupdf-rs, branch `folio-mupdf-1.27.2` @ `b97382e3ed8fa56e065dda96b3cae4fc03417d2f` (upstream commit plus `folio_patches.rs`: JPEG 2000 decoded at the resolution drawn, ADR 0008; JPEG decoded by libjpeg-turbo, its `libjpeg-turbo` feature, and JPEG rows copied whole, ADR 0024; text from fonts without a ToUnicode map read off their cmap, ADR 0029), via `[patch]` in `Cargo.toml` |
 | libjpeg-turbo (as MozJPEG 4, decoder unchanged) | through `mozjpeg-sys` 2.2.3, features `nasm_simd`, `arith_dec`, `parallel` | crates.io, a dependency of the fork's `mupdf-sys`; replaces MuPDF's bundled libjpeg (ADR 0024). `pdf-core` names it too, for its headers: Compress encodes JPEG with MozJPEG's encoder (ADR 0027) |
 | `mupdf` | 0.8.0 @ same commit, Lectrix-patched | vendored in `third_party/mupdf-rs` (ADR 0001); built without `system-fonts` (ADR 0005), so `font-kit` is no longer in the build |
 

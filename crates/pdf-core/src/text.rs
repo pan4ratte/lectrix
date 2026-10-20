@@ -4,7 +4,7 @@
 //! selection locally (AGENTS.md section 3). All coordinates are in view space at zoom 1
 //! (MuPDF page space: origin top-left of the visible page, y down, `/Rotate` applied).
 
-use mupdf::text_page::TextBlockType;
+use mupdf::text_page::{TextBlockType, TextChar};
 use mupdf::{DisplayList, Quad, TextPage, TextPageFlags};
 
 use crate::annot::quads::Quad as MarkupQuad;
@@ -85,6 +85,7 @@ pub fn range_quads(list: &DisplayList, ranges: &[TextRange]) -> Result<Vec<Marku
         for line in block.lines() {
             let quads: Vec<MarkupQuad> = line
                 .chars()
+                .filter(shown)
                 .map(|ch| {
                     let q = ch.quad();
                     MarkupQuad {
@@ -243,7 +244,7 @@ fn collect(page: &TextPage) -> PageText {
         for line in block.lines() {
             let mut text = String::new();
             let mut boxes = Vec::new();
-            for ch in line.chars() {
+            for ch in line.chars().filter(shown) {
                 // Characters MuPDF could not map to Unicode come through as U+FFFD; keep
                 // them so boxes and characters stay aligned.
                 let c = ch.char().unwrap_or('\u{FFFD}');
@@ -269,6 +270,18 @@ fn collect(page: &TextPage) -> PageText {
         }
     }
     PageText { lines }
+}
+
+/// Whether a character is part of the text: all are but those MuPDF could not map to
+/// Unicode that have no width either, invisible glyphs a font maps from nothing but a
+/// control code, which would come out as U+FFFD inside a word (PDFium leaves them out
+/// too). [`page_text`] and [`range_quads`] both count characters this way.
+fn shown(ch: &TextChar) -> bool {
+    if ch.char().is_some_and(|c| c != '\u{FFFD}') {
+        return true;
+    }
+    let q = ch.quad();
+    (q.ur.x - q.ul.x).hypot(q.ur.y - q.ul.y) > 1e-3
 }
 
 fn quad_bounds(q: &Quad) -> Rect {
@@ -404,16 +417,29 @@ fn fold(c: char) -> char {
     }
 }
 
-/// Whether `chars[i]` is part of a word: a letter, a digit or a combining mark, or an
-/// apostrophe between two of those ("don't").
+/// Whether `chars[i]` is part of a word: a letter, a digit or a mark (an accent, the
+/// vowel signs and viramas of Indic scripts, Arabic and Hebrew points), or an apostrophe
+/// between two of those ("don't").
 fn in_word(chars: &[char], i: usize) -> bool {
-    let wordy = |c: char| c.is_alphanumeric() || ('\u{0300}'..='\u{036F}').contains(&c);
+    let wordy = |c: char| c.is_alphanumeric() || joins_previous(c);
     match chars[i] {
         '\'' | '\u{2019}' => {
             i > 0 && i + 1 < chars.len() && wordy(chars[i - 1]) && wordy(chars[i + 1])
         }
         c => wordy(c),
     }
+}
+
+/// Whether `c` is a mark that joins the character before it into one grapheme (Unicode's
+/// Extend and SpacingMark: accents, viramas, vowel signs, points). Rust has no general
+/// category, and `is_alphanumeric` covers only some of these (most vowel signs, but no
+/// virama, nukta or accent).
+fn joins_previous(c: char) -> bool {
+    use unicode_segmentation::UnicodeSegmentation;
+    let mut pair = String::with_capacity(8);
+    pair.push('a');
+    pair.push(c);
+    pair.graphemes(true).nth(1).is_none()
 }
 
 #[cfg(test)]
@@ -600,6 +626,47 @@ mod tests {
         );
         assert!(words_containing(&text, " ").is_empty());
         assert!(words_containing(&text, "zebra").is_empty());
+    }
+
+    #[test]
+    fn text_in_a_font_without_tounicode_is_read_from_its_cmap() {
+        use crate::testgen::unmapped_font_document;
+        let georgian = "ეგორ გვოზდიკოვ";
+        for cid_to_gid_map in [false, true] {
+            let doc = unmapped_font_document(georgian, &[], cid_to_gid_map).unwrap();
+            let list = display_list(&doc, 0).unwrap();
+            let text = page_text(&list).unwrap();
+            assert_eq!(text.plain_text(), georgian, "CIDToGIDMap: {cid_to_gid_map}");
+            assert_eq!(text.lines[0].boxes.len(), georgian.chars().count());
+            let hits = search_page(&list, "გვოზ").unwrap();
+            assert_eq!(hits.len(), 1, "CIDToGIDMap: {cid_to_gid_map}");
+        }
+        // A glyph the cmap maps from a private use code point too is the other one.
+        let doc = unmapped_font_document("Ա！", &[('\u{E001}', '！')], false).unwrap();
+        let text = page_text(&display_list(&doc, 0).unwrap()).unwrap();
+        assert_eq!(text.plain_text(), "Ա！");
+    }
+
+    #[test]
+    fn marks_belong_to_their_word() {
+        // A virama and a nukta (Hindi), a Bengali virama, Hebrew points, Persian's
+        // zero-width non-joiner, a combining accent.
+        let text = lines(&[
+            "हिन्दी में ज़्यादा",
+            "বাংলা ক্ষমা",
+            "שָׁלוֹם עוֹלָם",
+            "می‌خواهم",
+            "cafe\u{301} noir",
+        ]);
+        assert_eq!(words_containing(&text, "न"), found(&[("हिन्दी", 1)]));
+        assert_eq!(words_containing(&text, "या"), found(&[("ज़्यादा", 1)]));
+        assert_eq!(words_containing(&text, "ক"), found(&[("ক্ষমা", 1)]));
+        assert_eq!(
+            words_containing(&text, "ל"),
+            found(&[("שָׁלוֹם", 1), ("עוֹלָם", 1)])
+        );
+        assert_eq!(words_containing(&text, "خوا"), found(&[("می‌خواهم", 1)]));
+        assert_eq!(words_containing(&text, "caf"), found(&[("cafe\u{301}", 1)]));
     }
 
     #[test]

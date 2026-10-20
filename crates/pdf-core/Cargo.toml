@@ -11,6 +11,9 @@ mupdf-sys.workspace = true
 thiserror.workspace = true
 uuid = { version = "=1.26.1", features = ["v4"] }
 png = "=0.18.1"
+# Grapheme clusters, to tell the marks that belong to a word (search suggestions). Already
+# in the tree through Tauri.
+unicode-segmentation = "=1.13.3"
 # libjpeg (libjpeg-turbo with MozJPEG's encoder), for Compress's JPEG encoder (ADR 0027).
 # Already in the tree through the fork's mupdf-sys (ADR 0024), with the same features.
 mozjpeg-sys = { version = "=2.2.3", default-features = false, features = ["nasm_simd", "arith_dec", "parallel"] }

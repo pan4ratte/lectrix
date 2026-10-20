@@ -26,8 +26,9 @@ opt-level = 2
 
 
 # Lectrix's fork of mupdf-sys: the same MuPDF 1.27.2, with build-time patches so JPEG 2000
-# images are decoded at the resolution they are drawn at (ADR 0008), and JPEG by
-# libjpeg-turbo, its rows copied whole (ADR 0024). The fork changes mupdf-sys's build
+# images are decoded at the resolution they are drawn at (ADR 0008), JPEG by
+# libjpeg-turbo, its rows copied whole (ADR 0024), and text read from fonts without a
+# ToUnicode map off their own cmap (ADR 0029). The fork changes mupdf-sys's build
 # scripts and manifest and adds mupdf-sys/folio_patches.rs; MuPDF itself is not forked.
 [patch."https://github.com/messense/mupdf-rs"]
-mupdf-sys = { git = "https://github.com/pan4ratte/mupdf-rs", rev = "0c9267715f9f90da035be8e03c1cf0e140efeb5a" }
+mupdf-sys = { git = "https://github.com/pan4ratte/mupdf-rs", rev = "b97382e3ed8fa56e065dda96b3cae4fc03417d2f" }

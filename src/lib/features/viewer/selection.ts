@@ -130,18 +130,56 @@ export function wordAt(text: TextGeometry, caret: Caret): [Caret, Caret] {
 			{ ...caret, offset: start + 1 }
 		];
 	}
-	let end = start;
-	while (start > 0 && isWord(line.chars[start - 1])) start--;
-	while (end < line.chars.length && isWord(line.chars[end])) end++;
+	const [from, to] = wordSpan(line, start);
 	return [
-		{ ...caret, offset: start },
-		{ ...caret, offset: end }
+		{ ...caret, offset: from },
+		{ ...caret, offset: to }
 	];
 }
 
-/** True for a character that is part of a word. */
+/** True for a character that is part of a word: a letter, a digit, or a mark (the vowel
+ * signs and viramas of Indic scripts, Thai vowels and tones, Arabic and Hebrew points,
+ * accents), which belongs to the letter before it. */
 function isWord(c: string | undefined): boolean {
-	return c !== undefined && /[\p{L}\p{N}_'’-]/u.test(c);
+	return c !== undefined && /[\p{L}\p{M}\p{N}_'’-]/u.test(c);
+}
+
+/** Scripts written without spaces between words. */
+const UNSPACED = /[\p{sc=Thai}\p{sc=Lao}\p{sc=Khmer}\p{sc=Myanmar}\p{sc=Han}\p{sc=Hiragana}\p{sc=Katakana}]/u;
+
+let wordSegmenter: Intl.Segmenter | null | undefined;
+
+/**
+ * The word that character `i` of a line (a word character) is in, as a [start, end) range
+ * of characters: the run of word characters around it, or, in a script written without
+ * spaces (Thai, Lao, Khmer, Myanmar, Chinese, Japanese), the word of that run that the
+ * system's dictionaries find there (`Intl.Segmenter`), since the run is a whole phrase.
+ */
+function wordSpan(line: Line, i: number): [number, number] {
+	let start = i;
+	let end = i + 1;
+	while (start > 0 && isWord(line.chars[start - 1])) start--;
+	while (end < line.chars.length && isWord(line.chars[end])) end++;
+	const run = line.chars.slice(start, end);
+	if (!run.some((c) => UNSPACED.test(c))) return [start, end];
+	if (wordSegmenter === undefined) {
+		wordSegmenter = typeof Intl.Segmenter === 'function' ? new Intl.Segmenter(undefined, { granularity: 'word' }) : null;
+	}
+	if (!wordSegmenter) return [start, end];
+	// Segments are counted in UTF-16 code units, the line in characters (code points).
+	const at: number[] = [];
+	run.forEach((c, k) => {
+		for (let u = 0; u < c.length; u++) at.push(k);
+	});
+	const units = run.slice(0, i - start).join('').length;
+	for (const s of wordSegmenter.segment(run.join(''))) {
+		if (units >= s.index && units < s.index + s.segment.length) {
+			const from = at[s.index] ?? 0;
+			const to = s.index + s.segment.length < at.length ? at[s.index + s.segment.length]! : run.length;
+			return [start + from, start + to];
+		}
+	}
+	return [start, end];
 }
 
 /** The whole line around a caret (triple-click). */
@@ -357,10 +395,10 @@ function wordBoundary(line: Line, offset: number, direction: 1 | -1): number {
 	let i = offset;
 	if (direction > 0) {
 		while (i < n && !isWord(line.chars[i])) i++;
-		while (i < n && isWord(line.chars[i])) i++;
+		if (i < n) i = wordSpan(line, i)[1];
 	} else {
 		while (i > 0 && !isWord(line.chars[i - 1])) i--;
-		while (i > 0 && isWord(line.chars[i - 1])) i--;
+		if (i > 0) i = wordSpan(line, i - 1)[0];
 	}
 	return i;
 }

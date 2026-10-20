@@ -1,0 +1,101 @@
+--- a/source/pdf/pdf-font.c
++++ b/source/pdf/pdf-font.c
+@@ -1164,6 +1164,89 @@
+  * CID Fonts
+  */
+ 
++/* A ToUnicode CMap for an embedded CIDFont that has none (and none from its
++ * character collection), read off the font's own Unicode cmap, as other readers do.
++ * Without it text extraction has nothing to go by and every character comes out as
++ * U+FFFD (fonts subset with Identity-H and no ToUnicode: Georgian, Armenian and Indic
++ * documents from older tools). Each CID gets the code point the font maps to the glyph
++ * it is drawn with (pdf_font_cid_to_gid, as rendering does); where several code points
++ * map to one glyph, the lowest wins, a private use one only if there is no other. The
++ * charmap the face had is selected again afterwards. */
++static void
++pdf_synthesize_cid_to_unicode(fz_context *ctx, pdf_font_desc *fontdesc)
++{
++	FT_Face face = fontdesc->font->ft_face;
++	FT_CharMap old;
++	FT_ULong ucs;
++	FT_UInt gid;
++	int *ucs_from_gid = NULL;
++	pdf_cmap *cmap = NULL;
++	int n, cid, glyph, had, pua, count = 0;
++
++	if (!face || face->num_glyphs <= 0)
++		return;
++
++	fz_var(ucs_from_gid);
++	fz_var(cmap);
++
++	fz_try(ctx)
++	{
++		ucs_from_gid = fz_calloc(ctx, face->num_glyphs, sizeof *ucs_from_gid);
++
++		fz_ft_lock(ctx);
++		old = face->charmap;
++		if (FT_Select_Charmap(face, FT_ENCODING_UNICODE) == 0)
++		{
++			for (ucs = FT_Get_First_Char(face, &gid); gid != 0; ucs = FT_Get_Next_Char(face, ucs, &gid))
++			{
++				if (gid >= (FT_UInt)face->num_glyphs || ucs < 0x20 || (ucs >= 0x7F && ucs < 0xA0) || ucs > 0x10FFFF)
++					continue;
++				pua = (ucs >= 0xE000 && ucs <= 0xF8FF) || ucs >= 0xF0000;
++				had = ucs_from_gid[gid];
++				if (had == 0 || (!pua && ((had >= 0xE000 && had <= 0xF8FF) || had >= 0xF0000)))
++					ucs_from_gid[gid] = (int)ucs;
++			}
++			if (old)
++				FT_Set_Charmap(face, old);
++		}
++		fz_ft_unlock(ctx);
++
++		n = fontdesc->cid_to_gid ? (int)fontdesc->cid_to_gid_len : face->num_glyphs;
++		if (n > 0x10000)
++			n = 0x10000;
++		cmap = pdf_new_cmap(ctx);
++		pdf_add_codespace(ctx, cmap, 0, 0xFFFF, 2);
++		for (cid = 0; cid < n; cid++)
++		{
++			glyph = pdf_font_cid_to_gid(ctx, fontdesc, cid);
++			if (glyph > 0 && glyph < face->num_glyphs && ucs_from_gid[glyph])
++			{
++				pdf_map_range_to_range(ctx, cmap, cid, cid, ucs_from_gid[glyph]);
++				count++;
++			}
++		}
++		if (count > 0)
++		{
++			pdf_sort_cmap(ctx, cmap);
++			fontdesc->to_unicode = cmap;
++			cmap = NULL;
++			fontdesc->size += pdf_cmap_size(ctx, fontdesc->to_unicode);
++		}
++	}
++	fz_always(ctx)
++	{
++		fz_free(ctx, ucs_from_gid);
++		if (cmap)
++			pdf_drop_cmap(ctx, cmap);
++	}
++	fz_catch(ctx)
++	{
++		fz_rethrow_if(ctx, FZ_ERROR_SYSTEM);
++		fz_report_error(ctx);
++		fz_warn(ctx, "cannot read a ToUnicode map from the font's cmap");
++	}
++}
++
+ static pdf_font_desc *
+ load_cid_font(fz_context *ctx, pdf_document *doc, pdf_obj *dict, pdf_obj *encoding, pdf_obj *to_unicode, pdf_obj *fftype)
+ {
+@@ -1284,6 +1367,8 @@
+ 		}
+ 
+ 		pdf_load_to_unicode(ctx, doc, fontdesc, NULL, collection, to_unicode);
++		if (!fontdesc->to_unicode && !fontdesc->font->flags.ft_substitute)
++			pdf_synthesize_cid_to_unicode(ctx, fontdesc);
+ 
+ 		/* If we have an identity encoding, we're supposed to use the glyph ids directly.
+ 		 * If we only have a substitute font, that won't work.

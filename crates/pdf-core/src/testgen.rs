@@ -485,3 +485,193 @@ pub fn image_sample() -> Result<PdfDocument> {
     page.dict_put("Annots", annots)?;
     Ok(doc)
 }
+
+/// A one-page document whose line of `text` is drawn with an embedded TrueType CIDFont
+/// that has no `/ToUnicode`, as some tools write Georgian, Armenian and Indic text: the
+/// text is known only from the font's own cmap. With `cid_to_gid_map` the CIDs are not
+/// the glyph ids and a `/CIDToGIDMap` stream maps them; otherwise the map is `/Identity`.
+/// Each character of `text` (in the Basic Multilingual Plane) has a glyph of its own, with
+/// no outline. `aliases` are further code points the cmap maps to the glyph of a
+/// character of `text` (code point, character).
+pub fn unmapped_font_document(
+    text: &str,
+    aliases: &[(char, char)],
+    cid_to_gid_map: bool,
+) -> Result<PdfDocument> {
+    let mut chars: Vec<char> = text.chars().collect();
+    chars.sort_unstable();
+    chars.dedup();
+    let gid = |c: char| {
+        chars
+            .iter()
+            .position(|x| *x == c)
+            .map_or(0, |i| i as u16 + 1)
+    };
+    let mut mapping: Vec<(u16, u16)> = chars.iter().map(|c| (*c as u16, gid(*c))).collect();
+    mapping.extend(aliases.iter().map(|(code, c)| (*code as u16, gid(*c))));
+    let font = truetype_font(chars.len() as u16 + 1, &mapping);
+
+    // CID 100 + n for glyph n with a CIDToGIDMap, the glyph id itself without.
+    let cid = |c: char| if cid_to_gid_map { gid(c) + 100 } else { gid(c) };
+    let shown: String = text.chars().map(|c| format!("{:04X}", cid(c))).collect();
+    let content = format!("BT /F1 24 Tf 72 700 Td <{shown}> Tj ET");
+
+    let mut doc = PdfDocument::new();
+    let file_dict = doc.new_object_from_str(&format!("<< /Length1 {} >>", font.len()))?;
+    let file = doc.add_stream(&Buffer::from_copied_bytes(&font)?, Some(&file_dict), false)?;
+    let mut descriptor = doc.new_object_from_str(
+        "<< /Type /FontDescriptor /FontName /AAAAAA+Unmapped /Flags 4 \
+         /FontBBox [0 -200 600 800] /ItalicAngle 0 /Ascent 800 /Descent -200 \
+         /CapHeight 700 /StemV 80 >>",
+    )?;
+    descriptor.dict_put("FontFile2", file)?;
+    let descriptor = doc.add_object(&descriptor)?;
+    let mut cid_font = doc.new_object_from_str(
+        "<< /Type /Font /Subtype /CIDFontType2 /BaseFont /AAAAAA+Unmapped \
+         /CIDSystemInfo << /Registry (Adobe) /Ordering (Identity) /Supplement 0 >> /DW 600 >>",
+    )?;
+    cid_font.dict_put("FontDescriptor", descriptor)?;
+    if cid_to_gid_map {
+        let mut map = vec![0u8; (chars.len() + 101) * 2];
+        for g in 1..=chars.len() {
+            let at = (g + 100) * 2;
+            map[at..at + 2].copy_from_slice(&(g as u16).to_be_bytes());
+        }
+        let map = doc.add_stream(&Buffer::from_copied_bytes(&map)?, None, false)?;
+        cid_font.dict_put("CIDToGIDMap", map)?;
+    } else {
+        cid_font.dict_put("CIDToGIDMap", PdfObject::new_name("Identity")?)?;
+    }
+    let cid_font = doc.add_object(&cid_font)?;
+    let mut type0 = doc.new_object_from_str(
+        "<< /Type /Font /Subtype /Type0 /BaseFont /AAAAAA+Unmapped /Encoding /Identity-H >>",
+    )?;
+    let mut descendants = doc.new_array()?;
+    descendants.array_push(cid_font)?;
+    type0.dict_put("DescendantFonts", descendants)?;
+    let type0 = doc.add_object(&type0)?;
+
+    let stream = doc.add_stream(&Buffer::from_copied_bytes(content.as_bytes())?, None, false)?;
+    let mut fonts = doc.new_dict()?;
+    fonts.dict_put("F1", type0)?;
+    let mut resources = doc.new_dict()?;
+    resources.dict_put("Font", fonts)?;
+    let mut page = doc.new_object_from_str("<< /Type /Page /MediaBox [0 0 612 792] >>")?;
+    page.dict_put("Resources", resources)?;
+    page.dict_put("Contents", stream)?;
+    let page = doc.add_object(&page)?;
+    doc.insert_page(0, &page)?;
+    Ok(doc)
+}
+
+/// The smallest TrueType font FreeType loads: `glyphs` glyphs (glyph 0 is .notdef), all
+/// without outlines and 600 units wide, and a Unicode cmap (format 4) of `mapping`
+/// (code point, glyph id).
+fn truetype_font(glyphs: u16, mapping: &[(u16, u16)]) -> Vec<u8> {
+    let be16 = |v: &mut Vec<u8>, x: u16| v.extend_from_slice(&x.to_be_bytes());
+    let be32 = |v: &mut Vec<u8>, x: u32| v.extend_from_slice(&x.to_be_bytes());
+
+    let mut head = Vec::new();
+    be32(&mut head, 0x0001_0000); // version
+    be32(&mut head, 0x0001_0000); // fontRevision
+    be32(&mut head, 0); // checkSumAdjustment
+    be32(&mut head, 0x5F0F_3CF5); // magicNumber
+    be16(&mut head, 0); // flags
+    be16(&mut head, 1000); // unitsPerEm
+    head.extend_from_slice(&[0; 16]); // created, modified
+    for v in [0i16, -200, 600, 800] {
+        be16(&mut head, v as u16); // xMin, yMin, xMax, yMax
+    }
+    be16(&mut head, 0); // macStyle
+    be16(&mut head, 8); // lowestRecPPEM
+    be16(&mut head, 2); // fontDirectionHint
+    be16(&mut head, 0); // indexToLocFormat: short
+    be16(&mut head, 0); // glyphDataFormat
+
+    let mut hhea = Vec::new();
+    be32(&mut hhea, 0x0001_0000);
+    for v in [800i16, -200, 0] {
+        be16(&mut hhea, v as u16); // ascender, descender, lineGap
+    }
+    be16(&mut hhea, 600); // advanceWidthMax
+    hhea.extend_from_slice(&[0; 6]); // minLeftSideBearing, minRightSideBearing, xMaxExtent
+    be16(&mut hhea, 1); // caretSlopeRise
+    hhea.extend_from_slice(&[0; 14]); // caretSlopeRun, caretOffset, reserved, metricDataFormat
+    be16(&mut hhea, glyphs); // numberOfHMetrics
+
+    let mut maxp = Vec::new();
+    be32(&mut maxp, 0x0001_0000);
+    be16(&mut maxp, glyphs);
+    maxp.extend_from_slice(&[0; 26]);
+
+    let mut hmtx = Vec::new();
+    for _ in 0..glyphs {
+        be16(&mut hmtx, 600);
+        be16(&mut hmtx, 0);
+    }
+    // Every glyph empty: all offsets 0.
+    let loca = vec![0u8; (usize::from(glyphs) + 1) * 2];
+    let glyf = vec![0u8; 4];
+
+    let mut segments: Vec<(u16, u16)> = mapping.to_vec();
+    segments.sort_unstable();
+    segments.dedup_by_key(|s| s.0);
+    let count = segments.len() as u16 + 1;
+    let mut sub = Vec::new();
+    be16(&mut sub, 4); // format
+    be16(&mut sub, 16 + count * 8); // length
+    be16(&mut sub, 0); // language
+    be16(&mut sub, count * 2);
+    let range = 2 * (1u16 << (15 - count.leading_zeros()));
+    be16(&mut sub, range);
+    be16(&mut sub, 15 - count.leading_zeros() as u16);
+    be16(&mut sub, count * 2 - range);
+    for (code, _) in &segments {
+        be16(&mut sub, *code); // endCode
+    }
+    be16(&mut sub, 0xFFFF);
+    be16(&mut sub, 0); // reservedPad
+    for (code, _) in &segments {
+        be16(&mut sub, *code); // startCode
+    }
+    be16(&mut sub, 0xFFFF);
+    for (code, glyph) in &segments {
+        be16(&mut sub, glyph.wrapping_sub(*code)); // idDelta
+    }
+    be16(&mut sub, 1);
+    sub.extend(std::iter::repeat_n(0, usize::from(count) * 2)); // idRangeOffset
+    let mut cmap = Vec::new();
+    be16(&mut cmap, 0);
+    be16(&mut cmap, 1);
+    be16(&mut cmap, 3); // Windows
+    be16(&mut cmap, 1); // Unicode BMP
+    be32(&mut cmap, 12);
+    cmap.extend(sub);
+
+    let tables: [(&[u8; 4], Vec<u8>); 7] = [
+        (b"cmap", cmap),
+        (b"glyf", glyf),
+        (b"head", head),
+        (b"hhea", hhea),
+        (b"hmtx", hmtx),
+        (b"loca", loca),
+        (b"maxp", maxp),
+    ];
+    let mut font = Vec::new();
+    be32(&mut font, 0x0001_0000);
+    be16(&mut font, tables.len() as u16);
+    font.extend_from_slice(&[0, 64, 0, 2, 0, 48]); // searchRange, entrySelector, rangeShift
+    let mut offset = 12 + 16 * tables.len();
+    for (tag, data) in &tables {
+        font.extend_from_slice(*tag);
+        be32(&mut font, 0); // checksum (FreeType does not check it)
+        be32(&mut font, offset as u32);
+        be32(&mut font, data.len() as u32);
+        offset += data.len().div_ceil(4) * 4;
+    }
+    for (_, data) in &tables {
+        font.extend_from_slice(data);
+        font.resize(font.len().div_ceil(4) * 4, 0);
+    }
+    font
+}
