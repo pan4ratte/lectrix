@@ -10,6 +10,7 @@ Part of the Lectrix specification. [AGENTS.md](../../AGENTS.md) holds the rules 
 - Existing bookmarks the user did not edit keep their original destination or action exactly, including named destinations and URI actions.
 - Titles with non-ASCII characters are written as UTF-16BE with a byte-order mark.
 - Titles are shown as Acrobat shows them: up to their first NUL character (some producers pad titles with them), with other control characters, such as a line break at the end, as spaces, and without spaces at the ends. The title in the file stays as it is until the bookmark is renamed.
+- A title wraps onto as many lines as it needs in the panel (a long word breaks only if it must), and its row grows to fit it, its toggle on the first line. The tree stays virtualized: each row's height is measured as it is shown (`rowTops` in `bookmarks/tree.ts`), and a row not yet shown counts as one line (28 px). Renaming edits the title on one line.
 
 ## Settled details
 

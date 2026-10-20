@@ -8,7 +8,7 @@
 	// HTML5 drag-and-drop events.
 	import { Bookmark, BookmarkPlus, ChevronRight, LockOpen, TriangleAlert } from '@lucide/svelte';
 	import { ContextMenu } from 'bits-ui';
-	import { tick } from 'svelte';
+	import { onDestroy, tick } from 'svelte';
 	import { MediaQuery } from 'svelte/reactivity';
 
 	import { chain } from '#lib/components/chain.ts';
@@ -32,7 +32,18 @@
 		setOpen,
 		startRename
 	} from './actions.ts';
-	import { describeTarget, dropPosition, dropZone, locate, visibleRows, type DropZone, type Position, type Row } from './tree.ts';
+	import {
+		describeTarget,
+		dropPosition,
+		dropZone,
+		locate,
+		rowIndexAt,
+		rowTops,
+		visibleRows,
+		type DropZone,
+		type Position,
+		type Row
+	} from './tree.ts';
 
 	let { tab }: { tab: DocTab } = $props();
 
@@ -46,10 +57,41 @@
 
 	const rows = $derived(visibleRows(tab.outline.items));
 	const editable = $derived(tab.canEditBookmarks);
+
+	// A title wraps onto as many lines as it needs, so rows differ in height: each row's is
+	// measured as it is shown (one observer for them all, so a resize of the pane that rewraps
+	// many titles is one change), and a row not shown yet counts as one line.
+	const measured = new Map<number, number>();
+	let measuredVersion = $state(0);
+	const sizer = new ResizeObserver((entries) => {
+		let changed = false;
+		for (const entry of entries) {
+			const el = entry.target as HTMLElement;
+			const height = el.offsetHeight;
+			const id = Number(el.dataset.row);
+			if (height > 0 && measured.get(id) !== height) {
+				measured.set(id, height);
+				changed = true;
+			}
+		}
+		if (changed) measuredVersion++;
+	});
+	onDestroy(() => sizer.disconnect());
+
+	function sized(node: HTMLElement) {
+		sizer.observe(node);
+		return () => sizer.unobserve(node);
+	}
+
+	const tops = $derived.by(() => {
+		void measuredVersion;
+		return rowTops(rows.map((r) => measured.get(r.bookmark.id) ?? ROW));
+	});
 	const slice = $derived.by(() => {
-		const first = Math.max(0, Math.floor(scrollTop / ROW) - 8);
-		const last = Math.min(rows.length, Math.ceil((scrollTop + viewportH) / ROW) + 8);
-		return rows.slice(first, last).map((row, i) => ({ row, top: (first + i) * ROW }));
+		if (rows.length === 0) return [];
+		const first = Math.max(0, rowIndexAt(tops, scrollTop) - 8);
+		const last = Math.min(rows.length, rowIndexAt(tops, scrollTop + viewportH) + 9);
+		return rows.slice(first, last).map((row, i) => ({ row, top: tops[first + i]! }));
 	});
 	const selectedIndex = $derived(rows.findIndex((r) => r.bookmark.id === tab.selectedBookmark));
 
@@ -65,10 +107,11 @@
 	}
 
 	function ensureVisible(index: number) {
-		if (!list || index < 0) return;
-		const top = index * ROW;
+		if (!list || index < 0 || index >= rows.length) return;
+		const top = tops[index]!;
+		const bottom = tops[index + 1]!;
 		if (top < list.scrollTop) list.scrollTop = top;
-		else if (top + ROW > list.scrollTop + viewportH) list.scrollTop = top + ROW - viewportH;
+		else if (bottom > list.scrollTop + viewportH) list.scrollTop = Math.min(top, bottom - viewportH);
 	}
 
 	// Keep the selected bookmark in view (it may be selected from outside: Ctrl+B, moves).
@@ -168,12 +211,13 @@
 	let autoScroll = 0;
 	let lastPointer = { x: 0, y: 0 };
 
-	function rowAt(clientY: number): { row: Row; index: number; offset: number } | null {
+	function rowAt(clientY: number): { row: Row; index: number; offset: number; height: number } | null {
 		if (!list) return null;
 		const y = clientY - list.getBoundingClientRect().top + list.scrollTop;
-		const index = Math.floor(y / ROW);
+		if (y < 0 || y >= tops[rows.length]!) return null;
+		const index = rowIndexAt(tops, y);
 		const row = rows[index];
-		return row ? { row, index, offset: y - index * ROW } : null;
+		return row ? { row, index, offset: y - tops[index]!, height: tops[index + 1]! - tops[index]! } : null;
 	}
 
 	const clickCounter = new ClickCounter();
@@ -223,7 +267,7 @@
 			drag.drop = null;
 			return;
 		}
-		const zone = dropZone(hit.offset, ROW);
+		const zone = dropZone(hit.offset, hit.height);
 		const to = dropPosition(tab.outline.items, drag.id, hit.row, zone);
 		if (!to) {
 			drag.drop = null;
@@ -231,7 +275,7 @@
 		}
 		const intoOpen = zone === 'after' && hit.row.bookmark.open && hit.row.bookmark.children.length > 0;
 		drag.drop = {
-			top: zone === 'before' ? hit.index * ROW : (hit.index + 1) * ROW,
+			top: zone === 'before' ? tops[hit.index]! : tops[hit.index + 1]!,
 			depth: hit.row.depth + (intoOpen ? 1 : 0),
 			zone,
 			to,
@@ -401,7 +445,7 @@
 						})}
 						oncontextmenu={chain(props, 'oncontextmenu', onContextMenu)}
 					>
-						<div class="relative" style:height="{rows.length * ROW}px">
+						<div class="relative" style:height="{tops[rows.length]}px">
 							{#each slice as { row, top } (row.bookmark.id)}
 								{@const b = row.bookmark}
 								<div
@@ -419,6 +463,7 @@
 									aria-expanded={b.children.length ? b.open : undefined}
 									aria-selected={tab.selectedBookmark === b.id}
 									data-tip="{b.title}&#10;{describeTarget(b.target, tab.labels)}"
+									{@attach sized}
 								>
 									{#if b.children.length}
 										<span data-toggle class="tree-toggle" class:rotate-90={b.open} aria-hidden="true">
@@ -438,7 +483,7 @@
 										/>
 									{:else}
 										<span
-											class="truncate"
+											class="tree-title"
 											class:font-semibold={b.bold}
 											class:italic={b.italic}
 											style:color={titleColor(b.color)}>{b.title || '(untitled)'}</span

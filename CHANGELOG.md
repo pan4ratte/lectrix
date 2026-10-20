@@ -23,6 +23,10 @@ the wording, translations): docs/releasing.md, "The changelog".
 - Right-clicking an annotation no longer opens its comment next to the menu.
 - A comment opened for a new note, by **Highlight with note** or by a double-click, closes when you leave it empty, instead of staying open as an empty box.
 
+### Bookmarks
+
+- Long bookmark titles wrap onto more lines in the Bookmarks panel instead of being cut off.
+
 ## 1.3.0
 
 ### Start screen

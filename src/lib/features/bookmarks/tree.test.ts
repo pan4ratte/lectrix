@@ -10,6 +10,8 @@ import {
 	keyboardMove,
 	locate,
 	moveTo,
+	rowIndexAt,
+	rowTops,
 	selectionAfterDelete,
 	titleFromText,
 	visibleRows
@@ -128,5 +130,21 @@ describe('titles and descriptions', () => {
 		const loc = locate(sample(), 4)!;
 		expect(loc.ancestors.map((a) => a.id)).toEqual([1, 3]);
 		expect(loc.index).toBe(0);
+	});
+});
+
+describe('rows of different heights', () => {
+	it('places each row after the ones above and finds the row at a height', () => {
+		const tops = rowTops([28, 46, 28]);
+		expect(tops).toEqual([0, 28, 74, 102]);
+		expect(rowIndexAt(tops, 0)).toBe(0);
+		expect(rowIndexAt(tops, 27.5)).toBe(0);
+		expect(rowIndexAt(tops, 28)).toBe(1);
+		expect(rowIndexAt(tops, 73)).toBe(1);
+		expect(rowIndexAt(tops, 80)).toBe(2);
+		// Above the first and past the last, the first and the last.
+		expect(rowIndexAt(tops, -5)).toBe(0);
+		expect(rowIndexAt(tops, 500)).toBe(2);
+		expect(rowIndexAt(rowTops([]), 10)).toBe(-1);
 	});
 });

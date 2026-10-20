@@ -125,6 +125,33 @@ export function dropZone(offsetY: number, rowHeight: number): DropZone {
 	return 'inside';
 }
 
+/** Where each row starts, from the rows' heights (a title wraps onto as many lines as it
+ * needs): `heights.length + 1` offsets, the last of them the height of them all. */
+export function rowTops(heights: readonly number[]): number[] {
+	const tops = new Array<number>(heights.length + 1);
+	let y = 0;
+	for (let i = 0; i < heights.length; i++) {
+		tops[i] = y;
+		y += heights[i]!;
+	}
+	tops[heights.length] = y;
+	return tops;
+}
+
+/** The row at height `y` (clamped to the first and the last), from `rowTops`; -1 for no rows. */
+export function rowIndexAt(tops: readonly number[], y: number): number {
+	const count = tops.length - 1;
+	if (count <= 0) return -1;
+	let lo = 0;
+	let hi = count - 1;
+	while (lo < hi) {
+		const mid = (lo + hi + 1) >> 1;
+		if (tops[mid]! <= y) lo = mid;
+		else hi = mid - 1;
+	}
+	return lo;
+}
+
 /** Where dropping `dragged` on `row` puts it, or null if nowhere (see `moveTo`). */
 export function dropPosition(items: readonly Bookmark[], dragged: number, row: Row, zone: DropZone): Position | null {
 	const b = row.bookmark;

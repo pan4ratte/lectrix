@@ -2678,11 +2678,20 @@ button.shortcut-key:hover,
 	right: 4px;
 	left: 4px;
 	display: flex;
-	height: 28px;
-	align-items: center;
+	min-height: 28px;
+	align-items: flex-start;
 	gap: 2px;
+	padding-top: 4px;
 	padding-right: 8px;
+	padding-bottom: 4px;
 	border-radius: 4px;
+}
+/* A title wraps onto as many lines as it needs, breaking a long word only if it must. */
+.tree-title {
+	min-width: 0;
+	padding-top: 1px;
+	line-height: 18px;
+	overflow-wrap: anywhere;
 }
 .tree-row:hover {
 	background: var(--lectrix-hover);
@@ -2717,6 +2726,7 @@ button.shortcut-key:hover,
 	min-width: 0;
 	height: 24px;
 	flex: 1;
+	margin: -2px 0;
 	padding: 0 4px;
 	border: 1px solid var(--lectrix-accent);
 	border-radius: 4px;

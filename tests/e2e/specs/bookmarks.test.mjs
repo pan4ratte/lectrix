@@ -171,7 +171,7 @@ test('rename from the menu, and the properties beside the bookmark with its colo
 		await (await panel.$('.swatch[aria-label="Blue"]')).click();
 		await browser.keys('Escape');
 		const titleColor = () =>
-			browser.execute(() => document.querySelector('.tree-row[aria-selected="true"] .truncate').style.color);
+			browser.execute(() => document.querySelector('.tree-row[aria-selected="true"] .tree-title').style.color);
 		await browser.waitUntil(async () => (await titleColor()) !== '', { timeoutMsg: 'the title took no colour' });
 		await browser.keys(['Control', 's']);
 		await browser.waitUntil(async () => (await statusText(browser)).includes('All changes saved'), {
@@ -183,4 +183,39 @@ test('rename from the menu, and the properties beside the bookmark with its colo
 	}
 
 	assert.deepEqual(outlineLines(path), ['    Introduction -> page 1 at 0,0 (colour #0000ff)']);
+});
+
+test('a long title wraps onto more lines, and the rows below make room for it', async () => {
+	const path = sample('bookmark-wrap.pdf', 3);
+
+	const { browser, stop } = await launch([path]);
+	try {
+		await waitForDocument(browser);
+		await (await browser.$('button[aria-label="Bookmarks"]')).click();
+		await (await browser.$('p=No bookmarks')).waitForDisplayed();
+		const long = 'A bookmark whose title is far too long to fit on one line of the pane, so it wraps';
+		await browser.keys(['Control', 'b']);
+		await typeTitle(browser, long);
+		await goToPage(browser, 2);
+		await browser.keys(['Control', 'b']);
+		await typeTitle(browser, 'Short');
+		await waitForRows(browser, [[long, 1, null], ['Short', 1, null]], 'two bookmarks');
+
+		const boxes = await browser.execute(() => {
+			const [first, second] = [...document.querySelectorAll('.tree-row')].sort((a, b) => a.offsetTop - b.offsetTop);
+			const title = first.querySelector('.tree-title');
+			return {
+				first: first.getBoundingClientRect().toJSON(),
+				second: second.getBoundingClientRect().toJSON(),
+				secondHeight: second.offsetHeight,
+				cut: title.scrollWidth > title.clientWidth
+			};
+		});
+		assert.ok(boxes.first.height > 40, `the long title's row is ${boxes.first.height} px high`);
+		assert.equal(boxes.cut, false, 'the long title is cut off');
+		assert.equal(boxes.secondHeight, 28, 'a one-line title is not one line high');
+		assert.ok(boxes.second.top >= boxes.first.bottom - 0.5, `rows overlap: ${boxes.first.bottom} and ${boxes.second.top}`);
+	} finally {
+		await stop();
+	}
 });
