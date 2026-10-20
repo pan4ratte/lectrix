@@ -142,6 +142,9 @@
 			return;
 		}
 		if (event.key === 'Escape' && !inInput && tab) {
+			// An Esc that closes a menu or a dialog does that and nothing more: the page's
+			// context menu leaves the selected text or annotation it was opened on.
+			if (event.target instanceof Element && event.target.closest('[role=menu], [role=dialog], [role=alertdialog]')) return;
 			// One step back at a time: what is being drawn, the selection, the search, then
 			// the Select tool (section 8: Esc picks Select).
 			if (tab.draft) {
