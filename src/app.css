@@ -1279,6 +1279,18 @@ button.shortcut-key:hover,
 		opacity: 0;
 	}
 }
+/* Copy on the quick tools, done: a tick in the accent colour pops in where the icon was,
+   and the bar closes a moment later. */
+.copied-tick {
+	color: var(--lectrix-accent);
+	animation: copied-pop 140ms ease-out;
+}
+@keyframes copied-pop {
+	from {
+		opacity: 0;
+		transform: scale(0.5);
+	}
+}
 /* A page's group in the annotation list: a rule above each but the first, and a header that
    stands apart from the rows. */
 /* The annotation list's filters: authors as pills, picked ones as the active tool is. */

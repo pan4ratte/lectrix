@@ -5,6 +5,7 @@
 
 import { commands, setViewMode, type CommandName } from '#lib/commands.ts';
 import { APP_NAME } from '#lib/config.ts';
+import { copiesSelection } from '#lib/features/annotations/actions.ts';
 import { debugMenu } from '#lib/features/debug/menu.ts';
 import { update } from '#lib/features/update/update.svelte.ts';
 import { MAX_PANES } from '#lib/features/split/split.ts';
@@ -175,7 +176,7 @@ export function appMenus(platform: Platform = PLATFORM): AppMenu[] {
 						]
 					}
 				]
-			: [undo, redo, separator, command('copy', 'Copy', !!tab?.selection), command('find', 'Find…', reading)]
+			: [undo, redo, separator, command('copy', 'Copy', !!tab && copiesSelection(tab)), command('find', 'Find…', reading)]
 	};
 
 	const view: AppMenu = {

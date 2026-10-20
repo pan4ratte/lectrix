@@ -1251,3 +1251,84 @@ test('the annotation list keeps the sort last picked in every document', async (
 		await stop();
 	}
 });
+
+test('copying from the quick tools and the context menus, and a comment left empty', async () => {
+	const path = sample('copy-menus.pdf', 2);
+
+	const { browser, stop } = await launch([path]);
+	try {
+		await waitForDocument(browser);
+		const quick = () => browser.$('[role=toolbar][aria-label="Quick tools"]');
+		const selected = () => browser.execute(() => document.querySelectorAll('rect.fill-selection').length > 0);
+		const menuItem = (label) => browser.$(`//*[@role="menuitem"][contains(., "${label}")]`);
+		const barShown = () => browser.execute(() => document.querySelector('[role=toolbar][aria-label="Highlight actions"]') !== null);
+
+		// Copy on the quick tools shows a tick, then the bar closes; the text stays selected.
+		await drag(browser, await pagePoint(browser, 0, 40, 92), await pagePoint(browser, 0, 200, 92), 1);
+		await (await quick()).waitForDisplayed({ timeoutMsg: 'no quick tools over the selection' });
+		await (await (await quick()).$('button[aria-label="Copy"]')).click();
+		await (await browser.$('[role=toolbar][aria-label="Quick tools"] button[aria-label="Copied"]')).waitForExist({
+			timeoutMsg: 'Copy showed no tick'
+		});
+		await (await quick()).waitForExist({ reverse: true, timeoutMsg: 'the quick tools stayed after Copy' });
+		assert.equal(await selected(), true, 'Copy took the selection away');
+
+		// The page's menu on selected text: Copy selection, and no annotation's items.
+		const onSelection = await pagePoint(browser, 0, 100, 92);
+		await browser.action('pointer').move({ ...onSelection, origin: 'viewport' }).down({ button: 2 }).up({ button: 2 }).perform();
+		await (await menuItem('Copy selection')).waitForDisplayed({ timeoutMsg: 'no Copy selection in the menu' });
+		assert.equal(await (await menuItem('Copy selection')).getAttribute('data-disabled'), null);
+		assert.equal(await (await menuItem('Copy comment')).isExisting(), false);
+		await browser.keys('Escape');
+
+		// "Highlight with note" opens the comment; left empty, it closes and the bar shows.
+		await drag(browser, await pagePoint(browser, 0, 40, 116), await pagePoint(browser, 0, 200, 116), 1);
+		await (await (await quick()).$('button[aria-label="Highlight with note"]')).click();
+		await browser.waitUntil(() => inPanelNote(browser), { timeoutMsg: 'Highlight with note put no cursor in the comment' });
+		await browser.keys('Escape');
+		await browser.waitUntil(async () => !(await panelShown(browser)), { timeoutMsg: 'the empty comment stayed open' });
+		await browser.waitUntil(barShown, { timeoutMsg: 'no bar after the empty comment closed' });
+		await browser.keys('Escape');
+
+		// A double-click opens the comment too; with text typed it stays.
+		const onHighlight = await pagePoint(browser, 0, 100, 116);
+		await browser.action('pointer').move({ ...onHighlight, origin: 'viewport' }).down().up().pause(60).down().up().perform();
+		await browser.waitUntil(() => inPanelNote(browser), { timeoutMsg: 'a double-click put no cursor in the comment' });
+		await browser.keys([...'Kept']);
+		await browser.keys('Escape');
+		await browser.pause(200);
+		assert.equal(await panelShown(browser), true, 'a comment with text closed');
+		await click(browser, await pagePoint(browser, 0, 300, 50));
+		await browser.waitUntil(async () => !(await panelShown(browser)), { timeoutMsg: 'a click away left the comment open' });
+
+		// A right-click on the highlight selects it for the menu without opening its comment,
+		// or its bar while the menu is open. Copy comment and Copy selection both apply.
+		await browser.action('pointer').move({ ...onHighlight, origin: 'viewport' }).down({ button: 2 }).up({ button: 2 }).perform();
+		await (await menuItem('Copy comment')).waitForDisplayed({ timeoutMsg: 'no Copy comment on the highlight' });
+		assert.equal(await (await menuItem('Copy comment')).getAttribute('data-disabled'), null);
+		assert.equal(await (await menuItem('Copy selection')).getAttribute('data-disabled'), null);
+		assert.equal(await panelShown(browser), false, 'the right-click opened the comment');
+		assert.equal(await barShown(), false, 'the bar showed with the menu');
+
+		// The menu stays by the highlight as the page scrolls.
+		const menuTop = () => browser.execute(() => document.querySelector('.menu-content').getBoundingClientRect().top);
+		const before = await menuTop();
+		await browser.execute(() => {
+			document.querySelector('[role=document]').scrollTop += 40;
+		});
+		await browser.waitUntil(async () => Math.abs((await menuTop()) - (before - 40)) <= 1, {
+			timeoutMsg: 'the menu did not follow the page'
+		});
+		await browser.keys('Escape');
+		await browser.waitUntil(barShown, { timeoutMsg: 'no bar once the menu closed' });
+
+		// The list's menu has both too.
+		await showAnnotations(browser);
+		await (await browser.$('.annotation-row')).click({ button: 'right' });
+		await (await menuItem('Copy selection')).waitForDisplayed({ timeoutMsg: 'no Copy selection on the row' });
+		assert.equal(await (await menuItem('Copy selection')).getAttribute('data-disabled'), null);
+		await browser.keys('Escape');
+	} finally {
+		await stop();
+	}
+});

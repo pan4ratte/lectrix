@@ -32,7 +32,7 @@
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
-	import { keepsComment, repair, setPanel, undoMadeForComment } from './actions.ts';
+	import { keepsComment, repair, selectedKey, setPanel, undoMadeForComment } from './actions.ts';
 	import AnnotationControls from './AnnotationControls.svelte';
 	import {
 		BAR_GAP,
@@ -176,6 +176,30 @@
 		return untrack(() => (a ? keepsComment(tab, a.page, a.id) : undefined));
 	});
 
+	// A comment begun in the panel (a double-click, "Highlight with note", the bar's note
+	// button, a new note) that is left empty closes the panel, and the bar shows instead: no
+	// empty box stays by the annotation. Not while the focus moves within the panel, and only
+	// for the annotation the field was made for (a click on the page may select another one
+	// before the field loses the focus). A text box's text is on the page, not here.
+	const closeIfLeftEmpty = $derived.by(() => {
+		if (!key) return undefined;
+		const fieldKey = key;
+		const begunEmpty = untrack(() => !!a && !a.contents && a.kind !== 'freeText' && !!caps?.text);
+		if (!begunEmpty) return undefined;
+		return (field: HTMLTextAreaElement) => {
+			const onBlur = (event: FocusEvent) => {
+				if (field.value.trim() !== '' || selectedKey(tab) !== fieldKey) return;
+				const into = event.relatedTarget as Node | null;
+				if (into && field.closest('[data-annotation-panel]')?.contains(into)) return;
+				setPanel(tab, false);
+				// Left with Esc or Ctrl+Enter, the keyboard goes back to the pages.
+				if (!into) tab.viewer?.focus();
+			};
+			field.addEventListener('blur', onBlur);
+			return () => field.removeEventListener('blur', onBlur);
+		};
+	});
+
 	/** Ctrl+Enter and Esc leave the note, which keeps what was typed. Undo in the empty note
 	 * of an annotation just made takes the annotation back. */
 	function textKey(event: KeyboardEvent) {
@@ -270,6 +294,7 @@
 					placeholder={caps.text ? 'Add a note' : ''}
 					onkeydown={textKey}
 					{@attach keepNote}
+					{@attach closeIfLeftEmpty}
 				></textarea>
 			{/key}
 

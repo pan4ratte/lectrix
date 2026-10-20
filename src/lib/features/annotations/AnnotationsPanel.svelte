@@ -50,6 +50,7 @@
 	import {
 		addReply,
 		copyComment,
+		copyMarkedText,
 		keepsComment,
 		listShowsSelected,
 		openInspector,
@@ -889,6 +890,9 @@
 						{/if}
 						<ContextMenu.Item class="menu-item" disabled={!t.contents} onSelect={() => void copyComment(t.contents)}>
 							Copy comment
+						</ContextMenu.Item>
+						<ContextMenu.Item class="menu-item" disabled={!marksText(t)} onSelect={() => void copyMarkedText(tab, t)}>
+							Copy selection
 						</ContextMenu.Item>
 						<ContextMenu.Separator class="menu-separator" />
 						<ContextMenu.Item class="menu-item" disabled={!caps.delete} onSelect={() => void remove(tab, t.page, t.id)}>

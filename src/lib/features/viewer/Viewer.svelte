@@ -9,6 +9,9 @@
 	import { motionMs } from '#lib/components/panes.ts';
 	import {
 		commitTextDraft,
+		copiesSelection,
+		copyComment,
+		copyInContext,
 		create,
 		createMarkup,
 		hiddenByList,
@@ -53,7 +56,6 @@
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
-	import { copySelection } from './actions.ts';
 	import type { ViewPosition } from './history.ts';
 	import { follow, linkAt, linkPreview } from './links.ts';
 	import {
@@ -210,6 +212,7 @@
 		if (!scroller) return;
 		scrollTop = scroller.scrollTop;
 		scrollLeft = scroller.scrollLeft;
+		closeMenuOffscreen();
 		// Panes locked together (split view) follow this one, unless it is following them:
 		// then this is its own move (`followPlace`), or the browser's event for it.
 		if (following) return;
@@ -1398,6 +1401,10 @@
 	/** The quick tools over selected text: none while their bar is switched off. */
 	const quickTools = $derived(app.settings?.quickBar === false ? [] : (app.settings?.quickTools ?? DEFAULT_QUICK_TOOLS));
 
+	/** The selection whose quick tools were closed (after Copy): it stays selected, without
+	 * the bar. */
+	let barClosedFor: DocTab['selection'] = $state.raw(null);
+
 	/** Where the pointer was released after selecting text (page points), and for which
 	 * selection. */
 	let release: { anchor: Caret; focus: Caret; page: number; x: number; y: number } | null = $state(null);
@@ -1412,7 +1419,7 @@
 		if (!quickTools.some((t) => quickToolAllowed(t, tab.flags, tab.canEditBookmarks))) return null;
 		void tab.textVersion;
 		const sel = tab.selection;
-		if (!sel) return null;
+		if (!sel || sel === barClosedFor) return null;
 		const order = compareCarets(sel.anchor, sel.focus);
 		const text = tab.text(sel.focus.page);
 		if (order === 0 || !text || !isShown(layout, sel.focus.page)) return null;
@@ -1441,7 +1448,8 @@
 	 * while neither its comment panel nor the annotation list shows its controls. */
 	const barAnnotation = $derived.by(() => {
 		const a = tab.selectedAnnotationInfo;
-		if (!a || dragging || tab.draft?.kind === 'text' || commentOpen || inList || !isShown(layout, a.page)) return null;
+		if (!a || dragging || menuOpen || tab.draft?.kind === 'text' || commentOpen || inList || !isShown(layout, a.page))
+			return null;
 		return { annotation: a, area: contentArea(a.page, a.bounds) };
 	});
 
@@ -1671,13 +1679,44 @@
 
 	function onContextMenu(event: MouseEvent) {
 		const contextPage = pageUnder(event.clientX, event.clientY);
-		// A right-click on an annotation selects it (unless text is selected, so Copy still
-		// acts on the text); from the keyboard, the menu is for what is already selected.
+		menuPoint = scroller
+			? { x: event.clientX, y: event.clientY, left: scroller.scrollLeft, top: scroller.scrollTop }
+			: null;
+		// A right-click on an annotation selects it (unless text is selected, so Copy
+		// selection still acts on the text); from the keyboard, the menu is for what is
+		// already selected. Selected so, it opens neither its comment nor (while the menu
+		// is open) its bar: the menu has what they would offer.
 		if (!tab.selection && (event.target as HTMLElement).closest('.page')) {
 			const [x, y] = toPage(contextPage, event.clientX, event.clientY);
 			const hit = annotationAt(targets(contextPage), x, y, px(4));
-			if (hit) tab.selectAnnotation(contextPage, hit.id);
+			const sel = tab.selectedAnnotation;
+			if (hit && (sel?.page !== contextPage || sel.id !== hit.id)) {
+				app.annotationPanel = { key: `${tab.key}:${contextPage}:${hit.id}`, open: false };
+				tab.selectAnnotation(contextPage, hit.id);
+			}
 		}
+	}
+
+	/** Whether the page's context menu is open. */
+	let menuOpen = $state(false);
+	/** Where the context menu was opened (client coordinates) and the scroll position then:
+	 * the menu stays by that point of the page as the page scrolls. */
+	let menuPoint: { x: number; y: number; left: number; top: number } | null = null;
+	const menuAnchor = {
+		getBoundingClientRect: () => {
+			const p = menuPoint;
+			const dx = p && scroller ? p.left - scroller.scrollLeft : 0;
+			const dy = p && scroller ? p.top - scroller.scrollTop : 0;
+			return DOMRect.fromRect({ x: (p?.x ?? 0) + dx, y: (p?.y ?? 0) + dy, width: 0, height: 0 });
+		}
+	};
+
+	/** Closes the context menu once the point it was opened at scrolls out of the view. */
+	function closeMenuOffscreen() {
+		if (!menuOpen || !menuPoint || !scroller) return;
+		const at = menuAnchor.getBoundingClientRect();
+		const view = scroller.getBoundingClientRect();
+		if (at.y < view.top || at.y > view.bottom || at.x < view.left || at.x > view.right) menuOpen = false;
 	}
 
 	const contextAnnotation = $derived(tab.selectedAnnotationInfo);
@@ -1783,7 +1822,7 @@
 </script>
 
 <div class="relative h-full min-h-0 flex-1">
-	<ContextMenu.Root>
+	<ContextMenu.Root bind:open={menuOpen}>
 		<ContextMenu.Trigger>
 			{#snippet child({ props })}
 				<!-- The scroll container takes focus so the keyboard can scroll it (Page Up/Down,
@@ -1846,6 +1885,7 @@
 								{view}
 								contentWidth={contentW}
 								chosen={quickTools}
+								onclose={(sel) => (barClosedFor = sel)}
 							/>
 						{/if}
 						{#if barAnnotation}
@@ -1872,7 +1912,7 @@
 			{/snippet}
 		</ContextMenu.Trigger>
 		<ContextMenu.Portal>
-			<ContextMenu.Content class="menu-content">
+			<ContextMenu.Content class="menu-content" customAnchor={menuAnchor} updatePositionStrategy="always">
 				{#if contextAnnotation}
 					{@const caps = capabilities(contextAnnotation, tab.flags.canAnnotate)}
 					<ContextMenu.Item class="menu-item" onSelect={openProperties}>Properties</ContextMenu.Item>
@@ -1885,13 +1925,16 @@
 						<span class="menu-shortcut">Del</span>
 					</ContextMenu.Item>
 					<ContextMenu.Separator class="menu-separator" />
+					<ContextMenu.Item
+						class="menu-item"
+						disabled={!contextAnnotation.contents}
+						onSelect={() => void copyComment(contextAnnotation.contents)}
+					>
+						Copy comment
+					</ContextMenu.Item>
 				{/if}
-				<ContextMenu.Item
-					class="menu-item"
-					disabled={!tab.selection}
-					onSelect={() => void copySelection(tab)}
-				>
-					Copy
+				<ContextMenu.Item class="menu-item" disabled={!copiesSelection(tab)} onSelect={() => void copyInContext(tab)}>
+					Copy selection
 					<span class="menu-shortcut">{app.shortcut('copy')}</span>
 				</ContextMenu.Item>
 			</ContextMenu.Content>

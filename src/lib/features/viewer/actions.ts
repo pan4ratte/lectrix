@@ -6,24 +6,31 @@ import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
 import { ordered, selectionText } from './selection.ts';
 
-/** Copies the selected text to the clipboard (honoring the document's copy permission). */
-export async function copySelection(tab: DocTab): Promise<void> {
+/** Copies the selected text to the clipboard (honoring the document's copy permission).
+ * True if it was copied. */
+export async function copySelection(tab: DocTab): Promise<boolean> {
 	const sel = tab.selection;
-	if (!sel) return;
+	if (!sel) return false;
 	if (!tab.flags.canCopy) {
 		refuseRestricted(tab, 'This document’s security settings don’t allow copying text.');
-		return;
+		return false;
 	}
-	const text = await selectedText(tab);
-	if (!text) return;
+	return copyText(await selectedText(tab));
+}
+
+/** Puts `text` on the clipboard, saying so if it can't. True if it was copied. */
+export async function copyText(text: string): Promise<boolean> {
+	if (!text) return false;
 	try {
 		await navigator.clipboard.writeText(text);
+		return true;
 	} catch {
 		app.notify({
 			kind: 'error',
 			message: 'The text couldn’t be copied to the clipboard.',
 			suggestion: 'Try again.'
 		});
+		return false;
 	}
 }
 

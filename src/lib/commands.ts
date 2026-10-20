@@ -1,6 +1,6 @@
 // App commands, shared by the menus and the keyboard shortcuts (section 8).
 
-import { refuseIfLocked, repair } from '#lib/features/annotations/actions.ts';
+import { copyInContext, refuseIfLocked, repair } from '#lib/features/annotations/actions.ts';
 import { tools } from '#lib/features/annotations/state.svelte.ts';
 import type { Tool } from '#lib/features/annotations/tools.ts';
 import { addBookmark } from '#lib/features/bookmarks/actions.ts';
@@ -15,7 +15,6 @@ import { compressDocument, compressFile } from '#lib/features/compress/actions.t
 import { protectDocument, protectFile } from '#lib/features/protect/actions.ts';
 import { unlockDocument, unlockFile } from '#lib/features/unprotect/actions.ts';
 import { update } from '#lib/features/update/update.svelte.ts';
-import { copySelection } from '#lib/features/viewer/actions.ts';
 import { normalizeRotation, type ViewMode } from '#lib/features/viewer/layout.ts';
 import { find, findStep } from '#lib/features/viewer/search.ts';
 import { MAX_PANES } from '#lib/features/split/split.ts';
@@ -165,7 +164,7 @@ export const commands = {
 		if (app.combineActive) app.combine?.redo();
 		else if (app.active) void app.redo(app.active);
 	},
-	copy: withTab((t) => copySelection(t)),
+	copy: withTab((t) => copyInContext(t)),
 	find: reading((t) => find(t)),
 	findNext: reading((t) => findStep(t, 1)),
 	findPrevious: reading((t) => findStep(t, -1)),

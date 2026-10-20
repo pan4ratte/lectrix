@@ -15,10 +15,12 @@ import { commandFor } from '#lib/shortcuts.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
+import { copySelection, copyText } from '#lib/features/viewer/actions.ts';
 import { ordered } from '#lib/features/viewer/selection.ts';
 
 import { commentKeeper } from './commentField.ts';
 import { selectionRanges } from './geometry.ts';
+import { markedText, marksText } from './listing.ts';
 import { tools } from './state.svelte.ts';
 import { PROBLEM_SUMMARY, showsComment, type DrawTool, type MarkupKind } from './tools.ts';
 
@@ -243,6 +245,33 @@ export function keepsComment(tab: DocTab, page: number, id: number) {
 export async function addReply(tab: DocTab, page: number, parent: number, text: string) {
 	if (refuseIfLocked(tab) || !text.trim()) return null;
 	return app.apply(tab, { kind: 'addReply', page, parent, text });
+}
+
+/** Copies the text a text-markup annotation marks (the characters inside its quads, as the
+ * annotation list's search reads them), honoring the document's copy permission. True if
+ * something was copied. */
+export async function copyMarkedText(tab: DocTab, a: Annotation): Promise<boolean> {
+	if (!marksText(a)) return false;
+	if (!tab.flags.canCopy) {
+		refuseRestricted(tab, 'This document’s security settings don’t allow copying text.');
+		return false;
+	}
+	const text = await tab.loadText(a.page);
+	return copyText(text ? markedText(text.lines, a.quads) : '');
+}
+
+/** What Copy selection copies (the page's context menu, Ctrl+C): the selected text, or
+ * else the text the selected annotation marks. */
+export function copiesSelection(tab: DocTab): boolean {
+	const a = tab.selectedAnnotationInfo;
+	return !!tab.selection || (!!a && marksText(a));
+}
+
+/** Copy selection: see `copiesSelection`. */
+export async function copyInContext(tab: DocTab): Promise<boolean> {
+	if (tab.selection) return copySelection(tab);
+	const a = tab.selectedAnnotationInfo;
+	return a ? copyMarkedText(tab, a) : false;
 }
 
 /** Copies an annotation's comment (its note text) to the clipboard. */
