@@ -15,6 +15,9 @@ the wording, translations): docs/releasing.md, "The changelog".
 - In Thai, Chinese and Japanese, which are written without spaces between words, a double-click selects one word instead of the whole run of text, and Ctrl with the arrow keys moves a word at a time.
 - The page's context menu moves with the page when you scroll, instead of staying put on the screen.
 - Pressing Esc to close a context menu no longer also clears the selected text or deselects the annotation the menu was for.
+- In the **Pages** panel, press a thumbnail and drag to move the view over that page, as in Acrobat. The part of the page on screen is outlined on the thumbnail while you drag.
+- **F4** hides both side panes, and shows them again. **View > Side panes** does the same.
+- The accent line of a side pane's resizer no longer shows in the row of panel tabs above the pane's edge.
 
 ### Annotations
 
@@ -26,6 +29,10 @@ the wording, translations): docs/releasing.md, "The changelog".
 ### Bookmarks
 
 - Long bookmark titles wrap onto more lines in the Bookmarks panel instead of being cut off.
+
+### Settings
+
+- **Settings > Shortcuts** no longer lists the **Help** menu's commands (What's new, Check for updates, About), which have no shortcuts by default. Shortcuts you gave them stop working.
 
 ## 1.3.0
 

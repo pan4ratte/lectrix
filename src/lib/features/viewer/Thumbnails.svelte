@@ -6,6 +6,8 @@
 	// panel's width (following it as it changes), and switches between one column and a grid
 	// of as many columns as fit. A new size glides there in 140 ms, as zooming the view does.
 	// A thumbnail shows its page turned as the viewer shows it, without the view rotation.
+	// Pressed and dragged, a thumbnail moves the view over its page, as in Acrobat: the part
+	// of the page in view is outlined in the accent colour and follows the pointer.
 	import { LayoutGrid, MoveHorizontal, RotateCcw, RotateCw, SquareText, ZoomIn, ZoomOut } from '@lucide/svelte';
 	import { ContextMenu } from 'bits-ui';
 	import { onMount, tick, untrack } from 'svelte';
@@ -23,7 +25,7 @@
 	import { pageBoxText, pageName } from './pagebox.ts';
 	import RenderedImage from './RenderedImage.svelte';
 	import { BACKGROUND_PRIORITY } from './scheduler.ts';
-	import { layoutThumbs, renderWidth, shownWidth, stepWidth } from './thumbs.ts';
+	import { layoutThumbs, pageToThumb, renderWidth, shownWidth, stepWidth, thumbToPage } from './thumbs.ts';
 	import { easeOut, ZOOM_GLIDE_MS } from './zoom.ts';
 
 	let { tab }: { tab: DocTab } = $props();
@@ -144,16 +146,87 @@
 		lastColumns = columns;
 	});
 
-	// Follow the current page as the document scrolls.
+	// Follow the current page as the document scrolls (not while the view is dragged on a
+	// thumbnail: the thumbnail would move from under the pointer).
 	$effect(() => {
 		const current = tab.currentPage;
 		focused = current;
-		untrack(() => ensureVisible(current));
+		untrack(() => {
+			if (!pan) ensureVisible(current);
+		});
 	});
 
 	function go(index: number) {
 		tab.viewer?.goTo({ page: index, offset: 0 });
 	}
+
+	// ----- the view dragged on a thumbnail (section 6.1) -----
+
+	/** How far the pointer moves before a press on a thumbnail drags the view. */
+	const PAN_THRESHOLD = 4;
+	let press: { index: number; pointer: number; x: number; y: number } | null = null;
+	/** The page whose view is being dragged, and where the pointer holds the part in view:
+	 * page points from the pointer to that part's middle. */
+	let pan = $state<{ index: number; grab: [number, number] } | null>(null);
+	/** A drag just ended: the click that may follow it doesn't go to the page. */
+	let dragged = false;
+
+	/** The point of page `index` under a client point, kept on the page. */
+	function pagePointAt(index: number, clientX: number, clientY: number): [number, number] | null {
+		const picture = list?.querySelector<HTMLElement>(`[data-thumb="${index}"] [data-thumb-picture]`);
+		const size = tab.pages[index];
+		if (!picture || !size) return null;
+		const r = picture.getBoundingClientRect();
+		const [x, y] = thumbToPage(clientX - r.left, clientY - r.top, size, turnOf(index), thumbW);
+		return [Math.min(size.width, Math.max(0, x)), Math.min(size.height, Math.max(0, y))];
+	}
+
+	function onThumbDown(event: PointerEvent, index: number) {
+		dragged = false;
+		if (event.button !== 0 || !tab.viewer) return;
+		press = { index, pointer: event.pointerId, x: event.clientX, y: event.clientY };
+	}
+
+	function onPanMove(event: PointerEvent) {
+		if (!press || event.pointerId !== press.pointer) return;
+		if (!pan) {
+			if (Math.hypot(event.clientX - press.x, event.clientY - press.y) <= PAN_THRESHOLD) return;
+			const at = pagePointAt(press.index, press.x, press.y);
+			if (!at) {
+				press = null;
+				return;
+			}
+			// Pressed in the part in view, the pointer holds it there; elsewhere, that part
+			// comes to the pointer.
+			const area = tab.viewer?.visibleArea(press.index) ?? null;
+			const inside = area !== null && at[0] >= area[0] && at[0] <= area[2] && at[1] >= area[1] && at[1] <= area[3];
+			pan = {
+				index: press.index,
+				grab: inside ? [(area[0] + area[2]) / 2 - at[0], (area[1] + area[3]) / 2 - at[1]] : [0, 0]
+			};
+			list?.setPointerCapture(event.pointerId);
+		}
+		const p = pagePointAt(pan.index, event.clientX, event.clientY);
+		if (p) tab.viewer?.centerOn(pan.index, p[0] + pan.grab[0], p[1] + pan.grab[1]);
+	}
+
+	function onPanEnd(event: PointerEvent) {
+		if (!press || event.pointerId !== press.pointer) return;
+		if (pan) {
+			dragged = true;
+			if (list?.hasPointerCapture(event.pointerId)) list.releasePointerCapture(event.pointerId);
+		}
+		press = null;
+		pan = null;
+	}
+
+	/** The part of the dragged page in view, on its thumbnail. */
+	const panArea = $derived.by(() => {
+		if (!pan) return null;
+		const area = tab.viewer?.visibleArea(pan.index) ?? null;
+		const size = tab.pages[pan.index];
+		return area && size ? pageToThumb(area, size, turnOf(pan.index), thumbW) : null;
+	});
 
 	async function onKeyDown(event: KeyboardEvent) {
 		const last = tab.pageCount - 1;
@@ -266,11 +339,16 @@
 					{...props}
 					bind:this={list}
 					class="min-h-0 flex-1 overflow-y-auto"
+					class:cursor-grabbing={pan !== null}
 					onscroll={() => (scrollTop = list?.scrollTop ?? 0)}
 					role="listbox"
 					aria-label="Page thumbnails"
 					tabindex="-1"
 					onkeydown={chain(props, 'onkeydown', onKeyDown)}
+					onpointermove={chain(props, 'onpointermove', onPanMove)}
+					onpointerup={chain(props, 'onpointerup', onPanEnd)}
+					onpointercancel={chain(props, 'onpointercancel', onPanEnd)}
+					ondragstart={(e) => e.preventDefault()}
 				>
 					<div class="relative" style:height="{layout.height}px">
 						{#each range as index (index)}
@@ -293,7 +371,12 @@
 								aria-selected={current}
 								aria-label="Page {pageName(index, tab.displayLabels)}"
 								tabindex={index === focused ? 0 : -1}
+								onpointerdown={(e) => onThumbDown(e, index)}
 								onclick={() => {
+									if (dragged) {
+										dragged = false;
+										return;
+									}
 									focused = index;
 									go(index);
 								}}
@@ -304,6 +387,7 @@
 									class:isolate={tab.pageTone !== null}
 									style:width="{thumbW}px"
 									style:height="{item.imageH}px"
+									data-thumb-picture
 								>
 									<!-- The document's visual adjustments (section 6.1), as on its pages, and
 									     the page's turn on screen. -->
@@ -354,6 +438,17 @@
 									</span>
 									{#if tab.pageTone !== null}
 										<span class="page-tone" style:opacity={tab.pageTone} data-page-tone aria-hidden="true"></span>
+									{/if}
+									{#if pan?.index === index && panArea}
+										<span
+											class="thumb-view-area"
+											style:left="{panArea.left}px"
+											style:top="{panArea.top}px"
+											style:width="{panArea.width}px"
+											style:height="{panArea.height}px"
+											data-view-area
+											aria-hidden="true"
+										></span>
 									{/if}
 								</span>
 								<!-- A page without a label keeps the caption's line, empty. -->

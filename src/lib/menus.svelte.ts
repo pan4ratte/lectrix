@@ -192,6 +192,11 @@ export function appMenus(platform: Platform = PLATFORM): AppMenu[] {
 				checked: reading && app.isOpen('right'),
 				command: 'toggleRightPane'
 			}),
+			item('toggleSidePanes', 'Side panes', commands.toggleSidePanes, {
+				enabled: reading && (app.panels.left.length > 0 || app.panels.right.length > 0),
+				checked: reading && (app.isOpen('left') || app.isOpen('right')),
+				command: 'toggleSidePanes'
+			}),
 			separator,
 			panelItem('showPages', 'Pages', 'pages', reading),
 			panelItem('showBookmarks', 'Bookmarks', 'bookmarks', reading),

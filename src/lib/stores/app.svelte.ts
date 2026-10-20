@@ -440,6 +440,14 @@ class AppStore {
 		this.setOpen(side, !this.isOpen(side) && this.panels[side].length > 0);
 	}
 
+	/** Both side panes at once: with either open, closes both; with none, opens each that
+	 * has a panel. */
+	toggleSidePanes() {
+		const open = !this.isOpen('left') && !this.isOpen('right');
+		this.setOpen('left', open && this.panels.left.length > 0);
+		this.setOpen('right', open && this.panels.right.length > 0);
+	}
+
 	/** The panel a pane shows: the one last picked there, or its first. */
 	activePanel(side: PaneSide): PanelId | null {
 		const active = side === 'left' ? this.#leftActive : this.#rightActive;

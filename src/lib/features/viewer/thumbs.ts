@@ -1,5 +1,10 @@
 // Page thumbnail sizes in the Pages panel (section 6.1): steps for Smaller and Larger, and
-// the width that fills the panel.
+// the width that fills the panel; and where a thumbnail's point is on its page, for the view
+// dragged there.
+
+import { turnPoint, unturnPoint } from '#lib/features/annotations/geometry.ts';
+
+import { turnedSize, type Rotation, type Size } from './layout.ts';
 
 /** Widths the Smaller and Larger buttons step through, CSS pixels. */
 export const THUMB_SIZES: readonly number[] = [64, 88, 112, 144, 184, 232, 296, 376, 456];
@@ -114,4 +119,37 @@ export function layoutThumbs(pages: readonly { width: number; height: number }[]
 		top += height + ROW_GAP;
 	}
 	return { items, rows, columns, height: rows.length ? top - ROW_GAP + LIST_PAD : 0 };
+}
+
+// ----- the view dragged on a thumbnail (section 6.1) -----
+
+/**
+ * A point on a thumbnail (CSS pixels from the top-left of its picture, as shown: turned
+ * `turn` on screen) to page points (view space, unturned) on a page of `size` (unturned)
+ * whose thumbnail is `width` pixels wide.
+ */
+export function thumbToPage(x: number, y: number, size: Size, turn: Rotation, width: number): [number, number] {
+	const shown = turnedSize(size, turn);
+	const k = shown.width / width;
+	return unturnPoint(x * k, y * k, turn, size.width, size.height);
+}
+
+/** A rectangle of page points (view space, unturned) on a page of `size`, as the part of
+ * its thumbnail (`width` pixels wide, turned `turn` on screen) it covers. */
+export function pageToThumb(
+	rect: readonly [number, number, number, number],
+	size: Size,
+	turn: Rotation,
+	width: number
+): { left: number; top: number; width: number; height: number } {
+	const shown = turnedSize(size, turn);
+	const k = width / shown.width;
+	const [ax, ay] = turnPoint(rect[0], rect[1], turn, size.width, size.height);
+	const [bx, by] = turnPoint(rect[2], rect[3], turn, size.width, size.height);
+	return {
+		left: Math.min(ax, bx) * k,
+		top: Math.min(ay, by) * k,
+		width: Math.abs(bx - ax) * k,
+		height: Math.abs(by - ay) * k
+	};
 }

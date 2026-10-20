@@ -2439,6 +2439,17 @@ button.shortcut-key:hover,
 
 /* ----- sidebar ----- */
 
+/* The part of a page in view, outlined on its thumbnail while the view is dragged there
+   (section 6.1). */
+.thumb-view-area {
+	position: absolute;
+	box-sizing: border-box;
+	border: 2px solid var(--lectrix-accent);
+	border-radius: 2px;
+	background: color-mix(in srgb, var(--lectrix-accent) 12%, transparent);
+	pointer-events: none;
+}
+
 /* The edge of a side pane that resizes it: a wide, invisible grip, with a thin accent
    line while hovered or dragged, and the usual focus ring (inset, so the pane does not
    clip it). */
@@ -2526,6 +2537,15 @@ button.shortcut-key:hover,
 .pane-resizer:hover::after,
 .pane-resizer-active::after {
 	background: var(--lectrix-accent);
+}
+/* A side pane's resizer starts where its edge does, under the top row, which has no line
+   between the pane and the pages; lying over the pages (full screen), the edge runs the
+   whole height, and so does the resizer. */
+aside[data-pane] > .pane-resizer {
+	top: 39px;
+}
+aside[data-pane].pane-overlay > .pane-resizer {
+	top: 0;
 }
 
 /* Documents side by side (section 6.1, split view): the panes of a joined tab in columns,

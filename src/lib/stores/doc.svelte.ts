@@ -68,6 +68,11 @@ export interface ViewerApi {
 	 * for reduced motion).
 	 */
 	goToPoint(page: number, x: number | null, y: number | null, options?: { smooth?: boolean }): void;
+	/** The part of a page that is in view (page points, view space); null when none of it is. */
+	visibleArea(page: number): [number, number, number, number] | null;
+	/** Scrolls so that a point of a page (page points, view space) is at the middle of the
+	 * view, as far as it goes, at once and outside back/forward history. */
+	centerOn(page: number, x: number, y: number): void;
 	// Zooming glides there unless Settings or the system's reduced motion say otherwise.
 	/** Zooms keeping the point at the center of the viewport in place. */
 	setZoom(zoom: number, mode: ZoomMode): void;

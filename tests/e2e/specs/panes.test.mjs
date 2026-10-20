@@ -195,3 +195,65 @@ test('the Pages panel makes thumbnails smaller, larger, or as wide as the panel'
 		await stop();
 	}
 });
+
+test('dragging on a thumbnail moves the view over its page, outlined there; F4 hides and shows both panes', async () => {
+	const { browser, stop } = await launch([sample('thumb-drag.pdf', 3)]);
+	try {
+		await waitForDocument(browser);
+		await browser.waitUntil(() => browser.execute(() => document.querySelector('[data-thumb="0"] [data-thumb-picture]') !== null), {
+			timeoutMsg: 'no thumbnails'
+		});
+		// Zoomed in, the page is larger than the view both ways.
+		await (await browser.$('[role=document]')).click();
+		for (let i = 0; i < 3; i++) await browser.keys(['Control', '=']);
+		await browser.pause(400);
+		const scroll = () =>
+			browser.execute(() => {
+				const s = document.querySelector('[role=document]');
+				return { top: s.scrollTop, left: s.scrollLeft };
+			});
+		const before = await scroll();
+		const picture = await box(browser, '[data-thumb="0"] [data-thumb-picture]');
+		const outline = () =>
+			browser.execute(() => {
+				const area = document.querySelector('[data-view-area]');
+				return area ? area.getBoundingClientRect().toJSON() : null;
+			});
+		let during = null;
+		await drag(browser, { x: picture.x - 20, y: picture.y - 20 }, { x: picture.x + 10, y: picture.y + 25 }, {
+			atTarget: async () => {
+				during = await outline();
+			}
+		});
+		assert.ok(during, 'no outline of the part in view while dragging');
+		const thumb = await browser.execute(() => document.querySelector('[data-thumb="0"] [data-thumb-picture]').getBoundingClientRect().toJSON());
+		assert.ok(during.width < thumb.width && during.height < thumb.height, `the outline ${JSON.stringify(during)} is not smaller than the thumbnail`);
+		const after = await scroll();
+		assert.ok(after.top > before.top + 20 && after.left > before.left + 5, `the view did not move: ${JSON.stringify(before)} to ${JSON.stringify(after)}`);
+		// Let go, the outline goes, and the view stays where it was dragged (the release is
+		// no click that goes to the page's top).
+		await browser.waitUntil(async () => (await outline()) === null, { timeoutMsg: 'the outline stayed after the drag' });
+		await browser.pause(200);
+		assert.deepEqual(await scroll(), after);
+
+		// The pane's resizer starts where its edge does, under the top row (whose accent
+		// line on hover would otherwise show in that row, which has no edge).
+		const edges = await browser.execute(() => {
+			const pane = document.querySelector('aside[data-pane="left"]');
+			return [pane.querySelector('.pane-edge').getBoundingClientRect().top, pane.querySelector('.pane-resizer').getBoundingClientRect().top];
+		});
+		assert.equal(edges[1], edges[0], `the resizer starts at ${edges[1]}, the edge at ${edges[0]}`);
+
+		// F4: both panes go while either is open, and come back together.
+		const panes = () => browser.execute(() => [...document.querySelectorAll('aside[data-pane]')].map((p) => p.dataset.pane).sort());
+		assert.deepEqual(await panes(), ['left']);
+		await browser.keys('F4');
+		await browser.waitUntil(async () => (await panes()).length === 0, { timeoutMsg: 'F4 left a pane open' });
+		await browser.keys('F4');
+		await browser.waitUntil(async () => JSON.stringify(await panes()) === JSON.stringify(['left', 'right']), {
+			timeoutMsg: `F4 opened ${JSON.stringify(await panes())}`
+		});
+	} finally {
+		await stop();
+	}
+});

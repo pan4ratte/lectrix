@@ -190,6 +190,7 @@ export const commands = {
 	toggleTheme: () => void toggleTheme(),
 	toggleLeftPane: reading(() => app.togglePane('left')),
 	toggleRightPane: reading(() => app.togglePane('right')),
+	toggleSidePanes: reading(() => app.toggleSidePanes()),
 	goToPage: () => {
 		const box = document.querySelector<HTMLInputElement>('[data-page-box]');
 		box?.focus();

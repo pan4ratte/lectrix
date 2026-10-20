@@ -73,6 +73,7 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 			{ command: 'toggleTheme', label: 'Switch between the light and dark theme', keys: [], inInputs: true },
 			{ command: 'toggleLeftPane', label: 'Show or hide the left pane', keys: [], inInputs: true },
 			{ command: 'toggleRightPane', label: 'Show or hide the right pane', keys: [], inInputs: true },
+			{ command: 'toggleSidePanes', label: 'Show or hide both side panes', keys: ['F4'], mac: ['Ctrl+Alt+S'], inInputs: true },
 			{ command: 'showPages', label: 'Show or hide the Pages panel', keys: [], inInputs: true },
 			{ command: 'showBookmarks', label: 'Show or hide the Bookmarks panel', keys: [], inInputs: true },
 			{ command: 'showAnnotations', label: 'Show or hide the Annotations panel', keys: [], inInputs: true },
@@ -125,14 +126,6 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 			{ command: 'colour7', label: 'Preset colour 7', keys: ['7'] },
 			{ command: 'colour8', label: 'Preset colour 8', keys: ['8'] },
 			{ command: 'colour9', label: 'Preset colour 9', keys: ['9'] }
-		]
-	},
-	{
-		title: 'Help',
-		commands: [
-			{ command: 'whatsNew', label: 'What’s new', keys: [], inInputs: true },
-			{ command: 'checkForUpdates', label: 'Check for updates', keys: [], inInputs: true },
-			{ command: 'about', label: 'About', keys: [], inInputs: true }
 		]
 	}
 ];

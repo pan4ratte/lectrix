@@ -453,6 +453,37 @@
 		};
 	}
 
+	/** The part of page `index` that is in view, in page points (unrotated); null when none
+	 * of it is. What the Pages panel outlines while the view is dragged there. */
+	function visibleArea(index: number): [number, number, number, number] | null {
+		if (!scroller || !layout.pages[index] || !isShown(layout, index)) return null;
+		const b = pageBox(index);
+		const x0 = Math.max(0, scrollLeft - b.left);
+		const x1 = Math.min(b.width, scrollLeft + viewportW - b.left);
+		const y0 = Math.max(0, scrollTop - b.top);
+		const y1 = Math.min(b.height, scrollTop + viewportH - b.top);
+		if (x1 <= x0 || y1 <= y0) return null;
+		const corners = [boxToPage(index, x0, y0), boxToPage(index, x1, y0), boxToPage(index, x0, y1), boxToPage(index, x1, y1)];
+		const xs = corners.map((c) => c[0]);
+		const ys = corners.map((c) => c[1]);
+		return [Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)];
+	}
+
+	/** Scrolls so that a point of page `index` (page points, unrotated) is at the middle of
+	 * the view, as far as the view goes, at once and outside back/forward history: the view
+	 * dragged in the Pages panel. */
+	async function centerOn(index: number, x: number, y: number) {
+		const showing = showRowOf(index);
+		if (showing) await showing;
+		if (!scroller || !layout.pages[index]) return;
+		stopScrollGlide();
+		const b = pageBox(index);
+		const [bx, by] = toBox(index, x, y);
+		scroller.scrollTop = b.top + by - viewportH / 2;
+		scroller.scrollLeft = b.left + bx - viewportW / 2;
+		onScroll();
+	}
+
 	async function goToPoint(index: number, x: number | null, y: number | null, options: { smooth?: boolean } = {}) {
 		if (!scroller) return;
 		const page = Math.min(Math.max(0, index), layout.pages.length - 1);
@@ -1765,6 +1796,8 @@
 			goTo,
 			topLeft,
 			goToPoint,
+			visibleArea,
+			centerOn,
 			reveal,
 			setZoom,
 			zoomStep,

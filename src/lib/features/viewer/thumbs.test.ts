@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+	pageToThumb,
+	thumbToPage,
 	clampThumbWidth,
 	fitWidth,
 	layoutThumbs,
@@ -74,5 +76,26 @@ describe('page thumbnail sizes', () => {
 		expect(clampThumbWidth(9000)).toBe(456);
 		expect(clampThumbWidth(150.4)).toBe(150);
 		expect(clampThumbWidth(Number.NaN)).toBe(112);
+	});
+});
+
+describe('the view dragged on a thumbnail', () => {
+	const letter = { width: 600, height: 800 };
+
+	it('finds the page point under the pointer, on a page as it is and turned on screen', () => {
+		// 150 px wide: a quarter of the page's points.
+		expect(thumbToPage(75, 100, letter, 0, 150)).toEqual([300, 400]);
+		expect(thumbToPage(0, 0, letter, 0, 150)).toEqual([0, 0]);
+		// Turned a quarter, the thumbnail is 800 points wide, 200 px: its top-right corner
+		// is the page's top-left.
+		const [x, y] = thumbToPage(200, 0, letter, 90, 200);
+		expect(x).toBeCloseTo(0);
+		expect(y).toBeCloseTo(0);
+	});
+
+	it('outlines a part of the page where the thumbnail shows it', () => {
+		expect(pageToThumb([0, 0, 300, 400], letter, 0, 150)).toEqual({ left: 0, top: 0, width: 75, height: 100 });
+		// Turned a half: the page's top-left quarter is the thumbnail's bottom-right one.
+		expect(pageToThumb([0, 0, 300, 400], letter, 180, 150)).toEqual({ left: 75, top: 100, width: 75, height: 100 });
 	});
 });

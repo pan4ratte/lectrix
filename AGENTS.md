@@ -269,6 +269,7 @@ The app should feel like a native Windows 11 app: calm, fast, and keyboard-frien
 | Add bookmark | Ctrl+B |
 | Zoom in / out / fit width | Ctrl+= / Ctrl+- / Ctrl+0 |
 | Full screen | F11 |
+| Show or hide both side panes | F4 |
 | In full screen, show the side panes and the toolbar | Alt (held) |
 | Go to page | Ctrl+G |
 | Next / previous tab | Ctrl+Tab / Ctrl+Shift+Tab |

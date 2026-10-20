@@ -178,7 +178,7 @@ test('shortcuts are listed, searched and changed, and work at once', async () =>
 		const all = await listed();
 		assert.ok(all.length > 40 && all.includes('save') && all.includes('toolHighlight') && all.includes('fitPage'), all.join(' '));
 		const groups = await browser.execute(() => [...document.querySelectorAll('[role="dialog"] h3')].filter((h) => h.offsetParent !== null).map((h) => h.textContent.trim()));
-		assert.deepEqual(groups, ['File', 'Edit', 'View', 'Go to', 'Document', 'Annotation tools', 'Help', 'Fixed keys']);
+		assert.deepEqual(groups, ['File', 'Edit', 'View', 'Go to', 'Document', 'Annotation tools', 'Fixed keys']);
 		assert.deepEqual(await keysOf('redo'), ['Ctrl+Y', 'Ctrl+Shift+Z']);
 		// A command without one shows only the plus that adds one; every row ends with it.
 		assert.deepEqual(await keysOf('fitPage'), []);
