@@ -1,12 +1,14 @@
 // Selected text (AGENTS.md section 6.1): a side of the selection, taken with the pointer,
 // extends or reduces it, and the other side stays where it is; Shift and the arrow keys do
-// the same from the keyboard; and Settings can put a handle on each side.
+// the same from the keyboard; Settings can put a handle on each side; and the system reads
+// the selected text as the page's own selection.
 
 import assert from 'node:assert/strict';
+import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { launch, waitForDocument } from '../lib/app.mjs';
-import { sample } from '../lib/pdfcli.mjs';
+import { OUT, launch, waitForDocument } from '../lib/app.mjs';
+import { cli, sample } from '../lib/pdfcli.mjs';
 
 /** Converts page points of page `index` (view space at zoom 1) to viewport pixels. */
 async function pagePoint(browser, index, x, y) {
@@ -363,6 +365,41 @@ test('Settings puts handles on the sides of the selection, and can put the quick
 		await selectQuick(browser);
 		await browser.waitUntil(async () => (await handles()).length === 2, { timeoutMsg: 'the selection lost its handles' });
 		assert.equal(await (await quick()).isExisting(), false, 'the quick tools showed with their bar switched off');
+	} finally {
+		await stop();
+	}
+});
+
+test('the selected text is the page’s own selection, for the system to read, unless copying is forbidden', async () => {
+	const path = sample('selection-system.pdf', 1);
+	const locked = join(OUT, 'selection-system-no-copy.pdf');
+	cli('protect', path, locked, '--permissions-password', 'owner');
+	const domSelection = (browser) => browser.execute(() => document.getSelection()?.toString() ?? '');
+
+	let { browser, stop } = await launch([path]);
+	try {
+		await waitForDocument(browser);
+		await drag(browser, await pagePoint(browser, 0, 40, 92), await pagePoint(browser, 0, 200, 116));
+		await browser.waitUntil(async () => (await domSelection(browser)).startsWith('he quick brown fox'), {
+			timeoutMsg: `the page's selection holds ${JSON.stringify(await domSelection(browser))}`
+		});
+		assert.match(await domSelection(browser), /page 1\.\n+Lorem ipsum/, 'the selection lost its line break');
+		assert.equal(await browser.execute(() => document.activeElement?.classList.contains('viewer-scroll')), true);
+
+		// A click away clears it, as it clears the drawn selection.
+		await browser.action('pointer').move({ ...(await pagePoint(browser, 0, 450, 40)), origin: 'viewport' }).down().up().perform();
+		await browser.waitUntil(async () => (await domSelection(browser)) === '', { timeoutMsg: 'a click away left the selection' });
+	} finally {
+		await stop();
+	}
+
+	({ browser, stop } = await launch([locked]));
+	try {
+		await waitForDocument(browser);
+		await drag(browser, await pagePoint(browser, 0, 40, 92), await pagePoint(browser, 0, 200, 116));
+		await browser.waitUntil(async () => (await selected(browser)).length > 0, { timeoutMsg: 'no text selected' });
+		await browser.pause(300);
+		assert.equal(await domSelection(browser), '', 'a document that forbids copying gave the system its text');
 	} finally {
 		await stop();
 	}

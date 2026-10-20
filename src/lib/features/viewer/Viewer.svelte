@@ -57,6 +57,7 @@
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
 	import type { ViewPosition } from './history.ts';
+	import { selectedText } from './actions.ts';
 	import { follow, linkAt, linkPreview } from './links.ts';
 	import {
 		CSS_PX_PER_PT,
@@ -1852,6 +1853,69 @@
 			if (Math.abs(zoom - tab.zoom) > 1e-3) setZoomNow(zoom, tab.zoomMode);
 		});
 	});
+
+	// ----- the selected text, for the system (section 6.1) -----
+
+	// The text selection is drawn, not the page's own, so the system would see none: the
+	// accessibility API's selected text (which translators and dictionaries such as Easydict
+	// read, and screen readers announce), macOS's Edit > Copy and Services, Linux's primary
+	// selection. A hidden copy of the selected text, selected, stands in for it while the view
+	// has the focus. Not where the document forbids copying, and not for a selection over
+	// many pages whose text isn't read yet.
+	let mirror: HTMLDivElement | undefined = $state();
+	let mirrored = $state('');
+	/** Pages a selection may span whose text is read for the mirror. */
+	const MIRROR_LOAD_PAGES = 10;
+	let mirrorFrame = 0;
+
+	function mirrorOwnsSelection(): boolean {
+		const sel = document.getSelection();
+		return !!mirror && !!sel?.anchorNode && mirror.contains(sel.anchorNode);
+	}
+
+	$effect(() => {
+		const sel = tab.selection;
+		const allowed = tab.flags.canCopy;
+		void focused;
+		cancelAnimationFrame(mirrorFrame);
+		mirrorFrame = requestAnimationFrame(() => {
+			untrack(() => void updateMirror(sel, allowed));
+		});
+		return () => cancelAnimationFrame(mirrorFrame);
+	});
+	onMount(() => () => {
+		if (mirrorOwnsSelection()) document.getSelection()?.removeAllRanges();
+	});
+
+	async function updateMirror(sel: DocTab['selection'], allowed: boolean) {
+		let text = '';
+		if (sel && allowed) {
+			const [start, end] = ordered(sel.anchor, sel.focus);
+			let unread = false;
+			for (let page = start.page; page <= end.page && !unread; page++) unread = !tab.text(page);
+			if (!unread || end.page - start.page < MIRROR_LOAD_PAGES) text = await selectedText(tab);
+			if (tab.selection !== sel) return;
+		}
+		mirrored = text;
+		await tick();
+		const domSel = document.getSelection();
+		if (!mirror || !domSel) return;
+		if (!text) {
+			if (mirrorOwnsSelection()) domSel.removeAllRanges();
+			return;
+		}
+		// Only while the view has the focus: a field being typed in keeps its own selection.
+		const active = document.activeElement;
+		if (active !== document.body && !scroller?.contains(active)) return;
+		domSel.selectAllChildren(mirror);
+	}
+
+	/** The system's Copy (macOS's Edit > Copy) copies the selected text as Copy selection does. */
+	function onCopy(event: ClipboardEvent) {
+		if (!mirrored || !mirrorOwnsSelection() || !event.clipboardData) return;
+		event.preventDefault();
+		event.clipboardData.setData('text/plain', mirrored);
+	}
 </script>
 
 <div class="relative h-full min-h-0 flex-1">
@@ -1885,7 +1949,9 @@
 					onpointercancel={chain(props, 'onpointercancel', onPointerUp)}
 					onpointerleave={chain(props, 'onpointerleave', leavePage)}
 					oncontextmenu={chain(props, 'oncontextmenu', onContextMenu)}
+					oncopy={onCopy}
 				>
+					<div bind:this={mirror} class="selection-mirror">{mirrored}</div>
 					<div bind:this={content} class="relative" style:width="{contentW}px" style:height="{layout.totalHeight}px">
 						{#each mountedPages as index (index)}
 							{@const b = pageBox(index)}

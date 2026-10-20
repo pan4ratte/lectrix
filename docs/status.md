@@ -419,8 +419,10 @@ Nothing has been run interactively there.
   alignment) and the buttons under KDE (Adwaita's look in Breeze's place) need a look. The
   menus are in macOS's menu bar and shortcuts use Command there; neither has been tried on
   a Mac, nor has ⌘Z undoing a text field's typing through the menu bar
-  (`document.execCommand`). Edit > Copy in the menu bar can't copy the document's selected
-  text (⌘C and the selection's bar can). A tab dropped where two Lectrix windows overlap goes by the windows' frames, not
+  (`document.execCommand`). The selected text is handed to the system as the webview's own
+  selection (section 6.1, 2026-10-20): read through UI Automation on Windows, but macOS's
+  accessibility API (Easydict), Edit > Copy and Services with it, and Linux's primary
+  selection have not been tried. A tab dropped where two Lectrix windows overlap goes by the windows' frames, not
   by which one is on top (only the Windows build asks the system for the window under the
   cursor), and moving tabs between windows has not been run there. Nor has full screen
   (on macOS the system's own, with its animation and its menu bar at the top edge).

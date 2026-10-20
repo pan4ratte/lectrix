@@ -408,6 +408,22 @@ input[type='color'],
 	outline: none;
 }
 
+/* The selected text, copied and selected for the system to read (section 6.1): out of sight,
+   but laid out and selectable, or the selection would hold no text. */
+.selection-mirror {
+	position: absolute;
+	top: 0;
+	left: 0;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip-path: inset(50%);
+	white-space: pre;
+	user-select: text;
+	-webkit-user-select: text;
+	pointer-events: none;
+}
+
 /* ----- controls ----- */
 
 .icon-button {

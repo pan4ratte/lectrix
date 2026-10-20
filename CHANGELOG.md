@@ -18,6 +18,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 - In the **Pages** panel, press a thumbnail and drag to move the view over that page, as in Acrobat. The part of the page on screen is outlined on the thumbnail while you drag.
 - **F4** hides both side panes, and shows them again. **View > Side panes** does the same.
 - The accent line of a side pane's resizer no longer shows in the row of panel tabs above the pane's edge.
+- Apps that read the text you select, such as translators and dictionaries like Easydict, and screen readers, now get the text selected in a document. On macOS, **Edit > Copy** in the menu bar copies it too.
 
 ### Annotations
 
