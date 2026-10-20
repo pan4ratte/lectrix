@@ -76,9 +76,12 @@ async function setSwitch(browser, group, id, on) {
 		timeoutMsg: `${id} did not turn ${on ? 'on' : 'off'}`
 	});
 	await (await browser.$('[role="dialog"] button[aria-label="Close"]')).click();
-	await browser.waitUntil(() => browser.execute(() => document.querySelector('[role="dialog"]') === null), {
-		timeoutMsg: 'Settings did not close'
-	});
+	// (Bits UI gives the page its pointer events back a moment after the dialog has gone; until
+	// then WebDriver finds the search field not interactable.)
+	await browser.waitUntil(
+		() => browser.execute(() => document.querySelector('[role="dialog"]') === null && document.body.style.pointerEvents !== 'none'),
+		{ timeoutMsg: 'Settings did not close' }
+	);
 }
 
 test('the search bar suggests words, marks its matches and glides to them', async () => {
