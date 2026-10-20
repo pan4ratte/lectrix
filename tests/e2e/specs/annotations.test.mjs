@@ -1290,6 +1290,18 @@ test('copying from the quick tools and the context menus, and a comment left emp
 		await browser.waitUntil(barShown, { timeoutMsg: 'no bar after the empty comment closed' });
 		await browser.keys('Escape');
 
+		// Left by a click elsewhere on the page, which deselects it, the highlight clicked again
+		// shows its bar, not the empty comment.
+		await drag(browser, await pagePoint(browser, 0, 40, 140), await pagePoint(browser, 0, 200, 140), 1);
+		await (await (await quick()).$('button[aria-label="Highlight with note"]')).click();
+		await browser.waitUntil(() => inPanelNote(browser), { timeoutMsg: 'Highlight with note put no cursor in the comment' });
+		await click(browser, await pagePoint(browser, 0, 450, 40));
+		await browser.waitUntil(async () => !(await panelShown(browser)), { timeoutMsg: 'a click away left the comment open' });
+		await click(browser, await pagePoint(browser, 0, 100, 140));
+		await browser.waitUntil(barShown, { timeoutMsg: 'no bar on the highlight clicked again' });
+		assert.equal(await panelShown(browser), false, 'the highlight clicked again showed its empty comment');
+		await click(browser, await pagePoint(browser, 0, 450, 40));
+
 		// A double-click opens the comment too; with text typed it stays.
 		const onHighlight = await pagePoint(browser, 0, 100, 116);
 		await browser.action('pointer').move({ ...onHighlight, origin: 'viewport' }).down().up().pause(60).down().up().perform();

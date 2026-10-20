@@ -196,7 +196,13 @@
 				if (!into) tab.viewer?.focus();
 			};
 			field.addEventListener('blur', onBlur);
-			return () => field.removeEventListener('blur', onBlur);
+			return () => {
+				field.removeEventListener('blur', onBlur);
+				// Gone with the selection (a click elsewhere on the page) before it lost the
+				// focus: selected again, the annotation shows its bar.
+				const panel = app.annotationPanel;
+				if (field.value.trim() === '' && panel?.key === fieldKey && panel.open) app.annotationPanel = { key: fieldKey, open: false };
+			};
 		};
 	});
 
