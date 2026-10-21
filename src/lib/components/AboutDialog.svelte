@@ -16,12 +16,11 @@
 	let version = $state('');
 	let content: HTMLElement | null = $state(null);
 
-	$effect(() => {
-		if (!app.aboutOpen || version) return;
-		void getVersion()
-			.then((v) => (version = v))
-			.catch(() => {});
-	});
+	// Asked for as the app starts (App mounts this dialog closed), not as About opens, so
+	// the version is there from the dialog's first frame instead of a moment later.
+	void getVersion()
+		.then((v) => (version = v))
+		.catch(() => {});
 
 	/** The dialog itself takes the focus, so no control looks picked as it opens (it shows
 	 * no ring for that, app.css); Tab then reaches the author, the GitHub button and Close. */

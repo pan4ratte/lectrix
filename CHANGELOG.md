@@ -6,6 +6,12 @@ shows this file, and each GitHub release is written from it. How to write it (th
 the wording, translations): docs/releasing.md, "The changelog".
 -->
 
+## Unreleased
+
+### General
+
+- **Help > About** shows the version as soon as it opens, instead of a moment later.
+
 ## 1.3.1
 
 ### Viewer and tabs

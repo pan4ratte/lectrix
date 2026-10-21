@@ -213,7 +213,11 @@ test('menus, tabs and lists move with arrow keys; dialogs keep focus inside', as
 		// browser.
 		await (await browser.$('button[role="menuitem"]=Help')).click();
 		await (await browser.$('[role="menuitem"]*=About')).click();
-		await browser.waitUntil(() => browser.execute(() => document.querySelector('[role="dialog"]') !== null));
+		// The version comes from Rust; the dialog may open before it does.
+		await browser.waitUntil(
+			() => browser.execute(() => document.querySelector('[role="dialog"]')?.textContent?.includes('Version') ?? false),
+			{ timeoutMsg: 'About did not show the version' }
+		);
 		const about = await browser.execute(() => ({
 			text: document.querySelector('[role="dialog"]')?.textContent ?? '',
 			source: [...document.querySelectorAll('[role="dialog"] button')].find((b) => b.textContent.includes('GitHub'))?.dataset.tip ?? ''
