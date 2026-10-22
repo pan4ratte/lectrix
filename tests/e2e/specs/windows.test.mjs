@@ -11,7 +11,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 
 import { focused } from '../lib/a11y.mjs';
-import { launch, waitForDocument } from '../lib/app.mjs';
+import { clickToQuit, launch, waitForDocument } from '../lib/app.mjs';
 import { sample } from '../lib/pdfcli.mjs';
 
 const TABS = '[role=tablist][aria-label="Open documents"] [data-tab]';
@@ -267,7 +267,7 @@ test('a tab moves to a window of its own and into another window, as it is', asy
 		const again = await browser.$('[role=alertdialog]');
 		await again.waitForDisplayed({ timeoutMsg: 'the other window did not ask again' });
 		await (await again.$('button*=save')).waitForExist();
-		await (await again.$('//button[contains(., "Don")]')).click();
+		await clickToQuit(await again.$('//button[contains(., "Don")]'));
 		quit = true;
 		assert.ok(await run.exitedByItself(), 'Lectrix did not quit after Exit');
 	} finally {

@@ -382,3 +382,17 @@ export async function rotateFirstPage(browser) {
 export async function keys(browser, combo) {
 	await browser.keys(combo);
 }
+
+/**
+ * Clicks a control that makes Lectrix quit (the window's Close button, "Don't save" on the
+ * last unsaved document). The window may be gone before the driver has answered the click
+ * ("invalid session id: session deleted as the browser has closed the connection", or
+ * "target frame detached ... unable to send message to renderer", both seen on CI): that
+ * is the click doing its work. Any other error is thrown; whether Lectrix quit is the
+ * caller's to check (exitedByItself).
+ */
+export async function clickToQuit(element) {
+	await element.click().catch((e) => {
+		if (!/invalid session id|disconnected|no such window|browser has closed|target frame detached/i.test(String(e?.message ?? e))) throw e;
+	});
+}

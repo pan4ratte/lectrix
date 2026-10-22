@@ -7,7 +7,7 @@ import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { OUT, launch } from '../lib/app.mjs';
+import { OUT, clickToQuit, launch } from '../lib/app.mjs';
 
 const STATE = join(OUT, 'window-state.json');
 // Above the minimum size (640 x 480) at 100% to 150% scale, and within a 1024 x 768 screen.
@@ -37,13 +37,9 @@ async function maximizeButton(browser) {
 	return button;
 }
 
-/** Closes the window with its own button and waits for Lectrix to quit. The window may be
- * gone before the driver has answered the click ("invalid session id: session deleted as the
- * browser has closed the connection", as on CI): that is the click doing its work. */
+/** Closes the window with its own button and waits for Lectrix to quit. */
 async function quit(browser, exitedByItself) {
-	await (await browser.$('button[aria-label="Close"]')).click().catch((e) => {
-		if (!/invalid session id|disconnected|no such window|browser has closed/i.test(String(e?.message ?? e))) throw e;
-	});
+	await clickToQuit(await browser.$('button[aria-label="Close"]'));
 	assert.ok(await exitedByItself(), 'Lectrix did not quit');
 }
 

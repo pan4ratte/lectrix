@@ -6,7 +6,7 @@ import { existsSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { OUT, launch, rotateFirstPage, statusText, waitForDocument } from '../lib/app.mjs';
+import { OUT, clickToQuit, launch, rotateFirstPage, statusText, waitForDocument } from '../lib/app.mjs';
 import { cli, sample } from '../lib/pdfcli.mjs';
 
 const DIR = join(OUT, 'recovery');
@@ -32,7 +32,8 @@ async function changeAndWaitForCopy(browser) {
 	});
 }
 
-async function answer(browser, label) {
+/** Clicks a button in the dialog; `quits` when the click makes Lectrix quit (clickToQuit). */
+async function answer(browser, label, { quits = false } = {}) {
 	const button = await browser.waitUntil(
 		() =>
 			browser.execute(
@@ -43,7 +44,8 @@ async function answer(browser, label) {
 			),
 		{ timeoutMsg: `no "${label}" button in the dialog` }
 	);
-	await (await browser.$(button)).click();
+	const element = await browser.$(button);
+	await (quits ? clickToQuit(element) : element.click());
 }
 
 async function waitForQuestion(browser) {
@@ -136,7 +138,7 @@ test('discarding recovered changes deletes them; quitting without saving leaves 
 	try {
 		await changeAndWaitForCopy(browser);
 		await (await browser.$('button[aria-label="Close"]')).click();
-		await answer(browser, 'Don’t save');
+		await answer(browser, 'Don’t save', { quits: true });
 	} finally {
 		quit = await exitedByItself();
 	}

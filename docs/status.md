@@ -594,13 +594,13 @@ Nothing has been run interactively there.
   `npm run test:ci --prefix tests/e2e` shows the app as CI does (it fails the four tests
   as they were, with CI's messages), the tests run beside an open Lectrix, the soak run
   lists the tests that fail only sometimes (`.github/workflows/soak.yml`), and CI's
-  Windows checks are separate jobs, so one that failed is run again alone. Known and
-  left: `recovery.test.mjs` ends with a click that quits Lectrix, as
-  `window-placement.test.mjs` did; no soak run has been done yet, so other such tests
-  are likely. `visual-adjustments.test.mjs`'s full-screen test fails about half its
-  runs on the author's screen in `test:ci` mode ("Esc left full screen": the title bar
-  is back after Esc closes the adjustments panel; 2026-10-18, with and without that day's
-  change to how pages are shown).
+  Windows checks are separate jobs, so one that failed is run again alone. A click that
+  makes Lectrix quit goes through `clickToQuit` (`tests/e2e/lib/app.mjs`), since the
+  nightly soak of 2026-10-22 caught `recovery.test.mjs`'s "Don't save" losing that race
+  once in ten passes. Known and left: `visual-adjustments.test.mjs`'s full-screen test
+  fails about half its runs on the author's screen in `test:ci` mode ("Esc left full
+  screen": the title bar is back after Esc closes the adjustments panel; 2026-10-18,
+  with and without that day's change to how pages are shown).
 
 ## Planned tools
 
