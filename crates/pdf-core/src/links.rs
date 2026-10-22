@@ -1,7 +1,10 @@
 //! Links on a page (link annotations, AGENTS.md section 6.1): where each one is and what
-//! it does when clicked. Targets are read as a bookmark's are (`outline::Target`): a place
-//! in this document resolves to a page and a point, and anything else (a web address,
-//! another file, an action) is only described, since Lectrix opens and runs none of them.
+//! it does when clicked. A push button of a form, which has no value to fill and only an
+//! action to run when clicked, is a link too: books made for screens use them for their
+//! contents and their "next page" buttons. Targets are read as a bookmark's are
+//! (`outline::Target`): a place in this document resolves to a page and a point, and
+//! anything else (a web address, another file, an action) is only described, since Lectrix
+//! opens and runs none of them.
 //!
 //! Reading is lenient, as for other apps' annotations (section 5.2): a link without a
 //! usable `/Rect` or without a destination or action is left out.
@@ -21,6 +24,9 @@ const MAX_LINKS: usize = 10_000;
 /// Annotation flags of a link that is not shown on screen: Hidden (bit 2) and NoView
 /// (bit 6).
 const NOT_SHOWN: i32 = 2 | 32;
+
+/// The Pushbutton flag of a button field's `/Ff` (bit 17).
+const PUSH_BUTTON: i32 = 1 << 16;
 
 /// One link.
 #[derive(Debug, Clone, PartialEq)]
@@ -67,13 +73,15 @@ fn read_link(
     if !obj.is_dict()? {
         return Ok(None);
     }
-    let is_link = match obj.get_dict("Subtype")? {
-        Some(s) if s.is_name()? => s.as_name()? == b"Link",
-        _ => false,
+    let subtype = match obj.get_dict("Subtype")? {
+        Some(s) if s.is_name()? => s.as_name()?,
+        _ => return Ok(None),
     };
-    if !is_link {
-        return Ok(None);
-    }
+    let button = match subtype.as_slice() {
+        b"Link" => false,
+        b"Widget" if is_push_button(obj)? => true,
+        _ => return Ok(None),
+    };
     let flags = match obj.get_dict("F")? {
         Some(f) if f.is_int()? => f.as_int()?,
         _ => 0,
@@ -94,7 +102,14 @@ fn read_link(
     if !(x1 > x0 && y1 > y0) {
         return Ok(None);
     }
-    let target = resolver.target(obj)?;
+    let target = if button {
+        match button_action(obj)? {
+            Some(action) => resolver.action(&action)?,
+            None => Target::None,
+        }
+    } else {
+        resolver.target(obj)?
+    };
     if target == Target::None {
         return Ok(None);
     }
@@ -102,4 +117,31 @@ fn read_link(
         rect: [x0 as f32, y0 as f32, x1 as f32, y1 as f32],
         target,
     }))
+}
+
+/// Whether a widget is a push button: a button field (`/FT /Btn`) with the Pushbutton flag
+/// (bit 17 of `/Ff`), both of which the widget may inherit from its field.
+fn is_push_button(widget: &PdfObject) -> Result<bool> {
+    let is_button = match widget.get_dict_inheritable("FT")? {
+        Some(t) if t.is_name()? => t.as_name()? == b"Btn",
+        _ => false,
+    };
+    if !is_button {
+        return Ok(false);
+    }
+    Ok(match widget.get_dict_inheritable("Ff")? {
+        Some(f) if f.is_int()? => f.as_int()? & PUSH_BUTTON != 0,
+        _ => false,
+    })
+}
+
+/// What a push button does when clicked: its `/A`, else its mouse-up action (`/AA /U`).
+fn button_action(widget: &PdfObject) -> Result<Option<PdfObject>> {
+    if let Some(action) = widget.get_dict("A")? {
+        return Ok(Some(action));
+    }
+    match widget.get_dict("AA")? {
+        Some(aa) if aa.is_dict()? => Ok(aa.get_dict("U")?),
+        _ => Ok(None),
+    }
 }

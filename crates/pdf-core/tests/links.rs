@@ -99,6 +99,48 @@ fn links_are_read_with_their_place_and_target() {
 }
 
 #[test]
+fn push_buttons_are_links_and_other_fields_are_not() {
+    let objects: Vec<String> = vec![
+        "<< /Type /Catalog /Pages 2 0 R /AcroForm << /Fields [5 0 R 6 0 R 9 0 R 10 0 R 11 0 R] >> >>".into(),
+        "<< /Type /Pages /Kids [3 0 R 4 0 R] /Count 2 /MediaBox [0 0 612 792] >>".into(),
+        "<< /Type /Page /Parent 2 0 R /Resources << >> /Annots [5 0 R 7 0 R 8 0 R 9 0 R 10 0 R 11 0 R] >>".into(),
+        "<< /Type /Page /Parent 2 0 R /Resources << >> >>".into(),
+        // 5: a push button whose widget is its field, with a GoTo action
+        "<< /Type /Annot /Subtype /Widget /FT /Btn /Ff 65536 /T (next) /Rect [72 700 300 720] /A << /S /GoTo /D [4 0 R /Fit] >> >>".into(),
+        // 6: a push button field with two widgets, which inherit its type and flags
+        "<< /FT /Btn /Ff 65536 /T (contents) /Kids [7 0 R 8 0 R] >>".into(),
+        // 7: with a mouse-up action
+        "<< /Type /Annot /Subtype /Widget /Parent 6 0 R /Rect [72 660 300 680] /AA << /U << /S /Launch /F (../Start.pdf) >> >> >>".into(),
+        // 8: with no action
+        "<< /Type /Annot /Subtype /Widget /Parent 6 0 R /Rect [72 620 300 640] >>".into(),
+        // 9: a check box with an action is filled in, not followed
+        "<< /Type /Annot /Subtype /Widget /FT /Btn /T (box) /Rect [72 580 92 600] /A << /S /GoTo /D [4 0 R /Fit] >> >>".into(),
+        // 10: a text field
+        "<< /Type /Annot /Subtype /Widget /FT /Tx /Ff 65536 /T (name) /Rect [72 540 300 560] /A << /S /GoTo /D [4 0 R /Fit] >> >>".into(),
+        // 11: a hidden push button
+        "<< /Type /Annot /Subtype /Widget /FT /Btn /Ff 65536 /F 2 /T (hidden) /Rect [72 500 300 520] /A << /S /GoTo /D [4 0 R /Fit] >> >>".into(),
+    ];
+    let dir = out_dir("links-buttons");
+    let path = dir.join("buttons.pdf");
+    std::fs::write(&path, assemble(&objects)).unwrap();
+    let doc = open(&path);
+
+    assert_eq!(
+        page_links(&doc, 0).unwrap(),
+        vec![
+            PageLink {
+                rect: [72.0, 72.0, 300.0, 92.0],
+                target: page(1, None, None, None),
+            },
+            PageLink {
+                rect: [72.0, 112.0, 300.0, 132.0],
+                target: Target::File("../Start.pdf".into()),
+            },
+        ]
+    );
+}
+
+#[test]
 fn a_session_reads_links_with_the_revision() {
     let dir = out_dir("links-session");
     let path = dir.join("links.pdf");

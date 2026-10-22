@@ -8,6 +8,10 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ## Unreleased
 
+### Viewer and tabs
+
+- Buttons on the page, such as the Contents button of books made for reading on screen, can now be clicked. They work as links do.
+
 ### General
 
 - **Help > About** shows the version as soon as it opens, instead of a moment later.

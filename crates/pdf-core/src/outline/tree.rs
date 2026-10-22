@@ -393,9 +393,14 @@ impl<'a> Resolver<'a> {
         if let Some(dest) = item.get_dict("Dest")? {
             return self.destination(&dest);
         }
-        let Some(action) = item.get_dict("A")? else {
-            return Ok(Target::None);
-        };
+        match item.get_dict("A")? {
+            Some(action) => self.action(&action),
+            None => Ok(Target::None),
+        }
+    }
+
+    /// What an action dictionary does.
+    pub(crate) fn action(&mut self, action: &PdfObject) -> Result<Target> {
         if !action.is_dict()? {
             return Ok(Target::None);
         }
@@ -415,7 +420,7 @@ impl<'a> Resolver<'a> {
                 }
                 _ => Target::Uri(String::new()),
             },
-            "GoToR" | "GoToE" | "Launch" => Target::File(file_name(&action)?),
+            "GoToR" | "GoToE" | "Launch" => Target::File(file_name(action)?),
             _ => Target::Action(kind),
         })
     }
