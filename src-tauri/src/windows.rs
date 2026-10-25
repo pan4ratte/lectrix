@@ -4,6 +4,7 @@
 //! keeps that, and what else differs from window to window.
 
 use std::collections::{HashMap, HashSet};
+use std::path::PathBuf;
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::time::{Duration, Instant};
@@ -27,6 +28,9 @@ const DOCUMENTS_MOVED: &str = "documents-moved";
 /// and closes like any window.
 const STARTING: Duration = Duration::from_secs(15);
 
+/// How many closed tabs a window keeps to reopen, the last closed first.
+const CLOSED_KEPT: usize = 25;
+
 #[derive(Default)]
 pub struct Windows {
     /// The window that shows each open document (tabs and sources), by id.
@@ -42,6 +46,9 @@ pub struct Windows {
     minimized: Mutex<HashSet<String>>,
     /// Windows made for a tab whose page does not show it yet, and when they were made.
     starting: Mutex<HashMap<String, Instant>>,
+    /// The files of the tabs each window closed, oldest first, to reopen (the paths
+    /// Lectrix had them open from, never ones from the webview).
+    closed: Mutex<HashMap<String, Vec<PathBuf>>>,
     made: AtomicU32,
 }
 
@@ -95,12 +102,44 @@ impl Windows {
             set.remove(label);
         }
         self.set_ready(label);
+        if let Ok(mut closed) = self.closed.lock() {
+            closed.remove(label);
+        }
         if let Ok(mut focused) = self.focused.lock()
             && focused.as_deref() == Some(label)
         {
             *focused = None;
         }
         ids
+    }
+
+    /// Window `label` closed the tab of `path`: the next to reopen. Returns how many it has
+    /// to reopen.
+    pub fn remember_closed(&self, label: &str, path: PathBuf) -> usize {
+        let Ok(mut closed) = self.closed.lock() else {
+            return 0;
+        };
+        let list = closed.entry(label.to_owned()).or_default();
+        list.retain(|p| p != &path);
+        list.push(path);
+        if list.len() > CLOSED_KEPT {
+            list.remove(0);
+        }
+        list.len()
+    }
+
+    /// The file of the tab window `label` closed last, taken from those it can reopen.
+    pub fn take_closed(&self, label: &str) -> Option<PathBuf> {
+        self.closed.lock().ok()?.get_mut(label)?.pop()
+    }
+
+    /// How many closed tabs window `label` can reopen.
+    pub fn closed_count(&self, label: &str) -> usize {
+        self.closed
+            .lock()
+            .ok()
+            .and_then(|closed| closed.get(label).map(Vec::len))
+            .unwrap_or(0)
     }
 
     pub fn set_handoff(&self, id: u32, handoff: TabHandoff) {
@@ -413,6 +452,40 @@ pub fn destroyed(app: &AppHandle, label: &str) {
 mod tests {
     use super::*;
     use crate::ipc::ScrollMode;
+
+    #[test]
+    fn a_window_reopens_its_closed_tabs_the_last_closed_first() {
+        let windows = Windows::default();
+        assert_eq!(windows.remember_closed("main", PathBuf::from("a.pdf")), 1);
+        assert_eq!(windows.remember_closed("main", PathBuf::from("b.pdf")), 2);
+        assert_eq!(
+            windows.remember_closed("window-2", PathBuf::from("c.pdf")),
+            1
+        );
+        // Closed again, a file moves to the end rather than being in the list twice.
+        assert_eq!(windows.remember_closed("main", PathBuf::from("a.pdf")), 2);
+        assert_eq!(windows.take_closed("main"), Some(PathBuf::from("a.pdf")));
+        assert_eq!(windows.take_closed("main"), Some(PathBuf::from("b.pdf")));
+        assert_eq!(windows.take_closed("main"), None);
+        assert_eq!(windows.closed_count("window-2"), 1);
+        // A window that goes takes its closed tabs with it.
+        windows.forget("window-2");
+        assert_eq!(windows.closed_count("window-2"), 0);
+    }
+
+    #[test]
+    fn a_window_keeps_its_last_closed_tabs_only() {
+        let windows = Windows::default();
+        for i in 0..CLOSED_KEPT + 5 {
+            windows.remember_closed("main", PathBuf::from(format!("{i}.pdf")));
+        }
+        assert_eq!(windows.closed_count("main"), CLOSED_KEPT);
+        let last = CLOSED_KEPT + 4;
+        assert_eq!(
+            windows.take_closed("main"),
+            Some(PathBuf::from(format!("{last}.pdf")))
+        );
+    }
 
     #[test]
     fn a_window_size_for_tests_is_two_numbers() {

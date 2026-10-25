@@ -41,6 +41,7 @@ const COMMANDS: &[&str] = &[
     "get_document_properties",
     "get_document_fonts",
     "close_document",
+    "reopen_closed_document",
     "get_document_info",
     "list_open_documents",
     "get_page_text",

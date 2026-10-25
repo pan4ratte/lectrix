@@ -677,6 +677,15 @@ AGENTS.md section 1 change in the commit that builds it.
   be reported, with a file made by `pdf-cli pages move` and a save.
 - The vendored `mupdf` crate's patches (`third_party/mupdf-rs/LECTRIX_PATCHES.md`) could be
   offered to mupdf-rs as a pull request, if the user wants.
+- Svelte (5.57.1, and 5.57.2 still) leaves a `$derived` stale for good when an effect's
+  cleanup reads it in the flush that changes what it depends on: a component going away
+  reads its props. The document shown was such a value, and after another tab had been
+  shown the side panels, the view bar and Save stayed on one pane of documents side by
+  side, whichever had the focus (2026-10-25). The values that follow the tab shown
+  (`app.active`, `app.activeGroup`, `TabGroup.focused`, and what App and SplitView take
+  from them) are therefore getters, not `$derived`. A report with a reproduction is in
+  `docs/upstream/svelte-derived-read-in-cleanup.md`; not yet filed. Once Svelte fixes it,
+  they can be cached again.
 
 ## Names kept from the build
 

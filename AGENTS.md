@@ -273,6 +273,7 @@ The app should feel like a native Windows 11 app: calm, fast, and keyboard-frien
 | In full screen, show the side panes and the toolbar | Alt (held) |
 | Go to page | Ctrl+G |
 | Next / previous tab | Ctrl+Tab / Ctrl+Shift+Tab |
+| Reopen closed tab | Ctrl+Shift+T |
 | Select / Highlight / Underline / Note / Pen / Text box tool | Esc / H / U / N / P / T |
 | Rename bookmark | F2 |
 | Delete selection | Del |

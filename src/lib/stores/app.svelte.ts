@@ -19,6 +19,7 @@ import {
 	onCloseDeclined,
 	openInsertSources,
 	openRecent,
+	reopenClosedDocument,
 	openStartupDocuments,
 	openWithDialog,
 	recentChanged,
@@ -187,9 +188,14 @@ class AppStore {
 	tabs = $derived(this.groups.flatMap((g) => g.views));
 	/** The tab shown, or the one the start screen or the Combine view is shown over. */
 	activeKey = $state<number | null>(null);
-	activeGroup = $derived(this.groups.find((g) => g.key === this.activeKey) ?? null);
-	/** The document of the pane in focus in that tab. */
-	activeId = $derived(this.activeGroup?.focused?.id ?? null);
+	// The tab and the document shown are getters, not $derived: Svelte 5.57 leaves a
+	// $derived stale for good when a component's cleanup reads it just after what it
+	// depends on changed (a tab closing as another is shown reads the document it showed),
+	// and these depend on a different tab's state each time another is shown. Svelte
+	// recomputes such a derived there without subscribing to its new dependencies.
+	get activeGroup(): TabGroup | null {
+		return this.groups.find((g) => g.key === this.activeKey) ?? null;
+	}
 	startup = $state<StartupInfo | null>(null);
 	recent = $state<RecentFile[]>([]);
 	/** The side panes (section 8): open, their widths, the panels each holds (the user
@@ -337,7 +343,9 @@ class AppStore {
 
 	/** The document on screen (the pane in focus, in a joined tab); null while the Combine
 	 * view or the start screen is. */
-	active = $derived(this.combineActive || this.startShown ? null : (this.activeGroup?.focused ?? null));
+	get active(): DocTab | null {
+		return this.combineActive || this.startShown ? null : (this.activeGroup?.focused ?? null);
+	}
 
 	/** One view of each document in the window. */
 	get documents(): DocTab[] {
@@ -1323,8 +1331,22 @@ class AppStore {
 		if (!this.tabs.includes(tab)) return;
 		this.rememberView(tab);
 		this.removeDocument(id);
-		await closeDocument(id).catch(() => {});
+		this.closedTabs = await closeDocument(id, true).catch(() => this.closedTabs);
 		void this.refreshRecent();
+	}
+
+	/** How many closed tabs this window can reopen (File > Reopen closed tab). */
+	closedTabs = $state(0);
+
+	/** Opens the tab closed last again, at the place it had (its file's remembered view). */
+	async reopenClosed() {
+		try {
+			const reopened = await reopenClosedDocument();
+			this.closedTabs = reopened.remaining;
+			if (reopened.result) this.handleOpenResults([reopened.result]);
+		} catch (e) {
+			this.showError(toAppError(e));
+		}
 	}
 
 	/**

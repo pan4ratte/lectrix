@@ -30,7 +30,10 @@ export class TabGroup {
 	 * (`features/split/sync.ts`). */
 	zooms = new Map<DocTab, string>();
 
-	focused = $derived(this.views[Math.min(this.focus, this.views.length - 1)] ?? null);
+	/** A getter rather than a $derived, as `app.active` is (stores/app.svelte.ts). */
+	get focused(): DocTab | null {
+		return this.views[Math.min(this.focus, this.views.length - 1)] ?? null;
+	}
 	joined = $derived(this.views.length > 1);
 	names = $derived(paneNames(this.views));
 	full = $derived(this.views.length >= MAX_PANES);

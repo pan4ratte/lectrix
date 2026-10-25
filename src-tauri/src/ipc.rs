@@ -1436,6 +1436,17 @@ impl From<ViewDest> for pdf_core::outline::ViewDest {
     }
 }
 
+/// What reopening the tab a window closed last did (File > Reopen closed tab).
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Reopened {
+    /// None when the window had no closed tab to reopen.
+    pub result: Option<OpenResult>,
+    /// How many closed tabs the window can still reopen.
+    pub remaining: u32,
+}
+
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]

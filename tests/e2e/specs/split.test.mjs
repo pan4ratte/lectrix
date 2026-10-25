@@ -5,10 +5,12 @@
 // joined tab's menu and the view bar turn that lock, and synchronized zoom, on and off.
 
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 
 import { launch, waitForDocument } from '../lib/app.mjs';
-import { sample } from '../lib/pdfcli.mjs';
+import { cli, sample } from '../lib/pdfcli.mjs';
 
 const TABS = '[role=tablist][aria-label="Open documents"] [data-tab]';
 const tabNames = (browser) => browser.execute((s) => [...document.querySelectorAll(s)].map((t) => t.textContent.replace(/\s+/g, ' ').trim()), TABS);
@@ -209,6 +211,74 @@ test("the joined tab's menu synchronizes scrolling and zoom", async () => {
 		}, { timeoutMsg: 'zooming still acted on both panes' });
 		assert.equal((await menuCheck('Synchronize zoom')).checked, 'false');
 		await browser.keys('Escape');
+	} finally {
+		await stop();
+	}
+});
+
+test('after another tab was shown, the pane clicked is the one the panels, the view bar and Save act on', async () => {
+	// Each with a bookmark and a page count of its own, so the panel and the view bar
+	// name the document they show.
+	const withMark = (name, title, pages) => {
+		const source = sample(`${name}-source.pdf`, pages);
+		const path = source.replace('-source', '');
+		cli('outline', 'set', '--item', `0:1:${title}`, source, path);
+		return path;
+	};
+	const one = withMark('focus-one', 'Mark one', 4);
+	const two = withMark('focus-two', 'Mark two', 7);
+	const other = sample('focus-other.pdf', 5);
+	const expected = { 'focus-one.pdf': ['Mark one', '1 of 4'], 'focus-two.pdf': ['Mark two', '1 of 7'] };
+	const hash = (path) => createHash('sha1').update(readFileSync(path)).digest('hex');
+	const { browser, stop } = await launch([one, two, other]);
+	const shown = () =>
+		browser.execute(() => ({
+			focused: document.querySelector('[data-split-pane].split-pane-focused .split-header span')?.textContent.trim(),
+			marks: [...document.querySelectorAll('.tree-title')].map((n) => n.textContent.trim()).join(','),
+			position: document.querySelector('[data-page-position]')?.textContent.trim()
+		}));
+	const followsFocus = async (what) => {
+		await browser.waitUntil(
+			async () => {
+				const s = await shown();
+				const [mark, position] = expected[s.focused] ?? [];
+				return s.marks === mark && s.position === position;
+			},
+			{ timeout: 2000, timeoutMsg: `${what}: the panel and the view bar show another document than the pane in focus (${JSON.stringify(await shown())})` }
+		);
+	};
+	try {
+		await waitForDocument(browser);
+		await (await browser.$('button[aria-label="Bookmarks"]')).click();
+		await (await browser.$('.doc-tab*=focus-two.pdf')).click();
+		await (await browser.$('.doc-tab*=focus-one.pdf')).click({ button: 'right' });
+		await (await menuItem(browser, 'Show beside the current tab')).click();
+		await browser.waitUntil(async () => (await panes(browser)).length === 2, { timeoutMsg: 'the documents are not side by side' });
+		await waitForDocument(browser);
+
+		// Another tab shown and the joined one again: the panes it closed and opened read
+		// the document shown as they went, which left it stale (a Svelte bug).
+		await (await browser.$('.doc-tab*=focus-other.pdf')).click();
+		await waitForDocument(browser);
+		await (await browser.$('.doc-tab*=focus-one.pdf')).click();
+		await waitForDocument(browser);
+		const scrollers = await browser.$$('[data-split-pane] .viewer-scroll');
+		for (const i of [0, 1, 0]) {
+			await scrollers[i].click();
+			await followsFocus(`pane ${i} clicked`);
+		}
+
+		// Save saves the document in focus.
+		const before = { one: hash(one), two: hash(two) };
+		// (Named after the word at the text cursor the click left.)
+		await browser.keys(['Control', 'b']);
+		await browser.waitUntil(async () => (await shown()).marks.split(',').length === 2, { timeoutMsg: 'no bookmark was added' });
+		const focused = (await shown()).focused;
+		await browser.keys(['Control', 's']);
+		await browser.waitUntil(() => hash(focused === 'focus-one.pdf' ? one : two) !== (focused === 'focus-one.pdf' ? before.one : before.two), {
+			timeoutMsg: `Save did not save ${focused}, the document in focus`
+		});
+		assert.equal(hash(focused === 'focus-one.pdf' ? two : one), focused === 'focus-one.pdf' ? before.two : before.one, 'Save saved the other document');
 	} finally {
 		await stop();
 	}

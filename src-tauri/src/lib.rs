@@ -524,6 +524,7 @@ pub fn run() {
             commands::get_document_properties,
             commands::get_document_fonts,
             commands::close_document,
+            commands::reopen_closed_document,
             commands::get_document_info,
             commands::list_open_documents,
             commands::get_page_text,

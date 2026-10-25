@@ -1666,6 +1666,11 @@ button.shortcut-key:hover,
 	height: 20px;
 	border-radius: 4px;
 }
+/* The + after the tabs (File > Open): as tall as a tab, and square. */
+.tab-new {
+	width: 28px;
+	height: 28px;
+}
 
 /* ----- start screen ----- */
 

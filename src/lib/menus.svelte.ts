@@ -115,6 +115,7 @@ export function appMenus(platform: Platform = PLATFORM): AppMenu[] {
 			? [
 					command('open', 'Open…'),
 					recent,
+					command('reopenClosedTab', 'Reopen closed tab', app.closedTabs > 0),
 					command('combineFiles', 'Combine files…'),
 					command('unlockFile', 'Unlock…'),
 					command('protectFile', 'Protect…'),
@@ -132,6 +133,7 @@ export function appMenus(platform: Platform = PLATFORM): AppMenu[] {
 			: [
 					command('open', 'Open…'),
 					recent,
+					command('reopenClosedTab', 'Reopen closed tab', app.closedTabs > 0),
 					command('combineFiles', 'Combine files…'),
 					command('unlockFile', 'Unlock…'),
 					command('protectFile', 'Protect…'),

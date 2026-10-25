@@ -103,6 +103,7 @@ function useTool(tool: Tool) {
 
 export const commands = {
 	open: () => void app.open(),
+	reopenClosedTab: () => void app.reopenClosed(),
 	save: withTab((t) => app.save(t)),
 	saveAs: withTab((t) => app.saveAs(t)),
 	saveAsOptimized: withTab((t) => app.saveAs(t, true)),

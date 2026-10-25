@@ -21,6 +21,7 @@ import type { PageText } from './generated/PageText';
 import type { PaneLayout } from './generated/PaneLayout';
 import type { RecentFile } from './generated/RecentFile';
 import type { RecoveredDocument } from './generated/RecoveredDocument';
+import type { Reopened } from './generated/Reopened';
 import type { SaveResult } from './generated/SaveResult';
 import type { SearchChunk } from './generated/SearchChunk';
 import type { SearchWord } from './generated/SearchWord';
@@ -51,6 +52,7 @@ export type {
 	PaneLayout,
 	RecentFile,
 	RecoveredDocument,
+	Reopened,
 	SaveResult,
 	SearchChunk,
 	SearchWord,
@@ -289,7 +291,11 @@ export const getDocumentProperties = (id: number) => invoke<DocumentProperties>(
 /** The fonts pages `from` to `to` (0-based, `to` left out) use, each once. */
 export const getDocumentFonts = (id: number, from: number, to: number) =>
 	invoke<UsedFont[]>('get_document_fonts', { id, from, to });
-export const closeDocument = (id: number) => invoke<void>('close_document', { id });
+/** Closes a document. With `remember`, a tab the user closed, which File > Reopen closed tab
+ * opens again. Resolves to how many closed tabs the window can reopen. */
+export const closeDocument = (id: number, remember = false) => invoke<number>('close_document', { id, remember });
+/** Opens the tab this window closed last again (File > Reopen closed tab). */
+export const reopenClosedDocument = () => invoke<Reopened>('reopen_closed_document');
 export const getDocumentInfo = (id: number) => invoke<DocumentInfo>('get_document_info', { id });
 /** The documents this window shows in tabs, as Rust has them: the tabs of a window made
  * for a tab moved out of another, tabs moved into this one, or (the page reloaded) the

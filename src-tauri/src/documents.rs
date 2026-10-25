@@ -151,6 +151,15 @@ impl Documents {
     }
 
     /// Whether document `id` has no file of its own yet.
+    /// The file the tab of document `id` shows, to open again once the tab is closed
+    /// (File > Reopen closed tab): none for a source of pages, or a document not saved
+    /// under a name yet.
+    pub fn reopenable(&self, id: u32) -> Option<PathBuf> {
+        let docs = self.docs.lock().ok()?;
+        let doc = docs.get(&id)?;
+        (!doc.source && doc.unsaved.is_none()).then(|| doc.path.clone())
+    }
+
     pub fn is_unsaved(&self, id: u32) -> bool {
         self.docs
             .lock()

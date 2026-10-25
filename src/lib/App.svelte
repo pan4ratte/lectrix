@@ -74,9 +74,9 @@
 	import { COMMIT_FIELD_FIRST, commandFor, isBlocked, isBrowserZoomKey, isTextInput } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 
-	const tab = $derived(app.active);
-	/** The tab shown: several documents side by side (section 6.1, split view), perhaps. */
-	const group = $derived(tab ? app.activeGroup : null);
+	// The document shown is read from `app.active` each time, never kept in a $derived
+	// here: Svelte 5.57 leaves a $derived stale for good when a closing component's
+	// cleanup reads it just as another tab is shown (stores/app.svelte.ts).
 
 	async function startup() {
 		try {
@@ -134,6 +134,7 @@
 			commands[command]();
 			return;
 		}
+		const tab = app.active;
 		if (event.key === 'Escape' && !inInput && tab?.organize) {
 			// An Esc that closes a menu or a dialog does that and nothing more.
 			if (event.target instanceof Element && event.target.closest('[role=menu], [role=dialog], [role=alertdialog]')) return;
@@ -177,7 +178,7 @@
 	const full = $derived(fullscreen.on);
 	/** The pages are being organized (section 6.7): the grid has the whole window under the
 	 * tabs, and the side panes, which are for reading, are not there. */
-	const organizing = $derived(Boolean(tab?.organize));
+	const organizing = () => Boolean(app.active?.organize);
 	const sliding = $derived(fullscreen.stage === 'arriving' || fullscreen.stage === 'returning');
 	const away = $derived(sliding && fullscreen.chromeAway);
 	/** The annotation toolbar floats over the pages: Settings say so, or full screen does. */
@@ -201,7 +202,7 @@
 	// Only a document is shown full screen: with the last one closed, or the Combine view up,
 	// the window goes back to what it was.
 	$effect(() => {
-		if (fullscreen.on && !tab) void fullscreen.leave().catch(() => {});
+		if (fullscreen.on && !app.active) void fullscreen.leave().catch(() => {});
 	});
 
 	function onPointerMove(event: PointerEvent) {
@@ -246,6 +247,8 @@
 
 	// The window's title, for the taskbar and Alt+Tab: what it shows, then the app's name.
 	$effect(() => {
+		const tab = app.active;
+		const group = tab ? app.activeGroup : null;
 		const names = group?.joined ? [...new Set(group.views.map((v) => v.name))].join(', ') : null;
 		const shown = names ?? tab?.name ?? (app.combineActive ? 'Combine files' : null);
 		void getCurrentWindow()
@@ -265,7 +268,7 @@
 	// Remember where the user is, a moment after they stop moving.
 	let rememberTimer: ReturnType<typeof setTimeout> | undefined;
 	$effect(() => {
-		const current = tab;
+		const current = app.active;
 		if (!current) return;
 		void current.currentPage;
 		void current.zoom;
@@ -352,7 +355,7 @@
      (paneButton). A pane without panels has none; while a panel is dragged, a place to drop
      it shows there instead. -->
 {#snippet paneEnd(side: PaneSide)}
-	{#if !organizing && (app.panels[side].length > 0 ? !app.isOpen(side) : draggedPanel() !== null)}
+	{#if !organizing() && (app.panels[side].length > 0 ? !app.isOpen(side) : draggedPanel() !== null)}
 		<div class="flex border-b border-line bg-chrome px-[4px]">
 			<div class="flex h-[40px] w-[32px] items-center">
 				{#if app.panels[side].length === 0}
@@ -374,7 +377,7 @@
      units (a rem is 14 px here): the pane rows and the view bar are all 40 px tall. Full
      screen, a pane lies over the pages and has its button only while it shows. -->
 {#snippet paneButton(side: PaneSide)}
-	{#if tab && !organizing && app.panels[side].length > 0 && (!full || app.isOpen(side))}
+	{#if app.active && !organizing() && app.panels[side].length > 0 && (!full || app.isOpen(side))}
 		<div
 			class={['absolute top-[4px]', full ? 'z-30' : 'z-20', side === 'left' ? 'left-[4px]' : 'right-[4px]', sliding && 'chrome-slide']}
 			class:chrome-away={away}
@@ -387,7 +390,7 @@
 <!-- The annotation toolbar docked at a side of the pages (Settings), from the view bar down.
      It goes as full screen starts, sliding away with the other bars, and comes back so. -->
 {#snippet toolDock(side: 'left' | 'right')}
-	{#if tab && toolDockSide === side}
+	{#if app.active && toolDockSide === side}
 		<div
 			class={[
 				'tool-dock',
@@ -396,7 +399,7 @@
 			]}
 			class:chrome-away={away}
 		>
-			<AnnotationToolbar {tab} dock={side} />
+			<AnnotationToolbar tab={app.active} dock={side} />
 		</div>
 	{/if}
 {/snippet}
@@ -419,11 +422,11 @@
 			</main>
 		{:else}
 			{@render paneButton('left')}
-			{#if tab && app.panels.left.length > 0}
+			{#if app.active && app.panels.left.length > 0}
 				<SidePane
 					side="left"
 					label="Left pane"
-					open={app.isOpen('left') && !organizing}
+					open={app.isOpen('left') && !organizing()}
 					overlay={full}
 					{sliding}
 					{away}
@@ -431,11 +434,11 @@
 					limits={LEFT_LIMITS}
 					animate={app.panesRestored && !fullscreen.switching}
 				>
-					<PanelPane side="left" {tab} />
+					<PanelPane side="left" tab={app.active} />
 				</SidePane>
 			{/if}
 			<main class="flex min-w-0 flex-1 flex-col bg-canvas">
-				{#if tab}
+				{#if app.active}
 					{#if !full}
 						<div
 							class={['flex shrink-0 items-stretch', sliding && 'chrome-slide chrome-up-two relative z-10']}
@@ -443,51 +446,51 @@
 						>
 							{@render paneEnd('left')}
 							<div class="min-w-0 flex-1">
-								{#key tab.key}
-									{#if tab.organize}
-										<OrganizeBar {tab} organize={tab.organize} />
+								{#key app.active.key}
+									{#if app.active.organize}
+										<OrganizeBar tab={app.active} organize={app.active.organize} />
 									{:else}
-										<ViewBar {tab} />
+										<ViewBar tab={app.active} />
 									{/if}
 								{/key}
 							</div>
 							{@render paneEnd('right')}
 						</div>
 					{/if}
-					{#if group?.joined}
+					{#if app.active && app.activeGroup?.joined}
 					<!-- Documents side by side: each pane has its banners and its own grid of
 					     pages to organize; the side panes go only while the one in focus does. -->
 					<div class="flex min-h-0 flex-1">
-						{#if !organizing}{@render toolDock('left')}{/if}
+						{#if !organizing()}{@render toolDock('left')}{/if}
 						<div class={['flex min-h-0 min-w-0 flex-1', sliding ? 'viewer-covers' : 'relative']}>
-							<SplitView {group} {full} {floatingTools} />
+							<SplitView group={app.activeGroup} {full} {floatingTools} />
 						</div>
-						{#if !organizing}{@render toolDock('right')}{/if}
+						{#if !organizing()}{@render toolDock('right')}{/if}
 					</div>
 					{:else}
 					<!-- (Over the pages while the bars slide, as they are.) -->
 					<div class={['shrink-0', sliding && 'relative z-10']}>
-						<FileBanner {tab} />
+						<FileBanner tab={app.active} />
 						<!-- Full screen, a file open for reading only says so when something tries to
 						     change it (app.refuseReadOnly), not in a bar across the pages. -->
 						{#if !full}
-							<PdfaBanner {tab} />
+							<PdfaBanner tab={app.active} />
 						{/if}
 					</div>
-					{#key tab.key}
-						{#if tab.organize}
+					{#key app.active.key}
+						{#if app.active.organize}
 							<!-- The pages as a grid to organize (section 6.7), in the viewer's place. -->
-							<OrganizeView {tab} organize={tab.organize} />
+							<OrganizeView tab={app.active} organize={app.active.organize} />
 						{:else}
 						<div class="flex min-h-0 flex-1">
 							{@render toolDock('left')}
 							<div class={['flex min-h-0 min-w-0 flex-1 flex-col', sliding ? 'viewer-covers' : 'relative']} {@attach dropTarget}>
-								<Viewer {tab} />
+								<Viewer tab={app.active} />
 								{#if floatingTools}
-									<AnnotationToolbar {tab} />
+									<AnnotationToolbar tab={app.active} />
 								{/if}
-								<AnnotationPropertiesDialog {tab} />
-								<BookmarkInspector {tab} />
+								<AnnotationPropertiesDialog tab={app.active} />
+								<BookmarkInspector tab={app.active} />
 								<DropPreview />
 							</div>
 							{@render toolDock('right')}
@@ -499,11 +502,11 @@
 					<StartScreen />
 				{/if}
 			</main>
-			{#if tab && app.panels.right.length > 0}
+			{#if app.active && app.panels.right.length > 0}
 				<SidePane
 					side="right"
 					label="Right pane"
-					open={app.isOpen('right') && !organizing}
+					open={app.isOpen('right') && !organizing()}
 					overlay={full}
 					{sliding}
 					{away}
@@ -511,7 +514,7 @@
 					limits={RIGHT_LIMITS}
 					animate={app.panesRestored && !fullscreen.switching}
 				>
-					<PanelPane side="right" {tab} />
+					<PanelPane side="right" tab={app.active} />
 				</SidePane>
 			{/if}
 			{@render paneButton('right')}

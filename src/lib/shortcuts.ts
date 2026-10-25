@@ -33,6 +33,7 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 		title: 'File',
 		commands: [
 			{ command: 'open', label: 'Open', keys: ['Ctrl+O'], inInputs: true },
+			{ command: 'reopenClosedTab', label: 'Reopen closed tab', keys: ['Ctrl+Shift+T'], inInputs: true },
 			{ command: 'combineFiles', label: 'Combine files', keys: [], inInputs: true },
 			{ command: 'unlockFile', label: 'Unlock', keys: [], inInputs: true },
 			{ command: 'protectFile', label: 'Protect', keys: [], inInputs: true },

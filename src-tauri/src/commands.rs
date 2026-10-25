@@ -25,9 +25,9 @@ use crate::ipc::{
     MergeOutcome, MergePlan, MergeProgress, MergeRequest, MergeStage, MoveTarget, OpenResult,
     OperationInput, PageHits, PageText, PaneLayout, PrintDone, PrintLayout, PrintProgress,
     PrintSettings, PrintStart, PrinterDetails, ProtectSaved, ProtectStep, ProtectionChangeInput,
-    ProtectionInfo, ProtectionInput, RecentFile, RecoveredDocument, SaveResult, SearchChunk,
-    SearchWord, Settings, SettingsInput, StartupInfo, TabHandoff, UnprotectSaved, UnprotectStep,
-    UnsavedSource, ViewState, WebPage, WindowChrome, WindowDocument, WindowEntry,
+    ProtectionInfo, ProtectionInput, RecentFile, RecoveredDocument, Reopened, SaveResult,
+    SearchChunk, SearchWord, Settings, SettingsInput, StartupInfo, TabHandoff, UnprotectSaved,
+    UnprotectStep, UnsavedSource, ViewState, WebPage, WindowChrome, WindowDocument, WindowEntry,
 };
 use crate::platform::Platform;
 use crate::store::StoredSettings;
@@ -904,12 +904,52 @@ pub fn get_document_protection(
     Ok(session.protection()?.map(Into::into))
 }
 
+/// Closes document `id`. With `remember`, a tab the user closed: the window keeps its file
+/// to reopen (File > Reopen closed tab). Returns how many closed tabs the window can reopen.
 #[tauri::command]
-pub fn close_document(state: State<'_, AppState>, id: u32) {
+pub fn close_document(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    id: u32,
+    remember: Option<bool>,
+) -> u32 {
+    if remember == Some(true)
+        && let Some(path) = state.documents.reopenable(id)
+    {
+        state.windows.remember_closed(window.label(), path);
+    }
     if state.documents.close(id).is_some() {
         state.image_cache.remove_document(id);
     }
     state.windows.release(id);
+    u32::try_from(state.windows.closed_count(window.label())).unwrap_or(u32::MAX)
+}
+
+/// Opens again the tab this window closed last (File > Reopen closed tab, Ctrl+Shift+T),
+/// passing over files open in a tab again meanwhile. The path is the one Lectrix had the
+/// file open from, never one from the webview.
+#[tauri::command(async)]
+pub fn reopen_closed_document(
+    app: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+) -> Reopened {
+    let label = window.label();
+    let mut result = None;
+    while let Some(path) = state.windows.take_closed(label) {
+        if state
+            .documents
+            .tabs_showing(&path, state.platform)
+            .is_empty()
+        {
+            result = Some(windows::adopt(&app, label, state.open(&path)));
+            break;
+        }
+    }
+    Reopened {
+        result,
+        remaining: u32::try_from(state.windows.closed_count(label)).unwrap_or(u32::MAX),
+    }
 }
 
 #[tauri::command(async)]

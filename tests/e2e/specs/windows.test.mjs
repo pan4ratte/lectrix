@@ -171,6 +171,60 @@ test('tabs are reordered by dragging and from the keyboard', async () => {
 	}
 });
 
+test('the + after the tabs opens files; a closed tab reopens where it was, the last closed first', async () => {
+	const first = sample('reopen-first.pdf', 3);
+	const second = sample('reopen-second.pdf', 6);
+	const added = sample('reopen-added.pdf', 2);
+	// The + after the tabs answers the Open dialog with `added`.
+	const { browser, stop } = await launch([first, second], { dialogs: [added] });
+	const position = () => browser.execute(() => document.querySelector('[data-page-position]')?.textContent?.trim());
+	const fileMenuItem = async (name) => {
+		await (await browser.$('button[role="menuitem"]=File')).click();
+		const item = await browser.$(`[role="menuitem"]*=${name}`);
+		await item.waitForDisplayed();
+		const disabled = await item.getAttribute('data-disabled');
+		await browser.keys('Escape');
+		return disabled === null;
+	};
+	try {
+		await waitForDocument(browser);
+		const plus = await browser.$('button[data-open-tab]');
+		assert.equal(await plus.getAttribute('aria-label'), 'Open file');
+		await plus.click();
+		await browser.waitUntil(async () => (await tabNames(browser)).length === 3, { timeoutMsg: 'the + did not open a file' });
+		assert.deepEqual(await tabNames(browser), ['reopen-first.pdf', 'reopen-second.pdf', 'reopen-added.pdf']);
+		assert.equal(await fileMenuItem('Reopen closed tab'), false, 'Reopen closed tab with nothing closed');
+
+		// The second document on page 4, then closed, and the first after it.
+		await (await tabOf(browser, 'reopen-second.pdf')).click();
+		await waitForDocument(browser);
+		await browser.keys(['Control', 'g']);
+		await browser.keys(['4', 'Enter']);
+		await browser.waitUntil(async () => (await position())?.startsWith('4 of 6'), { timeoutMsg: 'did not reach page 4' });
+		await browser.keys(['Control', 'w']);
+		await (await tabOf(browser, 'reopen-first.pdf')).click();
+		await browser.keys(['Control', 'w']);
+		await browser.waitUntil(async () => (await tabNames(browser)).length === 1, { timeoutMsg: 'the tabs did not close' });
+		assert.equal(await fileMenuItem('Reopen closed tab'), true);
+
+		// The last closed first, then the one before, at the page it was left on.
+		await browser.keys(['Control', 'Shift', 't']);
+		await browser.waitUntil(async () => (await tabNames(browser)).includes('reopen-first.pdf'), { timeoutMsg: 'Ctrl+Shift+T did not reopen the tab closed last' });
+		await browser.keys(['Control', 'Shift', 't']);
+		await browser.waitUntil(async () => (await tabNames(browser)).includes('reopen-second.pdf'), { timeoutMsg: 'Ctrl+Shift+T did not reopen the tab closed before' });
+		await waitForDocument(browser);
+		await browser.waitUntil(async () => (await position())?.startsWith('4 of 6'), {
+			timeoutMsg: `the reopened tab is not where it was left: ${await position()}`
+		});
+		assert.equal(await fileMenuItem('Reopen closed tab'), false, 'Reopen closed tab after both were reopened');
+		await browser.keys(['Control', 'Shift', 't']);
+		await browser.pause(300);
+		assert.equal((await tabNames(browser)).length, 3, 'Ctrl+Shift+T with nothing left to reopen opened something');
+	} finally {
+		await stop();
+	}
+});
+
 test('a tab moves to a window of its own and into another window, as it is', async () => {
 	const first = sample('window-a.pdf', 3);
 	const second = sample('window-b.pdf', 6);

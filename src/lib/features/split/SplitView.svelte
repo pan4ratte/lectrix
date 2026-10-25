@@ -37,7 +37,8 @@
 
 	let { group, full, floatingTools }: Props = $props();
 
-	const focused = $derived(group.focused);
+	// The pane in focus is read from `group.focused` each time, not kept in a $derived
+	// (stores/app.svelte.ts says why).
 
 	let row: HTMLDivElement | undefined = $state();
 
@@ -159,7 +160,6 @@
 <div class="split-row relative flex min-h-0 min-w-0 flex-1" bind:this={row} {@attach dropTarget}>
 	{#each group.views as view, i (view.key)}
 		{@const name = group.names[i] ?? view.name}
-		{@const isFocused = view === focused}
 		{#if i > 0}
 			<!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
 			<div
@@ -183,7 +183,7 @@
 		{/if}
 		<section
 			class="split-pane flex min-h-0 min-w-0 flex-col"
-			class:split-pane-focused={isFocused}
+			class:split-pane-focused={view === group.focused}
 			style:flex="{group.widths[i] ?? 1} 1 0px"
 			aria-label={name}
 			data-split-pane={view.key}
@@ -194,7 +194,7 @@
 				<!-- svelte-ignore a11y_no_static_element_interactions -->
 				<div
 					class="split-header"
-					class:split-header-focused={isFocused}
+					class:split-header-focused={view === group.focused}
 					class:split-header-moving={moving?.moved && moving.view === view}
 					data-tip={view.untitled ? 'Not saved yet' : view.path}
 					onpointerdown={(e) => onHeaderDown(e, view)}
@@ -236,13 +236,13 @@
 	{#if markAt !== null}
 		<div class="split-move-mark" style:left="{gapLeft(markAt)}%" aria-hidden="true"></div>
 	{/if}
-	{#if focused && !focused.organize}
+	{#if group.focused && !group.focused.organize}
 		{#if floatingTools}
-			<AnnotationToolbar tab={focused} />
+			<AnnotationToolbar tab={group.focused} />
 		{/if}
-		{#key focused.key}
-			<AnnotationPropertiesDialog tab={focused} />
-			<BookmarkInspector tab={focused} />
+		{#key group.focused.key}
+			<AnnotationPropertiesDialog tab={group.focused} />
+			<BookmarkInspector tab={group.focused} />
 		{/key}
 	{/if}
 	<DropPreview />

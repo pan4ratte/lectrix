@@ -275,7 +275,7 @@
 	const contextGroup = $derived(contextKey === null ? null : groupOf(contextKey));
 	const contextIndex = $derived(contextGroup ? app.groups.indexOf(contextGroup) : -1);
 	/** The tab shown, which the right-clicked one can go beside. */
-	const shownGroup = $derived(app.active ? app.activeGroup : null);
+	const shownGroup = () => (app.active ? app.activeGroup : null);
 	/** Lectrix's other windows, asked for as the menu opens. */
 	let otherWindows = $state<WindowEntry[]>([]);
 
@@ -450,11 +450,12 @@
 			{:else}
 				{@const g = contextGroup}
 				{@const key = contextKey}
-				{#if g && shownGroup && shownGroup !== g}
+				{@const shown = shownGroup()}
+				{#if g && shown && shown !== g}
 					<ContextMenu.Item
 						class="menu-item"
-						disabled={shownGroup.views.length + g.views.length > MAX_PANES}
-						onSelect={() => void app.joinTabs(shownGroup, g)}
+						disabled={shown.views.length + g.views.length > MAX_PANES}
+						onSelect={() => void app.joinTabs(shown, g)}
 					>
 						Show beside the current tab
 					</ContextMenu.Item>

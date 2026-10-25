@@ -5,10 +5,12 @@
 	// at the end and in the order the desktop gives on Linux (GNOME: close alone, at the
 	// right); the system's own at the left on macOS, where the bar leaves room for them. The
 	// side panes' buttons are in their own rows (PaneToggle).
+	import { Plus } from '@lucide/svelte';
 	import { getCurrentWindow } from '@tauri-apps/api/window';
 	import { onMount } from 'svelte';
 
 	import iconUrl from '#lib/assets/lectrix-icon.svg';
+	import { commands } from '#lib/commands.ts';
 	import { APP_NAME } from '#lib/config.ts';
 	import { getWindowChrome, type WindowChrome } from '#lib/ipc/index.ts';
 	import { PLATFORM } from '#lib/platform.ts';
@@ -116,6 +118,17 @@
 	{/if}
 	<div class="ml-2 flex min-w-0 flex-1 items-center" data-tauri-drag-region>
 		<Tabs />
+		<!-- After the last tab, as a browser's: File > Open. -->
+		<button
+			type="button"
+			class="icon-button tab-new ml-0.5 shrink-0"
+			aria-label="Open file"
+			data-tip={app.hint('Open file', 'open')}
+			data-open-tab
+			onclick={commands.open}
+		>
+			<Plus size={16} aria-hidden="true" />
+		</button>
 		<div class="h-full min-w-12 flex-1" data-tauri-drag-region></div>
 	</div>
 	{#if chrome.right.length > 0}
