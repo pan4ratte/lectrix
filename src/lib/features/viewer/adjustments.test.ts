@@ -10,6 +10,7 @@ import {
 	isAdjusted,
 	lightFilter,
 	normalizeAdjustments,
+	overlayFilter,
 	pageFilter,
 	pageTone,
 	sameAdjustments
@@ -54,6 +55,13 @@ describe('visual adjustments', () => {
 		expect(annotationLayer({ ...NO_ADJUSTMENTS, invert: true })).toBe('annots-dark');
 		expect(annotationLayer(a)).toBe('annots-dark');
 		expect(annotationLayer({ ...NO_ADJUSTMENTS, brightness: 80, contrast: 120, sepia: 40 })).toBeNull();
+	});
+
+	it('leave the selection and search hits their colours under greyscale, and invert them with the page', () => {
+		expect(overlayFilter({ ...NO_ADJUSTMENTS, grayscale: true })).toBeNull();
+		expect(overlayFilter({ ...NO_ADJUSTMENTS, invert: true })).toBe('invert(1) hue-rotate(180deg)');
+		expect(overlayFilter({ ...NO_ADJUSTMENTS, grayscale: true, invert: true })).toBe('invert(1) hue-rotate(180deg)');
+		expect(overlayFilter({ ...NO_ADJUSTMENTS, brightness: 80, sepia: 40 })).toBeNull();
 	});
 
 	it('tone the page sepia by a layer over it, not by the filter', () => {

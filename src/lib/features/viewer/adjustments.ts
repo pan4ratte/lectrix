@@ -72,13 +72,23 @@ export function pageFilter(a: PageAdjustments): string | null {
 /**
  * The part of `pageFilter` that changes the colours, greyscale and the inversion, or null
  * for none. It is applied to the page without its annotations, which are laid over it as
- * they are (`annotationLayer`), and to the selection and what else is drawn over the page.
+ * they are (`annotationLayer`).
  */
 export function colourFilter(a: PageAdjustments): string | null {
 	const parts: string[] = [];
 	if (a.grayscale) parts.push('grayscale(1)');
 	if (a.invert) parts.push('invert(1)', 'hue-rotate(180deg)');
 	return parts.length > 0 ? parts.join(' ') : null;
+}
+
+/**
+ * The part of `colourFilter` for what is drawn over the page (the selection, search hits,
+ * what is being drawn, a text box being typed), or null for none: only the inversion, so
+ * they stay as visible on a dark page as on a light one. Greyscale leaves them their
+ * colours, as it leaves the annotations theirs.
+ */
+export function overlayFilter(a: PageAdjustments): string | null {
+	return a.invert ? 'invert(1) hue-rotate(180deg)' : null;
 }
 
 /** The rest of `pageFilter`, brightness and contrast, or null for none: applied to the

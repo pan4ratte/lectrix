@@ -6,7 +6,8 @@
 	// (section 6.1) are a CSS filter on all of that, pixels and overlays alike, so what
 	// shows on the page stays as visible as it was; the page's shadow is outside it. Its
 	// colours part (greyscale, inverted) leaves the annotations out: a page with
-	// annotations is then its content, with the annotations on a layer over it.
+	// annotations is then its content, with the annotations on a layer over it. The
+	// overlays keep their colours under greyscale too, and are inverted with the page.
 	import { untrack } from 'svelte';
 	import { SvelteSet } from 'svelte/reactivity';
 
@@ -431,7 +432,7 @@
 		{#if selection.length || hits.length || showSelected || linkTint || cursor || (draft && draft.kind !== 'text')}
 			<svg
 				class="pointer-events-none absolute inset-0"
-				style:filter={tab.pageColour}
+				style:filter={tab.overlayColour}
 				width={innerW}
 				height={innerH}
 				viewBox="0 0 {size.width} {size.height}"
@@ -562,7 +563,7 @@
 				style:transform={textDraft.turn ? `rotate(${-textDraft.turn}deg)` : undefined}
 				style:font-size="{textDraft.fontSize * k}px"
 				style:color={textDraft.color}
-				style:filter={tab.pageColour}
+				style:filter={tab.overlayColour}
 				value={textDraft.text}
 				aria-label="Text box text"
 				spellcheck="true"

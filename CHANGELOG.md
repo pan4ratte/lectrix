@@ -16,6 +16,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 ### Viewer and tabs
 
 - Buttons on the page, such as the Contents button of books made for reading on screen, can now be clicked. They work as links do.
+- With **Greyscale** on, selected text and search results keep their colours, as annotations do, instead of turning grey.
 
 ### General
 

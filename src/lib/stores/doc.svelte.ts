@@ -29,6 +29,7 @@ import {
 	colourFilter as colourFilterOf,
 	lightFilter as lightFilterOf,
 	normalizeAdjustments,
+	overlayFilter as overlayFilterOf,
 	pageFilter as filterOf,
 	pageTone as toneOf,
 	sameAdjustments
@@ -764,6 +765,8 @@ export class DocTab {
 	/** Its colours part, on the page without annotations, and its light part, on all. */
 	pageColour = $derived(colourFilterOf(this.adjustments));
 	pageLight = $derived(lightFilterOf(this.adjustments));
+	/** The colours part for the selection and what else is drawn over a page: the inversion. */
+	overlayColour = $derived(overlayFilterOf(this.adjustments));
 	/** The layer annotations are drawn on while the colours are adjusted, or null. */
 	annotationLayer = $derived(annotationLayerOf(this.adjustments));
 	/** How much of the sepia paper tone lies over a page (0 to 1), or null for none. */
