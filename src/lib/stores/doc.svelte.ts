@@ -95,6 +95,9 @@ export interface ViewerApi {
 	/** Goes to `place` (as `place()` gives it) to keep in step with a pane being scrolled,
 	 * at once, outside back/forward history; this scroll leads no other pane. */
 	follow(place: number): void;
+	/** Takes another pane's zoom (synchronized zoom), at once, a fit as a fit of its own,
+	 * keeping the top of the view where it is; this leads no other pane. */
+	followZoom(zoom: number, mode: ZoomMode): Promise<void>;
 }
 
 export type BannerKind = 'changedOnDisk' | 'changedOnDiskDirty' | 'deletedOnDisk';

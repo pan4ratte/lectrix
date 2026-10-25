@@ -24,6 +24,11 @@ export class TabGroup {
 	 * part of a page as a fraction): `features/split/sync.ts`. */
 	anchors = new Map<DocTab, number>();
 	places = new Map<DocTab, number>();
+	/** The panes take the zoom of the one zoomed (section 6.1, synchronized zoom). */
+	zoomLocked = $state(false);
+	/** Each pane's zoom as last seen while panes follow zooms, to tell which one was zoomed
+	 * (`features/split/sync.ts`). */
+	zooms = new Map<DocTab, string>();
 
 	focused = $derived(this.views[Math.min(this.focus, this.views.length - 1)] ?? null);
 	joined = $derived(this.views.length > 1);
@@ -46,8 +51,12 @@ export class TabGroup {
 		this.widths = equalWidths(views.length);
 		const at = focused ? views.indexOf(focused) : -1;
 		this.focus = at >= 0 ? at : Math.min(this.focus, Math.max(0, views.length - 1));
-		if (views.length < 2) this.locked = false;
+		if (views.length < 2) {
+			this.locked = false;
+			this.zoomLocked = false;
+		}
 		if (this.lead && !views.includes(this.lead)) this.lead = null;
+		for (const view of this.zooms.keys()) if (!views.includes(view)) this.zooms.delete(view);
 	}
 
 	/** Puts the focus on `view`, one of its panes. */

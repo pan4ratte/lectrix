@@ -6,12 +6,12 @@
 	// in the floating toolbar (section 6.1), as a group of that toolbar: stacked when that
 	// toolbar is at a side of the screen, with the position under the page box and the menus
 	// opening beside the toolbar.
-	import { ChevronDown, ChevronUp, Link2, Minus, Plus } from '@lucide/svelte';
+	import { ChevronDown, ChevronUp, Link2, Minus, Plus, Scaling } from '@lucide/svelte';
 	import { DropdownMenu } from 'bits-ui';
 
 	import { commands, setViewMode } from '#lib/commands.ts';
 	import { menuOffset, type MenuSide } from '#lib/features/annotations/bars.ts';
-	import { toggleLock } from '#lib/features/split/sync.ts';
+	import { toggleLock, toggleZoomLock } from '#lib/features/split/sync.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -268,9 +268,20 @@
 			aria-pressed={group.locked}
 			data-tip={app.hint(group.locked ? 'Scrolling together: click to scroll each by itself' : 'Synchronize scrolling', 'syncScrolling')}
 			data-sync-scrolling
-			onclick={toggleLock}
+			onclick={() => toggleLock()}
 		>
 			<Link2 size={16} aria-hidden="true" />
+		</button>
+		<button
+			type="button"
+			class="icon-button tool-button size-7"
+			aria-label="Synchronize zoom"
+			aria-pressed={group.zoomLocked}
+			data-tip={app.hint(group.zoomLocked ? 'Zooming together: click to zoom each by itself' : 'Synchronize zoom', 'syncZoom')}
+			data-sync-zoom
+			onclick={() => toggleZoomLock()}
+		>
+			<Scaling size={16} aria-hidden="true" />
 		</button>
 	{/if}
 </div>

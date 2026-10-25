@@ -5,8 +5,9 @@
 	// (dragged, or from the keyboard; a double-click makes them even again). Dragging a header
 	// sideways moves its pane among the others. A press or the keyboard focus in a pane puts
 	// the focus on it: the view bar, the side panels and the commands act on that one, whose
-	// header carries the accent (no ring around the pane). While the lock is on, panes of the same document take the
-	// zoom and rotation of the one being scrolled (sync.ts).
+	// header carries the accent (no ring around the pane). While the lock is on, panes of the
+	// same document take the rotation of the one being scrolled and the zoom of the one
+	// zoomed; with synchronized zoom, every pane takes that zoom (sync.ts).
 	import { X } from '@lucide/svelte';
 	import { untrack } from 'svelte';
 
@@ -23,7 +24,7 @@
 
 	import DropPreview from './DropPreview.svelte';
 	import { equalWidths, resizeWidths } from './split.ts';
-	import { sameDocument } from './sync.ts';
+	import { sameDocument, zoomed } from './sync.ts';
 	import { dropTarget } from './tabdrop.svelte.ts';
 
 	interface Props {
@@ -40,13 +41,21 @@
 
 	let row: HTMLDivElement | undefined = $state();
 
-	// Panes of one document follow the lead's zoom and rotation while the lock is on.
+	// Panes of one document follow the lead's rotation while the lock is on.
 	$effect(() => {
 		if (!group.locked) return;
 		const lead = group.lead ?? group.focused;
 		if (!lead) return;
-		void [lead.zoom, lead.zoomMode, lead.rotation, lead.pageTurns];
+		void [lead.rotation, lead.pageTurns];
 		untrack(() => sameDocument(group));
+	});
+
+	// The pane zoomed leads the zoom: of every pane with synchronized zoom, of the panes of
+	// its document while the lock is on.
+	$effect(() => {
+		if (!group.locked && !group.zoomLocked) return;
+		for (const view of group.views) void [view.zoom, view.zoomMode];
+		untrack(() => zoomed(group));
 	});
 
 	// ----- dividers -----

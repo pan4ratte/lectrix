@@ -81,6 +81,7 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 			{ command: 'showNextTabBeside', label: 'Show the next tab beside this one', keys: [], inInputs: true },
 			{ command: 'separateTabs', label: 'Separate the documents side by side', keys: [], inInputs: true },
 			{ command: 'syncScrolling', label: 'Synchronize scrolling side by side', keys: [], inInputs: true },
+			{ command: 'syncZoom', label: 'Synchronize zoom side by side', keys: [], inInputs: true },
 			{ command: 'nextPane', label: 'Next pane side by side', keys: [], inInputs: true },
 			{ command: 'previousPane', label: 'Previous pane side by side', keys: [], inInputs: true }
 		]

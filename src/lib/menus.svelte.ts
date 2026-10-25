@@ -251,6 +251,11 @@ export function appMenus(platform: Platform = PLATFORM): AppMenu[] {
 						checked: joined && !!group?.locked,
 						command: 'syncScrolling'
 					}),
+					item('syncZoom', 'Synchronize zoom', commands.syncZoom, {
+						enabled: joined && reading,
+						checked: joined && !!group?.zoomLocked,
+						command: 'syncZoom'
+					}),
 					command('nextPane', 'Next pane', joined),
 					command('previousPane', 'Previous pane', joined)
 				]

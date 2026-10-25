@@ -16,6 +16,8 @@ the wording, translations): docs/releasing.md, "The changelog".
 ### Viewer and tabs
 
 - Buttons on the page, such as the Contents button of books made for reading on screen, can now be clicked. They work as links do.
+- Documents side by side can now zoom together: turn on **Synchronize zoom** with its button beside the scrolling lock, or in **View > Side by side**, and zooming one document zooms the others to the same size, or fits them the same way.
+- Right-click a tab of documents side by side to turn on **Synchronize scrolling** or **Synchronize zoom** there.
 - With **Greyscale** on, selected text and search results keep their colours, as annotations do, instead of turning grey.
 
 ### General

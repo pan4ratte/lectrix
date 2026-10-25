@@ -216,7 +216,7 @@
 		closeMenuOffscreen();
 		// Panes locked together (split view) follow this one, unless it is following them:
 		// then this is its own move (`followPlace`), or the browser's event for it.
-		if (following) return;
+		if (following > 0) return;
 		if (followedTop !== null && Math.abs(scroller.scrollTop - followedTop) < 1) {
 			followedTop = null;
 			return;
@@ -225,8 +225,9 @@
 		scrolled(tab);
 	}
 
-	/** `followPlace` is moving the view: the scroll leads no other pane. */
-	let following = false;
+	/** `followPlace` or `followZoom` is moving the view (how many of them): the scroll leads
+	 * no other pane. */
+	let following = 0;
 	/** Where `followPlace` put the view, until the browser's scroll event for it arrives. */
 	let followedTop: number | null = null;
 
@@ -242,7 +243,7 @@
 		const page = Math.min(Math.max(0, Math.floor(at)), layout.pages.length - 1);
 		const offset = Math.min(1, Math.max(0, at - page));
 		stopScrollGlide();
-		following = true;
+		following++;
 		try {
 			const showing = showRowOf(page);
 			if (showing) await showing;
@@ -255,7 +256,7 @@
 			onScroll();
 			followedTop = scroller.scrollTop;
 		} finally {
-			following = false;
+			following--;
 		}
 	}
 
@@ -709,6 +710,25 @@
 
 	function setZoom(zoom: number, mode: ZoomMode) {
 		glideZoom(zoom, mode, null);
+	}
+
+	/**
+	 * Takes another pane's zoom (split view, section 6.1): at once, a fit as a fit of this
+	 * pane's own, keeping the top of the view where it is, and leading no other pane. Pages
+	 * keep their pixels, stretched, until the zooms stop, as in a pinch zoom.
+	 */
+	async function followZoom(zoom: number, mode: ZoomMode) {
+		if (!scroller || layout.pages.length === 0 || viewportW === 0) return;
+		stopScrollGlide();
+		stopZoomGlide();
+		holdRendering();
+		following++;
+		try {
+			await zoomAround(mode === 'custom' ? zoom : fitZoom(mode), mode, viewportW / 2, 0);
+			followedTop = scroller?.scrollTop ?? null;
+		} finally {
+			following--;
+		}
 	}
 
 	function zoomStep(direction: 1 | -1) {
@@ -1808,7 +1828,8 @@
 			turn,
 			focus: () => scroller?.focus({ preventScroll: true }),
 			place,
-			follow: (at) => void followPlace(at)
+			follow: (at) => void followPlace(at),
+			followZoom
 		};
 
 		return () => {

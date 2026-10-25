@@ -18,7 +18,7 @@ import { update } from '#lib/features/update/update.svelte.ts';
 import { normalizeRotation, type ViewMode } from '#lib/features/viewer/layout.ts';
 import { find, findStep } from '#lib/features/viewer/search.ts';
 import { MAX_PANES } from '#lib/features/split/split.ts';
-import { toggleLock } from '#lib/features/split/sync.ts';
+import { toggleLock, toggleZoomLock } from '#lib/features/split/sync.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -219,6 +219,7 @@ export const commands = {
 	nextPane: () => stepPane(1),
 	previousPane: () => stepPane(-1),
 	syncScrolling: reading(() => toggleLock()),
+	syncZoom: reading(() => toggleZoomLock()),
 
 	/** The pages as a grid to organize, in place of the viewer (section 6.7), and back. */
 	organizePages: withTab((t) => toggleOrganize(t)),

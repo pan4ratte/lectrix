@@ -1,7 +1,8 @@
 // Documents side by side in one window (AGENTS.md section 6.1, split view): a tab goes
 // beside the one shown from its menu or dragged to an edge of the pages, as one joined tab;
 // each pane has a header and its own place; the view bar's lock scrolls them together,
-// keeping their distance, and panes of one document also share zoom and rotation.
+// keeping their distance, and panes of one document also share zoom and rotation; the
+// joined tab's menu and the view bar turn that lock, and synchronized zoom, on and off.
 
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
@@ -130,6 +131,84 @@ test('one document shown twice: each view its own place, the same zoom while loc
 		await browser.waitUntil(async () => (await panes(browser)).length === 0, { timeoutMsg: 'Ctrl+W did not close the second view' });
 		assert.deepEqual(await tabNames(browser), ['side-twice.pdf']);
 		await waitForDocument(browser);
+	} finally {
+		await stop();
+	}
+});
+
+test("the joined tab's menu synchronizes scrolling and zoom", async () => {
+	const report = sample('side-zoom-report.pdf', 10);
+	const draft = sample('side-zoom-draft.pdf', 10);
+	const { browser, stop } = await launch([report, draft]);
+	const check = (name) => browser.$(`//*[@role="menuitemcheckbox"][contains(., "${name}")]`);
+	/** Opens the joined tab's menu at `name`: whether it is checked, and the item. */
+	const menuCheck = async (name) => {
+		await (await browser.$('.doc-tab*=side-zoom-draft.pdf')).click({ button: 'right' });
+		const item = await check(name);
+		await item.waitForDisplayed({ timeoutMsg: `the tab's menu has no ${name}` });
+		return { checked: await item.getAttribute('aria-checked'), item };
+	};
+	/** Clicks `name` in the joined tab's menu: whether it was checked. */
+	const toggle = async (name) => {
+		const { checked, item } = await menuCheck(name);
+		await item.click();
+		return checked;
+	};
+	const widths = async () => (await panes(browser)).map((p) => p.page?.[0] ?? 0);
+	try {
+		await waitForDocument(browser);
+		await (await browser.$('.doc-tab*=side-zoom-report.pdf')).click({ button: 'right' });
+		await (await menuItem(browser, 'Show beside the current tab')).click();
+		await browser.waitUntil(async () => (await panes(browser)).length === 2, { timeoutMsg: 'the documents are not side by side' });
+		await waitForDocument(browser);
+
+		// Synchronize scrolling there is the view bar's lock.
+		assert.equal(await toggle('Synchronize scrolling'), 'false');
+		await browser.waitUntil(async () => (await (await browser.$('[data-sync-scrolling]')).getAttribute('aria-pressed')) === 'true', {
+			timeoutMsg: "the tab's menu did not lock the scrolling"
+		});
+		assert.equal(await toggle('Synchronize scrolling'), 'true');
+		assert.equal(await (await browser.$('[data-sync-scrolling]')).getAttribute('aria-pressed'), 'false');
+
+		// Unsynchronized, zooming one leaves the other.
+		await browser.keys(['Control', '=']);
+		await browser.waitUntil(async () => {
+			const [a, b] = await widths();
+			return b > a + 20;
+		}, { timeoutMsg: 'zooming did not act on the pane in focus alone' });
+
+		// Synchronized, the other document takes the zoom of the one in focus at once, and
+		// of the one zoomed after. The view bar's button shows it on.
+		const zoomButton = await browser.$('[data-sync-zoom]');
+		assert.equal(await zoomButton.getAttribute('aria-pressed'), 'false');
+		assert.equal(await toggle('Synchronize zoom'), 'false');
+		await browser.waitUntil(async () => (await zoomButton.getAttribute('aria-pressed')) === 'true', {
+			timeoutMsg: "the view bar's button does not show synchronized zoom on"
+		});
+		await browser.waitUntil(async () => {
+			const [a, b] = await widths();
+			return a > 0 && Math.abs(a - b) <= 2;
+		}, { timeoutMsg: 'the other document did not take the zoom' });
+		await browser.keys(['Control', '=']);
+		await browser.pause(600);
+		let [a, b] = await widths();
+		assert.ok(Math.abs(a - b) <= 2, `the zoom went apart: ${a} and ${b}`);
+		// A fit is a fit in each pane.
+		await browser.keys(['Control', '0']);
+		await browser.pause(600);
+		[a, b] = await widths();
+		assert.ok(Math.abs(a - b) <= 2, `fit width went apart: ${a} and ${b}`);
+
+		// Off again with the button, each zooms by itself; the tab's menu shows it off.
+		await zoomButton.click();
+		assert.equal(await zoomButton.getAttribute('aria-pressed'), 'false');
+		await browser.keys(['Control', '-']);
+		await browser.waitUntil(async () => {
+			const [a, b] = await widths();
+			return Math.abs(a - b) > 20;
+		}, { timeoutMsg: 'zooming still acted on both panes' });
+		assert.equal((await menuCheck('Synchronize zoom')).checked, 'false');
+		await browser.keys('Escape');
 	} finally {
 		await stop();
 	}

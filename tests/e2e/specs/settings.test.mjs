@@ -191,7 +191,7 @@ test('shortcuts are listed, searched and changed, and work at once', async () =>
 
 		// The search filters by name, by group and by key.
 		await search.setValue('zoom');
-		assert.deepEqual(await listed(), ['zoomIn', 'zoomOut']);
+		assert.deepEqual(await listed(), ['zoomIn', 'zoomOut', 'syncZoom']);
 		await search.setValue('ctrl+shift+s');
 		assert.deepEqual(await listed(), ['saveAs']);
 		// (The eight tools, and the nine preset colours the number keys pick.)

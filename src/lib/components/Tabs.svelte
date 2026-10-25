@@ -20,6 +20,7 @@
 	import { APP_NAME } from '#lib/config.ts';
 	import { openProperties } from '#lib/features/properties/actions.ts';
 	import { MAX_PANES, joinIndex } from '#lib/features/split/split.ts';
+	import { toggleLock, toggleZoomLock } from '#lib/features/split/sync.ts';
 	import { clearDrop, dropArea, tabDrop } from '#lib/features/split/tabdrop.svelte.ts';
 	import { listWindows, type WindowEntry } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
@@ -471,6 +472,31 @@
 				{/if}
 				{#if g?.joined}
 					<ContextMenu.Item class="menu-item" onSelect={() => app.separate(g)}>Separate</ContextMenu.Item>
+					<ContextMenu.Separator class="menu-separator" />
+					<ContextMenu.CheckboxItem
+						class="menu-item"
+						disabled={!!g.focused?.organize}
+						checked={g.locked}
+						onCheckedChange={() => toggleLock(g)}
+						data-tab-sync-scrolling
+					>
+						{#snippet children({ checked })}
+							<span class="w-4" aria-hidden="true">{checked ? '✓' : ''}</span>Synchronize scrolling
+							{#if app.shortcut('syncScrolling')}<span class="menu-shortcut">{app.shortcut('syncScrolling')}</span>{/if}
+						{/snippet}
+					</ContextMenu.CheckboxItem>
+					<ContextMenu.CheckboxItem
+						class="menu-item"
+						disabled={!!g.focused?.organize}
+						checked={g.zoomLocked}
+						onCheckedChange={() => toggleZoomLock(g)}
+						data-tab-sync-zoom
+					>
+						{#snippet children({ checked })}
+							<span class="w-4" aria-hidden="true">{checked ? '✓' : ''}</span>Synchronize zoom
+							{#if app.shortcut('syncZoom')}<span class="menu-shortcut">{app.shortcut('syncZoom')}</span>{/if}
+						{/snippet}
+					</ContextMenu.CheckboxItem>
 				{/if}
 				<ContextMenu.Separator class="menu-separator" />
 				<ContextMenu.Item
