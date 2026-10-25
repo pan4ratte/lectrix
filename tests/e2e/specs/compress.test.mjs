@@ -55,7 +55,7 @@ test('Compress shows the file’s sizes and settings, compresses with progress, 
 	try {
 		const tile = await browser.$('[data-tool="compress"]');
 		await tile.waitForDisplayed({ timeoutMsg: 'the start screen has no Compress' });
-		assert.equal((await tile.getText()).trim(), 'Compress…');
+		assert.equal((await (await tile.$('.start-tool-label')).getText()).trim(), 'Compress');
 		await tile.click();
 
 		await waitForStep(browser, 'settings', 'the Compress dialog did not open');

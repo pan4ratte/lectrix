@@ -1,5 +1,6 @@
 <script lang="ts">
-	// Shown when no document is open: open a file, or pick a recent one. Recent files show as
+	// Shown when no document is open: the tools as cards (open a file, combine files...), or a
+	// recent file to pick. Recent files show as
 	// a table of their names, when each was last opened and its size, or as a grid of their
 	// first pages with the name, date and size under each (a switch beside the heading,
 	// remembered in app data; switching brings the files in with a short animation). A click
@@ -7,7 +8,7 @@
 	// to the top of the list, and a right-click offers opening it, pinning it, showing it in
 	// its folder and removing it. After an update, a block beside the app's name links to
 	// What's new. Also shown over open documents, from the title bar's icon and name.
-	import { FolderOpen, LayoutGrid, Layers, List, Lock, LockOpen, Shrink, Sparkles, Star, X } from '@lucide/svelte';
+	import { ArrowUpRight, FolderOpen, LayoutGrid, Layers, List, Lock, LockOpen, Shrink, Sparkles, Star, X } from '@lucide/svelte';
 	import { ContextMenu } from 'bits-ui';
 	import type { Component } from 'svelte';
 
@@ -33,80 +34,63 @@
 	import { PLATFORM } from '#lib/platform.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 
+	import { toolSpans } from './starttools.ts';
+
 	interface Tool {
 		id: string;
+		/** As a card names it: without the menus' "…". */
 		label: string;
-		icon: Component<{ size?: number; color?: string; 'aria-hidden'?: boolean | 'true' }>;
-		/** The command whose shortcut the tile shows. */
+		/** One line on what it does, under the name. */
+		description: string;
+		icon: Component<{ size?: number; strokeWidth?: number; 'aria-hidden'?: boolean | 'true' }>;
+		/** The command whose shortcut the card shows. */
 		command?: CommandName;
 		run: () => void;
 	}
 
-	/** The tools, as tiles in a grid; more will come. */
+	/** The tools, as cards in a grid of three columns; more will come. */
 	const TOOLS: readonly Tool[] = [
-		{ id: 'open', label: 'Open…', icon: FolderOpen, command: 'open', run: () => void app.open() },
-		{ id: 'combine', label: 'Combine files…', icon: Layers, run: () => app.openCombine() },
-		{ id: 'organize', label: 'Organize pages…', icon: LayoutGrid, run: () => void organizeFile() },
-		{ id: 'unlock', label: 'Unlock…', icon: LockOpen, command: 'unlockFile', run: () => void unlockFile() },
-		{ id: 'protect', label: 'Protect…', icon: Lock, command: 'protectFile', run: () => void protectFile() },
-		{ id: 'compress', label: 'Compress…', icon: Shrink, command: 'compressFile', run: () => void compressFile() }
+		{ id: 'open', label: 'Open', description: 'Browse for a PDF', icon: FolderOpen, command: 'open', run: () => void app.open() },
+		{ id: 'combine', label: 'Combine files', description: 'Merge several PDFs into one', icon: Layers, run: () => app.openCombine() },
+		{ id: 'organize', label: 'Organize pages', description: 'Reorder, rotate or delete', icon: LayoutGrid, run: () => void organizeFile() },
+		{ id: 'unlock', label: 'Unlock', description: 'Remove a password', icon: LockOpen, command: 'unlockFile', run: () => void unlockFile() },
+		{ id: 'protect', label: 'Protect', description: 'Add a password', icon: Lock, command: 'protectFile', run: () => void protectFile() },
+		{ id: 'compress', label: 'Compress', description: 'Reduce file size', icon: Shrink, command: 'compressFile', run: () => void compressFile() }
 	];
 
-	/** Lucide icons are drawn on a 24-unit grid. */
-	const ICON_SIZE = 20;
-	const ICON_UNITS = 24;
+	/** The grid's six tracks each card spans (a last row that is not full is shared out). */
+	const spans = toolSpans(TOOLS.length);
 
-	/**
-	 * Where the tools' one gradient runs, in each icon's own units: the line of a 135deg CSS
-	 * gradient over the whole grid, so under the pointer an icon shares it with the border.
-	 */
-	interface Line {
-		x1: number;
-		y1: number;
-		x2: number;
-		y2: number;
+	/** A press's ripple, from where it was pressed in the card (CSS pixels of the card, as
+	 * any zoom of the page leaves them); none with reduced motion. */
+	function ripple(card: HTMLElement, x: number, y: number) {
+		if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+		const layer = card.querySelector('.start-ripples');
+		if (!layer) return;
+		const dot = document.createElement('span');
+		dot.className = 'start-ripple';
+		dot.style.left = `${x}px`;
+		dot.style.top = `${y}px`;
+		const done = () => dot.remove();
+		dot.addEventListener('animationend', done, { once: true });
+		dot.addEventListener('animationcancel', done, { once: true });
+		// In case the animation never runs (the card hidden at once): gone after its time.
+		setTimeout(done, 1000);
+		layer.append(dot);
 	}
 
-	let toolsBox = $state<{ width: number; height: number }>({ width: 0, height: 0 });
-	/** Two device pixels, in CSS pixels: the tiles' border (see .start-tool in app.css). */
-	let toolBorder = $state(1);
-	let tileOffsets = $state<Record<string, { x: number; y: number }>>({});
-	let iconLines = $state<Record<string, Line>>({});
+	function pressed(event: PointerEvent) {
+		if (event.button !== 0) return;
+		const card = event.currentTarget as HTMLElement;
+		const box = card.getBoundingClientRect();
+		const scale = box.width ? card.offsetWidth / box.width : 1;
+		ripple(card, (event.clientX - box.left) * scale, (event.clientY - box.top) * scale);
+	}
 
-	/** Measures the grid, and where each tile and icon sits in it, whenever it resizes. */
-	function measureTools(grid: HTMLElement) {
-		const measure = () => {
-			const box = grid.getBoundingClientRect();
-			toolsBox = { width: box.width, height: box.height };
-			toolBorder = 2 / (window.devicePixelRatio || 1);
-			// The gradient line of `135deg` over a box: through its centre, towards the
-			// bottom right, as long as the box's diagonal projected on it.
-			const length = (box.width + box.height) / Math.SQRT2;
-			const [cx, cy] = [box.width / 2, box.height / 2];
-			const [dx, dy] = [Math.SQRT1_2 * (length / 2), Math.SQRT1_2 * (length / 2)];
-			const offsets: Record<string, { x: number; y: number }> = {};
-			const lines: Record<string, Line> = {};
-			for (const tile of grid.querySelectorAll<HTMLElement>('[data-tool]')) {
-				const id = tile.dataset.tool ?? '';
-				const t = tile.getBoundingClientRect();
-				offsets[id] = { x: t.left - box.left, y: t.top - box.top };
-				const icon = tile.querySelector('svg:not([data-gradient])')?.getBoundingClientRect();
-				if (!icon) continue;
-				const unit = icon.width / ICON_UNITS;
-				const [ix, iy] = [icon.left - box.left, icon.top - box.top];
-				lines[id] = {
-					x1: (cx - dx - ix) / unit,
-					y1: (cy - dy - iy) / unit,
-					x2: (cx + dx - ix) / unit,
-					y2: (cy + dy - iy) / unit
-				};
-			}
-			tileOffsets = offsets;
-			iconLines = lines;
-		};
-		const observer = new ResizeObserver(measure);
-		observer.observe(grid);
-		return () => observer.disconnect();
+	function keyed(event: KeyboardEvent) {
+		if ((event.key !== 'Enter' && event.key !== ' ') || event.repeat) return;
+		const card = event.currentTarget as HTMLElement;
+		ripple(card, card.offsetWidth / 2, card.offsetHeight / 2);
 	}
 
 	/** The table or the grid was picked since the start screen showed: the files come in
@@ -159,17 +143,17 @@
 	const sizeText = (file: RecentFile) => (file.size === null ? 'Not found' : fileSize(file.size));
 </script>
 
-{#snippet pinButton(file: RecentFile, className: string)}
+{#snippet pinButton(file: RecentFile, className: string, size: number)}
 	<button
 		type="button"
 		class="icon-button recent-pin {className}"
 		class:recent-pinned={file.pinned}
 		aria-label="Pin {file.name}"
 		aria-pressed={file.pinned}
-		data-tip={file.pinned ? 'Unpin' : 'Pin to the top of the list'}
+		data-tip={file.pinned ? 'Unpin' : 'Pin'}
 		onclick={() => void pin(file, !file.pinned)}
 	>
-		<Star size={14} fill={file.pinned ? 'currentColor' : 'none'} aria-hidden="true" />
+		<Star {size} fill={file.pinned ? 'currentColor' : 'none'} aria-hidden="true" />
 	</button>
 {/snippet}
 
@@ -187,26 +171,27 @@
 	</ContextMenu.Portal>
 {/snippet}
 
-{#snippet removeButton(file: RecentFile, className: string)}
+{#snippet removeButton(file: RecentFile, className: string, size: number)}
 	<button
 		type="button"
 		class="icon-button recent-remove {className}"
 		aria-label="Remove {file.name} from the list"
-		data-tip="Remove from the list"
+		data-tip="Remove from list"
 		onclick={() => void remove(file.index)}
 	>
-		<X size={14} aria-hidden="true" />
+		<X {size} aria-hidden="true" />
 	</button>
 {/snippet}
 
 <div class="flex h-full flex-col items-center overflow-auto bg-canvas px-4 pt-[12vh] pb-8">
 	<div class="w-full max-w-[720px]">
-		<div class="flex flex-wrap items-center gap-4">
-			<!-- Decorative: the heading names the app. -->
-			<img src={iconUrl} alt="" width="56" height="56" draggable="false" />
-			<div>
-				<h1 class="text-2xl font-semibold">{APP_NAME}</h1>
-				<p class="mt-1 text-fg-muted">Open a PDF, or drop files anywhere in this window.</p>
+		<div class="flex flex-wrap items-center gap-[16px]">
+			<!-- Decorative: the heading names the app. The icon's rounded square is 46 px; the
+			     image has a margin round it. -->
+			<img src={iconUrl} alt="" width="57" height="57" class="start-icon" draggable="false" />
+			<div class="flex flex-col gap-[3px]">
+				<h1 class="start-title">{APP_NAME}</h1>
+				<p class="text-[14px] text-fg-muted">Open a PDF, or drop files anywhere in this window.</p>
 			</div>
 			{#if app.updatedTo !== null}
 				<div class="start-update" role="status">
@@ -235,72 +220,62 @@
 				</div>
 			{/if}
 		</div>
-		<div
-			class="start-tools mt-6"
-			style:--tools-w={toolsBox.width}
-			style:--tools-h={toolsBox.height}
-			style:--tools-border="{toolBorder}px"
-			{@attach measureTools}
-		>
-			{#each TOOLS as tool (tool.id)}
-				{@const line = iconLines[tool.id]}
+		<div class="start-tools mt-[26px]">
+			{#each TOOLS as tool, i (tool.id)}
+				{@const shortcut = tool.command ? app.shortcut(tool.command) : ''}
 				<button
 					type="button"
 					class="start-tool"
 					data-tool={tool.id}
-					style:--tool-x={tileOffsets[tool.id]?.x ?? 0}
-					style:--tool-y={tileOffsets[tool.id]?.y ?? 0}
+					style:grid-column="span {spans[i]}"
+					aria-labelledby="start-tool-{tool.id}"
+					aria-describedby={shortcut ? `start-tool-${tool.id}-about start-tool-${tool.id}-keys` : `start-tool-${tool.id}-about`}
+					onpointerdown={pressed}
+					onkeydown={keyed}
 					onclick={tool.run}
 				>
-					<!-- The icon's stroke: the tools' gradient, mapped into the icon's units (its
-					     ends are the text's colour until the pointer is on the tile). -->
-					<svg width="0" height="0" class="absolute" aria-hidden="true" data-gradient>
-						<defs>
-							<linearGradient
-								id="start-tool-gradient-{tool.id}"
-								gradientUnits="userSpaceOnUse"
-								x1={line?.x1 ?? 0}
-								y1={line?.y1 ?? 0}
-								x2={line?.x2 ?? ICON_UNITS}
-								y2={line?.y2 ?? ICON_UNITS}
-							>
-								<stop offset="0" style:stop-color="var(--tool-ink-from)" />
-								<stop offset="1" style:stop-color="var(--tool-ink-to)" />
-							</linearGradient>
-						</defs>
-					</svg>
-					<tool.icon size={ICON_SIZE} color="url(#start-tool-gradient-{tool.id})" aria-hidden="true" />
-					{tool.label}
-					{#if tool.command && app.shortcut(tool.command)}<span class="start-tool-shortcut">{app.shortcut(tool.command)}</span>{/if}
+					<span class="start-ripples" aria-hidden="true"></span>
+					<span class="start-tool-top">
+						<span class="start-tool-icon"><tool.icon size={22} aria-hidden="true" /></span>
+						{#if shortcut}
+							<span id="start-tool-{tool.id}-keys" class="start-tool-shortcut">{shortcut}</span>
+						{:else}
+							<span class="start-tool-arrow" aria-hidden="true"><ArrowUpRight size={18} /></span>
+						{/if}
+					</span>
+					<span class="start-tool-text">
+						<span id="start-tool-{tool.id}" class="start-tool-label truncate">{tool.label}</span>
+						<span id="start-tool-{tool.id}-about" class="start-tool-description">{tool.description}</span>
+					</span>
 				</button>
 			{/each}
 		</div>
 
 		{#if app.recent.length}
-			<div class="mt-10 mb-2 flex items-center justify-between gap-4">
+			<div class="mt-[34px] mb-[10px] flex items-center justify-between gap-4">
 				<h2 id="recent-heading" class="recent-heading">Recent files</h2>
 				<!-- The mark of the view shown glides to the one picked, as the active tool's does. -->
-				<div class="tool-group flex gap-1" role="group" aria-label="Show recent files as" {@attach toolMark}>
+				<div class="tool-group flex gap-[4px]" role="group" aria-label="Show recent files as" {@attach toolMark}>
 					<span class="tool-mark" aria-hidden="true" hidden></span>
 					<button
 						type="button"
-						class="icon-button tool-button size-8"
+						class="icon-button tool-button"
 						aria-label="List"
 						data-tip="List"
 						aria-pressed={!app.recentFilesGrid}
 						onclick={() => showAs(false)}
 					>
-						<List size={16} aria-hidden="true" />
+						<List size={18} aria-hidden="true" />
 					</button>
 					<button
 						type="button"
-						class="icon-button tool-button size-8"
+						class="icon-button tool-button"
 						aria-label="Grid"
 						data-tip="Grid"
 						aria-pressed={app.recentFilesGrid}
 						onclick={() => showAs(true)}
 					>
-						<LayoutGrid size={16} aria-hidden="true" />
+						<LayoutGrid size={18} aria-hidden="true" />
 					</button>
 				</div>
 			</div>
@@ -339,8 +314,8 @@
 												<span class="tabular-nums">{sizeText(file)}</span>
 											</span>
 										</button>
-										{@render pinButton(file, 'recent-card-button recent-card-pin size-7')}
-										{@render removeButton(file, 'recent-card-button recent-card-remove size-7')}
+										{@render pinButton(file, 'recent-card-button recent-card-pin size-7', 14)}
+										{@render removeButton(file, 'recent-card-button recent-card-remove size-7', 14)}
 									</li>
 								{/snippet}
 							</ContextMenu.Trigger>
@@ -354,16 +329,14 @@
 						<col />
 						<col class="recent-col-opened" />
 						<col class="recent-col-size" />
-						<col class="recent-col-pin" />
-						<col class="recent-col-remove" />
+						<col class="recent-col-actions" />
 					</colgroup>
 					<thead>
 						<tr>
 							<th scope="col">Name</th>
 							<th scope="col">Opened</th>
 							<th scope="col" class="text-right">Size</th>
-							<th scope="col"><span class="sr-only">Pinned</span></th>
-							<th scope="col"><span class="sr-only">Remove</span></th>
+							<th scope="col"><span class="sr-only">Actions</span></th>
 						</tr>
 					</thead>
 					<tbody>
@@ -386,8 +359,12 @@
 											</td>
 											<td class="truncate" data-tip={fullDate(file.openedAt)}>{openedDate(file.openedAt)}</td>
 											<td class="text-right tabular-nums">{sizeText(file)}</td>
-											<td class="recent-pin-cell">{@render pinButton(file, 'size-7')}</td>
-											<td>{@render removeButton(file, 'size-7')}</td>
+											<td>
+												<div class="recent-actions">
+													{@render pinButton(file, '', 18)}
+													{@render removeButton(file, '', 18)}
+												</div>
+											</td>
 										</tr>
 									{/snippet}
 								</ContextMenu.Trigger>

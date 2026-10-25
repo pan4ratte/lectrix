@@ -323,7 +323,7 @@ test('the start screen’s Organize pages asks for a file and shows its pages as
 	try {
 		const tile = await browser.$('[data-tool="organize"]');
 		await tile.waitForDisplayed({ timeoutMsg: 'the start screen has no Organize pages' });
-		assert.equal((await tile.getText()).trim(), 'Organize pages…');
+		assert.equal((await (await tile.$('.start-tool-label')).getText()).trim(), 'Organize pages');
 		await browser.saveScreenshot(join(OUT, 'organize-start.png'));
 		await tile.click();
 		await browser.pause(300);

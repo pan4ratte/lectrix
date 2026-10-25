@@ -47,7 +47,7 @@ test('Unlock asks for the password, asks again after a wrong one, and saves a co
 	try {
 		const tile = await browser.$('[data-tool="unlock"]');
 		await tile.waitForDisplayed({ timeoutMsg: 'the start screen has no Unlock' });
-		assert.equal((await tile.getText()).trim(), 'Unlock…');
+		assert.equal((await (await tile.$('.start-tool-label')).getText()).trim(), 'Unlock');
 		await browser.saveScreenshot(join(OUT, 'unlock-start.png'));
 		await tile.click();
 		await browser.pause(300);

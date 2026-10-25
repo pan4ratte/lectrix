@@ -55,7 +55,7 @@ test('every Tab stop is named and shows focus, in every panel and dialog', async
 	try {
 		await browser.waitUntil(() => browser.execute(() => document.body.innerText.includes('Combine files')));
 		const names = assertStops(await tabWalk(browser), 'start screen');
-		for (const name of ['File', 'Open… Ctrl+O', 'Combine files…', 'Organize pages…', 'Close']) {
+		for (const name of ['File', 'Open', 'Combine files', 'Organize pages', 'Close']) {
 			assert.ok(names.includes(name), `start screen reaches ${name}`);
 		}
 		await assertAllNamed(browser, 'start screen');

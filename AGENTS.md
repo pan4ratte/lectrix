@@ -254,7 +254,7 @@ The app should feel like a native Windows 11 app: calm, fast, and keyboard-frien
 - Never block the UI thread. Long operations (combining, repair, saving a large file) show progress and can be canceled.
 - Placeholder page shapes at the correct size while pages render, so the scroll position never jumps.
 - Errors in plain language with a suggested next step; never show raw error text or crash on bad input. Log details to a rotating log file.
-- Respect reduced-motion settings; keep animations under 150 ms. Notifications, dialogs (sheets on macOS) and progress bars each move in one way, in one place (8.3).
+- Respect reduced-motion settings; keep animations under 150 ms (the start screen's cards excepted, ADR 0030). Notifications, dialogs (sheets on macOS) and progress bars each move in one way, in one place (8.3).
 
 **Accessibility.** Every control is reachable by keyboard with a visible focus ring (the page canvas, which takes focus to scroll from the keyboard, has none: a ring around the document is noise; nor have What's new's list of changes, which takes the focus as the dialog opens for the same reason, and the About dialog, which takes it itself), has an accessible name, and meets WCAG AA contrast (checked by `src/lib/contrast.test.ts` in both themes). Shift+F10 and the Menu key open the focused control's context menu. App-wide shortcuts such as Ctrl+S work while typing in panel fields.
 

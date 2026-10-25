@@ -76,13 +76,21 @@
 	   toward the strong text colour, which is away from the button's own text in both themes. */
 	--lectrix-accent-hover: color-mix(in srgb, var(--lectrix-accent) 80%, var(--lectrix-fg-strong));
 	--lectrix-danger-hover: color-mix(in srgb, var(--lectrix-danger) 80%, var(--lectrix-fg-strong));
-	/* The brand gradient (ADR 0010), for the start screen's tools, whose text is in it too:
-	   so both ends read at 4.5:1 on the canvas and on the wash (how much of it tints a tool
-	   under the pointer). In the light theme blue-500 deepening towards the ink; in the dark
-	   one the icon gradient, its lower end a shade lighter than blue-400. */
-	--lectrix-brand-from: #2d5aa5;
-	--lectrix-brand-to: #1f4485;
-	--lectrix-brand-wash: 0.12;
+	/* Tints of Lectrix blue, for the start screen (ADR 0030): a tool card's icon tile under
+	   the pointer (the brand kit's blue-50) and the ring round it (blue-200), a recent file's
+	   star under the pointer (blue-100), and the border of a tool card under the pointer
+	   (blue-300). In the dark theme
+	   the accent mixed into the raised surface, and the accent itself. */
+	--lectrix-tint: #eef4fd;
+	--lectrix-tint-strong: #d6e6fd;
+	--lectrix-tint-line: #a3c8f9;
+	--lectrix-card-hover-line: #6fa3ef;
+	/* The ripple a click sends across a tool card: blue-300 at 35%, in both themes. */
+	--lectrix-ripple: rgb(111 163 239 / 0.35);
+	/* Cards at rest and lifted, and the small shadow under a card's icon tile. */
+	--lectrix-shadow-rest: 0 6px 20px -10px rgb(15 37 88 / 0.1);
+	--lectrix-shadow-hover: 0 8px 24px rgb(15 37 88 / 0.14);
+	--lectrix-shadow-tile: 0 1px 2px rgb(15 37 88 / 0.08);
 	--lectrix-focus: var(--lectrix-accent);
 	--lectrix-danger: #c9303a;
 	--lectrix-danger-fg: #ffffff;
@@ -133,6 +141,20 @@
 	--lectrix-source-4: #be5b19;
 	--lectrix-source-5: #6f55f1;
 	--lectrix-source-6: #21848d;
+	/* Motion of the start screen's cards and rows (ADR 0030): colours and fades, a card's
+	   lift, and its icon's pop and the click's ripple. Nothing moves with reduced motion. */
+	--lectrix-duration-fast: 150ms;
+	--lectrix-duration-base: 250ms;
+	--lectrix-duration-slow: 400ms;
+	--lectrix-ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+	--lectrix-ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+@media (prefers-reduced-motion: reduce) {
+	:root {
+		--lectrix-duration-fast: 0ms;
+		--lectrix-duration-base: 0ms;
+		--lectrix-duration-slow: 0ms;
+	}
 }
 
 /* Dark, Neo's Midnight: the system's choice unless Settings forces light, or forced
@@ -162,9 +184,13 @@
 		--lectrix-line-strong: #3a404a;
 		--lectrix-accent: #6fa3ef;
 		--lectrix-accent-fg: #0f1a33;
-		--lectrix-brand-from: #a3c8f9;
-		--lectrix-brand-to: #5089e6;
-		--lectrix-brand-wash: 0.16;
+		--lectrix-tint: color-mix(in srgb, var(--lectrix-accent) 16%, var(--lectrix-surface-raised));
+		--lectrix-tint-strong: color-mix(in srgb, var(--lectrix-accent) 26%, var(--lectrix-surface-raised));
+		--lectrix-tint-line: color-mix(in srgb, var(--lectrix-accent) 50%, var(--lectrix-surface-raised));
+		--lectrix-card-hover-line: var(--lectrix-accent);
+		--lectrix-shadow-rest: 0 6px 20px -10px rgb(0 0 0 / 0.5);
+		--lectrix-shadow-hover: 0 8px 24px rgb(0 0 0 / 0.55);
+		--lectrix-shadow-tile: 0 1px 2px rgb(0 0 0 / 0.4);
 		--lectrix-danger: #e85a5f;
 		--lectrix-danger-fg: #1b0b0c;
 		--lectrix-danger-bg: #2f1618;
@@ -206,9 +232,13 @@
 	--lectrix-line-strong: #3a404a;
 	--lectrix-accent: #6fa3ef;
 	--lectrix-accent-fg: #0f1a33;
-	--lectrix-brand-from: #a3c8f9;
-	--lectrix-brand-to: #5089e6;
-	--lectrix-brand-wash: 0.16;
+	--lectrix-tint: color-mix(in srgb, var(--lectrix-accent) 16%, var(--lectrix-surface-raised));
+	--lectrix-tint-strong: color-mix(in srgb, var(--lectrix-accent) 26%, var(--lectrix-surface-raised));
+	--lectrix-tint-line: color-mix(in srgb, var(--lectrix-accent) 50%, var(--lectrix-surface-raised));
+	--lectrix-card-hover-line: var(--lectrix-accent);
+	--lectrix-shadow-rest: 0 6px 20px -10px rgb(0 0 0 / 0.5);
+	--lectrix-shadow-hover: 0 8px 24px rgb(0 0 0 / 0.55);
+	--lectrix-shadow-tile: 0 1px 2px rgb(0 0 0 / 0.4);
 	--lectrix-danger: #e85a5f;
 	--lectrix-danger-fg: #1b0b0c;
 	--lectrix-danger-bg: #2f1618;
@@ -1639,100 +1669,162 @@ button.shortcut-key:hover,
 
 /* ----- start screen ----- */
 
-/* The tools (Open, Combine files...): tiles in a grid with room for more, twice a button's
-   height, in the start screen's colour. At rest a tile is plain: a border in the line's
-   colour, its icon and text in the text's. Under the pointer its border, icon and text are
-   cut from one brand gradient laid over the whole grid (StartScreen.svelte measures where
-   each tile sits in it: --tool-x, --tool-y in the tools' --tools-w x --tools-h), and a wash
-   of the same gradient fills the tile. */
-/* How far a tile has taken the brand gradient, 0 (plain) to 1: a number, so it can glide. */
-@property --tool-accent {
-	syntax: '<number>';
-	inherits: true;
-	initial-value: 0;
+/* The app's icon, its rounded square 46 px (the image has a margin round it), and its name
+   as the wordmark sets it. */
+.start-icon {
+	margin: -5.5px;
 }
+.start-title {
+	color: var(--lectrix-fg-strong);
+	font-size: 21px;
+	font-weight: 700;
+	letter-spacing: -0.02em;
+}
+
+/* The tools (Open, Combine files...): cards in a grid of three columns (ADR 0030), each an
+   icon tile, with the tool's shortcut or an arrow beside it, over the tool's name and a line
+   on what it does. At rest a card lies on the start screen with a soft shadow; under the
+   pointer or the keyboard focus it lifts, its border turns blue, its icon tile takes a tint
+   of the accent and rises with a small spring, and the arrow slides in. Pressed, it sinks
+   back a little, and a ripple runs out from where it was pressed (from its centre for Enter
+   and Space; StartScreen.svelte). The grid has six tracks and a card spans two; the cards of
+   a last row that is not full share it (StartScreen.svelte works out the spans). */
 .start-tools {
-	--brand-gradient: linear-gradient(135deg, var(--lectrix-brand-from), var(--lectrix-brand-to));
 	display: grid;
-	grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-	gap: 8px;
+	grid-template-columns: repeat(6, minmax(0, 1fr));
+	gap: 12px;
 }
-/* One element draws it all, from three layers of backgrounds: on top, a gradient clipped
-   to the text; under it, the start screen's colour filling the inside; at the bottom, a
-   gradient which shows only in the border around that. Each gradient's two ends go from
-   the plain colour (the text's, the line's) to the brand gradient's as --tool-accent goes
-   from 0 to 1, so the tile takes the gradient smoothly; the icon's stroke uses the same
-   ends (--tool-ink-from, --tool-ink-to). The border is two device pixels wide at any
-   display scale (--tool-border, set from the pixel ratio): a one-pixel line in a strong
-   colour can only be drawn round a corner as faint, partial pixels, so its corners look
-   thinner than its sides; two keep a solid core. */
 .start-tool {
-	--tool-accent: 0;
-	--tool-accent-part: calc(var(--tool-accent) * 100%);
-	--tool-ink-from: color-mix(in srgb, var(--lectrix-brand-from) var(--tool-accent-part), var(--lectrix-fg));
-	--tool-ink-to: color-mix(in srgb, var(--lectrix-brand-to) var(--tool-accent-part), var(--lectrix-fg));
-	--tool-edge-from: color-mix(in srgb, var(--lectrix-brand-from) var(--tool-accent-part), var(--lectrix-line));
-	--tool-edge-to: color-mix(in srgb, var(--lectrix-brand-to) var(--tool-accent-part), var(--lectrix-line));
-	--tool-border: var(--tools-border, 1px);
-	--tool-gradient-at: calc(-1px * var(--tool-x, 0)) calc(-1px * var(--tool-y, 0));
-	--tool-gradient-size: calc(1px * var(--tools-w, 0)) calc(1px * var(--tools-h, 0));
 	position: relative;
 	display: flex;
-	height: 64px;
-	align-items: center;
-	gap: 12px;
-	padding: 0 calc(16px - var(--tool-border));
-	border: var(--tool-border) solid transparent;
-	border-radius: var(--radius-panel);
-	background-image:
-		linear-gradient(135deg, var(--tool-ink-from), var(--tool-ink-to)),
-		linear-gradient(var(--lectrix-canvas), var(--lectrix-canvas)),
-		linear-gradient(135deg, var(--tool-edge-from), var(--tool-edge-to));
-	background-clip: text, padding-box, border-box;
-	background-origin: border-box, padding-box, border-box;
-	background-position: var(--tool-gradient-at), 0 0, var(--tool-gradient-at);
-	background-size: var(--tool-gradient-size), 100% 100%, var(--tool-gradient-size);
-	background-repeat: no-repeat;
-	color: transparent;
-	font-size: 14px;
-	font-weight: 500;
-	isolation: isolate;
+	/* At least: a line on what a tool does may wrap in a narrow window. The cards of a row
+	   stay as tall as each other. */
+	min-height: 124px;
+	min-width: 0;
+	flex-direction: column;
+	justify-content: space-between;
+	gap: 6px;
+	padding: 16px 18px;
+	overflow: hidden;
+	border: 1px solid var(--lectrix-line);
+	border-radius: 16px;
+	background: var(--lectrix-surface-raised);
+	box-shadow: var(--lectrix-shadow-rest);
+	color: var(--lectrix-fg-strong);
 	text-align: left;
-	transition: --tool-accent 120ms ease-out;
+	transition:
+		transform var(--lectrix-duration-base) var(--lectrix-ease-out),
+		border-color var(--lectrix-duration-base),
+		box-shadow var(--lectrix-duration-base);
 }
-.start-tool:hover {
-	--tool-accent: 1;
+.start-tool:is(:hover, :focus-visible) {
+	border-color: var(--lectrix-card-hover-line);
+	box-shadow: var(--lectrix-shadow-hover);
+	transform: translateY(-3px);
 }
-/* The wash under the pointer, inside the border. */
-.start-tool::after {
-	position: absolute;
-	inset: 0;
-	z-index: -1;
-	border-radius: calc(var(--radius-panel) - var(--tool-border));
-	background: var(--brand-gradient) calc(-1px * var(--tool-x, 0) - var(--tool-border))
-		calc(-1px * var(--tool-y, 0) - var(--tool-border)) / var(--tool-gradient-size) no-repeat;
-	content: '';
-	opacity: 0;
-	transition: opacity 120ms ease-out;
+.start-tool:active {
+	transform: translateY(-1px) scale(0.98);
 }
-.start-tool:hover::after {
-	opacity: var(--lectrix-brand-wash);
+.start-tool-top {
+	position: relative;
+	display: flex;
+	align-items: flex-start;
+	justify-content: space-between;
 }
-.start-tool:active::after {
-	opacity: calc(var(--lectrix-brand-wash) * 1.6);
+.start-tool-icon {
+	display: grid;
+	width: 40px;
+	height: 40px;
+	place-items: center;
+	border-radius: 10px;
+	background: var(--lectrix-surface-raised);
+	box-shadow:
+		0 0 0 1px var(--lectrix-line),
+		var(--lectrix-shadow-tile);
+	color: var(--lectrix-accent);
+	transition-duration: var(--lectrix-duration-slow);
+	transition-property: transform, background-color, box-shadow;
+	transition-timing-function: var(--lectrix-ease-spring);
+}
+.start-tool:is(:hover, :focus-visible) .start-tool-icon {
+	background: var(--lectrix-tint);
+	box-shadow:
+		0 0 0 1px var(--lectrix-tint-line),
+		var(--lectrix-shadow-tile);
+	transform: translateY(-2px);
 }
 .start-tool-shortcut {
-	margin-left: auto;
-	font-size: 12px;
-	font-weight: 400;
+	padding: 2px 6px;
+	border: 1px solid var(--lectrix-line);
+	border-radius: 6px;
+	background: var(--lectrix-canvas);
+	color: var(--lectrix-fg-muted);
+	font-size: 11.5px;
+	line-height: normal;
+}
+.start-tool-arrow {
+	display: flex;
+	color: var(--lectrix-accent);
+	opacity: 0;
+	transform: translate(-6px, 6px);
+	transition-duration: var(--lectrix-duration-base);
+	transition-property: opacity, transform;
+	transition-timing-function: var(--lectrix-ease-out);
+}
+.start-tool:is(:hover, :focus-visible) .start-tool-arrow {
+	opacity: 1;
+	transform: none;
+}
+.start-tool-text {
+	position: relative;
+	display: flex;
+	min-width: 0;
+	flex-direction: column;
+	gap: 2px;
+}
+.start-tool-label {
+	color: var(--lectrix-fg-strong);
+	font-size: 14.5px;
+	font-weight: 600;
+}
+.start-tool-description {
+	color: var(--lectrix-fg-muted);
+	font-size: 12.5px;
+}
+/* The ripple of a press: a 10 px dot where it was pressed, grown 48 times as it fades. The
+   card clips it, and StartScreen.svelte removes it when it has run. */
+.start-ripples {
+	position: absolute;
+	inset: 0;
+	pointer-events: none;
+}
+.start-ripple {
+	position: absolute;
+	width: 10px;
+	height: 10px;
+	margin: -5px 0 0 -5px;
+	border-radius: 50%;
+	background: var(--lectrix-ripple);
+	animation: start-ripple var(--lectrix-duration-slow) ease-out forwards;
+}
+@keyframes start-ripple {
+	from {
+		opacity: 0.55;
+		transform: scale(0);
+	}
+	to {
+		opacity: 0;
+		transform: scale(48);
+	}
 }
 
 /* Recent files, as a table or a grid of first pages (a switch beside the heading). Each row
    or card is one button (stretched over it), plus a pin button and a remove button that
-   show while the row or card is hovered or focused; a pinned file's star always shows. */
+   show while the row or card is hovered or has the keyboard focus; a pinned file's star
+   always shows. */
 .recent-heading {
-	color: var(--lectrix-fg-muted);
-	font-size: 14px;
+	color: var(--lectrix-fg-strong);
+	font-size: 15px;
 	font-weight: 600;
 }
 .recent-open {
@@ -1757,15 +1849,25 @@ button.shortcut-key:hover,
 :is(.recent-pin, .recent-remove) {
 	position: relative;
 	z-index: 1;
+	color: var(--lectrix-fg-muted);
 	opacity: 0;
+	transition-duration: var(--lectrix-duration-fast);
+	transition-property: opacity, background-color, color;
 }
-:is(.recent-row, .recent-card):hover :is(.recent-pin, .recent-remove),
-:is(.recent-pin, .recent-remove):focus-visible,
+:is(.recent-row, .recent-card):is(:hover, :has(:focus-visible)) :is(.recent-pin, .recent-remove),
 .recent-pinned {
 	opacity: 1;
 }
 .recent-pinned {
 	color: var(--lectrix-accent);
+}
+.recent-pin:hover:not(:disabled) {
+	background: var(--lectrix-tint-strong);
+	color: var(--lectrix-accent);
+}
+.recent-remove:hover:not(:disabled) {
+	background: var(--lectrix-danger-bg);
+	color: var(--lectrix-danger);
 }
 
 /* Switching between the table and the grid brings the files in: each rises into place as
@@ -1790,16 +1892,23 @@ button.shortcut-key:hover,
 	animation: recent-fade 100ms ease-out;
 }
 
-/* The table: lines between the rows and small capitals over the columns. */
+/* The table: small capitals over the columns and a line under each row, 12 px in from the
+   lines' ends. The row under the pointer or the keyboard focus takes the tool cards' colour
+   and edge, with corners, 4 px wider than the lines on each side, and the lines above and
+   below it go. */
 .recent-table {
-	--recent-opened-w: 168px;
-	--recent-size-w: 104px;
-	--recent-pin-w: 34px;
-	--recent-remove-w: 40px;
+	--recent-opened-w: 150px;
+	--recent-size-w: 90px;
+	/* The pin and remove buttons, and the 12 px after them. */
+	--recent-actions-w: 88px;
 	width: 100%;
 	table-layout: fixed;
-	border-collapse: collapse;
-	font-size: 13px;
+	border-collapse: separate;
+	border-spacing: 0;
+	font-size: 13.5px;
+	/* The tint of the row under the pointer is drawn under the cells' text (z-index -1),
+	   inside the table. */
+	isolation: isolate;
 }
 .recent-col-opened {
 	width: var(--recent-opened-w);
@@ -1807,52 +1916,78 @@ button.shortcut-key:hover,
 .recent-col-size {
 	width: var(--recent-size-w);
 }
-.recent-col-pin {
-	width: var(--recent-pin-w);
-}
-.recent-col-remove {
-	width: var(--recent-remove-w);
+.recent-col-actions {
+	width: var(--recent-actions-w);
 }
 .recent-table th {
-	height: 32px;
-	padding: 0 12px;
+	padding: 0 0 8px;
 	border-bottom: 1px solid var(--lectrix-line);
 	color: var(--lectrix-fg-muted);
 	font-size: 11px;
-	font-weight: 500;
-	letter-spacing: 0.04em;
+	font-weight: 600;
+	letter-spacing: 0.06em;
 	text-align: left;
 	text-transform: uppercase;
+	transition: border-color var(--lectrix-duration-fast);
 }
 .recent-table th.text-right {
 	text-align: right;
 }
 .recent-table td {
-	height: 44px;
-	padding: 0 12px;
+	height: 43px;
+	padding: 0;
 	border-bottom: 1px solid var(--lectrix-line);
 	color: var(--lectrix-fg-muted);
 	white-space: nowrap;
+	transition: border-color var(--lectrix-duration-fast);
+}
+.recent-table :is(th, td):first-child {
+	padding-right: 12px;
+	padding-left: 12px;
+}
+.recent-table :is(th, td):last-child {
+	padding-right: 12px;
 }
 /* The name's button is stretched over the row from its cell, not from the row: WebKit
    (macOS, Linux) does not position against a table row (WebKit bug 240961), and an overlay
    on the row there covered the whole start screen, so a click on a tool opened a recent
-   file. The columns after the name have fixed widths, so the overlay reaches past them. */
+   file. The columns after the name have fixed widths, so the overlay reaches past them.
+   Its ::before is the row's tint, under the cells' text. */
 .recent-table td:first-child {
 	position: relative;
 	color: var(--lectrix-fg);
 }
-.recent-table .recent-open::after {
-	right: calc(-1 * (var(--recent-opened-w) + var(--recent-size-w) + var(--recent-pin-w) + var(--recent-remove-w)));
+.recent-table .recent-open::after,
+.recent-table .recent-open::before {
+	left: -4px;
+	right: calc(-1 * (var(--recent-opened-w) + var(--recent-size-w) + var(--recent-actions-w)) - 4px);
+	border-radius: 10px;
 }
-.recent-table td:last-child {
-	padding: 0 6px;
+.recent-table .recent-open::before {
+	position: absolute;
+	top: 0;
+	bottom: 0;
+	z-index: -1;
+	background: var(--lectrix-surface-raised);
+	box-shadow: 0 0 0 1px var(--lectrix-line);
+	content: '';
+	opacity: 0;
+	pointer-events: none;
+	transition: opacity var(--lectrix-duration-fast);
 }
-.recent-table td.recent-pin-cell {
-	padding: 0 0 0 6px;
+.recent-table .recent-open:focus-visible::after {
+	outline-offset: 0;
+	border-radius: 10px;
 }
-.recent-row:hover {
-	background: var(--lectrix-hover);
+.recent-row:is(:hover, :has(:focus-visible)) .recent-open::before {
+	opacity: 1;
+}
+.recent-row:is(:hover, :has(:focus-visible)) > td,
+.recent-row:has(+ .recent-row:hover) > td,
+.recent-row:has(+ .recent-row :focus-visible) > td,
+.recent-table:has(tbody > .recent-row:first-child:hover) th,
+.recent-table:has(tbody > .recent-row:first-child :focus-visible) th {
+	border-bottom-color: transparent;
 }
 .recent-missing td:first-child {
 	color: var(--lectrix-fg-muted);
@@ -1862,7 +1997,17 @@ button.shortcut-key:hover,
 	width: 100%;
 	min-width: 0;
 	align-items: center;
-	gap: 12px;
+	gap: 10px;
+}
+.recent-actions {
+	display: flex;
+	justify-content: flex-end;
+	gap: 4px;
+}
+.recent-table :is(.recent-pin, .recent-remove) {
+	width: 28px;
+	height: 28px;
+	border-radius: 7px;
 }
 
 /* The grid: as many columns as fit, each card the page (in a page-shaped area, at its top

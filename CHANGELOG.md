@@ -8,6 +8,11 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ## Unreleased
 
+### Start screen
+
+- The tools are cards, each with a line on what it does. A card lifts under the pointer, and a ripple runs from where you click it.
+- In the table of recent files, the row under the pointer is highlighted, and its star and remove buttons fade in.
+
 ### Viewer and tabs
 
 - Buttons on the page, such as the Contents button of books made for reading on screen, can now be clicked. They work as links do.

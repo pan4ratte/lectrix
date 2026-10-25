@@ -19,25 +19,17 @@ const startButton = (browser) => browser.$('button[aria-label="Lectrix: start sc
 const selectedTabs = (browser) =>
 	browser.execute(() => [...document.querySelectorAll('[role=tablist][aria-label="Open documents"] [role=tab][aria-selected="true"]')].length);
 
-/** A tool tile's look: how far it has taken the brand gradient (0 at rest, 1 under the
- * pointer), and its icon's stroke beside the text's colour, as r, g, b. */
+/** A tool card's look: how far it is lifted (0 at rest, -3 px under the pointer), and
+ * whether its border has the colour it takes under the pointer. */
 const toolLook = (browser) =>
 	browser.execute(() => {
-		const rgb = (css) => {
-			const n = (css.match(/[\d.]+/g) ?? []).map(Number).slice(0, 3);
-			return css.startsWith('color(') ? n.map((v) => Math.round(v * 255)) : n;
-		};
 		const probe = document.createElement('span');
-		probe.style.color = 'var(--lectrix-fg)';
+		probe.style.color = 'var(--lectrix-card-hover-line)';
 		document.body.append(probe);
-		const fg = rgb(getComputedStyle(probe).color);
+		const hoverLine = getComputedStyle(probe).color;
 		probe.remove();
-		const tile = document.querySelector('[data-tool="open"]');
-		return {
-			accent: Number(getComputedStyle(tile).getPropertyValue('--tool-accent')),
-			icon: rgb(getComputedStyle(tile.querySelector('stop')).stopColor),
-			fg
-		};
+		const style = getComputedStyle(document.querySelector('[data-tool="open"]'));
+		return { lift: style.transform === 'none' ? 0 : new DOMMatrix(style.transform).m42, blue: style.borderTopColor === hoverLine };
 	});
 
 test('the title bar shows the start screen over open documents, which stay open', async () => {
@@ -80,17 +72,20 @@ test('the title bar shows the start screen over open documents, which stay open'
 		// The recent files show without the animation of a change of view.
 		assert.equal(await browser.execute(() => document.querySelector('.recent-enter')), null, 'the recent files were animated as the start screen showed');
 
-		// The tools are plain at rest, and take the brand gradient under the pointer.
+		// The tools lie flat at rest, and lift with a blue border under the pointer.
 		const rest = await toolLook(browser);
-		assert.equal(rest.accent, 0, 'a tool has the accent at rest');
-		assert.ok(rest.icon.every((v, i) => Math.abs(v - rest.fg[i]) <= 1), `a tool's icon is ${rest.icon} at rest, the text ${rest.fg}`);
+		assert.deepEqual(rest, { lift: 0, blue: false }, 'a tool is lifted at rest');
 		const tile = await (await browser.$('[data-tool="open"]')).getLocation();
 		await browser.action('pointer').move({ x: Math.round(tile.x + 40), y: Math.round(tile.y + 30), origin: 'viewport' }).perform();
-		await browser.waitUntil(async () => (await toolLook(browser)).accent === 1, { timeoutMsg: 'the tool under the pointer did not take the accent' });
-		const hovered = await toolLook(browser);
-		assert.ok(hovered.icon.some((v, i) => Math.abs(v - hovered.fg[i]) > 8), `the icon under the pointer is ${hovered.icon}, the text ${hovered.fg}`);
+		await browser.waitUntil(async () => {
+			const look = await toolLook(browser);
+			return look.lift === -3 && look.blue;
+		}, { timeoutMsg: `the tool under the pointer is ${JSON.stringify(await toolLook(browser))}` });
 		await browser.action('pointer').move({ x: Math.round(tile.x + 40), y: Math.round(tile.y - 40), origin: 'viewport' }).perform();
-		await browser.waitUntil(async () => (await toolLook(browser)).accent === 0, { timeoutMsg: 'the tool kept the accent after the pointer left' });
+		await browser.waitUntil(async () => {
+			const look = await toolLook(browser);
+			return look.lift === 0 && !look.blue;
+		}, { timeoutMsg: 'the tool stayed lifted after the pointer left' });
 
 		// The same click goes back to the document, where it was.
 		await start.click();

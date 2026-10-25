@@ -39,6 +39,7 @@
   --lx-blue-700: #142247; /* ink */
   --lx-blue-800: #0F1A33;
 
+  --lx-red-50:  #FDECEC;  /* soft fill for destructive hovers */
   --lx-red-400: #E5484D;  /* signal red — sparing accent, alerts, annotations */
   --lx-red-600: #C9303A;
 
@@ -84,6 +85,19 @@
 
   --lx-shadow-sm: 0 1px 2px rgb(15 37 88 / 0.10), 0 1px 1px rgb(15 37 88 / 0.06);
   --lx-shadow-md: 0 8px 24px rgb(15 37 88 / 0.14);
+  --lx-shadow-rest: 0 6px 20px -10px rgb(15 37 88 / 0.10);  /* resting cards */
+  --lx-shadow-hover: var(--lx-shadow-md);  /* lifted cards */
+
+  /* ---------- Motion ---------- */
+  --lx-duration-fast: 150ms;   /* colour, opacity, row hover */
+  --lx-duration-base: 250ms;   /* card lift, border, shadow */
+  --lx-duration-slow: 400ms;   /* click ripple */
+  --lx-ease-out: cubic-bezier(.2, .8, .2, 1);
+  --lx-ease-spring: cubic-bezier(.34, 1.56, .64, 1);  /* icon pop */
+}
+
+@media (prefers-reduced-motion: reduce) {
+  :root { --lx-duration-fast: 0ms; --lx-duration-base: 0ms; --lx-duration-slow: 0ms; }
 }
 
 /* ---------- 4. Semantic theme: light (default) ---------- */
@@ -100,6 +114,7 @@
   --lx-accent-soft: var(--lx-blue-100);   /* selection, hover fills */
   --lx-on-accent:   var(--lx-neutral-0);
   --lx-signal:      var(--lx-red-600);
+  --lx-signal-soft: var(--lx-red-50);
   --lx-focus-ring:  0 0 0 3px rgb(47 93 170 / 0.35);
 }
 
@@ -117,6 +132,7 @@
     --lx-accent-soft: #23406F;
     --lx-on-accent:   var(--lx-blue-800);
     --lx-signal:      var(--lx-red-400);
+  --lx-signal-soft: rgb(229 72 77 / 0.18);
     --lx-focus-ring:  0 0 0 3px rgb(111 163 239 / 0.45);
   }
 }
@@ -132,6 +148,7 @@
   --lx-accent-soft: #23406F;
   --lx-on-accent:   var(--lx-blue-800);
   --lx-signal:      var(--lx-red-400);
+  --lx-signal-soft: rgb(229 72 77 / 0.18);
   --lx-focus-ring:  0 0 0 3px rgb(111 163 239 / 0.45);
 }
 

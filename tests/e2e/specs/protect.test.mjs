@@ -66,7 +66,7 @@ test('Protect, from the start screen, saves a protected copy that opens with its
 	try {
 		const tile = await browser.$('[data-tool="protect"]');
 		await tile.waitForDisplayed({ timeoutMsg: 'the start screen has no Protect' });
-		assert.equal((await tile.getText()).trim(), 'Protect…');
+		assert.equal((await (await tile.$('.start-tool-label')).getText()).trim(), 'Protect');
 		await tile.click();
 
 		const dialog = await protectDialog(browser);
