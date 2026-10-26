@@ -420,6 +420,10 @@ input[type='color'],
 .annotation-outline-draft {
 	stroke-dasharray: 4 3;
 }
+/* Round marked text: twice as wide, as only its outer half shows (PageView.svelte). */
+.annotation-outline-text {
+	stroke-width: 3px;
+}
 /* The area the Select tool drags to select annotations, drawn as the page grid's. */
 .annotation-marquee {
 	fill: var(--lectrix-row-selected);

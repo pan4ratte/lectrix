@@ -302,3 +302,90 @@ export function selectionRanges(texts: ReadonlyMap<number, TextGeometry>, start:
 	}
 	return out;
 }
+
+/** A quad's corners, as `Annotation.quads` gives them: upper left, upper right, lower left,
+ * lower right, as the glyphs stand. */
+type Corners = [[number, number], [number, number], [number, number], [number, number]];
+
+/**
+ * The shapes a text markup's selection outline is drawn round (as one outline, by their
+ * union): its quads, each line's grown to meet the next line's where only a narrow gap
+ * (under 60% of the lower line's height) lies between them and they share some width, so
+ * lines of one paragraph make one stepped shape that ends where the marked text ends. Each
+ * is 8 numbers, its corners in drawing order (upper left, upper right, lower right, lower
+ * left). Works in each quad's own directions, so turned text and turned pages too.
+ */
+export function outlineQuads(quads: readonly number[]): number[][] {
+	const qs: Corners[] = [];
+	for (let i = 0; i + 8 <= quads.length; i += 8) {
+		const q = quads.slice(i, i + 8);
+		if (q.some((v) => !Number.isFinite(v))) continue;
+		qs.push([
+			[q[0]!, q[1]!],
+			[q[2]!, q[3]!],
+			[q[4]!, q[5]!],
+			[q[6]!, q[7]!]
+		]);
+	}
+	// How far each quad's top and bottom edges move out, in points.
+	const up = qs.map(() => 0);
+	const down = qs.map(() => 0);
+	const frames = qs.map(frame);
+	for (let i = 0; i < qs.length; i++) {
+		const q = qs[i]!;
+		const f = frames[i];
+		if (!f) continue;
+		// The nearest line under this one.
+		let next = -1;
+		let nextGap = Infinity;
+		for (let j = 0; j < qs.length; j++) {
+			const g = frames[j];
+			if (j === i || !g || f.ux * g.ux + f.uy * g.uy < 0.99) continue;
+			// Its corners in this quad's directions: from its upper left, across and down.
+			const p = qs[j]!;
+			const across = p.map(([x, y]) => (x - q[0][0]) * f.ax + (y - q[0][1]) * f.ay);
+			const downs = p.map(([x, y]) => (x - q[0][0]) * f.ux + (y - q[0][1]) * f.uy);
+			const gap = (downs[0]! + downs[1]!) / 2 - f.height;
+			const shared = Math.min(f.width, Math.max(...across)) - Math.max(0, Math.min(...across));
+			if (gap <= 0 || gap >= 0.6 * g.height || shared <= 0 || gap >= nextGap) continue;
+			next = j;
+			nextGap = gap;
+		}
+		if (next < 0) continue;
+		// Each goes half way, and a little further, so no seam shows where they meet.
+		const half = nextGap / 2 + 0.25;
+		down[i] = Math.max(down[i]!, half);
+		up[next] = Math.max(up[next]!, half);
+	}
+	return qs.map((q, i) => {
+		const f = frames[i];
+		const [ul, ur, ll, lr] = q;
+		if (!f) return [ul[0], ul[1], ur[0], ur[1], lr[0], lr[1], ll[0], ll[1]];
+		const t = up[i]!;
+		const b = down[i]!;
+		return [
+			ul[0] - f.ux * t,
+			ul[1] - f.uy * t,
+			ur[0] - f.ux * t,
+			ur[1] - f.uy * t,
+			lr[0] + f.ux * b,
+			lr[1] + f.uy * b,
+			ll[0] + f.ux * b,
+			ll[1] + f.uy * b
+		];
+	});
+}
+
+/** A quad's directions (unit vectors across and down its text) and size; null when it has
+ * no area. */
+function frame(q: Corners): { ax: number; ay: number; ux: number; uy: number; width: number; height: number } | null {
+	const [ul, ur, ll, lr] = q;
+	const ax = ur[0] - ul[0];
+	const ay = ur[1] - ul[1];
+	const ux = (ll[0] + lr[0] - ul[0] - ur[0]) / 2;
+	const uy = (ll[1] + lr[1] - ul[1] - ur[1]) / 2;
+	const width = Math.hypot(ax, ay);
+	const height = Math.hypot(ux, uy);
+	if (width < 1e-6 || height < 1e-6) return null;
+	return { ax: ax / width, ay: ay / width, ux: ux / height, uy: uy / height, width, height };
+}

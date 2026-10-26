@@ -221,7 +221,7 @@ test('a drag from a double-click selects whole words; a click puts a text cursor
 				const r = el.getBoundingClientRect();
 				return (r.left + r.right) / 2;
 			});
-		const outlined = () => browser.execute(() => document.querySelector('.page rect.annotation-outline') !== null);
+		const outlined = () => browser.execute(() => document.querySelector('.page [data-annotation-outline]') !== null);
 
 		// "quick" double-clicked (60 to 88 pt) and held, then dragged into the middle of "brown"
 		// (91.3 to 124): the selection takes in the whole of "brown".

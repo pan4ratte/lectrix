@@ -12,10 +12,10 @@
 	import { SvelteSet } from 'svelte/reactivity';
 
 	import { cancelTextDraft, commitTextDraft, hiddenOnPage } from '#lib/features/annotations/actions.ts';
-	import { HANDLES, handlePoint, textBoxFrame } from '#lib/features/annotations/geometry.ts';
+	import { HANDLES, handlePoint, outlineQuads, textBoxFrame } from '#lib/features/annotations/geometry.ts';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
 	import { capabilities, isMarkupTool } from '#lib/features/annotations/tools.ts';
-	import { pageUrl, type PageSize } from '#lib/ipc/index.ts';
+	import { pageUrl, type Annotation, type PageSize } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -290,6 +290,8 @@
 		tab.selectedGroup.filter((a) => a.page === index && !moving.some((m) => m.id === a.id))
 	);
 	const textDraft = $derived(draft?.kind === 'text' ? draft : null);
+	/** Ids of this page's masks for selection outlines, unique in the window. */
+	const uid = $props.id();
 	const areaColor = $derived(isMarkupTool(tools.tool) ? tools.style(tools.tool).color : null);
 
 	function onEditorInput(event: Event) {
@@ -325,6 +327,40 @@
 		el.setSelectionRange(el.value.length, el.value.length);
 	}
 </script>
+
+<!-- A selected annotation's outline: round the text a text markup marks, its lines one
+     shape that ends where they end (each shape stroked twice as wide and the inside of all
+     of them masked off, so only the outer half of each stroke shows, and none between the
+     lines); round its bounds for any other annotation. -->
+{#snippet outline(a: Annotation)}
+	{#if a.quads.length >= 8}
+		{@const shapes = outlineQuads(a.quads).map((q) => `${q[0]},${q[1]} ${q[2]},${q[3]} ${q[4]},${q[5]} ${q[6]},${q[7]}`)}
+		{@const id = `${uid}-outline-${a.id}`}
+		{@const m = 8 / k}
+		<mask {id} maskUnits="userSpaceOnUse" x={-m} y={-m} width={size.width + 2 * m} height={size.height + 2 * m}>
+			<rect x={-m} y={-m} width={size.width + 2 * m} height={size.height + 2 * m} fill="white" />
+			{#each shapes as points, i (i)}
+				<polygon {points} fill="black" />
+			{/each}
+		</mask>
+		<g mask="url(#{id})" data-annotation-outline={a.id}>
+			{#each shapes as points, i (i)}
+				<polygon {points} class="annotation-outline annotation-outline-text" vector-effect="non-scaling-stroke" />
+			{/each}
+		</g>
+	{:else}
+		{@const b = a.bounds}
+		<rect
+			x={b[0]}
+			y={b[1]}
+			width={b[2] - b[0]}
+			height={b[3] - b[1]}
+			class="annotation-outline"
+			data-annotation-outline={a.id}
+			vector-effect="non-scaling-stroke"
+		/>
+	{/if}
+{/snippet}
 
 <!-- White until its pixels come: with adjustments, that white is the filtered layer's, so an
      inverted page waits dark, and no white shows at its edges. -->
@@ -496,14 +532,7 @@
 				{/if}
 				{#if showSelected && selected}
 					{@const b = selected.bounds}
-					<rect
-						x={b[0]}
-						y={b[1]}
-						width={b[2] - b[0]}
-						height={b[3] - b[1]}
-						class="annotation-outline"
-						vector-effect="non-scaling-stroke"
-					/>
+					{@render outline(selected)}
 					{#if handles}
 						{#each HANDLES as h (h)}
 							{@const [hx, hy] = handlePoint(b, h)}
@@ -519,15 +548,7 @@
 					{/if}
 				{/if}
 				{#each grouped as a (a.id)}
-					{@const b = a.bounds}
-					<rect
-						x={b[0]}
-						y={b[1]}
-						width={b[2] - b[0]}
-						height={b[3] - b[1]}
-						class="annotation-outline"
-						vector-effect="non-scaling-stroke"
-					/>
+					{@render outline(a)}
 				{/each}
 				{#each moving as m (m.id)}
 					{@const b = m.box}
@@ -537,6 +558,7 @@
 						width={b[2] - b[0]}
 						height={b[3] - b[1]}
 						class="annotation-outline annotation-outline-draft"
+						data-annotation-outline={m.id}
 						vector-effect="non-scaling-stroke"
 					/>
 				{/each}

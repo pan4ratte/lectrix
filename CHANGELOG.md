@@ -30,6 +30,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ### Annotations
 
+- A selected highlight, underline, strikeout or squiggly is outlined around the text it marks, starting and ending where the marked text does, instead of in a box as wide as all its lines.
 - Select several annotations at once: with the Select tool, drag a rectangle from an empty part of the page over them, as on a desktop, or Ctrl+click them on the page or in the **Annotations** panel. Change their colour, move them or delete them together, each in one step you can undo. Hold Ctrl or Shift while dragging to add to the selection.
 - In the **Annotations** panel, Shift+click a row to select every row from the one you clicked before, or press Shift with the arrow keys. The new **Select all** button in the panel's header, or Ctrl+A in the list, selects every annotation the list shows: with a search or filters on, only the ones they leave in. Click the button again to deselect them. Right-click one of them to delete them all.
 - With the highlight, underline, strikeout, squiggly, note and text box tools, click an annotation to select it, as with the Select tool: its bar or comment shows, and you can recolour, move or delete it without switching tools. Dragging from an annotation still does what the tool does, so you can highlight text under a highlight. The pen still draws wherever you press it.

@@ -1006,9 +1006,11 @@ test('comments keep their line breaks, and looking at one changes nothing', asyn
 		await showAnnotations(browser);
 		const lines = (text) => text.split(LF).map((l) => l.trim()).filter(Boolean);
 
-		// The list shows two lines.
-		const shown = await browser.execute(() => document.querySelector('.annotation-row p').innerText);
-		assert.deepEqual(lines(shown), ['First line', 'Second line']);
+		// The list shows two lines. (A row's text has no innerText until the row is first
+		// drawn: rows have `content-visibility: auto`.)
+		const listed = () => browser.execute(() => document.querySelector('.annotation-row p')?.innerText ?? '');
+		await browser.waitUntil(async () => lines(await listed()).length > 0, { timeoutMsg: 'the list shows no comment' });
+		assert.deepEqual(lines(await listed()), ['First line', 'Second line']);
 
 		// So does the tooltip.
 		await browser.action('pointer').move({ ...(await pagePoint(browser, 0, 410, 160)), origin: 'viewport' }).perform();
@@ -1418,7 +1420,7 @@ test('a click selects an annotation with any tool but the pen, and a drag from i
 		await browser.keys('t');
 		await click(browser, onStroke);
 		await expectSelected('Drawing', 'a click on the drawing with the text box tool');
-		const outline = () => browser.execute(() => document.querySelector('.annotation-outline')?.getBoundingClientRect().toJSON());
+		const outline = () => browser.execute(() => document.querySelector('[data-annotation-outline]')?.getBoundingClientRect().toJSON());
 		const was = await outline();
 		// Pressed again at once, it would be a double-click, which opens the comment.
 		await browser.pause(700);
@@ -1462,7 +1464,7 @@ test('an area dragged with the Select tool selects annotations, which change, mo
 			});
 		const groupCount = () => browser.execute(() => document.querySelector('[data-group-count]')?.textContent?.trim() ?? null);
 		const outlines = () =>
-			browser.execute(() => [...document.querySelectorAll('.annotation-outline')].map((o) => o.getBoundingClientRect().toJSON()));
+			browser.execute(() => [...document.querySelectorAll('[data-annotation-outline]')].map((o) => o.getBoundingClientRect().toJSON()));
 		const ctrlClick = async (at) => {
 			await browser.action('key').down(Key.Ctrl).perform(true);
 			await click(browser, at);

@@ -32,6 +32,7 @@ import {
 	hits,
 	moveBox,
 	normalizeBox,
+	outlineQuads,
 	resizeBox,
 	selectionRanges,
 	textBoxFrame,
@@ -558,5 +559,60 @@ describe('comment panel tail and resizing', () => {
 		expect(resizePanel(panel, 'w', 200, 0, view, 1000).x0).toBe(688 - PANEL_MIN.w);
 		expect(resizePanel(panel, 's', 0, 2000, view, 1000).y1).toBe(800 - BAR_GAP);
 		expect(resizePanel(panel, 'n', 0, 500, view, 1000).y0).toBe(300 - PANEL_MIN.h);
+	});
+});
+
+describe('outlineQuads', () => {
+	/** An upright quad from (x0, y0) to (x1, y1), corners as Annotation.quads has them. */
+	const quad = (x0: number, y0: number, x1: number, y1: number) => [x0, y0, x1, y0, x0, y1, x1, y1];
+	/** An outline shape back as a box (it is upright here). */
+	const box = (q: number[]) => [Math.min(q[0]!, q[6]!), Math.min(q[1]!, q[3]!), Math.max(q[2]!, q[4]!), Math.max(q[5]!, q[7]!)];
+
+	it('keeps each line as wide as its text', () => {
+		const lines = [...quad(300, 100, 500, 112), ...quad(72, 114, 500, 126), ...quad(72, 128, 180, 140)];
+		const shapes = outlineQuads(lines).map(box);
+		expect(shapes.map((b) => [b[0], b[2]])).toEqual([
+			[300, 500],
+			[72, 500],
+			[72, 180]
+		]);
+	});
+
+	it('closes the gaps between lines, so they make one shape', () => {
+		const [a, b, c] = outlineQuads([...quad(300, 100, 500, 112), ...quad(72, 114, 500, 126), ...quad(72, 128, 180, 140)]).map(box);
+		// Each goes half way to the next, and a little further.
+		expect(a![3]).toBeCloseTo(113.25);
+		expect(b![1]).toBeCloseTo(112.75);
+		expect(b![3]).toBeCloseTo(127.25);
+		expect(c![1]).toBeCloseTo(126.75);
+		// The outer edges stay where the text is.
+		expect(a![1]).toBe(100);
+		expect(c![3]).toBe(140);
+	});
+
+	it('leaves apart lines far from each other or side by side with no width in common', () => {
+		// A paragraph further down, and a line whose text ends before the next line's begins.
+		const far = outlineQuads([...quad(72, 100, 500, 112), ...quad(72, 140, 500, 152)]).map(box);
+		expect(far).toEqual([
+			[72, 100, 500, 112],
+			[72, 140, 500, 152]
+		]);
+		const apart = outlineQuads([...quad(300, 100, 500, 112), ...quad(72, 114, 200, 126)]).map(box);
+		expect(apart).toEqual([
+			[300, 100, 500, 112],
+			[72, 114, 200, 126]
+		]);
+	});
+
+	it('works in the text’s own directions on a turned page', () => {
+		// Text running down the page (turned 90° clockwise): "down" the text is to the left.
+		const turned = (x0: number, y0: number, x1: number, y1: number) => [x1, y0, x1, y1, x0, y0, x0, y1];
+		const [a, b] = outlineQuads([...turned(488, 72, 500, 500), ...turned(474, 72, 486, 300)]);
+		// The first line's lower edge (at its left, x 488) goes to 486.75; the second's upper
+		// edge (x 486) to 487.25; along the text nothing changes.
+		expect(a![4]).toBeCloseTo(486.75);
+		expect(b![0]).toBeCloseTo(487.25);
+		expect([a![1], a![3]]).toEqual([72, 500]);
+		expect([b![1], b![3]]).toEqual([72, 300]);
 	});
 });
