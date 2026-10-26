@@ -1185,6 +1185,11 @@ button.shortcut-key:hover,
 .annotation-row[aria-selected='true'] {
 	background: var(--lectrix-row-selected);
 }
+/* Among annotations selected together, the row the arrow keys move from, while the keyboard
+   is in the list. */
+.annotation-list:focus-visible .annotation-row[data-cursor] {
+	box-shadow: inset 0 0 0 1px var(--lectrix-focus);
+}
 /* A row's first line (type, author, date) starts where its comment's text does: inset by
    the comment field's padding and edge (see .comment-text). */
 .annotation-meta {

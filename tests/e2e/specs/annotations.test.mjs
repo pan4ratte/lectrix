@@ -1589,3 +1589,116 @@ test('an area dragged with the Select tool selects annotations, which change, mo
 		await stop();
 	}
 });
+
+test('the annotation list selects several rows with Shift, Ctrl+A and its Select all button', async () => {
+	const path = sample('select-list.pdf', 1);
+
+	const { browser, stop } = await launch([path]);
+	try {
+		await waitForDocument(browser);
+		await showAnnotations(browser);
+		const picked = () =>
+			browser.execute(() =>
+				[...document.querySelectorAll('.annotation-row[aria-selected="true"] .annotation-type-icon')].map((i) => i.getAttribute('aria-label')).sort()
+			);
+		const expectPicked = async (types, message) =>
+			browser.waitUntil(async () => JSON.stringify(await picked()) === JSON.stringify([...types].sort()), {
+				timeoutMsg: `${message}: selected ${JSON.stringify(await picked())}`
+			});
+		const groupCount = () => browser.execute(() => document.querySelector('[data-group-count]')?.textContent?.trim() ?? null);
+		// A row's first line (a click there is the row's, not its comment's or its controls').
+		const row = async (i) => (await browser.$$('.annotation-row .annotation-meta'))[i];
+		// The selected row's controls slide open and shut, moving the rows below.
+		const still = () =>
+			browser.waitUntil(
+				() => browser.execute(() => document.querySelector('.annotation-list')?.getAnimations({ subtree: true }).length === 0),
+				{ timeoutMsg: 'the list kept moving' }
+			);
+		const withKey = async (key, act) => {
+			await browser.action('key').down(key).perform(true);
+			await act();
+			await browser.action('key').up(key).perform();
+		};
+		const menuItem = (name) => browser.$(`//*[@role="menuitem"][contains(., "${name}")]`);
+
+		// A highlight, a note and a drawing, in that order down the page.
+		await (await browser.$('[role=document]')).click();
+		await browser.keys('h');
+		await drag(browser, await pagePoint(browser, 0, 40, 92), await pagePoint(browser, 0, 120, 92), 1);
+		await waitForRowCount(browser, 1, 'highlight');
+		await browser.keys('n');
+		await click(browser, await pagePoint(browser, 0, 550, 200));
+		await waitForRowCount(browser, 2, 'note');
+		await browser.keys(['Escape']);
+		await browser.keys(['Escape']);
+		await browser.keys('p');
+		await drag(browser, await pagePoint(browser, 0, 540, 300), await pagePoint(browser, 0, 580, 360), 4);
+		await waitForRowCount(browser, 3, 'drawing');
+		await browser.keys(['Escape']);
+		await expectPicked([], 'nothing selected');
+
+		// Shift+click selects the rows from the one clicked last, and no text in them.
+		await (await row(0)).click();
+		await expectPicked(['Highlight'], 'a click on the first row');
+		await still();
+		await withKey(Key.Shift, async () => (await row(2)).click());
+		await expectPicked(['Drawing', 'Highlight', 'Note'], 'Shift+click on the last row');
+		await browser.waitUntil(async () => (await groupCount()) === '3 selected', { timeoutMsg: `group bar: ${await groupCount()}` });
+		assert.equal(await browser.execute(() => document.getSelection()?.toString() ?? ''), '', 'Shift+click selected text');
+		await still();
+		await withKey(Key.Shift, async () => (await row(1)).click());
+		await expectPicked(['Highlight', 'Note'], 'Shift+click on the second row, from the same row');
+
+		// Shift with the arrow keys moves the end of the range.
+		await browser.keys([Key.Shift, Key.ArrowDown]);
+		await expectPicked(['Drawing', 'Highlight', 'Note'], 'Shift+Down');
+		await browser.keys([Key.Shift, Key.ArrowUp]);
+		await browser.keys([Key.Shift, Key.ArrowUp]);
+		await expectPicked(['Highlight'], 'Shift+Up back to the first row');
+
+		// Ctrl+A in the list selects every row.
+		await browser.keys([Key.Ctrl, 'a']);
+		await expectPicked(['Drawing', 'Highlight', 'Note'], 'Ctrl+A');
+
+		// The header's button selects the rows the filters leave in.
+		await (await row(0)).click();
+		await expectPicked(['Highlight'], 'a click on the first row again');
+		await (await browser.$('button[aria-label="Filter annotations"]')).click();
+		await browser.waitUntil(
+			() => browser.execute(() => document.querySelector('[role=group][aria-label="Filters"]')?.getAnimations().length === 0),
+			{ timeoutMsg: 'the filters did not finish opening' }
+		);
+		const types = await browser.$('[role=group][aria-labelledby^="filter-types-"]');
+		await (await types.$('button[aria-label="Note"]')).click();
+		await (await types.$('button[aria-label="Drawing"]')).click();
+		await waitForRowCount(browser, 2, 'the Note and Drawing filters');
+		await expectPicked([], 'the filters deselected the highlight they leave out');
+		const selectAll = await browser.$('button[data-select-all]');
+		assert.equal(await selectAll.getAttribute('aria-label'), 'Select the annotations shown');
+		await selectAll.click();
+		await expectPicked(['Drawing', 'Note'], 'Select the annotations shown');
+		await (await browser.$('//button[contains(., "Clear filters")]')).click();
+		await waitForRowCount(browser, 3, 'filters cleared');
+		await expectPicked(['Drawing', 'Note'], 'still selected without the filters');
+		assert.equal(await selectAll.getAttribute('aria-label'), 'Select all annotations');
+		await selectAll.click();
+		await expectPicked(['Drawing', 'Highlight', 'Note'], 'Select all annotations');
+		assert.equal(await selectAll.getAttribute('aria-pressed'), 'true', 'the button does not show pressed');
+		// Pressed again, it takes them out.
+		await selectAll.click();
+		await expectPicked([], 'Select all pressed again');
+		assert.equal(await selectAll.getAttribute('aria-pressed'), 'false', 'the button still shows pressed');
+		await selectAll.click();
+		await expectPicked(['Drawing', 'Highlight', 'Note'], 'Select all once more');
+
+		// A right-click on one of them is for them all; their deletion is one undo step.
+		await still();
+		await (await row(1)).click({ button: 'right' });
+		await (await menuItem('Delete 3 annotations')).click();
+		await waitForRowCount(browser, 0, 'Delete 3 annotations');
+		await browser.keys([Key.Ctrl, 'z']);
+		await waitForRowCount(browser, 3, 'one undo of the delete');
+	} finally {
+		await stop();
+	}
+});

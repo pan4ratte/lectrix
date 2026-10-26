@@ -771,9 +771,13 @@ export class DocTab {
 		return all.flatMap((sel) => this.doc.annotations.get(sel.page)?.find((a) => a.id === sel.id) ?? []);
 	});
 
+	/** The selected annotations as "page:id", for a quick look-up: every row of the list asks
+	 * (and all of them may be selected). */
+	selectedKeys = $derived(new Set(this.selectedAnnotations.map((a) => `${a.page}:${a.id}`)));
+
 	/** Whether annotation `id` on `page` is selected, alone or with others. */
 	isAnnotationSelected(page: number, id: number): boolean {
-		return this.selectedAnnotations.some((a) => a.page === page && a.id === id);
+		return this.selectedKeys.has(`${page}:${id}`);
 	}
 
 	/** Selects `refs` together (none, one, or several). */

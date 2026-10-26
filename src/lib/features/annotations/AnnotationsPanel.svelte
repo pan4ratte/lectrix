@@ -1,5 +1,7 @@
 <script lang="ts">
-	// The annotation list (section 6.5). Its header counts the annotations, and has Search
+	// The annotation list (section 6.5). Rows are selected as in a desktop list: a click,
+	// Ctrl+click, Shift+click and Shift with the arrow keys, Ctrl+A. Its header counts the
+	// annotations, and has Select all (the rows shown), Search
 	// (in comments, or with its switch in the text they mark), Sort (by page, author, date
 	// created or modified, each under its own headings) and Filter, which opens the types (as
 	// their icons), colours and authors (as pills) to pick from. Each
@@ -20,6 +22,7 @@
 	import {
 		ArrowDownUp,
 		FunnelX,
+		ListChecks,
 		ListFilter,
 		LockOpen,
 		MessageSquareText,
@@ -42,7 +45,7 @@
 	import type { Annotation, AnnotationSort } from '#lib/ipc/index.ts';
 	import { unlockDocument } from '#lib/features/unprotect/actions.ts';
 	import { pageName } from '#lib/features/viewer/pagebox.ts';
-	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
+	import { displayShortcut, stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import { app, type AnnotationRows } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 	import { legibleOnPane } from '#lib/theme.ts';
@@ -67,6 +70,7 @@
 		emptyFilter,
 		filterCount,
 		groupAnnotations,
+		listRange,
 		markedText,
 		marksText,
 		matchesFilter,
@@ -388,31 +392,146 @@
 		return () => cancelAnimationFrame(frame);
 	});
 
+	const keyOf = (a: { page: number; id: number }) => `${a.page}:${a.id}`;
+
 	function show(a: Annotation) {
 		tab.selectAnnotation(a.page, a.id);
 		tab.viewer?.reveal(a.page, a.bounds, { smooth: app.settings?.smoothAnnotationScroll !== false });
 		openInspector(tab, false);
 	}
 
+	// ----- selecting several -----
+
+	/** The row the keyboard is on ("page:id"), and the one a Shift+click or Shift with the
+	 * arrow keys selects from: the last row clicked or moved to without Shift. */
+	let cursor = $state<string | null>(null);
+	let anchor: string | null = null;
+	/** The selection the list made last: one made elsewhere (on the page) moves the cursor and
+	 * the anchor to the annotation it selected. */
+	let madeHere: readonly unknown[] | null = null;
+	$effect(() => {
+		const sel = tab.selectedAnnotations;
+		const key = selectedKey;
+		untrack(() => {
+			if (sel === madeHere || !key) return;
+			cursor = key;
+			anchor = key;
+		});
+	});
+
+	const orderedKeys = $derived(ordered.map(keyOf));
+
+	/** Selects the rows `keys` together; one alone is shown as a click shows it. */
+	function selectKeys(keys: readonly string[]) {
+		const picked = keys.flatMap((k) => named(k) ?? []);
+		if (picked.length === 1) show(picked[0]!);
+		else tab.selectAnnotations(picked);
+		madeHere = tab.selectedAnnotations;
+	}
+
+	/** The rows from the anchor to `key`; with Ctrl, besides those selected already. */
+	function selectRange(key: string, adding: boolean) {
+		const range = listRange(orderedKeys, anchor, key);
+		if (anchor === null || !orderedKeys.includes(anchor)) anchor = key;
+		cursor = key;
+		selectKeys(adding ? [...new Set([...tab.selectedAnnotations.map(keyOf), ...range])] : range);
+	}
+
+	const selectAllLabel = $derived(shown.length === listed.length ? 'Select all annotations' : 'Select the annotations shown');
+
+	/** Every row the list shows is selected: the header's button shows pressed, and takes them
+	 * out again. */
+	const allSelected = $derived(shown.length > 0 && shown.every((a) => tab.isAnnotationSelected(a.page, a.id)));
+
+	/** Every row the search and the filters leave in (the header's button, Ctrl+A). */
+	function selectAll() {
+		selectKeys(orderedKeys);
+		focusList();
+	}
+
+	/** The header's button: selects every row shown, or, with all of them selected, none. */
+	function toggleAll() {
+		if (!allSelected) {
+			selectAll();
+			return;
+		}
+		tab.selectAnnotations([]);
+		madeHere = tab.selectedAnnotations;
+		focusList();
+	}
+
 	/** A click on a row shows its annotation; with Ctrl, adds it to those selected or takes
-	 * it out, as on the page. */
+	 * it out, as on the page; with Shift, selects the rows from the last one clicked. */
 	function clickRow(event: MouseEvent, a: Annotation) {
-		if (event.ctrlKey) tab.toggleAnnotation(a.page, a.id);
+		const key = keyOf(a);
+		const ctrl = event.ctrlKey || event.metaKey;
+		if (event.shiftKey) {
+			selectRange(key, ctrl);
+			return;
+		}
+		cursor = key;
+		anchor = key;
+		if (ctrl) tab.toggleAnnotation(a.page, a.id);
 		else show(a);
+		madeHere = tab.selectedAnnotations;
+	}
+
+	/** Shift or Ctrl pressed on a row selects rows, not the text in them. */
+	function pressRow(event: MouseEvent) {
+		if (!(event.shiftKey || event.ctrlKey || event.metaKey) || (event.target as HTMLElement).closest('textarea, input, button')) return;
+		event.preventDefault();
+		focusList();
+	}
+
+	/** Where the arrow keys, Home and End go from the cursor's row. */
+	function moveTo(event: KeyboardEvent): number | null {
+		const last = ordered.length - 1;
+		const at = orderedKeys.indexOf(cursor ?? selectedKey ?? '');
+		switch (event.key) {
+			case 'ArrowDown':
+				return Math.min(last, at + 1);
+			case 'ArrowUp':
+				return at < 0 ? 0 : Math.max(0, at - 1);
+			case 'Home':
+				return 0;
+			case 'End':
+				return last;
+			default:
+				return null;
+		}
 	}
 
 	function onListKey(event: KeyboardEvent) {
+		// A key typed in a comment or a reply is the field's.
+		if ((event.target as HTMLElement).closest('textarea, input')) return;
+		const ctrl = event.ctrlKey || event.metaKey;
+		if ((event.key.toLowerCase() === 'a' || event.code === 'KeyA') && ctrl && !event.altKey && !event.shiftKey) {
+			event.preventDefault();
+			selectAll();
+			return;
+		}
 		if (event.key === 'Delete' && tab.selectedGroup.length > 1) {
 			event.preventDefault();
 			void removeMany(tab, tab.selectedAnnotations);
 			return;
 		}
-		const index = ordered.findIndex((a) => `${a.page}:${a.id}` === selectedKey);
-		if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+		const to = moveTo(event);
+		if (to !== null) {
 			event.preventDefault();
-			const next = ordered[Math.max(0, Math.min(ordered.length - 1, index + (event.key === 'ArrowDown' ? 1 : -1)))];
-			if (next) show(next);
-		} else if (event.key === 'Delete' && index >= 0) {
+			const next = ordered[to];
+			if (!next) return;
+			if (event.shiftKey) {
+				selectRange(keyOf(next), false);
+				void tick().then(() => document.getElementById(rowId(keyOf(next)))?.scrollIntoView({ block: 'nearest' }));
+			} else {
+				cursor = anchor = keyOf(next);
+				show(next);
+				madeHere = tab.selectedAnnotations;
+			}
+			return;
+		}
+		const index = ordered.findIndex((a) => keyOf(a) === selectedKey);
+		if (event.key === 'Delete' && index >= 0) {
 			const a = ordered[index]!;
 			if (capabilities(a, tab.flags.canAnnotate).delete) {
 				event.preventDefault();
@@ -420,8 +539,6 @@
 			}
 		}
 	}
-
-	const keyOf = (a: Annotation) => `${a.page}:${a.id}`;
 
 	/** The annotation a `data-annotation-row` or `data-reply` attribute ("page:id") names. */
 	function named(key: string | undefined): Annotation | null {
@@ -431,14 +548,26 @@
 
 	/** What the context menu acts on: the reply or the row under the pointer. */
 	let menuTarget = $state<Annotation | null>(null);
+	/** The context menu is for the annotations selected together. */
+	let menuGroup = $state(false);
 
 	/** A right-click on a reply is for that reply; on a row, it selects the row (without
-	 * scrolling the page). From the keyboard, it arrives on the selected row. */
+	 * scrolling the page), unless the row is one of several selected together: then it is
+	 * for them all. From the keyboard, it arrives on what is selected. */
 	function onContextMenu(event: MouseEvent) {
 		const target = event.target as HTMLElement;
 		const reply = named(target.closest<HTMLElement>('[data-reply]')?.dataset.reply);
 		const row = named(target.closest<HTMLElement>('[data-annotation-row]')?.dataset.annotationRow);
-		if (row && keyOf(row) !== selectedKey) tab.selectAnnotation(row.page, row.id);
+		menuGroup = !reply && grouped && (!row || tab.isAnnotationSelected(row.page, row.id));
+		if (menuGroup) {
+			menuTarget = null;
+			return;
+		}
+		if (row && keyOf(row) !== selectedKey) {
+			tab.selectAnnotation(row.page, row.id);
+			cursor = anchor = keyOf(row);
+			madeHere = tab.selectedAnnotations;
+		}
 		menuTarget = reply ?? row ?? selected;
 	}
 
@@ -540,6 +669,18 @@
 	<div class="flex shrink-0 flex-col border-b border-line px-2 py-[6px]">
 		<div class="flex items-center gap-0.5">
 			<p class="min-w-0 flex-1 truncate px-1 text-sm text-fg-muted" aria-live="polite">{countText}</p>
+			<button
+				type="button"
+				class="icon-button tool-button"
+				aria-label={selectAllLabel}
+				data-tip={allSelected ? 'Deselect the annotations' : `${selectAllLabel} (${displayShortcut('Ctrl+A')})`}
+				aria-pressed={allSelected}
+				disabled={shown.length === 0}
+				onclick={toggleAll}
+				data-select-all
+			>
+				<ListChecks size={16} aria-hidden="true" />
+			</button>
 			<button
 				type="button"
 				class="icon-button tool-button"
@@ -759,7 +900,7 @@
 						class="annotation-list min-h-0 flex-1 overflow-y-auto p-1"
 						role="listbox"
 						aria-label="Annotations"
-						aria-activedescendant={selectedKey ? rowId(selectedKey) : undefined}
+						aria-activedescendant={cursor && shownKeys.has(cursor) ? rowId(cursor) : selectedKey ? rowId(selectedKey) : undefined}
 						aria-multiselectable={tab.selectedGroup.length > 1}
 						tabindex="0"
 						onkeydown={onListKey}
@@ -781,6 +922,8 @@
 									id={rowId(key)}
 									aria-selected={isSelected || (grouped && tab.isAnnotationSelected(a.page, a.id))}
 									data-annotation-row={key}
+									data-cursor={grouped && key === cursor ? '' : undefined}
+									onmousedown={pressRow}
 									onclick={(e) => clickRow(e, a)}
 								>
 									<div class="annotation-meta flex min-w-0 items-center gap-2 text-xs text-fg-muted">
@@ -886,7 +1029,17 @@
 						if (replyingTo !== null || editingReply !== null) e.preventDefault();
 					}}
 				>
-					{#if menuTarget}
+					{#if menuGroup}
+						{@const group = tab.selectedGroup}
+						<ContextMenu.Item
+							class="menu-item"
+							disabled={!group.some((a) => capabilities(a, tab.flags.canAnnotate).delete)}
+							onSelect={() => void removeMany(tab, tab.selectedAnnotations)}
+						>
+							Delete {group.length} annotations
+							<span class="menu-shortcut">Del</span>
+						</ContextMenu.Item>
+					{:else if menuTarget}
 						{@const t = menuTarget}
 						{@const caps = capabilities(t, tab.flags.canAnnotate)}
 						{@const isReply = tab.isThreadReply(t)}

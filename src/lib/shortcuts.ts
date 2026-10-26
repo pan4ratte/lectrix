@@ -158,6 +158,7 @@ export const FIXED_KEYS: readonly { keys: string; label: string }[] = [
 	{ keys: 'Ctrl+Shift+Left, Right', label: 'Move the focused tab or panel along its row' },
 	{ keys: 'Alt+Shift+Arrows', label: 'Move the selected bookmark, or the selected pages in Combine' },
 	{ keys: 'Ctrl+Enter', label: 'Finish a comment, a reply or a text box' },
+	{ keys: 'Ctrl+A', label: 'Select every annotation the annotation list shows, or every page in a page grid' },
 	{ keys: 'Alt (held)', label: 'In full screen, show the side panes and the toolbar' }
 ];
 

@@ -8,6 +8,7 @@ import {
 	emptyFilter,
 	filterCount,
 	groupAnnotations,
+	listRange,
 	markedText,
 	marksText,
 	matchesFilter,
@@ -168,5 +169,21 @@ describe('the annotation list', () => {
 			['5 Oct 2026', [1, 2]],
 			['No date', [3]]
 		]);
+	});
+});
+
+describe('listRange', () => {
+	const keys = ['0:1', '0:2', '1:5', '2:3'];
+
+	it('runs from the anchor to the row, both included, the anchor first', () => {
+		expect(listRange(keys, '0:2', '2:3')).toEqual(['0:2', '1:5', '2:3']);
+		expect(listRange(keys, '2:3', '0:1')).toEqual(['2:3', '1:5', '0:2', '0:1']);
+		expect(listRange(keys, '1:5', '1:5')).toEqual(['1:5']);
+	});
+
+	it('starts at the row when the anchor is not in the list', () => {
+		expect(listRange(keys, null, '0:2')).toEqual(['0:2']);
+		expect(listRange(keys, '9:9', '0:2')).toEqual(['0:2']);
+		expect(listRange(keys, '0:1', '9:9')).toEqual([]);
 	});
 });

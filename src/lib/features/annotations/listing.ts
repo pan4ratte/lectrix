@@ -213,3 +213,17 @@ export function groupAnnotations(
 	}
 	return out;
 }
+
+/**
+ * The rows from `anchor` to `target` in the list's order, both included, `anchor` first (a
+ * Shift+click or Shift with the arrow keys: section 6.5). An anchor no longer in the list
+ * starts the range at `target` alone.
+ */
+export function listRange(keys: readonly string[], anchor: string | null, target: string): string[] {
+	const to = keys.indexOf(target);
+	if (to < 0) return [];
+	const from = anchor === null ? -1 : keys.indexOf(anchor);
+	if (from < 0) return [target];
+	const range = keys.slice(Math.min(from, to), Math.max(from, to) + 1);
+	return from <= to ? range : range.reverse();
+}
