@@ -1,6 +1,6 @@
 # Annotation interoperability profile
 
-This mirrors AGENTS.md section 5 and must be kept in sync with it. Every annotation Lectrix
+This is AGENTS.md section 5 in full, which AGENTS.md keeps in short; keep the two in step. Every annotation Lectrix
 writes must display, print and be editable in Acrobat Reader, PDFium-based viewers (Edge,
 Chrome), pdf.js (Firefox) and Foxit. Write conservatively, read leniently, and never weaken
 these rules to make a test pass: report the conflict instead.
@@ -14,7 +14,7 @@ these rules to make a test pass: report the conflict instead.
 | 3 | QuadPoints in Acrobat order (UL, UR, LL, LR) in PDF user space, written by one function. Selected text becomes quads in Rust, from MuPDF's character quads, so they follow the text's direction: one quad for each run of selected characters that lie side by side on the page, from the start edge of the first one there to the end edge of the last, its corners named as the glyphs stand. Right-to-left text, whose characters MuPDF lists running leftwards, so gets a quad in Acrobat order that covers all of it; a range that crosses between the two directions gets several (ADR 0017) | `annot::quads::quad_points_array`; `text::range_quads` | `quads` unit tests, `text::tests::a_range_runs_from_its_first_edge_on_the_page_to_its_last`, `annotations::selected_text_becomes_quads_in_the_text_direction`, `annotations::right_to_left_text_is_marked_whole_and_needs_no_repair` |
 | 4 | `/Rect` = union of content + stroke width + 1 pt margin, grown together with the appearance `/BBox` when MuPDF's bounds are tighter. Text boxes keep the margin in `/RD [1 1 1 1]` | `annot::write::finalize_rect`, `synthesize` | round trip (every type, every page geometry) |
 | 5 | Highlights blend with Multiply; opacity in `/CA` on the annotation (also at 1) and in the appearance | MuPDF `pdf_write_highlight_appearance`; `annot::write::set_opacity` | round trip checks the ExtGState of every markup type |
-| 6 | `/NM` (UUID), `/T`, `/CreationDate`, `/M` (with time zone), `/F 4`, `/C`, `/P`; notes and markup with a note get a `/Popup` with `/Parent` (the popup also gets `/P` and `/F 28`, as Acrobat writes). **Text boxes:** `/C` is the background fill for FreeText (PDF 32000-1 12.5.6.6), so Lectrix writes `/C []` (no background) and the text colour in `/DA` (decided by the user on 2026-10-04: `/C` as the type defines it) | `annot::write::write_metadata`, `set_color`, `ensure_popup` | round trip |
+| 6 | `/NM` (UUID), `/T` (the author from Settings, by default the system user name), `/CreationDate`, `/M` (with time zone), `/F 4`, `/C`, `/P`; notes and markup with a note get a `/Popup` with `/Parent` (the popup also gets `/P` and `/F 28`, as Acrobat writes). **Text boxes:** `/C` is the background fill for FreeText (PDF 32000-1 12.5.6.6), so Lectrix writes `/C []` (no background) and the text colour in `/DA` (decided by the user on 2026-10-04: `/C` as the type defines it) | `annot::write::write_metadata`, `set_color`, `ensure_popup` | round trip |
 | 7 | FreeText: Helvetica via `/DA` (`/Helv`), one size and colour, plain `/Contents`, no `/RC`, no `/CL`; the box grows to fit its text, measured with MuPDF's Helvetica widths and line breaks | `annot::create`, `annot::text_box` | round trip; `text_box` unit tests |
 | 8 | All screen/PDF coordinate conversions through `geometry.rs` (Rotate, offset CropBox, UserUnit) | `geometry::PageGeometry` (annotation keys are written in user space, never through MuPDF's page transform) | unit tests + `roundtrip::geometry_matches_mupdf_page_transform`; every annotation test runs on 7 page geometries |
 | 9 | Ink simplified with Ramer–Douglas–Peucker, 0.5 pt (in view space, so in points whatever the UserUnit) | `annot::ink::simplify` | `ink` unit tests; round trip checks every input point is within 0.5 pt |
@@ -82,23 +82,22 @@ reports as fixable is what repair fixes, so a second repair finds nothing to do
 
 ## Saving
 
-Incremental by default. Repaired-on-open files get a full save, and the user is told why,
-once. "Save As (optimized)" does garbage collection and compression (objects are
-renumbered; the app then takes the new bookmark and annotation ids). Signed files: warn
-before the first edit and always save incrementally. Encrypted files keep their
-encryption, and permission flags are respected (no annotation tools without the annotate
-permission).
+AGENTS.md section 5.4 in full:
 
-PDF/A: a file that claims a level (`pdfaid:part` in its XMP metadata) opens for reading
-only until Enable editing, unless Settings says otherwise; the session refuses operations
-meanwhile (`Error::ReadOnly`). The write profile above is not PDF/A's (blended highlights,
-a font that is not embedded), so a save whose changes include an annotation added,
-changed, deleted or repaired, or pages inserted or deleted, removes the claim from the XMP
-(`docinfo::remove_pdfa_claim`: the `pdfaid` properties go, the rest stays byte for byte)
-and the user is told. Bookmarks, page labels, page rotation and the order of the pages
-keep it. Enforced in
-`session.rs` (`Operation::may_break_pdfa`), tested in `crates/pdf-core/tests/pdfa.rs` and
-`tests/e2e/specs/pdfa.test.mjs`.
+- Default save is incremental: changes are appended and the original bytes stay intact.
+- If MuPDF reports the file was repaired on open (damaged cross-reference table), it cannot be saved incrementally; do a full save and tell the user once, in plain words, why. A file that opens without an error but with no pages (a cross-reference table that leads nowhere, such as a last section naming itself as the previous one) gets the same repair from Lectrix, and is then treated the same way; if it still has no pages, it is reported as too damaged to open.
+- "Save As (optimized)" does a full rewrite with garbage collection and stream compression.
+- If the document is digitally signed, warn before the first edit that edits will be shown as changes after signing, and always save incrementally.
+- Encrypted documents: prompt for the password, keep the encryption on save, and respect permission flags (no annotating if the document disallows it). The exceptions are Unlock (section 6.8, ADR 0025), which writes the file, or a copy, without the encryption, and Protect (section 6.9, ADR 0026), which writes it with a password, restrictions or both that the user chose: always AES-256, in a full save, and checked before the file replaces anything.
+- PDF/A: a file that claims a PDF/A level (`pdfaid:part` in the XMP metadata of the catalog's `/Metadata`; the claim is read, compliance is not checked) opens for reading only, as Acrobat opens it. The session refuses every operation meanwhile, the frontend offers nothing that changes the document (annotations, bookmarks, page labels, rotating, moving, deleting or inserting pages, repair; such a shortcut says why in a notification with an Enable editing button), and bookmarks expanded or collapsed meanwhile are not written. A banner under the view bar says so, with the level ("This file claims compliance with the PDF/A standard (PDF/A-1b), so it was opened for reading only. Saving annotations or inserted pages removes that claim."), and its **Enable editing** button makes the document one like any other for as long as it is open. Settings can open such files ready to edit (section 6.6), and one that comes with changes restored after a crash opens that way. Lectrix cannot vouch that what it writes complies, so a file never keeps a claim Lectrix may have broken: a save whose changes include an annotation added, changed, deleted or repaired, pages inserted from another file, or pages deleted, takes the identification properties (`pdfaid:part`, `conformance`, `amd`, `corr`, `rev`) out of the XMP, leaves the rest of the metadata as it was, and says so in a notification ("report.pdf no longer claims to be PDF/A-1b."). Changes undone before the save do not count. Bookmarks, page labels, page rotation and the order of the pages alone keep the claim, as does a Save As, optimized or not. A document restored after a crash loses the claim at its next save, since what its changes were is not known.
+
+Where it is enforced: "Save As (optimized)" renumbers objects, so the app then takes the new
+bookmark and annotation ids. While a PDF/A file is open for reading only, the session refuses
+operations (`Error::ReadOnly`). The write profile above is not PDF/A's (blended highlights,
+a font that is not embedded), which is why a save that may break the claim removes it
+(`docinfo::remove_pdfa_claim`: the `pdfaid` properties go, the rest stays byte for byte),
+decided in `session.rs` (`Operation::may_break_pdfa`); tested in
+`crates/pdf-core/tests/pdfa.rs` and `tests/e2e/specs/pdfa.test.mjs`.
 
 ## Engine notes (from the interop harness)
 

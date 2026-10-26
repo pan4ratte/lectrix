@@ -1,6 +1,6 @@
 # Feature specifications
 
-What each feature of Lectrix does, in detail. [AGENTS.md](../../AGENTS.md) holds the rest of the specification: scope, constraints, architecture, the annotation interoperability contract (section 5), the document model and saving (section 7), testing (section 9) and the rules every change follows (section 10). These files keep the section numbers they had there (ADR 0022), so a reference to "section 6.5" anywhere leads to the file below.
+What each feature of Lectrix does, in detail. [AGENTS.md](../../AGENTS.md) holds the rest of the specification: scope, constraints, and the rules every change follows (section 10), with the other sections in short. Their detail is in [architecture.md](../architecture.md) (sections 3 and 4), [interop-profile.md](../interop-profile.md) (section 5, the annotation interoperability contract), [document-model.md](../document-model.md) (section 7), [ui.md](ui.md) (section 8) and [testing.md](../testing.md) (section 9). These files keep the section numbers they had there (ADR 0022), so a reference to "section 6.5" anywhere leads to the file below.
 
 | Section | File | Covers |
 | --- | --- | --- |
