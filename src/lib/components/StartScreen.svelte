@@ -1,7 +1,7 @@
 <script lang="ts">
 	// Shown when no document is open: the tools as cards (open a file, combine files...), or a
-	// recent file to pick; in a wide window the tools are a column at the left, two or three
-	// cards to a row, beside the recent files. Recent files show as
+	// recent file to pick; in a wide window the tools are a column at the left, three cards
+	// to a row, beside the recent files. Recent files show as
 	// a table of their names, when each was last opened and its size, or as a grid of their
 	// first pages with the name, date and size under each (a switch beside the heading,
 	// remembered in app data; switching brings the files in with a short animation). A click
@@ -35,7 +35,6 @@
 	import { PLATFORM } from '#lib/platform.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 
-	import { toolSpans } from './starttools.ts';
 
 	interface Tool {
 		id: string;
@@ -49,20 +48,15 @@
 		run: () => void;
 	}
 
-	/** The tools, as cards in a grid of two or three columns; more will come. */
+	/** The tools, as cards in a grid of three columns; more will come. */
 	const TOOLS: readonly Tool[] = [
 		{ id: 'open', label: 'Open', description: 'Browse for a PDF', icon: FolderOpen, command: 'open', run: () => void app.open() },
-		{ id: 'combine', label: 'Combine files', description: 'Merge several PDFs into one', icon: Layers, run: () => app.openCombine() },
+		{ id: 'combine', label: 'Combine files', description: 'Merge PDFs into one', icon: Layers, run: () => app.openCombine() },
 		{ id: 'organize', label: 'Organize pages', description: 'Reorder, rotate or delete', icon: LayoutGrid, run: () => void organizeFile() },
 		{ id: 'unlock', label: 'Unlock', description: 'Remove a password', icon: LockOpen, command: 'unlockFile', run: () => void unlockFile() },
 		{ id: 'protect', label: 'Protect', description: 'Add a password', icon: Lock, command: 'protectFile', run: () => void protectFile() },
 		{ id: 'compress', label: 'Compress', description: 'Reduce file size', icon: Shrink, command: 'compressFile', run: () => void compressFile() }
 	];
-
-	/** The grid's six tracks each card spans, with three cards to a row and with two (a last
-	 * row that is not full is shared out); the stylesheet picks one by the window's width. */
-	const spans3 = toolSpans(TOOLS.length, 3);
-	const spans2 = toolSpans(TOOLS.length, 2);
 
 	/** A press's ripple, from where it was pressed in the card (CSS pixels of the card, as
 	 * any zoom of the page leaves them); none with reduced motion. */
@@ -186,8 +180,8 @@
 	</button>
 {/snippet}
 
-<div class="start-screen flex h-full flex-col items-center overflow-auto px-4 pt-[12vh] pb-8">
-	<div class={['w-full', app.recent.length ? 'max-w-[1240px]' : 'max-w-[720px]']}>
+<div class="start-screen flex h-full flex-col items-center overflow-auto">
+	<div class="start-content" class:start-split={app.recent.length > 0}>
 		<div class="flex flex-wrap items-center gap-[16px]">
 			<!-- Decorative: the heading names the app. The icon's rounded square is 46 px; the
 			     image has a margin round it. -->
@@ -223,16 +217,14 @@
 				</div>
 			{/if}
 		</div>
-		<div class="start-body mt-[26px]" class:start-split={app.recent.length > 0}>
+		<div class="start-body mt-[26px]">
 			<div class="start-tools">
-				{#each TOOLS as tool, i (tool.id)}
+				{#each TOOLS as tool (tool.id)}
 					{@const shortcut = tool.command ? app.shortcut(tool.command) : ''}
 					<button
 						type="button"
 						class="start-tool"
 						data-tool={tool.id}
-						style:--tool-span-3={spans3[i]}
-						style:--tool-span-2={spans2[i]}
 						aria-labelledby="start-tool-{tool.id}"
 						aria-describedby={shortcut ? `start-tool-${tool.id}-about start-tool-${tool.id}-keys` : `start-tool-${tool.id}-about`}
 						onpointerdown={pressed}

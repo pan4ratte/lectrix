@@ -1717,39 +1717,42 @@ button.shortcut-key:hover,
 	letter-spacing: -0.02em;
 }
 
-/* With recent files, a wide start screen shows the tools as a column at the left, two cards
-   to a row, three in a wider window, and the recent files beside them; a narrower one has the
-   tools across, three to a row, over the recent files. */
+/* The tools are three cards to a row, each 204 px wide whatever the window's width, and
+   the start screen keeps at least 40 px round its content. With recent files, a start screen
+   wide enough has the tools as a column at the left and the recent files beside them,
+   48 px apart; a narrower one, or one without recent files, has the recent files under the
+   tools, as wide as they are. */
 .start-screen {
+	--start-card-w: 204px;
+	--start-tools-w: calc(3 * var(--start-card-w) + 2 * 12px);
 	container-type: inline-size;
+	padding: 12vh 40px 40px;
 	background: var(--lectrix-start-bg);
 }
 :root:has(.start-screen) .title-bar {
 	background: var(--lectrix-start-bar);
 }
+.start-content {
+	width: 100%;
+	max-width: var(--start-tools-w);
+}
 .start-recent {
 	margin-top: 34px;
 }
-@container (min-width: 960px) {
-	.start-split {
-		display: grid;
-		grid-template-columns: 372px minmax(0, 1fr);
-		align-items: start;
-		gap: 40px;
+/* The tools' column, the gap and room for the recent files' table (its name column a
+   little wider than the date's). */
+@container (min-width: 1164px) {
+	.start-content.start-split {
+		max-width: 1300px;
 	}
-	.start-split .start-tool {
-		grid-column: span var(--tool-span-2);
+	.start-split .start-body {
+		display: grid;
+		grid-template-columns: var(--start-tools-w) minmax(0, 1fr);
+		align-items: start;
+		gap: 48px;
 	}
 	.start-split .start-recent {
 		margin-top: 0;
-	}
-}
-@container (min-width: 1320px) {
-	.start-split {
-		grid-template-columns: 552px minmax(0, 1fr);
-	}
-	.start-split .start-tool {
-		grid-column: span var(--tool-span-3);
 	}
 }
 
@@ -1759,22 +1762,17 @@ button.shortcut-key:hover,
    pointer or the keyboard focus it lifts, its border turns blue, its icon tile takes a tint
    of the accent and rises with a small spring, and the arrow slides in. Pressed, it sinks
    back a little, and a ripple runs out from where it was pressed (from its centre for Enter
-   and Space; StartScreen.svelte). The grid has six tracks and a card spans two (three where
-   the cards are two to a row); the cards of a last row that is not full share it
-   (StartScreen.svelte works out the spans). */
+   and Space; StartScreen.svelte). A last row that is not full keeps the cards' width. */
 .start-tools {
 	display: grid;
-	grid-template-columns: repeat(6, minmax(0, 1fr));
+	grid-template-columns: repeat(3, var(--start-card-w));
 	gap: 12px;
 }
 .start-tool {
 	position: relative;
 	display: flex;
-	/* At least: a line on what a tool does may wrap in a narrow window. The cards of a row
-	   stay as tall as each other. */
 	min-height: 124px;
 	min-width: 0;
-	grid-column: span var(--tool-span-3);
 	flex-direction: column;
 	justify-content: space-between;
 	gap: 6px;
@@ -1861,9 +1859,13 @@ button.shortcut-key:hover,
 	font-size: 14.5px;
 	font-weight: 600;
 }
+/* One line, cut short with "…" should one ever be too long for the card. */
 .start-tool-description {
+	overflow: hidden;
 	color: var(--lectrix-fg-muted);
 	font-size: 12.5px;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 /* The ripple of a press: a 10 px dot where it was pressed, grown 48 times as it fades. The
    card clips it, and StartScreen.svelte removes it when it has run. */
