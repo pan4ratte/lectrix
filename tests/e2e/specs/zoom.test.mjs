@@ -71,3 +71,60 @@ test('zooming in the middle of a document keeps the page on screen drawn', async
 		await stop();
 	}
 });
+
+test('a zoom typed in the zoom box applies on Enter', async () => {
+	const path = sample('zoom-typed.pdf', 3);
+	const { browser, stop } = await launch([path]);
+	try {
+		await waitForDocument(browser);
+		const box = await browser.$('[data-zoom-box]');
+		const shown = () => box.getValue();
+		const expectShown = async (text, message) =>
+			browser.waitUntil(async () => (await shown()) === text, { timeoutMsg: `${message}: the box shows ${JSON.stringify(await shown())}` });
+		const pageWidth = () => browser.execute(() => document.querySelector('.page[data-page="0"]').getBoundingClientRect().width);
+
+		// A click selects what the box shows, so typing replaces it; Enter zooms there and
+		// hands the keyboard back to the pages.
+		await box.click();
+		await browser.keys([...'137', 'Enter']);
+		await expectShown('137%', 'typed 137');
+		// (Once the glide has ended.)
+		await browser.pause(400);
+		const at137 = await pageWidth();
+		assert.equal(await browser.execute(() => document.activeElement?.classList.contains('viewer-scroll')), true, 'the pages do not have the focus');
+
+		// What is no percentage is refused, and Esc puts the zoom back.
+		await box.click();
+		await browser.keys([...'abc', 'Enter']);
+		assert.equal(await box.getAttribute('aria-invalid'), 'true', 'text was not refused');
+		await browser.keys(['Escape']);
+		await expectShown('137%', 'Esc');
+		assert.equal(await box.getAttribute('aria-invalid'), 'false');
+
+		// Beyond what there can be, it is the largest zoom; a percent sign may be typed.
+		await box.click();
+		await browser.keys([...'5000%', 'Enter']);
+		await expectShown('1600%', 'typed 5000%');
+		await box.click();
+		await browser.keys([...'100', 'Enter']);
+		await expectShown('100%', 'typed 100');
+		await browser.pause(400);
+		const ratio = at137 / (await pageWidth());
+		assert.ok(Math.abs(ratio - 1.37) < 0.01, `137% is ${ratio} times 100%`);
+
+		// Up in the box zooms in to the next preset, as + does.
+		await box.click();
+		await browser.keys(['ArrowUp']);
+		await expectShown('125%', 'Up in the box');
+		await browser.keys(['Escape']);
+
+		// The chevron opens the fits and the presets.
+		await (await browser.$('button[aria-label="Zoom options"]')).click();
+		const menu = await browser.$('[role=menu]');
+		await menu.waitForDisplayed({ timeoutMsg: 'the chevron opened no menu' });
+		await (await browser.$('//*[@role="menuitem"][normalize-space(.)="200%"]')).click();
+		await expectShown('200%', 'the 200% preset');
+	} finally {
+		await stop();
+	}
+});

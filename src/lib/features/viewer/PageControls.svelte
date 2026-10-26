@@ -19,7 +19,7 @@
 	import { pageBoxText, pageOf, pagePosition, resolvePageInput } from './pagebox.ts';
 	import PageDisplayIcon from './PageDisplayIcon.svelte';
 	import VisualAdjustments from './VisualAdjustments.svelte';
-	import { ZOOM_PRESETS } from './zoom.ts';
+	import { ZOOM_PRESETS, parseZoomInput } from './zoom.ts';
 
 	/** `side`: where the menus open; beside the controls when these are stacked. */
 	let { tab, nested = false, side = 'bottom' }: { tab: DocTab; nested?: boolean; side?: MenuSide } = $props();
@@ -85,6 +85,63 @@
 	const rows = $derived(rowCount(tab.pageCount, tab.columns, tab.cover));
 
 	const zoomText = $derived(`${Math.round(tab.zoom * 100)}%`);
+
+	// The zoom box: the zoom as a percentage, which can be typed over (Enter applies it, Esc
+	// or leaving the box puts it back); its chevron opens the fits and the presets.
+	let zoomInput: HTMLInputElement | undefined = $state();
+	let zoomBox: HTMLElement | undefined = $state();
+	let zoomEditing = $state(false);
+	let zoomDraft = $state('');
+	let zoomInvalid = $state(false);
+
+	function onZoomFocus() {
+		zoomEditing = true;
+		zoomDraft = zoomText;
+		zoomInvalid = false;
+		queueMicrotask(() => zoomInput?.select());
+	}
+
+	function endZoomEdit() {
+		zoomEditing = false;
+		zoomInvalid = false;
+	}
+
+	function commitZoom() {
+		const zoom = parseZoomInput(zoomDraft);
+		if (zoom === null) {
+			zoomInvalid = true;
+			return;
+		}
+		endZoomEdit();
+		tab.viewer?.setZoom(zoom, 'custom');
+		tab.viewer?.focus();
+	}
+
+	/** Enter applies, Esc puts the zoom back; Up and Down step it as + and − do, and Alt+Down
+	 * opens the menu, as in a combo box. */
+	function onZoomKey(event: KeyboardEvent) {
+		if (event.key === 'Enter') {
+			event.preventDefault();
+			commitZoom();
+		} else if (event.key === 'Escape') {
+			event.preventDefault();
+			event.stopPropagation();
+			endZoomEdit();
+			tab.viewer?.focus();
+		} else if (event.key === 'ArrowDown' && event.altKey) {
+			event.preventDefault();
+			zoomOpen = true;
+		} else if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+			event.preventDefault();
+			tab.viewer?.zoomStep(event.key === 'ArrowUp' ? 1 : -1);
+			// The box shows where the zoom is heading, ready to be typed over again.
+			queueMicrotask(() => {
+				zoomDraft = `${Math.round(tab.zoom * 100)}%`;
+				zoomInvalid = false;
+				queueMicrotask(() => zoomInput?.select());
+			});
+		}
+	}
 	const modeLabel = $derived(VIEW_MODES.find((m) => m.id === tab.mode)?.label ?? '');
 </script>
 
@@ -122,8 +179,7 @@
 		bind:this={input}
 		id="page-box"
 		class={['field h-7 text-center tabular-nums', stacked ? 'my-0.5 w-[40px] px-0.5 text-xs' : 'ml-1 w-14']}
-		class:border-line={!invalid}
-		class:border-danger={invalid}
+		class:field-invalid={invalid}
 		value={editing ? draft : pageBoxText(tab.currentPage, tab.displayLabels)}
 		oninput={(e) => (draft = e.currentTarget.value)}
 		onfocus={onFocus}
@@ -164,18 +220,45 @@
 		<Minus size={16} aria-hidden="true" />
 	</button>
 	<DropdownMenu.Root bind:open={zoomOpen}>
-		<DropdownMenu.Trigger
-			class={[
-				'h-7 rounded-control text-fg tabular-nums hover:bg-hover aria-expanded:bg-hover',
-				stacked ? 'w-[40px] text-xs' : 'min-w-16 px-2'
-			]}
-			aria-label="Zoom level {zoomText}"
-		>
-			{zoomText}
-		</DropdownMenu.Trigger>
+		<!-- The chevron sits at the box's right end; stacked, under the box. -->
+		<div bind:this={zoomBox} class={['relative flex items-center', stacked ? 'w-[40px] flex-col gap-0.5' : 'w-[72px]']}>
+			<label class="sr-only" for="zoom-box-{tab.id}">Zoom level</label>
+			<input
+				bind:this={zoomInput}
+				id="zoom-box-{tab.id}"
+				class={['field h-7 w-full text-center tabular-nums', stacked && 'text-xs']}
+				style:padding={stacked ? '0 2px' : '0 21px 0 4px'}
+				class:field-invalid={zoomInvalid}
+				value={zoomEditing ? zoomDraft : zoomText}
+				oninput={(e) => {
+					zoomDraft = e.currentTarget.value;
+					zoomInvalid = false;
+				}}
+				onfocus={onZoomFocus}
+				onblur={endZoomEdit}
+				onkeydown={onZoomKey}
+				data-tip="Type a zoom and press Enter"
+				aria-invalid={zoomInvalid}
+				data-zoom-box
+			/>
+			{#if zoomInvalid}
+				<span class="sr-only" role="alert">Type the zoom as a percentage, such as 150</span>
+			{/if}
+			<DropdownMenu.Trigger
+				class={[
+					'flex shrink-0 items-center justify-center rounded-control text-fg-muted hover:bg-hover hover:text-fg aria-expanded:bg-hover',
+					stacked ? 'h-4 w-full' : 'absolute inset-y-[3px] right-[3px] w-4'
+				]}
+				aria-label="Zoom options"
+				data-tip="Fit width, fit page and preset zooms"
+			>
+				<ChevronDown size={12} aria-hidden="true" />
+			</DropdownMenu.Trigger>
+		</div>
 		<DropdownMenu.Portal>
 			<DropdownMenu.Content
 				class="menu-content"
+				customAnchor={zoomBox}
 				{side}
 				align={menuAlign}
 				sideOffset={menuOffset(side, 0)}

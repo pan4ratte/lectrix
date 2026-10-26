@@ -13,6 +13,17 @@ export function clampZoom(zoom: number): number {
 	return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, zoom));
 }
 
+/**
+ * The zoom typed in the zoom box, as a percentage ("150", "150 %", "87.5%", "87,5"), kept
+ * within the zoom there can be; null for anything else.
+ */
+export function parseZoomInput(text: string): number | null {
+	const m = /^(\d+(?:[.,]\d*)?|[.,]\d+)\s*%?$/.exec(text.trim());
+	if (!m) return null;
+	const percent = Number(m[1]!.replace(',', '.'));
+	return Number.isFinite(percent) ? clampZoom(percent / 100) : null;
+}
+
 /** The next preset above (`direction` 1) or below (-1) `zoom`. */
 export function stepZoom(zoom: number, direction: 1 | -1): number {
 	const eps = 1e-3;

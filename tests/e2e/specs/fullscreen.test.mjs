@@ -208,7 +208,7 @@ test('full screen shows the pages alone; the sides of the screen and Alt bring t
 			{ orientation: 'vertical', atLeft: true, tall: true, inScreen: true, centred: true, inOrder: true, right: 0 },
 			`the toolbar at the left of the screen: ${JSON.stringify(stacked)}`
 		);
-		await (await browser.$(`${FLOATING} button[aria-label^="Zoom level"]`)).click();
+		await (await browser.$(`${FLOATING} button[aria-label="Zoom options"]`)).click();
 		const zoomMenu = await browser.$('[role=menu]');
 		await zoomMenu.waitForDisplayed({ timeoutMsg: 'the zoom level opened no menu' });
 		await browser.waitUntil(() => browser.execute(() => document.getAnimations().every((a) => a.playState !== 'running')));

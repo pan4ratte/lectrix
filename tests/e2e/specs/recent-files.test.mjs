@@ -13,7 +13,7 @@ import { sample } from '../lib/pdfcli.mjs';
 
 const pageBox = (browser) => browser.execute(() => document.querySelector('#page-box')?.value ?? null);
 const zoomText = (browser) =>
-	browser.execute(() => document.querySelector('[aria-label^="Zoom level"]')?.getAttribute('aria-label') ?? null);
+	browser.execute(() => document.querySelector('[data-zoom-box]')?.value ?? null);
 
 const startButton = (browser) => browser.$('button[aria-label="Lectrix: start screen"]');
 const selectedTabs = (browser) =>
@@ -160,7 +160,7 @@ test('a closed document reopens from the recent list where it was left', async (
 		const zoom = await zoomText(browser);
 		// The second step, pressed while the first still glides, goes on from where that was
 		// heading, and both land on presets.
-		assert.match(zoom ?? '', /^Zoom level (50|75|100|125|150|200|300|400)%$/, `zoom after two steps: ${zoom}`);
+		assert.match(zoom ?? '', /^(50|75|100|125|150|200|300|400)%$/, `zoom after two steps: ${zoom}`);
 
 		// Close both (the view is remembered on closing), and reopen the first from the list.
 		await browser.keys(['Control', 'w']);

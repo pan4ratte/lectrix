@@ -49,6 +49,7 @@ import {
 	fitPageZoom,
 	fitWidthZoom,
 	isTiled,
+	parseZoomInput,
 	pixelSize,
 	renderScale,
 	snapToDevice,
@@ -233,6 +234,17 @@ describe('layout', () => {
 });
 
 describe('zoom', () => {
+	it('reads a zoom typed as a percentage, kept within the zoom there can be', () => {
+		expect(parseZoomInput('150')).toBe(1.5);
+		expect(parseZoomInput(' 150 % ')).toBe(1.5);
+		expect(parseZoomInput('87.5%')).toBe(0.875);
+		expect(parseZoomInput('87,5')).toBe(0.875);
+		expect(parseZoomInput('5')).toBe(MIN_ZOOM);
+		expect(parseZoomInput('0')).toBe(MIN_ZOOM);
+		expect(parseZoomInput('99999')).toBe(MAX_ZOOM);
+		for (const bad of ['', '%', 'abc', '-50', '1.5.0', '150%%', '1e3']) expect(parseZoomInput(bad)).toBeNull();
+	});
+
 	it('steps through presets and clamps', () => {
 		expect(stepZoom(1, 1)).toBe(1.25);
 		expect(stepZoom(1, -1)).toBe(0.75);
