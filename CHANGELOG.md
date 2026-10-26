@@ -23,6 +23,10 @@ the wording, translations): docs/releasing.md, "The changelog".
 - With documents side by side, after you had looked at another tab, **Save** and the side panels could keep acting on the document you clicked away from: Save saved the other document, and the **Bookmarks**, **Annotations** and **Pages** panels showed it. They now follow the document you click.
 - With **Greyscale** on, selected text and search results keep their colours, as annotations do, instead of turning grey.
 
+### Annotations
+
+- With the highlight, underline, strikeout, squiggly, note and text box tools, click an annotation to select it, as with the Select tool: its bar or comment shows, and you can recolour, move or delete it without switching tools. Dragging from an annotation still does what the tool does, so you can highlight text under a highlight. The pen still draws wherever you press it.
+
 ### General
 
 - **Help > About** shows the version as soon as it opens, instead of a moment later.

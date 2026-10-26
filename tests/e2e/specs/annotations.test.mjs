@@ -1344,3 +1344,101 @@ test('copying from the quick tools and the context menus, and a comment left emp
 		await stop();
 	}
 });
+
+test('a click selects an annotation with any tool but the pen, and a drag from it does what the tool does', async () => {
+	const path = sample('select-with-tools.pdf', 1);
+
+	const { browser, stop } = await launch([path]);
+	try {
+		await waitForDocument(browser);
+		await showAnnotations(browser);
+		const selectedType = () =>
+			browser.execute(
+				() => document.querySelector('.annotation-row[aria-selected="true"] .annotation-type-icon')?.getAttribute('aria-label') ?? null
+			);
+		const activeTool = () =>
+			browser.execute(() => document.querySelector('[role=toolbar][aria-label="Annotation tools"] [aria-pressed=true]')?.getAttribute('aria-label'));
+		const expectSelected = async (type, message) =>
+			browser.waitUntil(async () => (await selectedType()) === type, { timeoutMsg: `${message}: selected ${await selectedType()}` });
+		// Esc deselects the annotation first, and leaves the tool as it was.
+		const deselect = async (tool) => {
+			await browser.keys('Escape');
+			await expectSelected(null, 'Esc');
+			assert.equal(await activeTool(), tool);
+		};
+
+		await (await browser.$('[role=document]')).click();
+		await browser.keys('h');
+		const onHighlight = await pagePoint(browser, 0, 60, 92);
+		await drag(browser, await pagePoint(browser, 0, 40, 92), await pagePoint(browser, 0, 120, 92), 1);
+		await waitForRowCount(browser, 1, 'highlight');
+		assert.equal(await selectedType(), null, 'new markup was selected');
+
+		// Highlight tool: a click on the highlight selects it and marks nothing; a drag from it
+		// marks text, from where it was pressed.
+		await click(browser, onHighlight);
+		await expectSelected('Highlight', 'a click with the highlight tool');
+		await browser.pause(300);
+		assert.equal((await listRows(browser)).length, 1, 'a click on the highlight marked text');
+		assert.equal(await activeTool(), 'Highlight');
+		await deselect('Highlight');
+		await drag(browser, await pagePoint(browser, 0, 100, 92), await pagePoint(browser, 0, 250, 92), 1);
+		await waitForRowCount(browser, 2, 'a drag from the highlight with the highlight tool');
+
+		// Pen: it draws over annotations, with its crosshair there too, and selects none.
+		await browser.keys('p');
+		await browser.action('pointer').move({ ...onHighlight, origin: 'viewport' }).perform();
+		await browser.pause(300);
+		assert.deepEqual(
+			await browser.execute(() => {
+				const c = document.querySelector('[role=document]').classList;
+				return [c.contains('cursor-crosshair'), c.contains('cursor-pointer')];
+			}),
+			[true, false],
+			'the pen showed the hand over the highlight'
+		);
+		const strokeFrom = await pagePoint(browser, 0, 70, 92);
+		const strokeEnd = await pagePoint(browser, 0, 200, 220);
+		await drag(browser, strokeFrom, strokeEnd);
+		await waitForRowCount(browser, 3, 'a stroke from the highlight');
+		// A corner of the stroke that `drag` drew, away from the resize handles.
+		const onStroke = {
+			x: Math.round(strokeFrom.x + (strokeEnd.x - strokeFrom.x) / 2),
+			y: Math.round(strokeFrom.y + (strokeEnd.y - strokeFrom.y) / 2 - 6)
+		};
+		await drag(browser, onStroke, await pagePoint(browser, 0, 300, 300));
+		await waitForRowCount(browser, 4, 'a stroke from the drawing');
+		assert.equal(await selectedType(), null, 'the pen selected an annotation');
+		assert.equal(await activeTool(), 'Pen');
+
+		// Text box tool: a click selects the drawing; dragged then, it moves, and no text box
+		// is begun.
+		await browser.keys('t');
+		await click(browser, onStroke);
+		await expectSelected('Drawing', 'a click on the drawing with the text box tool');
+		const outline = () => browser.execute(() => document.querySelector('.annotation-outline')?.getBoundingClientRect().toJSON());
+		const was = await outline();
+		// Pressed again at once, it would be a double-click, which opens the comment.
+		await browser.pause(700);
+		await drag(browser, onStroke, { x: onStroke.x + 40, y: onStroke.y + 40 }, 4);
+		await browser.waitUntil(async () => Math.abs((await outline()).left - was.left - 40) < 4, {
+			timeoutMsg: `the drawing did not move: ${JSON.stringify(await outline())} from ${JSON.stringify(was)}`
+		});
+		assert.equal((await listRows(browser)).length, 4, 'a drag of the selected drawing made something');
+		await expectSelected('Drawing', 'the moved drawing');
+		await deselect('Text box');
+
+		// Text box and note: a click on an annotation selects it, and makes nothing.
+		await click(browser, onHighlight);
+		await expectSelected('Highlight', 'a click with the text box tool');
+		assert.equal(await (await browser.$('textarea[data-annotation-editor]')).isExisting(), false, 'a text box was begun');
+		await deselect('Text box');
+		await browser.keys('n');
+		await click(browser, onHighlight);
+		await expectSelected('Highlight', 'a click with the note tool');
+		await browser.pause(300);
+		assert.equal((await listRows(browser)).length, 4, 'a note was placed on the highlight');
+	} finally {
+		await stop();
+	}
+});

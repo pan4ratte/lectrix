@@ -901,9 +901,11 @@
 				unit?: [Caret, Caret];
 				by?: SelectionUnit;
 		  }
-		// An annotation that doesn't move, pressed with the Select tool where there is text
-		// (`caret`): let go there, it is selected; dragged, the text is (section 6.5).
-		| { kind: 'press'; page: number; hit: Annotation; caret: Caret; at: { x: number; y: number } }
+		// An annotation pressed where a drag does something else (section 6.5): let go there
+		// (`at`, client pixels), it is selected; dragged, the press becomes `then`. With the
+		// Select tool, one that doesn't move, over text, whose drag selects the text; with
+		// another tool, any, whose drag does what the tool does.
+		| { kind: 'press'; page: number; hit: Annotation; at: { x: number; y: number }; then: Gesture }
 		| { kind: 'move'; page: number; id: number; start: [number, number]; box: Box; handle: Handle | null; moved: boolean }
 		| { kind: 'ink'; page: number; points: number[] }
 		| { kind: 'area'; page: number; start: [number, number] }
@@ -1031,6 +1033,68 @@
 		if (clicks !== 2 && showsComment(hit)) setPanel(tab, true);
 	}
 
+	/** Whether `hit` on `page` is the selected annotation. */
+	function isSelected(page: number, hit: Annotation): boolean {
+		const sel = tab.selectedAnnotation;
+		return sel?.page === page && sel.id === hit.id;
+	}
+
+	/**
+	 * A press on annotation `hit` (at page point x, y). A click selects it as an object with
+	 * any tool but the pen, which draws over annotations (section 6.5). With the Select tool, a drag moves one that moves, and selects
+	 * the text under one that doesn't; with another tool, a drag from one not selected does
+	 * what the tool does, and the selected one is moved as with the Select tool. False when
+	 * the press is left to the tool.
+	 */
+	function pressAnnotation(event: PointerEvent, page: number, hit: Annotation, x: number, y: number, clicks: number): boolean {
+		const tool = tools.tool;
+		const caps = capabilities(hit, tab.flags.canAnnotate);
+		const at = { x: event.clientX, y: event.clientY };
+		if (tool !== 'select' && !isSelected(page, hit)) {
+			// Shift is the tool's (extending the text selection). A double-click's first click
+			// has selected the annotation, so its second is the Select tool's, below.
+			if (clicks !== 1 || event.shiftKey) return false;
+			let then: Gesture | null = null;
+			if (isMarkupTool(tool)) {
+				const caret = caretAt(event.clientX, event.clientY, false);
+				if (caret) then = { kind: 'text', anchor: caret };
+			} else if (tool === 'freeText') {
+				then = { kind: 'textbox', page, start: [x, y] };
+			}
+			if (then) {
+				begin(event, { kind: 'press', page, hit, at, then });
+			} else {
+				// Nothing to drag (a note is placed with a click; a markup tool away from text).
+				pickAnnotation(page, hit, 1);
+				event.preventDefault();
+				scroller!.focus({ preventScroll: true });
+			}
+			return true;
+		}
+		// One that doesn't move, over text: a click selects it, a drag selects the text
+		// (decided once the pointer moves or is let go).
+		const caret = clicks === 1 && !caps.move && !event.shiftKey ? caretAt(event.clientX, event.clientY, false) : null;
+		if (caret) {
+			begin(event, { kind: 'press', page, hit, at, then: { kind: 'text', anchor: caret } });
+			return true;
+		}
+		pickAnnotation(page, hit, clicks);
+		if (clicks === 2) {
+			// A double-click opens what the annotation says for editing: a text box's text in
+			// place, anything else's note in the annotation list when that shows it, otherwise
+			// in its comment panel.
+			event.preventDefault();
+			if (hit.kind === 'freeText' && caps.text) openTextEditor(hit);
+			else openComment(tab, caps.text);
+		} else if (caps.move) {
+			begin(event, { kind: 'move', page, id: hit.id, start: [x, y], box: [...hit.bounds], handle: null, moved: false });
+		} else {
+			event.preventDefault();
+			scroller!.focus({ preventScroll: true });
+		}
+		return true;
+	}
+
 	const clickCounter = new ClickCounter();
 
 	// ----- links (section 6.1) -----
@@ -1070,7 +1134,11 @@
 		const tool = tools.tool;
 		if (tool !== 'select' && refuseIfLocked(tab)) return;
 
-		if (tool === 'select') {
+		// Alt with a markup tool draws an area highlight, and the pen draws, over annotations too.
+		const area = isMarkupTool(tool) && event.altKey;
+		if (!area && tool !== 'ink') {
+			// The selected annotation is an object whatever the tool: its corner handles resize
+			// it, a drag moves it, a double-click opens its text.
 			const selected = tab.selectedAnnotationInfo;
 			if (selected && selected.page === page && capabilities(selected, tab.flags.canAnnotate).resize) {
 				const handle = handleAt(selected.bounds, x, y, px(6));
@@ -1082,31 +1150,9 @@
 			// A side of the selected text comes before an annotation under it.
 			if (beginEdge(event, page, x, y, clicks)) return;
 			const hit = annotationAt(targets(page), x, y, px(4));
-			if (hit) {
-				const caps = capabilities(hit, tab.flags.canAnnotate);
-				// One that doesn't move, over text: a click selects it, a drag selects the text
-				// (decided once the pointer moves or is let go).
-				const caret = clicks === 1 && !caps.move && !event.shiftKey ? caretAt(event.clientX, event.clientY, false) : null;
-				if (caret) {
-					begin(event, { kind: 'press', page, hit, caret, at: { x: event.clientX, y: event.clientY } });
-					return;
-				}
-				pickAnnotation(page, hit, clicks);
-				if (clicks === 2) {
-					// A double-click opens what the annotation says for editing: a text box's
-					// text in place, anything else's note in the annotation list when that shows
-					// it, otherwise in its comment panel.
-					event.preventDefault();
-					if (hit.kind === 'freeText' && caps.text) openTextEditor(hit);
-					else openComment(tab, caps.text);
-				} else if (caps.move) {
-					begin(event, { kind: 'move', page, id: hit.id, start: [x, y], box: [...hit.bounds], handle: null, moved: false });
-				} else {
-					event.preventDefault();
-					scroller.focus({ preventScroll: true });
-				}
-				return;
-			}
+			if (hit && pressAnnotation(event, page, hit, x, y, clicks)) return;
+		}
+		if (tool === 'select') {
 			tab.selectedAnnotation = null;
 			const link = clicks === 1 && !event.shiftKey ? linkUnder(page, x, y) : null;
 			linkPress = link ? { link, page, x: event.clientX, y: event.clientY } : null;
@@ -1116,11 +1162,11 @@
 
 		tab.selectedAnnotation = null;
 		if (isMarkupTool(tool)) {
-			if (event.altKey) {
+			if (area) {
 				tab.selection = null;
 				tab.draft = { kind: 'area', page, box: [x, y, x, y] };
 				begin(event, { kind: 'area', page, start: [x, y] });
-			} else if (!beginEdge(event, page, x, y, clicks)) {
+			} else {
 				beginText(event, clicks);
 			}
 		} else if (tool === 'ink') {
@@ -1156,11 +1202,15 @@
 		let g = gesture;
 		if (!g) return;
 		if (g.kind === 'press') {
-			// Pressed on an annotation that doesn't move: dragged from there, it selects text.
+			// Pressed on an annotation: dragged from there, it does what the drag would do
+			// anywhere else.
 			if (Math.hypot(clientX - g.at.x, clientY - g.at.y) < 3) return;
+			const next = g.then;
 			tab.selectedAnnotation = null;
-			tab.selection = { anchor: g.caret, focus: g.caret };
-			g = gesture = { kind: 'text', anchor: g.caret };
+			tab.caret = null;
+			tab.selection = next.kind === 'text' ? { anchor: next.anchor, focus: next.anchor } : null;
+			if (next.kind === 'textbox') tab.draft = { kind: 'area', page: next.page, box: [...next.start, ...next.start] };
+			g = gesture = next;
 		}
 		if (g.kind === 'text') {
 			if (g.grabbed) {
@@ -1194,7 +1244,7 @@
 			if (Math.hypot(x - g.points[n - 2]!, y - g.points[n - 1]!) < px(1)) return;
 			g.points.push(x, y);
 			tab.draft = { kind: 'ink', page: g.page, points: [...g.points] };
-		} else {
+		} else if (g.kind === 'area' || g.kind === 'textbox') {
 			tab.draft = { kind: 'area', page: g.page, box: [g.start[0], g.start[1], x, y] };
 		}
 	}
@@ -1248,7 +1298,11 @@
 			overEdge = selectionEdgeAt(page, x, y);
 			overAnnotation = null;
 			const hit = annotationAt(targets(page), x, y, px(4));
-			if (hit && tools.tool === 'select') overAnnotation = capabilities(hit, tab.flags.canAnnotate).move ? 'move' : 'select';
+			// With another tool, one not selected shows that a click selects it; the pen draws.
+			if (hit && tools.tool !== 'ink') {
+				const asSelect = tools.tool === 'select' || isSelected(page, hit);
+				overAnnotation = asSelect && capabilities(hit, tab.flags.canAnnotate).move ? 'move' : 'select';
+			}
 			const rect = scroller.getBoundingClientRect();
 			tipPointer = { x: lastPointer.x - rect.left + scrollLeft, y: lastPointer.y - rect.top + scrollTop };
 			const text = tab.text(page);
@@ -1951,7 +2005,7 @@
 					bind:this={scroller}
 					class="viewer-scroll h-full overflow-auto bg-canvas outline-none"
 					class:cursor-text={overText && !overAnnotation && !overLink && !edgeCursor && (tools.tool === 'select' || isMarkupTool(tools.tool))}
-					class:cursor-crosshair={tools.tool === 'ink' || tools.tool === 'note' || tools.tool === 'freeText'}
+					class:cursor-crosshair={!overAnnotation && (tools.tool === 'ink' || tools.tool === 'note' || tools.tool === 'freeText')}
 					class:cursor-move={overAnnotation === 'move' && !edgeCursor}
 					class:cursor-pointer={(overAnnotation === 'select' || overLink) && !edgeCursor}
 					class:cursor-ew-resize={edgeCursor === 'ew'}
