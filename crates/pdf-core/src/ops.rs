@@ -17,6 +17,14 @@ use crate::outline::{ViewDest, edit};
 use crate::pages::{self, DeleteReport};
 use crate::properties::{self, Description};
 
+/// One annotation's change in [`Operation::UpdateAnnotations`].
+#[derive(Debug, Clone, PartialEq)]
+pub struct AnnotationUpdate {
+    pub page: usize,
+    pub id: u32,
+    pub edit: AnnotationEdit,
+}
+
 /// The file pages are inserted from.
 #[derive(Clone, PartialEq)]
 pub struct InsertSource {
@@ -178,6 +186,16 @@ pub enum Operation {
         page: usize,
         id: u32,
     },
+    /// Changes several annotations in one undo step (selected together, section 6.5).
+    UpdateAnnotations {
+        updates: Vec<AnnotationUpdate>,
+    },
+    /// Deletes several annotations (page, object number) in one undo step, each with its
+    /// popup and replies. One already gone with another (a reply of one deleted before
+    /// it) is passed over.
+    DeleteAnnotations {
+        annotations: Vec<(usize, u32)>,
+    },
     /// Adds a reply by `author` to annotation `parent` on `page` (ADR 0012).
     AddReply {
         page: usize,
@@ -225,6 +243,19 @@ impl Operation {
             },
             Operation::UpdateAnnotation { edit, .. } => format!("{} annotation", edit.verb()),
             Operation::DeleteAnnotation { .. } => "Delete annotation".into(),
+            Operation::UpdateAnnotations { updates } => match updates.first() {
+                Some(u) if updates.len() > 1 => {
+                    format!("{} {} annotations", u.edit.verb(), updates.len())
+                }
+                Some(u) => format!("{} annotation", u.edit.verb()),
+                None => "Change annotations".into(),
+            },
+            Operation::DeleteAnnotations { annotations } if annotations.len() == 1 => {
+                "Delete annotation".into()
+            }
+            Operation::DeleteAnnotations { annotations } => {
+                format!("Delete {} annotations", annotations.len())
+            }
             Operation::AddReply { .. } => "Add reply".into(),
             Operation::RepairAnnotations => "Repair annotations".into(),
             Operation::SetDescription { .. } => "Change properties".into(),
@@ -276,6 +307,8 @@ impl Operation {
                 | Operation::AddAnnotations { .. }
                 | Operation::UpdateAnnotation { .. }
                 | Operation::DeleteAnnotation { .. }
+                | Operation::UpdateAnnotations { .. }
+                | Operation::DeleteAnnotations { .. }
                 | Operation::AddReply { .. }
                 | Operation::RepairAnnotations
         )
@@ -317,6 +350,8 @@ impl Operation {
             | Operation::AddAnnotations { .. }
             | Operation::UpdateAnnotation { .. }
             | Operation::DeleteAnnotation { .. }
+            | Operation::UpdateAnnotations { .. }
+            | Operation::DeleteAnnotations { .. }
             | Operation::AddReply { .. }
             | Operation::RepairAnnotations => false,
         }
@@ -341,6 +376,8 @@ impl Operation {
             | Operation::AddAnnotations { .. }
             | Operation::UpdateAnnotation { .. }
             | Operation::DeleteAnnotation { .. }
+            | Operation::UpdateAnnotations { .. }
+            | Operation::DeleteAnnotations { .. }
             | Operation::AddReply { .. }
             | Operation::RepairAnnotations
             | Operation::SetDescription { .. } => OutlineEffect::None,
@@ -433,6 +470,27 @@ impl Operation {
                     return Err(Error::PageOutOfRange(*page));
                 }
                 Ok(())
+            }
+            Operation::UpdateAnnotations { updates } => {
+                if updates.is_empty() {
+                    return Err(Error::InvalidArgument("no annotations to change".into()));
+                }
+                for u in updates {
+                    if u.page >= page_count {
+                        return Err(Error::PageOutOfRange(u.page));
+                    }
+                    u.edit.validate()?;
+                }
+                Ok(())
+            }
+            Operation::DeleteAnnotations { annotations } => {
+                if annotations.is_empty() {
+                    return Err(Error::InvalidArgument("no annotations to delete".into()));
+                }
+                match annotations.iter().find(|(page, _)| *page >= page_count) {
+                    Some(&(bad, _)) => Err(Error::PageOutOfRange(bad)),
+                    None => Ok(()),
+                }
             }
             Operation::AddReply { page, text, .. } => {
                 if *page >= page_count {
@@ -550,6 +608,21 @@ impl Operation {
             }
             Operation::DeleteAnnotation { page, id } => {
                 annot::delete(doc, *page, *id).map(|()| None)
+            }
+            Operation::UpdateAnnotations { updates } => {
+                for u in updates {
+                    annot::edit(doc, u.page, u.id, &u.edit)?;
+                }
+                Ok(None)
+            }
+            Operation::DeleteAnnotations { annotations } => {
+                for &(page, id) in annotations {
+                    // A reply goes with the annotation it answers.
+                    if annot::subtype_of(doc, page, id).is_some() {
+                        annot::delete(doc, page, id)?;
+                    }
+                }
+                Ok(None)
             }
             Operation::AddReply {
                 page,

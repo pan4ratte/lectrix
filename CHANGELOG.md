@@ -25,6 +25,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ### Annotations
 
+- Select several annotations at once: with the Select tool, drag a rectangle from an empty part of the page over them, as on a desktop, or Ctrl+click them on the page or in the **Annotations** panel. Change their colour, move them or delete them together, each in one step you can undo. Hold Ctrl or Shift while dragging to add to the selection.
 - With the highlight, underline, strikeout, squiggly, note and text box tools, click an annotation to select it, as with the Select tool: its bar or comment shows, and you can recolour, move or delete it without switching tools. Dragging from an annotation still does what the tool does, so you can highlight text under a highlight. The pen still draws wherever you press it.
 
 ### General

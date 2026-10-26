@@ -170,6 +170,8 @@ export type { ZoomMode } from './generated/ZoomMode';
 export type { Annotation } from './generated/Annotation';
 export type { AnnotationBody } from './generated/AnnotationBody';
 export type { AnnotationEditInput } from './generated/AnnotationEditInput';
+export type { AnnotationTarget } from './generated/AnnotationTarget';
+export type { AnnotationUpdateInput } from './generated/AnnotationUpdateInput';
 export type { AnnotationKind } from './generated/AnnotationKind';
 export type { AnnotationProblem } from './generated/AnnotationProblem';
 export type { NewAnnotationInput } from './generated/NewAnnotationInput';

@@ -282,6 +282,13 @@
 	const showSelected = $derived(
 		selected !== null && !(draft && (draft.kind === 'move' || draft.kind === 'text') && draft.id === selected.id)
 	);
+	/** Where the annotations of this page selected together are being dragged. */
+	const moving = $derived(tab.draft?.kind === 'moves' ? tab.draft.items.filter((m) => m.page === index) : []);
+	/** The annotations of this page selected together (not those being dragged): an outline
+	 * each, without handles. */
+	const grouped = $derived(
+		tab.selectedGroup.filter((a) => a.page === index && !moving.some((m) => m.id === a.id))
+	);
 	const textDraft = $derived(draft?.kind === 'text' ? draft : null);
 	const areaColor = $derived(isMarkupTool(tools.tool) ? tools.style(tools.tool).color : null);
 
@@ -429,7 +436,7 @@
 			</div>
 		{/if}
 
-		{#if selection.length || hits.length || showSelected || linkTint || cursor || (draft && draft.kind !== 'text')}
+		{#if selection.length || hits.length || showSelected || grouped.length || moving.length || linkTint || cursor || (draft && draft.kind !== 'text')}
 			<svg
 				class="pointer-events-none absolute inset-0"
 				style:filter={tab.overlayColour}
@@ -511,7 +518,39 @@
 						{/each}
 					{/if}
 				{/if}
-				{#if draft?.kind === 'move'}
+				{#each grouped as a (a.id)}
+					{@const b = a.bounds}
+					<rect
+						x={b[0]}
+						y={b[1]}
+						width={b[2] - b[0]}
+						height={b[3] - b[1]}
+						class="annotation-outline"
+						vector-effect="non-scaling-stroke"
+					/>
+				{/each}
+				{#each moving as m (m.id)}
+					{@const b = m.box}
+					<rect
+						x={b[0]}
+						y={b[1]}
+						width={b[2] - b[0]}
+						height={b[3] - b[1]}
+						class="annotation-outline annotation-outline-draft"
+						vector-effect="non-scaling-stroke"
+					/>
+				{/each}
+				{#if draft?.kind === 'marquee'}
+					{@const b = draft.box}
+					<rect
+						x={Math.min(b[0], b[2])}
+						y={Math.min(b[1], b[3])}
+						width={Math.abs(b[2] - b[0])}
+						height={Math.abs(b[3] - b[1])}
+						class="annotation-marquee"
+						vector-effect="non-scaling-stroke"
+					/>
+				{:else if draft?.kind === 'move'}
 					{@const b = draft.box}
 					<rect
 						x={b[0]}

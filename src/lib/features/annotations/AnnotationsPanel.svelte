@@ -55,6 +55,7 @@
 		listShowsSelected,
 		openInspector,
 		remove,
+		removeMany,
 		repair,
 		undoMadeForComment,
 		update
@@ -218,19 +219,21 @@
 
 	/** Whether the search and the filters let `a` through. */
 	const matches = (a: Annotation) => matchesFilter(a, filter) && found(a);
-	/** The rows: what matches, and the selected annotation, which stays while it is selected
-	 * (its colour or its comment may just have been changed so that it no longer matches). */
-	const shown = $derived(
-		listed.filter((a) => matches(a) || (tab.selectedAnnotation?.page === a.page && tab.selectedAnnotation.id === a.id))
-	);
+	/** The rows: what matches, and the selected annotations, which stay while they are
+	 * selected (a colour or a comment may just have been changed so that one no longer
+	 * matches). */
+	const shown = $derived(listed.filter((a) => matches(a) || tab.isAnnotationSelected(a.page, a.id)));
 
 	// Another search or other filters deselect an annotation they leave out: it goes from the
 	// list and from the page.
 	$effect(() => {
 		void [filter, searched, searchMarked, searchOpen];
 		untrack(() => {
-			const a = tab.selectedAnnotationInfo;
-			if (a && !tab.isThreadReply(a) && !matches(a)) tab.selectedAnnotation = null;
+			const kept = tab.selectedAnnotations.filter((sel) => {
+				const a = tab.annotation(sel.page, sel.id);
+				return a !== null && (tab.isThreadReply(a) || matches(a));
+			});
+			if (kept.length !== tab.selectedAnnotations.length) tab.selectAnnotations(kept);
 		});
 	});
 
@@ -277,6 +280,8 @@
 
 	const selectedKey = $derived(tab.selectedAnnotation ? `${tab.selectedAnnotation.page}:${tab.selectedAnnotation.id}` : null);
 	const selected = $derived(tab.selectedAnnotationInfo);
+	/** Several annotations are selected together: their rows show selected, without controls. */
+	const grouped = $derived(tab.selectedGroup.length > 1);
 
 	/** The id of the row of annotation `key` ("page:id"). */
 	const rowId = (key: string) => `annotation-row-${tab.id}-${key.replace(':', '-')}`;
@@ -389,7 +394,19 @@
 		openInspector(tab, false);
 	}
 
+	/** A click on a row shows its annotation; with Ctrl, adds it to those selected or takes
+	 * it out, as on the page. */
+	function clickRow(event: MouseEvent, a: Annotation) {
+		if (event.ctrlKey) tab.toggleAnnotation(a.page, a.id);
+		else show(a);
+	}
+
 	function onListKey(event: KeyboardEvent) {
+		if (event.key === 'Delete' && tab.selectedGroup.length > 1) {
+			event.preventDefault();
+			void removeMany(tab, tab.selectedAnnotations);
+			return;
+		}
 		const index = ordered.findIndex((a) => `${a.page}:${a.id}` === selectedKey);
 		if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
 			event.preventDefault();
@@ -743,6 +760,7 @@
 						role="listbox"
 						aria-label="Annotations"
 						aria-activedescendant={selectedKey ? rowId(selectedKey) : undefined}
+						aria-multiselectable={tab.selectedGroup.length > 1}
 						tabindex="0"
 						onkeydown={onListKey}
 						oncontextmenu={chain(props, 'oncontextmenu', onContextMenu)}
@@ -761,9 +779,9 @@
 									role="option"
 									tabindex="-1"
 									id={rowId(key)}
-									aria-selected={isSelected}
+									aria-selected={isSelected || (grouped && tab.isAnnotationSelected(a.page, a.id))}
 									data-annotation-row={key}
-									onclick={() => show(a)}
+									onclick={(e) => clickRow(e, a)}
 								>
 									<div class="annotation-meta flex min-w-0 items-center gap-2 text-xs text-fg-muted">
 										<span

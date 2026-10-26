@@ -478,14 +478,15 @@ enum AnnotAction {
         #[arg(long = "type", value_enum)]
         kind: Option<KindArg>,
     },
-    /// Delete annotation ID on PAGE with its popup and replies.
+    /// Delete annotation ID on PAGE with its popup and replies; several (--id given more
+    /// than once) in one undo step.
     Delete {
         input: PathBuf,
         out: PathBuf,
         #[arg(long, default_value_t = 1)]
         page: usize,
-        #[arg(long)]
-        id: u32,
+        #[arg(long = "id", required = true)]
+        ids: Vec<u32>,
     },
     /// Scan for problems; with OUT, repair them and write the result there.
     Repair {
@@ -2080,15 +2081,17 @@ fn annot_command(action: AnnotAction) -> Result<()> {
             input,
             out,
             page,
-            id,
-        } => edit_in_session(
-            &input,
-            &out,
-            vec![Operation::DeleteAnnotation {
-                page: page_index(page)?,
-                id,
-            }],
-        ),
+            ids,
+        } => {
+            let page = page_index(page)?;
+            let op = match ids.as_slice() {
+                [id] => Operation::DeleteAnnotation { page, id: *id },
+                _ => Operation::DeleteAnnotations {
+                    annotations: ids.iter().map(|&id| (page, id)).collect(),
+                },
+            };
+            edit_in_session(&input, &out, vec![op])
+        }
         AnnotAction::Repair { input, out } => repair_annotations(&input, out.as_deref()),
     }
 }

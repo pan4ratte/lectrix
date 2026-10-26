@@ -25,6 +25,7 @@ import {
 } from './bars.ts';
 import {
 	annotationAt,
+	annotationsIn,
 	boxQuad,
 	clampBox,
 	handleAt,
@@ -108,6 +109,30 @@ describe('hit-testing', () => {
 		expect(annotationAt([below, above], 10, 10, 0)?.id).toBe(1);
 		expect(annotationAt([below, { ...above, hidden: true }], 50, 50, 0)?.id).toBe(1);
 		expect(annotationAt([], 50, 50, 0)).toBeNull();
+	});
+});
+
+describe('selecting an area', () => {
+	it('selects what the area touches: markup by its quads, drawings by their strokes', () => {
+		// Two lines marked; the gap between them is not part of the highlight.
+		const markup = annotation({ id: 1, quads: [10, 10, 90, 10, 10, 20, 90, 20, 10, 40, 50, 40, 10, 50, 50, 50] });
+		// A diagonal stroke: its corner of the bounds away from the line is empty.
+		const ink = annotation({ id: 2, subtype: 'Ink', kind: 'ink', ink: [[200, 200, 300, 300]], width: 2, bounds: [199, 199, 301, 301] });
+		const note = annotation({ id: 3, subtype: 'Text', kind: 'note', bounds: [400, 400, 420, 420] });
+		const all = [markup, ink, note];
+		const ids = (b: [number, number, number, number]) => annotationsIn(all, b).map((a) => a.id);
+		expect(ids([0, 0, 500, 500])).toEqual([1, 2, 3]);
+		// Between the marked lines, and to the right of the second.
+		expect(ids([60, 25, 80, 55])).toEqual([]);
+		expect(ids([45, 45, 46, 46])).toEqual([1]);
+		// Dragged from any corner.
+		expect(ids([415, 430, 410, 410])).toEqual([3]);
+		// Across the stroke without a point of it inside, and in the empty corner of its bounds.
+		expect(ids([240, 260, 260, 240])).toEqual([2]);
+		expect(ids([280, 205, 295, 220])).toEqual([]);
+		// Touching the stroke's edge (half its width) counts.
+		expect(ids([301, 290, 310, 310])).toEqual([2]);
+		expect(annotationsIn([{ ...note, hidden: true }], [0, 0, 500, 500])).toEqual([]);
 	});
 });
 

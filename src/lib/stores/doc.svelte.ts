@@ -105,6 +105,10 @@ export type BannerKind = 'changedOnDisk' | 'changedOnDiskDirty' | 'deletedOnDisk
 /** Something being drawn or dragged on a page, shown before Rust makes it (page points). */
 export type AnnotationDraft =
 	| { kind: 'move'; page: number; id: number; box: Box }
+	/** Annotations selected together, being dragged from `page`: where each would go. */
+	| { kind: 'moves'; page: number; items: { page: number; id: number; box: Box }[] }
+	/** The rectangle the Select tool drags to select the annotations it touches. */
+	| { kind: 'marquee'; page: number; box: Box }
 	| { kind: 'ink'; page: number; points: number[] }
 	| { kind: 'area'; page: number; box: Box }
 	/** A text box being typed: new (`id` null) or an existing one being edited. `turn`: how
@@ -538,8 +542,8 @@ export class DocModel {
 		for (const page of map.keys()) if (page >= pageCount) map.delete(page);
 		this.annotations = map;
 		for (const view of this.views) {
-			const sel = view.selectedAnnotation;
-			if (sel && !map.get(sel.page)?.some((a) => a.id === sel.id)) view.selectedAnnotation = null;
+			const kept = view.selectedAnnotations.filter((sel) => map.get(sel.page)?.some((a) => a.id === sel.id));
+			if (kept.length !== view.selectedAnnotations.length) view.selectedAnnotations = kept;
 		}
 	}
 
@@ -741,14 +745,51 @@ export class DocTab {
 		return this.doc.canEditBookmarks;
 	}
 
-	selectedAnnotation = $state<AnnotationRef | null>(null);
+	/** The selected annotations: one, or several selected together (an area dragged over
+	 * them, Ctrl+click: section 6.5), in the order they were selected. */
+	selectedAnnotations = $state.raw<readonly AnnotationRef[]>([]);
+	/** The selected annotation while exactly one is: the one its bar, comment panel and
+	 * handles are for. Setting it selects that one alone, or (null) none. */
+	get selectedAnnotation(): AnnotationRef | null {
+		const all = this.selectedAnnotations;
+		return all.length === 1 ? all[0]! : null;
+	}
+	set selectedAnnotation(sel: AnnotationRef | null) {
+		this.selectedAnnotations = sel ? [{ page: sel.page, id: sel.id }] : [];
+	}
 	/** Something being drawn or dragged on a page. */
 	draft = $state<AnnotationDraft | null>(null);
-	/** The selected annotation's data. */
+	/** The selected annotation's data, while exactly one is selected. */
 	selectedAnnotationInfo = $derived.by(() => {
 		const sel = this.selectedAnnotation;
 		return sel ? (this.doc.annotations.get(sel.page)?.find((a) => a.id === sel.id) ?? null) : null;
 	});
+	/** The data of the annotations selected together, while several are. */
+	selectedGroup = $derived.by(() => {
+		const all = this.selectedAnnotations;
+		if (all.length < 2) return [];
+		return all.flatMap((sel) => this.doc.annotations.get(sel.page)?.find((a) => a.id === sel.id) ?? []);
+	});
+
+	/** Whether annotation `id` on `page` is selected, alone or with others. */
+	isAnnotationSelected(page: number, id: number): boolean {
+		return this.selectedAnnotations.some((a) => a.page === page && a.id === id);
+	}
+
+	/** Selects `refs` together (none, one, or several). */
+	selectAnnotations(refs: readonly AnnotationRef[]) {
+		this.selectedAnnotations = refs.map((r) => ({ page: r.page, id: r.id }));
+		this.selection = null;
+		this.caret = null;
+	}
+
+	/** Adds annotation `id` on `page` to the selection, or takes it out (Ctrl+click). */
+	toggleAnnotation(page: number, id: number) {
+		const all = this.selectedAnnotations;
+		this.selectAnnotations(
+			this.isAnnotationSelected(page, id) ? all.filter((a) => a.page !== page || a.id !== id) : [...all, { page, id }]
+		);
+	}
 
 	zoom = $state(1);
 	zoomMode = $state<ZoomMode>('fitWidth');
@@ -923,10 +964,11 @@ export class DocTab {
 			this.pageTurns = turns;
 		}
 		this.history.remap((page) => move.to(page));
-		const selected = this.selectedAnnotation;
-		if (selected) {
-			const page = move.to(selected.page);
-			this.selectedAnnotation = page === null ? null : { ...selected, page };
+		if (this.selectedAnnotations.length) {
+			this.selectedAnnotations = this.selectedAnnotations.flatMap((sel) => {
+				const page = move.to(sel.page);
+				return page === null ? [] : [{ ...sel, page }];
+			});
 		}
 		if (this.pendingPosition) this.pendingPosition = move.position(this.pendingPosition);
 		if (shown && this.viewer) {

@@ -8,6 +8,8 @@ import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
+import { Key } from 'webdriverio';
+
 import { OUT, launch, statusText, waitForDocument } from '../lib/app.mjs';
 import { cli, sample } from '../lib/pdfcli.mjs';
 
@@ -1438,6 +1440,151 @@ test('a click selects an annotation with any tool but the pen, and a drag from i
 		await expectSelected('Highlight', 'a click with the note tool');
 		await browser.pause(300);
 		assert.equal((await listRows(browser)).length, 4, 'a note was placed on the highlight');
+	} finally {
+		await stop();
+	}
+});
+
+test('an area dragged with the Select tool selects annotations, which change, move and go together', async () => {
+	const path = sample('select-area.pdf', 1);
+
+	const { browser, stop } = await launch([path]);
+	try {
+		await waitForDocument(browser);
+		await showAnnotations(browser);
+		const picked = () =>
+			browser.execute(() =>
+				[...document.querySelectorAll('.annotation-row[aria-selected="true"] .annotation-type-icon')].map((i) => i.getAttribute('aria-label')).sort()
+			);
+		const expectPicked = async (types, message) =>
+			browser.waitUntil(async () => JSON.stringify(await picked()) === JSON.stringify([...types].sort()), {
+				timeoutMsg: `${message}: selected ${JSON.stringify(await picked())}`
+			});
+		const groupCount = () => browser.execute(() => document.querySelector('[data-group-count]')?.textContent?.trim() ?? null);
+		const outlines = () =>
+			browser.execute(() => [...document.querySelectorAll('.annotation-outline')].map((o) => o.getBoundingClientRect().toJSON()));
+		const ctrlClick = async (at) => {
+			await browser.action('key').down(Key.Ctrl).perform(true);
+			await click(browser, at);
+			await browser.action('key').up(Key.Ctrl).perform();
+		};
+
+		// A highlight on the marker line, a note and a drawing in the right margin (the sample's
+		// text ends before 510 pt).
+		await (await browser.$('[role=document]')).click();
+		await browser.keys('h');
+		const onHighlight = await pagePoint(browser, 0, 60, 92);
+		await drag(browser, await pagePoint(browser, 0, 40, 92), await pagePoint(browser, 0, 120, 92), 1);
+		await waitForRowCount(browser, 1, 'highlight');
+		await browser.keys('n');
+		await click(browser, await pagePoint(browser, 0, 550, 200));
+		await waitForRowCount(browser, 2, 'note');
+		await browser.keys(['Escape']);
+		await browser.keys(['Escape']);
+		await browser.keys('p');
+		await drag(browser, await pagePoint(browser, 0, 540, 300), await pagePoint(browser, 0, 580, 360), 4);
+		await waitForRowCount(browser, 3, 'drawing');
+		await browser.keys(['Escape']);
+		await expectPicked([], 'nothing selected');
+
+		// An area dragged from the blank margin over the note and the drawing selects them,
+		// and draws a rectangle while it is dragged.
+		const from = await pagePoint(browser, 0, 588, 150);
+		const to = await pagePoint(browser, 0, 520, 380);
+		await browser
+			.action('pointer')
+			.move({ ...from, origin: 'viewport' })
+			.down()
+			.move({ x: Math.round((from.x + to.x) / 2), y: Math.round((from.y + to.y) / 2), origin: 'viewport', duration: 50 })
+			.move({ ...to, origin: 'viewport', duration: 50 })
+			.perform(true);
+		assert.equal(await (await browser.$('.annotation-marquee')).isExisting(), true, 'no rectangle is drawn');
+		// (Let go where it is: a new action starts from the corner of the view.)
+		await browser.action('pointer').move({ ...to, origin: 'viewport' }).up().perform();
+		assert.equal(await (await browser.$('.annotation-marquee')).isExisting(), false, 'the rectangle stayed');
+		await expectPicked(['Drawing', 'Note'], 'the area');
+		await browser.waitUntil(async () => (await groupCount()) === '2 selected', { timeoutMsg: `group bar: ${await groupCount()}` });
+
+		// Ctrl+click adds the highlight, and takes it out again.
+		await ctrlClick(onHighlight);
+		await expectPicked(['Drawing', 'Highlight', 'Note'], 'Ctrl+click added');
+		await ctrlClick(onHighlight);
+		await expectPicked(['Drawing', 'Note'], 'Ctrl+click took out');
+
+		// Dragged by one of them, both move; undone, both go back in one step.
+		const was = await outlines();
+		assert.equal(was.length, 2, JSON.stringify(was));
+		const onNote = await pagePoint(browser, 0, 555, 205);
+		await drag(browser, onNote, { x: onNote.x - 40, y: onNote.y + 40 }, 4);
+		await browser.waitUntil(
+			async () => {
+				const now = await outlines();
+				return now.length === 2 && now.every((r, i) => Math.abs(r.left - was[i].left + 40) < 4);
+			},
+			{ timeoutMsg: `they did not move together: ${JSON.stringify(await outlines())} from ${JSON.stringify(was)}` }
+		);
+		await expectPicked(['Drawing', 'Note'], 'still selected after the move');
+		await browser.keys(['Control', 'z']);
+		await browser.waitUntil(
+			async () => {
+				const now = await outlines();
+				return now.length === 2 && now.every((r, i) => Math.abs(r.left - was[i].left) < 2);
+			},
+			{ timeoutMsg: `one undo did not take both back: ${JSON.stringify(await outlines())}` }
+		);
+
+		// The group's colour applies to them all.
+		const icons = () =>
+			browser.execute(() => [...document.querySelectorAll('.annotation-row .annotation-type-icon')].map((i) => getComputedStyle(i).color));
+		const before = await icons();
+		const bar = await browser.$('[role=toolbar][aria-label="2 annotations actions"]');
+		await bar.waitForDisplayed({ timeoutMsg: 'no bar for the group' });
+		const colours = await openColours(browser, bar);
+		await (await colours.$('button[aria-label="Pink"]')).click();
+		await browser.waitUntil(
+			async () => {
+				const now = await icons();
+				return now.filter((c, i) => c !== before[i]).length === 2;
+			},
+			{ timeoutMsg: `the colour did not reach both: ${JSON.stringify(await icons())} from ${JSON.stringify(before)}` }
+		);
+		await browser.keys('Escape');
+
+		// Del deletes them both in one step; undo brings them back.
+		await click(browser, await pagePoint(browser, 0, 560, 600));
+		await expectPicked([], 'a click on the page deselected');
+		await browser.action('key').down(Key.Shift).perform(true);
+		await drag(browser, from, to, 2);
+		await browser.action('key').up(Key.Shift).perform();
+		await expectPicked(['Drawing', 'Note'], 'the area again');
+		await browser.keys('Delete');
+		await waitForRowCount(browser, 1, 'Del on the group');
+		await browser.keys(['Control', 'z']);
+		await waitForRowCount(browser, 3, 'one undo of the delete');
+
+		// With Shift, an area adds to what is selected; Esc while it is dragged puts the
+		// selection back.
+		await click(browser, onHighlight);
+		await expectPicked(['Highlight'], 'a click on the highlight');
+		await browser.action('key').down(Key.Shift).perform(true);
+		await drag(browser, from, to, 2);
+		await browser.action('key').up(Key.Shift).perform();
+		await expectPicked(['Drawing', 'Highlight', 'Note'], 'Shift added the area');
+		await browser.waitUntil(async () => (await groupCount()) === '3 selected', { timeoutMsg: `group bar: ${await groupCount()}` });
+		await click(browser, onHighlight);
+		await expectPicked(['Highlight'], 'a click picks one of them alone');
+		await browser
+			.action('pointer')
+			.move({ ...from, origin: 'viewport' })
+			.down()
+			.move({ ...to, origin: 'viewport', duration: 50 })
+			.perform(true);
+		await expectPicked(['Drawing', 'Note'], 'the area while dragged');
+		await browser.keys('Escape');
+		// (Let go where it is: a new action starts from the corner of the view.)
+		await browser.action('pointer').move({ ...to, origin: 'viewport' }).up().perform();
+		await expectPicked(['Highlight'], 'Esc put the selection back');
+		assert.equal(await (await browser.$('.annotation-marquee')).isExisting(), false, 'Esc left the rectangle');
 	} finally {
 		await stop();
 	}

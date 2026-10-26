@@ -8,12 +8,13 @@ import {
 	type Annotation,
 	type AnnotationBody,
 	type AnnotationEditInput,
+	type AnnotationUpdateInput,
 	type NewAnnotationInput
 } from '#lib/ipc/index.ts';
 import { refuseRestricted } from '#lib/features/unprotect/actions.ts';
 import { commandFor } from '#lib/shortcuts.ts';
 import { app } from '#lib/stores/app.svelte.ts';
-import type { DocTab } from '#lib/stores/doc.svelte.ts';
+import type { AnnotationRef, DocTab } from '#lib/stores/doc.svelte.ts';
 
 import { copySelection, copyText } from '#lib/features/viewer/actions.ts';
 import { ordered } from '#lib/features/viewer/selection.ts';
@@ -22,7 +23,7 @@ import { commentKeeper } from './commentField.ts';
 import { selectionRanges } from './geometry.ts';
 import { markedText, marksText } from './listing.ts';
 import { tools } from './state.svelte.ts';
-import { PROBLEM_SUMMARY, showsComment, type DrawTool, type MarkupKind } from './tools.ts';
+import { capabilities, PROBLEM_SUMMARY, showsComment, type DrawTool, type MarkupKind } from './tools.ts';
 
 /** Tells the user why nothing happens in a document that forbids annotating, or that is
  * open for reading only. */
@@ -306,6 +307,75 @@ export async function remove(tab: DocTab, page: number, id: number) {
 	}
 	const change = await app.apply(tab, { kind: 'deleteAnnotation', page, id });
 	if (change && tab.selectedAnnotation?.id === id) tab.selectedAnnotation = null;
+	return change;
+}
+
+// ----- annotations selected together (section 6.5) -----
+
+/** Changes several annotations as one undo step. */
+export async function updateMany(tab: DocTab, updates: AnnotationUpdateInput[]) {
+	if (!updates.length || refuseIfLocked(tab)) return null;
+	if (updates.length === 1) return update(tab, updates[0]!.page, updates[0]!.id, updates[0]!.edit);
+	return app.apply(tab, { kind: 'updateAnnotations', updates });
+}
+
+/**
+ * Gives the annotations selected together another colour or opacity (one undo step): those
+ * whose colour can change. With Settings' "Use the last colour and opacity" on, new
+ * annotations then get the colour, and new ones of their types the opacity.
+ */
+export async function restyleMany(tab: DocTab, group: readonly Annotation[], patch: { color?: string; opacity?: number }) {
+	const styled = group.filter((a) => capabilities(a, tab.flags.canAnnotate).restyle);
+	const change = await updateMany(
+		tab,
+		styled.map((a) => ({ page: a.page, id: a.id, edit: patch }))
+	);
+	if (change && tools.remember) {
+		for (const kind of new Set(styled.flatMap((a) => (a.kind !== null && a.replyTo === null ? [a.kind] : [])))) {
+			tools.setStyle(kind, patch);
+		}
+	}
+	return change;
+}
+
+/**
+ * Deletes the annotations selected together that can be deleted (one undo step), each with
+ * its popup and replies; asks first when some of them have replies. Deselects them.
+ */
+export async function removeMany(tab: DocTab, refs: readonly AnnotationRef[]) {
+	if (refuseIfLocked(tab)) return null;
+	const doomed = refs.flatMap((r) => {
+		const a = tab.annotation(r.page, r.id);
+		return a && capabilities(a, tab.flags.canAnnotate).delete ? [a] : [];
+	});
+	if (!doomed.length) return null;
+	if (doomed.length === 1) return remove(tab, doomed[0]!.page, doomed[0]!.id);
+	// Replies selected with the annotation they answer go with it, so are not counted.
+	const chosen = new Set(doomed.map((a) => `${a.page}:${a.id}`));
+	const replies = doomed.reduce(
+		(n, a) => n + tab.repliesTo(a.page, a.id).filter((r) => !chosen.has(`${r.page}:${r.id}`)).length,
+		0
+	);
+	if (replies > 0) {
+		const choice = await app.ask({
+			title: `Delete ${doomed.length} annotations and their replies?`,
+			message:
+				replies === 1
+					? 'One of these annotations has a reply, which is deleted with it.'
+					: `These annotations have ${replies} replies, which are deleted with them.`,
+			buttons: [
+				{ id: 'delete', label: 'Delete', primary: true },
+				{ id: 'cancel', label: 'Cancel' }
+			],
+			cancel: 'cancel'
+		});
+		if (choice !== 'delete') return null;
+	}
+	const change = await app.apply(tab, {
+		kind: 'deleteAnnotations',
+		annotations: doomed.map((a) => ({ page: a.page, id: a.id }))
+	});
+	if (change) tab.selectedAnnotation = null;
 	return change;
 }
 

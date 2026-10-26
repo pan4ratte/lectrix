@@ -18,7 +18,7 @@ use pdf_core::annot::{
 };
 use pdf_core::geometry::{PageGeometry, Point, Rect, read_page_boxes};
 use pdf_core::objects;
-use pdf_core::ops::Operation;
+use pdf_core::ops::{AnnotationUpdate, Operation};
 use pdf_core::session::Session;
 use pdf_core::testgen::SampleSpec;
 
@@ -1258,6 +1258,116 @@ fn repair_changes_no_appearance_another_annotation_shares() {
     let out = dir.join("repaired.pdf");
     save_and_reopen(&doc, &src, &out);
     qpdf_check(&out);
+}
+
+#[test]
+fn annotations_selected_together_change_and_go_in_one_step() {
+    let dir = out_dir("annotations-together");
+    let src = sample_file(&dir, "src.pdf", SampleSpec::default());
+    let probe = sample_file(&dir, "probe.pdf", SampleSpec::default());
+    let specs = every_kind(&open(&probe), 1);
+    let (session, _) = Session::open(&src, None).unwrap();
+    // A highlight, a note and a drawing, and a reply to the highlight.
+    let added = session
+        .apply(Operation::AddAnnotations {
+            annotations: vec![specs[0].clone(), specs[4].clone(), specs[5].clone()],
+        })
+        .unwrap();
+    let list = &added.annotations[0].1;
+    let id_of = |kind: Kind| list.iter().find(|a| a.kind == Some(kind)).unwrap().id;
+    let (highlight, note, ink) = (id_of(Kind::Highlight), id_of(Kind::Note), id_of(Kind::Ink));
+    let reply = session
+        .apply(Operation::AddReply {
+            page: 1,
+            parent: highlight,
+            text: "Yes".into(),
+            author: "Tëster".into(),
+        })
+        .unwrap()
+        .created
+        .unwrap();
+    let bounds = |change: &pdf_core::session::DocumentChange, id: u32| {
+        change.annotations[0]
+            .1
+            .iter()
+            .find(|a| a.id == id)
+            .map(|a| a.bounds)
+    };
+    let before = session.info().unwrap();
+    let was = |id: u32| {
+        before.annotations[1]
+            .iter()
+            .find(|a| a.id == id)
+            .unwrap()
+            .bounds
+    };
+    let moved_by = |r: Rect| Rect::new(r.x0 + 20.0, r.y0 + 30.0, r.x1 + 20.0, r.y1 + 30.0);
+
+    // Moved together: one step, named for them all.
+    let moved = session
+        .apply(Operation::UpdateAnnotations {
+            updates: [note, ink]
+                .into_iter()
+                .map(|id| AnnotationUpdate {
+                    page: 1,
+                    id,
+                    edit: AnnotationEdit {
+                        bounds: Some(moved_by(was(id))),
+                        ..AnnotationEdit::default()
+                    },
+                })
+                .collect(),
+        })
+        .unwrap();
+    assert_eq!(moved.state.undo_name.as_deref(), Some("Move 2 annotations"));
+    for id in [note, ink] {
+        let now = bounds(&moved, id).unwrap();
+        let want = moved_by(was(id));
+        assert!(
+            (now.x0 - want.x0).abs() < 1.0 && (now.y0 - want.y0).abs() < 1.0,
+            "{id}: {now:?}, wanted {want:?}"
+        );
+    }
+    let back = session.undo().unwrap();
+    for id in [note, ink] {
+        let now = bounds(&back, id).unwrap();
+        assert!((now.x0 - was(id).x0).abs() < 0.01, "undo left {id} moved");
+    }
+
+    // Deleted together, the reply in the list too, though it goes with the highlight
+    // before its turn comes.
+    let deleted = session
+        .apply(Operation::DeleteAnnotations {
+            annotations: vec![(1, highlight), (1, reply), (1, note)],
+        })
+        .unwrap();
+    assert_eq!(
+        deleted.state.undo_name.as_deref(),
+        Some("Delete 3 annotations")
+    );
+    let left: Vec<u32> = deleted.annotations[0].1.iter().map(|a| a.id).collect();
+    assert_eq!(left, vec![ink]);
+    let undone = session.undo().unwrap();
+    assert_eq!(
+        undone.annotations[0].1.len(),
+        4,
+        "undo brought back all of them"
+    );
+
+    // Nothing to do is refused, and adds no step.
+    assert!(
+        session
+            .apply(Operation::DeleteAnnotations {
+                annotations: vec![]
+            })
+            .is_err()
+    );
+    assert!(
+        session
+            .apply(Operation::UpdateAnnotations { updates: vec![] })
+            .is_err()
+    );
+    assert_eq!(session.info().unwrap().state, undone.state);
 }
 
 #[test]

@@ -411,6 +411,12 @@ input[type='color'],
 .annotation-outline-draft {
 	stroke-dasharray: 4 3;
 }
+/* The area the Select tool drags to select annotations, drawn as the page grid's. */
+.annotation-marquee {
+	fill: var(--lectrix-row-selected);
+	stroke: var(--lectrix-accent);
+	stroke-width: 1px;
+}
 .annotation-handle {
 	fill: var(--lectrix-surface-raised);
 	stroke: var(--lectrix-accent);

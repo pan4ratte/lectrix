@@ -25,16 +25,20 @@
 		panelOpen,
 		refuseIfLocked,
 		remove,
+		removeMany,
 		selectedKey,
 		setPanel,
-		update
+		update,
+		updateMany
 	} from '#lib/features/annotations/actions.ts';
 	import AnnotationBar from '#lib/features/annotations/AnnotationBar.svelte';
 	import AnnotationInspector from '#lib/features/annotations/AnnotationInspector.svelte';
+	import GroupBar from '#lib/features/annotations/GroupBar.svelte';
 	import CommentTip from '#lib/features/annotations/CommentTip.svelte';
 	import { DEFAULT_TIP_DELAY_MS, quickToolAllowed, releaseAnchor, type Area } from '#lib/features/annotations/bars.ts';
 	import {
 		annotationAt,
+		annotationsIn,
 		boxQuad,
 		clampBox,
 		handleAt,
@@ -54,7 +58,7 @@
 	import { scrolled } from '#lib/features/split/sync.ts';
 	import { pageUrl, type Annotation, type PageLink } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
-	import type { DocTab } from '#lib/stores/doc.svelte.ts';
+	import type { AnnotationRef, DocTab } from '#lib/stores/doc.svelte.ts';
 
 	import type { ViewPosition } from './history.ts';
 	import { selectedText } from './actions.ts';
@@ -907,6 +911,29 @@
 		// another tool, any, whose drag does what the tool does.
 		| { kind: 'press'; page: number; hit: Annotation; at: { x: number; y: number }; then: Gesture }
 		| { kind: 'move'; page: number; id: number; start: [number, number]; box: Box; handle: Handle | null; moved: boolean }
+		// Annotations selected together, dragged from `hit`: `items` are those that move, where
+		// they were. Let go where it was pressed (`at`), `hit` is selected alone.
+		| {
+				kind: 'moves';
+				page: number;
+				hit: Annotation;
+				start: [number, number];
+				at: { x: number; y: number };
+				items: { page: number; id: number; box: Box }[];
+				moved: boolean;
+		  }
+		// The Select tool dragging an area from `start` away from text: it selects the
+		// annotations it touches, besides `base` (those selected before, with Ctrl or Shift).
+		// Esc puts back `before`, the selection the press found.
+		| {
+				kind: 'marquee';
+				page: number;
+				start: [number, number];
+				at: { x: number; y: number };
+				base: readonly AnnotationRef[];
+				before: readonly AnnotationRef[];
+				moved: boolean;
+		  }
 		| { kind: 'ink'; page: number; points: number[] }
 		| { kind: 'area'; page: number; start: [number, number] }
 		| { kind: 'textbox'; page: number; start: [number, number] };
@@ -1033,6 +1060,14 @@
 		if (clicks !== 2 && showsComment(hit)) setPanel(tab, true);
 	}
 
+	/** An annotation left selected alone by Ctrl+click or by an area dragged over it opens
+	 * neither its comment panel nor (until the drag is over) its bar: it is not being looked
+	 * at yet. */
+	function quietPanel() {
+		const key = selectedKey(tab);
+		if (key) app.annotationPanel = { key, open: false };
+	}
+
 	/** Whether `hit` on `page` is the selected annotation. */
 	function isSelected(page: number, hit: Annotation): boolean {
 		const sel = tab.selectedAnnotation;
@@ -1041,15 +1076,35 @@
 
 	/**
 	 * A press on annotation `hit` (at page point x, y). A click selects it as an object with
-	 * any tool but the pen, which draws over annotations (section 6.5). With the Select tool, a drag moves one that moves, and selects
-	 * the text under one that doesn't; with another tool, a drag from one not selected does
-	 * what the tool does, and the selected one is moved as with the Select tool. False when
-	 * the press is left to the tool.
+	 * any tool but the pen, which draws over annotations (section 6.5); Ctrl+click adds it to
+	 * the selected ones or takes it out. With the Select tool, a drag moves one that moves,
+	 * and selects the text under one that doesn't; with another tool, a drag from one not
+	 * selected does what the tool does, and the selected one is moved as with the Select
+	 * tool. A drag from one of several selected together moves them all. False when the
+	 * press is left to the tool.
 	 */
 	function pressAnnotation(event: PointerEvent, page: number, hit: Annotation, x: number, y: number, clicks: number): boolean {
 		const tool = tools.tool;
 		const caps = capabilities(hit, tab.flags.canAnnotate);
 		const at = { x: event.clientX, y: event.clientY };
+		if (event.ctrlKey && clicks === 1) {
+			tab.toggleAnnotation(page, hit.id);
+			quietPanel();
+			event.preventDefault();
+			scroller!.focus({ preventScroll: true });
+			return true;
+		}
+		const group = tab.selectedGroup;
+		if (group.length > 1 && tab.isAnnotationSelected(page, hit.id) && clicks === 1 && !event.shiftKey) {
+			const items = group.flatMap((a) =>
+				capabilities(a, tab.flags.canAnnotate).move ? [{ page: a.page, id: a.id, box: [...a.bounds] as Box }] : []
+			);
+			// None of them moves (text markup): pressed as one selected alone would be.
+			if (items.length) {
+				begin(event, { kind: 'moves', page, hit, start: [x, y], at, items, moved: false });
+				return true;
+			}
+		}
 		if (tool !== 'select' && !isSelected(page, hit)) {
 			// Shift is the tool's (extending the text selection). A double-click's first click
 			// has selected the annotation, so its second is the Select tool's, below.
@@ -1153,9 +1208,20 @@
 			if (hit && pressAnnotation(event, page, hit, x, y, clicks)) return;
 		}
 		if (tool === 'select') {
-			tab.selectedAnnotation = null;
 			const link = clicks === 1 && !event.shiftKey ? linkUnder(page, x, y) : null;
 			linkPress = link ? { link, page, x: event.clientX, y: event.clientY } : null;
+			if (clicks === 1 && !caretAt(event.clientX, event.clientY, false)) {
+				// Away from text, a drag selects the annotations in the area it covers, as on a
+				// desktop; with Ctrl or Shift, besides those selected already.
+				const adding = event.ctrlKey || event.shiftKey;
+				const before = tab.selectedAnnotations;
+				const base = adding ? before : [];
+				tab.selectAnnotations(base);
+				const at = { x: event.clientX, y: event.clientY };
+				begin(event, { kind: 'marquee', page, start: [x, y], at, base, before, moved: false });
+				return;
+			}
+			tab.selectedAnnotation = null;
 			beginText(event, clicks);
 			return;
 		}
@@ -1231,6 +1297,37 @@
 			return;
 		}
 		const [x, y] = pointOn(g.page, clientX, clientY);
+		if (g.kind === 'moves') {
+			const dx = x - g.start[0];
+			const dy = y - g.start[1];
+			if (!g.moved && Math.hypot(clientX - g.at.x, clientY - g.at.y) < 3) return;
+			g.moved = true;
+			tab.draft = {
+				kind: 'moves',
+				page: g.page,
+				items: g.items.map((item) => {
+					const s = tab.pages[item.page]!;
+					return { ...item, box: clampBox(moveBox(item.box, dx, dy), s.width, s.height) };
+				})
+			};
+			return;
+		}
+		if (g.kind === 'marquee') {
+			if (!g.moved && Math.hypot(clientX - g.at.x, clientY - g.at.y) < 3) return;
+			g.moved = true;
+			const box: Box = [g.start[0], g.start[1], x, y];
+			tab.draft = { kind: 'marquee', page: g.page, box };
+			const refs = [...g.base];
+			for (const a of annotationsIn(targets(g.page), box)) {
+				if (!refs.some((r) => r.page === a.page && r.id === a.id)) refs.push({ page: a.page, id: a.id });
+			}
+			const now = tab.selectedAnnotations;
+			if (refs.length !== now.length || refs.some((r, i) => r.page !== now[i]!.page || r.id !== now[i]!.id)) {
+				tab.selectAnnotations(refs);
+				quietPanel();
+			}
+			return;
+		}
 		if (g.kind === 'move') {
 			const dx = x - g.start[0];
 			const dy = y - g.start[1];
@@ -1427,6 +1524,23 @@
 				if (event.type === 'pointerup') pickAnnotation(g.page, g.hit, 1);
 				break;
 			}
+			case 'moves': {
+				const draft = tab.draft;
+				if (g.moved && draft?.kind === 'moves') {
+					await updateMany(
+						tab,
+						draft.items.map((item) => ({ page: item.page, id: item.id, edit: { bounds: item.box } }))
+					);
+				} else if (!g.moved && event.type === 'pointerup') {
+					pickAnnotation(g.page, g.hit, 1);
+				}
+				tab.draft = null;
+				break;
+			}
+			case 'marquee': {
+				tab.draft = null;
+				break;
+			}
 			case 'move': {
 				const draft = tab.draft;
 				if (g.moved && draft?.kind === 'move') {
@@ -1557,6 +1671,22 @@
 		if (!a || dragging || menuOpen || tab.draft?.kind === 'text' || commentOpen || inList || !isShown(layout, a.page))
 			return null;
 		return { annotation: a, area: contentArea(a.page, a.bounds) };
+	});
+
+	/** The annotations selected together, for their bar, above them all (those on pages
+	 * shown), while nothing is being dragged and the context menu is closed. */
+	const groupBar = $derived.by(() => {
+		const group = tab.selectedGroup;
+		if (group.length < 2 || dragging || menuOpen) return null;
+		const areas = group.filter((a) => isShown(layout, a.page)).map((a) => contentArea(a.page, a.bounds));
+		if (!areas.length) return null;
+		const area: Area = {
+			x0: Math.min(...areas.map((r) => r.x0)),
+			y0: Math.min(...areas.map((r) => r.y0)),
+			x1: Math.max(...areas.map((r) => r.x1)),
+			y1: Math.max(...areas.map((r) => r.y1))
+		};
+		return { group, area };
 	});
 
 	// Each newly selected annotation decides for itself: its comment panel if it has a
@@ -1763,12 +1893,29 @@
 	function onKeyDown(event: KeyboardEvent) {
 		// Keys in the comment panel are its own: Delete there doesn't delete the annotation.
 		if ((event.target as HTMLElement).closest('[data-annotation-panel]')) return;
+		if (event.key === 'Escape' && gesture?.kind === 'marquee') {
+			// Esc while an area is dragged puts the selection back as it was, and does nothing
+			// else (the rest of the drag selects nothing).
+			event.preventDefault();
+			event.stopPropagation();
+			tab.selectAnnotations(gesture.before);
+			tab.draft = null;
+			gesture = null;
+			dragging = false;
+			cancelAnimationFrame(autoScroll);
+			return;
+		}
 		if (event.target === scroller && extendOnKey(event)) {
 			event.preventDefault();
 			return;
 		}
 		if (event.target === scroller && flipOnKey(event)) {
 			event.preventDefault();
+			return;
+		}
+		if ((event.key === 'Delete' || event.key === 'Backspace') && tab.selectedGroup.length > 1 && !event.ctrlKey) {
+			event.preventDefault();
+			void removeMany(tab, tab.selectedAnnotations);
 			return;
 		}
 		if ((event.key === 'Delete' || event.key === 'Backspace') && tab.selectedAnnotation && !event.ctrlKey) {
@@ -1795,8 +1942,7 @@
 		if (!tab.selection && (event.target as HTMLElement).closest('.page')) {
 			const [x, y] = toPage(contextPage, event.clientX, event.clientY);
 			const hit = annotationAt(targets(contextPage), x, y, px(4));
-			const sel = tab.selectedAnnotation;
-			if (hit && (sel?.page !== contextPage || sel.id !== hit.id)) {
+			if (hit && !tab.isAnnotationSelected(contextPage, hit.id)) {
 				app.annotationPanel = { key: `${tab.key}:${contextPage}:${hit.id}`, open: false };
 				tab.selectAnnotation(contextPage, hit.id);
 			}
@@ -2075,6 +2221,9 @@
 								}}
 							/>
 						{/if}
+						{#if groupBar}
+							<GroupBar {tab} group={groupBar.group} anchor={groupBar.area} {view} contentWidth={contentW} />
+						{/if}
 						{#if panelAnchor}
 							<AnnotationInspector {tab} anchor={panelAnchor} {view} contentWidth={contentW} />
 						{/if}
@@ -2105,6 +2254,16 @@
 						onSelect={() => void copyComment(contextAnnotation.contents)}
 					>
 						Copy comment
+					</ContextMenu.Item>
+				{:else if tab.selectedGroup.length > 1}
+					{@const group = tab.selectedGroup}
+					<ContextMenu.Item
+						class="menu-item"
+						disabled={!group.some((a) => capabilities(a, tab.flags.canAnnotate).delete)}
+						onSelect={() => void removeMany(tab, tab.selectedAnnotations)}
+					>
+						Delete {group.length} annotations
+						<span class="menu-shortcut">Del</span>
 					</ContextMenu.Item>
 				{/if}
 				<ContextMenu.Item class="menu-item" disabled={!copiesSelection(tab)} onSelect={() => void copyInContext(tab)}>

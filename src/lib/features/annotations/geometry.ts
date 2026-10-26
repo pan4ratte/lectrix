@@ -114,6 +114,70 @@ export function hits(a: Annotation, x: number, y: number, tolerance: number): bo
 	return inBox(a.bounds, x, y);
 }
 
+/** Whether boxes `a` and `b` (normalized) overlap or touch. */
+function boxesMeet(a: readonly number[], b: readonly number[]): boolean {
+	return a[0]! <= b[2]! && b[0]! <= a[2]! && a[1]! <= b[3]! && b[1]! <= a[3]!;
+}
+
+/** Whether the segment from (ax, ay) to (bx, by) crosses box `b` (normalized). */
+function segmentMeets(b: Box, ax: number, ay: number, bx: number, by: number): boolean {
+	// Clips the segment to the box one side at a time (Liang–Barsky).
+	let t0 = 0;
+	let t1 = 1;
+	const dx = bx - ax;
+	const dy = by - ay;
+	const sides: [number, number][] = [
+		[-dx, ax - b[0]],
+		[dx, b[2] - ax],
+		[-dy, ay - b[1]],
+		[dy, b[3] - ay]
+	];
+	for (const [p, q] of sides) {
+		if (p === 0) {
+			if (q < 0) return false;
+			continue;
+		}
+		const t = q / p;
+		if (p < 0) t0 = Math.max(t0, t);
+		else t1 = Math.min(t1, t);
+		if (t0 > t1) return false;
+	}
+	return true;
+}
+
+/** True if annotation `a` touches box `b` (page points, either corner first): text markup
+ * by its quads, a drawing by its strokes, anything else by its bounds. */
+export function touches(a: Annotation, b: Box): boolean {
+	if (a.hidden) return false;
+	const box = normalizeBox(b);
+	if (a.quads.length >= 8) {
+		for (let i = 0; i + 8 <= a.quads.length; i += 8) {
+			const xs = [a.quads[i]!, a.quads[i + 2]!, a.quads[i + 4]!, a.quads[i + 6]!];
+			const ys = [a.quads[i + 1]!, a.quads[i + 3]!, a.quads[i + 5]!, a.quads[i + 7]!];
+			if (boxesMeet([Math.min(...xs), Math.min(...ys), Math.max(...xs), Math.max(...ys)], box)) return true;
+		}
+		return false;
+	}
+	if (a.ink.length > 0) {
+		const half = (a.width ?? 1) / 2;
+		const wide: Box = [box[0] - half, box[1] - half, box[2] + half, box[3] + half];
+		for (const s of a.ink) {
+			if (s.length >= 2 && inBox(wide, s[0]!, s[1]!)) return true;
+			for (let i = 0; i + 4 <= s.length; i += 2) {
+				if (segmentMeets(wide, s[i]!, s[i + 1]!, s[i + 2]!, s[i + 3]!)) return true;
+			}
+		}
+		return false;
+	}
+	return boxesMeet(normalizeBox([...a.bounds] as Box), box);
+}
+
+/** The annotations of `list` that box `b` touches, as an area dragged over them selects
+ * them (section 6.5). */
+export function annotationsIn(list: readonly Annotation[], b: Box): Annotation[] {
+	return list.filter((a) => touches(a, b));
+}
+
 /** The topmost annotation at (x, y): the last one drawn. */
 export function annotationAt(list: readonly Annotation[], x: number, y: number, tolerance: number): Annotation | null {
 	for (let i = list.length - 1; i >= 0; i--) {

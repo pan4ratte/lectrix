@@ -32,7 +32,7 @@
 	);
 	const editable = $derived(tab.canEditBookmarks);
 	const inside = $derived(bookmark ? descendantCount(bookmark) : 0);
-	const shown = $derived(app.inspectorOpen && bookmark !== null && !tab.selectedAnnotation);
+	const shown = $derived(app.inspectorOpen && bookmark !== null && !tab.selectedAnnotations.length);
 
 	let panel: HTMLElement | undefined = $state();
 	let w = $state(0);

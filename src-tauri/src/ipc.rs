@@ -1470,6 +1470,25 @@ pub struct SaveResult {
     pub flags: DocumentFlags,
 }
 
+/// An annotation named by its page and object number.
+#[derive(Debug, Clone, Copy, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AnnotationTarget {
+    pub page: u32,
+    pub id: u32,
+}
+
+/// One annotation's change among several made together.
+#[derive(Debug, Clone, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct AnnotationUpdateInput {
+    pub page: u32,
+    pub id: u32,
+    pub edit: AnnotationEditInput,
+}
+
 /// A change to a document, sent from the frontend.
 #[derive(Debug, Clone, Deserialize, TS)]
 #[serde(
@@ -1557,6 +1576,14 @@ pub enum OperationInput {
     DeleteAnnotation {
         page: u32,
         id: u32,
+    },
+    /// Change several annotations (selected together) as one undo step.
+    UpdateAnnotations {
+        updates: Vec<AnnotationUpdateInput>,
+    },
+    /// Delete several annotations, each with its popup and replies, as one undo step.
+    DeleteAnnotations {
+        annotations: Vec<AnnotationTarget>,
     },
     /// Reply to annotation `parent` on `page`; the author is the name from Settings.
     AddReply {
@@ -1689,6 +1716,24 @@ impl OperationInput {
             OperationInput::DeleteAnnotation { page, id } => Op::DeleteAnnotation {
                 page: page as usize,
                 id,
+            },
+            OperationInput::UpdateAnnotations { updates } => Op::UpdateAnnotations {
+                updates: updates
+                    .into_iter()
+                    .map(|u| {
+                        Ok(pdf_core::ops::AnnotationUpdate {
+                            page: u.page as usize,
+                            id: u.id,
+                            edit: u.edit.into_core()?,
+                        })
+                    })
+                    .collect::<Result<_, AppError>>()?,
+            },
+            OperationInput::DeleteAnnotations { annotations } => Op::DeleteAnnotations {
+                annotations: annotations
+                    .into_iter()
+                    .map(|a| (a.page as usize, a.id))
+                    .collect(),
             },
             // Resolved by `into_operation`.
             OperationInput::InsertPages { .. }
