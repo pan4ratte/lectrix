@@ -1,6 +1,7 @@
 <script lang="ts">
 	// Shown when no document is open: the tools as cards (open a file, combine files...), or a
-	// recent file to pick. Recent files show as
+	// recent file to pick; in a wide window the tools are a column at the left, two or three
+	// cards to a row, beside the recent files. Recent files show as
 	// a table of their names, when each was last opened and its size, or as a grid of their
 	// first pages with the name, date and size under each (a switch beside the heading,
 	// remembered in app data; switching brings the files in with a short animation). A click
@@ -48,7 +49,7 @@
 		run: () => void;
 	}
 
-	/** The tools, as cards in a grid of three columns; more will come. */
+	/** The tools, as cards in a grid of two or three columns; more will come. */
 	const TOOLS: readonly Tool[] = [
 		{ id: 'open', label: 'Open', description: 'Browse for a PDF', icon: FolderOpen, command: 'open', run: () => void app.open() },
 		{ id: 'combine', label: 'Combine files', description: 'Merge several PDFs into one', icon: Layers, run: () => app.openCombine() },
@@ -58,8 +59,10 @@
 		{ id: 'compress', label: 'Compress', description: 'Reduce file size', icon: Shrink, command: 'compressFile', run: () => void compressFile() }
 	];
 
-	/** The grid's six tracks each card spans (a last row that is not full is shared out). */
-	const spans = toolSpans(TOOLS.length);
+	/** The grid's six tracks each card spans, with three cards to a row and with two (a last
+	 * row that is not full is shared out); the stylesheet picks one by the window's width. */
+	const spans3 = toolSpans(TOOLS.length, 3);
+	const spans2 = toolSpans(TOOLS.length, 2);
 
 	/** A press's ripple, from where it was pressed in the card (CSS pixels of the card, as
 	 * any zoom of the page leaves them); none with reduced motion. */
@@ -183,8 +186,8 @@
 	</button>
 {/snippet}
 
-<div class="flex h-full flex-col items-center overflow-auto bg-canvas px-4 pt-[12vh] pb-8">
-	<div class="w-full max-w-[720px]">
+<div class="start-screen flex h-full flex-col items-center overflow-auto px-4 pt-[12vh] pb-8">
+	<div class={['w-full', app.recent.length ? 'max-w-[1240px]' : 'max-w-[720px]']}>
 		<div class="flex flex-wrap items-center gap-[16px]">
 			<!-- Decorative: the heading names the app. The icon's rounded square is 46 px; the
 			     image has a margin round it. -->
@@ -220,160 +223,165 @@
 				</div>
 			{/if}
 		</div>
-		<div class="start-tools mt-[26px]">
-			{#each TOOLS as tool, i (tool.id)}
-				{@const shortcut = tool.command ? app.shortcut(tool.command) : ''}
-				<button
-					type="button"
-					class="start-tool"
-					data-tool={tool.id}
-					style:grid-column="span {spans[i]}"
-					aria-labelledby="start-tool-{tool.id}"
-					aria-describedby={shortcut ? `start-tool-${tool.id}-about start-tool-${tool.id}-keys` : `start-tool-${tool.id}-about`}
-					onpointerdown={pressed}
-					onkeydown={keyed}
-					onclick={tool.run}
-				>
-					<span class="start-ripples" aria-hidden="true"></span>
-					<span class="start-tool-top">
-						<span class="start-tool-icon"><tool.icon size={22} aria-hidden="true" /></span>
-						{#if shortcut}
-							<span id="start-tool-{tool.id}-keys" class="start-tool-shortcut">{shortcut}</span>
-						{:else}
-							<span class="start-tool-arrow" aria-hidden="true"><ArrowUpRight size={18} /></span>
-						{/if}
-					</span>
-					<span class="start-tool-text">
-						<span id="start-tool-{tool.id}" class="start-tool-label truncate">{tool.label}</span>
-						<span id="start-tool-{tool.id}-about" class="start-tool-description">{tool.description}</span>
-					</span>
-				</button>
-			{/each}
-		</div>
-
-		{#if app.recent.length}
-			<div class="mt-[34px] mb-[10px] flex items-center justify-between gap-4">
-				<h2 id="recent-heading" class="recent-heading">Recent files</h2>
-				<!-- The mark of the view shown glides to the one picked, as the active tool's does. -->
-				<div class="tool-group flex gap-[4px]" role="group" aria-label="Show recent files as" {@attach toolMark}>
-					<span class="tool-mark" aria-hidden="true" hidden></span>
+		<div class="start-body mt-[26px]" class:start-split={app.recent.length > 0}>
+			<div class="start-tools">
+				{#each TOOLS as tool, i (tool.id)}
+					{@const shortcut = tool.command ? app.shortcut(tool.command) : ''}
 					<button
 						type="button"
-						class="icon-button tool-button"
-						aria-label="List"
-						data-tip="List"
-						aria-pressed={!app.recentFilesGrid}
-						onclick={() => showAs(false)}
+						class="start-tool"
+						data-tool={tool.id}
+						style:--tool-span-3={spans3[i]}
+						style:--tool-span-2={spans2[i]}
+						aria-labelledby="start-tool-{tool.id}"
+						aria-describedby={shortcut ? `start-tool-${tool.id}-about start-tool-${tool.id}-keys` : `start-tool-${tool.id}-about`}
+						onpointerdown={pressed}
+						onkeydown={keyed}
+						onclick={tool.run}
 					>
-						<List size={18} aria-hidden="true" />
+						<span class="start-ripples" aria-hidden="true"></span>
+						<span class="start-tool-top">
+							<span class="start-tool-icon"><tool.icon size={22} aria-hidden="true" /></span>
+							{#if shortcut}
+								<span id="start-tool-{tool.id}-keys" class="start-tool-shortcut">{shortcut}</span>
+							{:else}
+								<span class="start-tool-arrow" aria-hidden="true"><ArrowUpRight size={18} /></span>
+							{/if}
+						</span>
+						<span class="start-tool-text">
+							<span id="start-tool-{tool.id}" class="start-tool-label truncate">{tool.label}</span>
+							<span id="start-tool-{tool.id}-about" class="start-tool-description">{tool.description}</span>
+						</span>
 					</button>
-					<button
-						type="button"
-						class="icon-button tool-button"
-						aria-label="Grid"
-						data-tip="Grid"
-						aria-pressed={app.recentFilesGrid}
-						onclick={() => showAs(true)}
-					>
-						<LayoutGrid size={18} aria-hidden="true" />
-					</button>
-				</div>
+				{/each}
 			</div>
 
-			{#if app.recentFilesGrid}
-				<ul class="recent-grid" class:recent-enter={switched} aria-labelledby="recent-heading">
-					{#each app.recent as file, i (file.index)}
-						{@const url = previewUrl(file)}
-						<ContextMenu.Root>
-							<ContextMenu.Trigger>
-								{#snippet child({ props })}
-									<li {...props} class="recent-card" class:recent-missing={!file.exists} style:--recent-i={Math.min(i, STAGGERED)}>
-										<button type="button" class="recent-open" data-tip={folderTip(file)} onclick={() => void app.openRecent(file.index)}>
-											<span class="recent-preview">
-												{#if file.exists && !failed[url]}
-													<img
-														src={url}
-														alt=""
-														class="recent-page"
-														class:recent-page-loaded={loaded[url]}
-														draggable="false"
-														decoding="async"
-														onload={() => (loaded[url] = true)}
-														onerror={() => (failed[url] = true)}
-													/>
-												{/if}
-												{#if !file.exists || failed[url]}
-													<!-- Decorative: the name says what it is. -->
-													<img src={fileIconUrl} alt="" class="h-12 w-auto" draggable="false" />
-												{/if}
-											</span>
-											<span class="recent-name">{file.name}</span>
-											<span class="recent-details">
-												<span data-tip={fullDate(file.openedAt)}>{openedDate(file.openedAt)}</span>
-												<span aria-hidden="true">·</span>
-												<span class="tabular-nums">{sizeText(file)}</span>
-											</span>
-										</button>
-										{@render pinButton(file, 'recent-card-button recent-card-pin size-7', 14)}
-										{@render removeButton(file, 'recent-card-button recent-card-remove size-7', 14)}
-									</li>
-								{/snippet}
-							</ContextMenu.Trigger>
-							{@render fileMenu(file)}
-						</ContextMenu.Root>
-					{/each}
-				</ul>
-			{:else}
-				<table class="recent-table" class:recent-enter={switched} aria-labelledby="recent-heading">
-					<colgroup>
-						<col />
-						<col class="recent-col-opened" />
-						<col class="recent-col-size" />
-						<col class="recent-col-actions" />
-					</colgroup>
-					<thead>
-						<tr>
-							<th scope="col">Name</th>
-							<th scope="col">Opened</th>
-							<th scope="col" class="text-right">Size</th>
-							<th scope="col"><span class="sr-only">Actions</span></th>
-						</tr>
-					</thead>
-					<tbody>
-						{#each app.recent as file, i (file.index)}
-							<ContextMenu.Root>
-								<ContextMenu.Trigger>
-									{#snippet child({ props })}
-										<tr {...props} class="recent-row" class:recent-missing={!file.exists} style:--recent-i={Math.min(i, STAGGERED)}>
-											<td>
-												<button
-													type="button"
-													class="recent-open recent-open-row"
-													data-tip={folderTip(file)}
-													onclick={() => void app.openRecent(file.index)}
-												>
-													<!-- Decorative: the name says what it is. -->
-													<img src={fileIconUrl} alt="" height="20" class="h-5 w-auto shrink-0" draggable="false" />
-													<span class="truncate">{file.name}</span>
+			{#if app.recent.length}
+				<div class="start-recent">
+					<div class="mb-[10px] flex items-center justify-between gap-4">
+						<h2 id="recent-heading" class="recent-heading">Recent files</h2>
+						<!-- The mark of the view shown glides to the one picked, as the active tool's does. -->
+						<div class="tool-group flex gap-[4px]" role="group" aria-label="Show recent files as" {@attach toolMark}>
+							<span class="tool-mark" aria-hidden="true" hidden></span>
+							<button
+								type="button"
+								class="icon-button tool-button"
+								aria-label="List"
+								data-tip="List"
+								aria-pressed={!app.recentFilesGrid}
+								onclick={() => showAs(false)}
+							>
+								<List size={18} aria-hidden="true" />
+							</button>
+							<button
+								type="button"
+								class="icon-button tool-button"
+								aria-label="Grid"
+								data-tip="Grid"
+								aria-pressed={app.recentFilesGrid}
+								onclick={() => showAs(true)}
+							>
+								<LayoutGrid size={18} aria-hidden="true" />
+							</button>
+						</div>
+					</div>
+
+					{#if app.recentFilesGrid}
+						<ul class="recent-grid" class:recent-enter={switched} aria-labelledby="recent-heading">
+							{#each app.recent as file, i (file.index)}
+								{@const url = previewUrl(file)}
+								<ContextMenu.Root>
+									<ContextMenu.Trigger>
+										{#snippet child({ props })}
+											<li {...props} class="recent-card" class:recent-missing={!file.exists} style:--recent-i={Math.min(i, STAGGERED)}>
+												<button type="button" class="recent-open" data-tip={folderTip(file)} onclick={() => void app.openRecent(file.index)}>
+													<span class="recent-preview">
+														{#if file.exists && !failed[url]}
+															<img
+																src={url}
+																alt=""
+																class="recent-page"
+																class:recent-page-loaded={loaded[url]}
+																draggable="false"
+																decoding="async"
+																onload={() => (loaded[url] = true)}
+																onerror={() => (failed[url] = true)}
+															/>
+														{/if}
+														{#if !file.exists || failed[url]}
+															<!-- Decorative: the name says what it is. -->
+															<img src={fileIconUrl} alt="" class="h-12 w-auto" draggable="false" />
+														{/if}
+													</span>
+													<span class="recent-name">{file.name}</span>
+													<span class="recent-details">
+														<span data-tip={fullDate(file.openedAt)}>{openedDate(file.openedAt)}</span>
+														<span aria-hidden="true">·</span>
+														<span class="tabular-nums">{sizeText(file)}</span>
+													</span>
 												</button>
-											</td>
-											<td class="truncate" data-tip={fullDate(file.openedAt)}>{openedDate(file.openedAt)}</td>
-											<td class="text-right tabular-nums">{sizeText(file)}</td>
-											<td>
-												<div class="recent-actions">
-													{@render pinButton(file, '', 18)}
-													{@render removeButton(file, '', 18)}
-												</div>
-											</td>
-										</tr>
-									{/snippet}
-								</ContextMenu.Trigger>
-								{@render fileMenu(file)}
-							</ContextMenu.Root>
-						{/each}
-					</tbody>
-				</table>
+												{@render pinButton(file, 'recent-card-button recent-card-pin size-7', 14)}
+												{@render removeButton(file, 'recent-card-button recent-card-remove size-7', 14)}
+											</li>
+										{/snippet}
+									</ContextMenu.Trigger>
+									{@render fileMenu(file)}
+								</ContextMenu.Root>
+							{/each}
+						</ul>
+					{:else}
+						<table class="recent-table" class:recent-enter={switched} aria-labelledby="recent-heading">
+							<colgroup>
+								<col />
+								<col class="recent-col-opened" />
+								<col class="recent-col-size" />
+								<col class="recent-col-actions" />
+							</colgroup>
+							<thead>
+								<tr>
+									<th scope="col">Name</th>
+									<th scope="col">Opened</th>
+									<th scope="col" class="text-right">Size</th>
+									<th scope="col"><span class="sr-only">Actions</span></th>
+								</tr>
+							</thead>
+							<tbody>
+								{#each app.recent as file, i (file.index)}
+									<ContextMenu.Root>
+										<ContextMenu.Trigger>
+											{#snippet child({ props })}
+												<tr {...props} class="recent-row" class:recent-missing={!file.exists} style:--recent-i={Math.min(i, STAGGERED)}>
+													<td>
+														<button
+															type="button"
+															class="recent-open recent-open-row"
+															data-tip={folderTip(file)}
+															onclick={() => void app.openRecent(file.index)}
+														>
+															<!-- Decorative: the name says what it is. -->
+															<img src={fileIconUrl} alt="" height="20" class="h-5 w-auto shrink-0" draggable="false" />
+															<span class="truncate">{file.name}</span>
+														</button>
+													</td>
+													<td class="truncate" data-tip={fullDate(file.openedAt)}>{openedDate(file.openedAt)}</td>
+													<td class="text-right tabular-nums">{sizeText(file)}</td>
+													<td>
+														<div class="recent-actions">
+															{@render pinButton(file, '', 18)}
+															{@render removeButton(file, '', 18)}
+														</div>
+													</td>
+												</tr>
+											{/snippet}
+										</ContextMenu.Trigger>
+										{@render fileMenu(file)}
+									</ContextMenu.Root>
+								{/each}
+							</tbody>
+						</table>
+					{/if}
+				</div>
 			{/if}
-		{/if}
+		</div>
 	</div>
 </div>

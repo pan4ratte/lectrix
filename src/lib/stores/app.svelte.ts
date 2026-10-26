@@ -197,6 +197,10 @@ class AppStore {
 		return this.groups.find((g) => g.key === this.activeKey) ?? null;
 	}
 	startup = $state<StartupInfo | null>(null);
+	/** The window is opening the documents it starts with (a file opened from File
+	 * Explorer): the start screen waits, so it does not show for a moment first. Rust says
+	 * so before the page loads, and again in `StartupInfo`. */
+	starting = $state(typeof window !== 'undefined' && window.__LECTRIX_OPENING__ === true);
 	recent = $state<RecentFile[]>([]);
 	/** The side panes (section 8): open, their widths, the panels each holds (the user
 	 * moves them between the panes) and the one each shows. */

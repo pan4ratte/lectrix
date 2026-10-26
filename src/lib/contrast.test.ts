@@ -93,7 +93,16 @@ describe.each([
 	['light', light],
 	['dark', dark]
 ])('%s theme', (_name, vars) => {
-	const surfaces = ['--lectrix-bg', '--lectrix-chrome', '--lectrix-surface', '--lectrix-surface-raised', '--lectrix-menu', '--lectrix-canvas'];
+	const surfaces = [
+		'--lectrix-bg',
+		'--lectrix-chrome',
+		'--lectrix-surface',
+		'--lectrix-surface-raised',
+		'--lectrix-menu',
+		'--lectrix-canvas',
+		'--lectrix-start-bar',
+		'--lectrix-start-bg'
+	];
 	// Filled controls: text on them, with no hover or selection tint on top.
 	const fills = ['--lectrix-tab-active', '--lectrix-button', '--lectrix-button-hover'];
 

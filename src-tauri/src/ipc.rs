@@ -1913,6 +1913,9 @@ pub struct StartupInfo {
     /// The window Lectrix started with, not one made for a tab moved out of another: it
     /// offers crash recovery, opens the startup files and says what an update brought.
     pub first_window: bool,
+    /// The window has documents to open as it starts (files from the command line, or a
+    /// tab moved out of another window): the start screen waits until they are open.
+    pub opens_documents: bool,
     /// Milliseconds from the start of `main` to the frontend's first mount.
     pub main_to_ready_ms: f64,
     /// Set by the LECTRIX_PERF environment variable: the frontend runs its scripted

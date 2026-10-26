@@ -3,11 +3,11 @@ import { describe, expect, it } from 'vitest';
 import { toolSpans } from './starttools';
 
 /** The rows the cards make, each as the spans of its cards. */
-function rows(count: number): number[][] {
+function rows(count: number, columns: 2 | 3 = 3): number[][] {
 	const out: number[][] = [];
 	let row: number[] = [];
 	let used = 0;
-	for (const span of toolSpans(count)) {
+	for (const span of toolSpans(count, columns)) {
 		row.push(span);
 		used += span;
 		if (used === 6) {
@@ -39,5 +39,16 @@ describe('toolSpans', () => {
 		expect(rows(1)).toEqual([[6]]);
 		expect(rows(2)).toEqual([[3, 3]]);
 		expect(toolSpans(0)).toEqual([]);
+	});
+
+	it('puts two cards to a row in a narrower grid', () => {
+		expect(rows(6, 2)).toEqual([
+			[3, 3],
+			[3, 3],
+			[3, 3]
+		]);
+		expect(rows(7, 2)).toEqual([[3, 3], [3, 3], [3, 3], [6]]);
+		expect(rows(1, 2)).toEqual([[6]]);
+		expect(toolSpans(0, 2)).toEqual([]);
 	});
 });

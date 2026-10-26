@@ -117,7 +117,8 @@ does afterwards.
       administrator).
 - [ ] Double-click a PDF in Explorer: Windows asks which app to use and offers Lectrix (or,
       if you had chosen a default before, it keeps it; Lectrix is then listed under Open with
-      and in Settings > Apps > Default apps). Choosing Lectrix opens the file in it.
+      and in Settings > Apps > Default apps). Choosing Lectrix opens the file in it, with
+      no glimpse of the start screen before the page shows.
 - [ ] With Lectrix as the default app, Explorer shows the Lectrix PDF icon (the page with
       the blue swan and "PDF", the swan alone at small sizes) for PDFs, in the Details and
       Large icons views. If the old icon stays, sign out and in again: Explorer caches icons.

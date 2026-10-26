@@ -54,6 +54,11 @@
 	/* Light menus have the canvas's colour, so their edge is a step darker than other lines. */
 	--lectrix-menu-line: var(--lectrix-line-strong);
 	--lectrix-canvas: #e4e9f1;
+	/* The start screen and the title bar over it: in the light theme the bar takes the
+	   canvas's colour and the start screen the bars', so the bar is the darker of them, as
+	   in the dark theme. */
+	--lectrix-start-bar: var(--lectrix-canvas);
+	--lectrix-start-bg: var(--lectrix-chrome);
 	/* The active document tab: a pill, ringed with a line in the light theme. */
 	--lectrix-tab-active: #f9fafb;
 	--lectrix-tab-active-line: var(--lectrix-line);
@@ -168,6 +173,8 @@
 		--lectrix-menu: #1c1e22;
 		--lectrix-menu-line: var(--lectrix-line-strong);
 		--lectrix-canvas: #0c0d0e;
+		--lectrix-start-bar: var(--lectrix-chrome);
+		--lectrix-start-bg: var(--lectrix-canvas);
 		--lectrix-search-marker: #ffc400;
 		--lectrix-search-marker-current: #ff7a1a;
 		--lectrix-tab-active: #2a2f37;
@@ -217,6 +224,8 @@
 	--lectrix-menu: #1c1e22;
 	--lectrix-menu-line: var(--lectrix-line-strong);
 	--lectrix-canvas: #0c0d0e;
+	--lectrix-start-bar: var(--lectrix-chrome);
+	--lectrix-start-bg: var(--lectrix-canvas);
 	--lectrix-search-marker: #ffc400;
 	--lectrix-search-marker-current: #ff7a1a;
 	--lectrix-tab-active: #2a2f37;
@@ -1704,14 +1713,51 @@ button.shortcut-key:hover,
 	letter-spacing: -0.02em;
 }
 
+/* With recent files, a wide start screen shows the tools as a column at the left, two cards
+   to a row, three in a wider window, and the recent files beside them; a narrower one has the
+   tools across, three to a row, over the recent files. */
+.start-screen {
+	container-type: inline-size;
+	background: var(--lectrix-start-bg);
+}
+:root:has(.start-screen) .title-bar {
+	background: var(--lectrix-start-bar);
+}
+.start-recent {
+	margin-top: 34px;
+}
+@container (min-width: 960px) {
+	.start-split {
+		display: grid;
+		grid-template-columns: 372px minmax(0, 1fr);
+		align-items: start;
+		gap: 40px;
+	}
+	.start-split .start-tool {
+		grid-column: span var(--tool-span-2);
+	}
+	.start-split .start-recent {
+		margin-top: 0;
+	}
+}
+@container (min-width: 1320px) {
+	.start-split {
+		grid-template-columns: 552px minmax(0, 1fr);
+	}
+	.start-split .start-tool {
+		grid-column: span var(--tool-span-3);
+	}
+}
+
 /* The tools (Open, Combine files...): cards in a grid of three columns (ADR 0030), each an
    icon tile, with the tool's shortcut or an arrow beside it, over the tool's name and a line
    on what it does. At rest a card lies on the start screen with a soft shadow; under the
    pointer or the keyboard focus it lifts, its border turns blue, its icon tile takes a tint
    of the accent and rises with a small spring, and the arrow slides in. Pressed, it sinks
    back a little, and a ripple runs out from where it was pressed (from its centre for Enter
-   and Space; StartScreen.svelte). The grid has six tracks and a card spans two; the cards of
-   a last row that is not full share it (StartScreen.svelte works out the spans). */
+   and Space; StartScreen.svelte). The grid has six tracks and a card spans two (three where
+   the cards are two to a row); the cards of a last row that is not full share it
+   (StartScreen.svelte works out the spans). */
 .start-tools {
 	display: grid;
 	grid-template-columns: repeat(6, minmax(0, 1fr));
@@ -1724,6 +1770,7 @@ button.shortcut-key:hover,
 	   stay as tall as each other. */
 	min-height: 124px;
 	min-width: 0;
+	grid-column: span var(--tool-span-3);
 	flex-direction: column;
 	justify-content: space-between;
 	gap: 6px;
@@ -1918,7 +1965,7 @@ button.shortcut-key:hover,
 /* The table: small capitals over the columns and a line under each row, 12 px in from the
    lines' ends. The row under the pointer or the keyboard focus takes the tool cards' colour
    and edge, with corners, 4 px wider than the lines on each side, and the lines above and
-   below it go. */
+   below it go. The last row has no line under it. */
 .recent-table {
 	--recent-opened-w: 150px;
 	--recent-size-w: 90px;
@@ -2005,6 +2052,7 @@ button.shortcut-key:hover,
 .recent-row:is(:hover, :has(:focus-visible)) .recent-open::before {
 	opacity: 1;
 }
+.recent-row:last-child > td,
 .recent-row:is(:hover, :has(:focus-visible)) > td,
 .recent-row:has(+ .recent-row:hover) > td,
 .recent-row:has(+ .recent-row :focus-visible) > td,

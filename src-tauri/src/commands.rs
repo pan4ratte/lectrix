@@ -1792,8 +1792,10 @@ pub fn app_ready(app: AppHandle, window: WebviewWindow, state: State<'_, AppStat
         .lock()
         .map(|mut s| (s.panes(), s.note_version(&app.package_info().version)))
         .unwrap_or_default();
+    let opens_documents = windows::opens_documents(&state, window.label());
     StartupInfo {
         first_window: window.label() == windows::MAIN,
+        opens_documents,
         main_to_ready_ms: elapsed.as_secs_f64() * 1000.0,
         perf_mode: std::env::var_os("LECTRIX_PERF").is_some(),
         perf_scroll_only: std::env::var("LECTRIX_PERF").as_deref() == Ok("scroll"),

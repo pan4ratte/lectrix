@@ -82,6 +82,7 @@
 		try {
 			const info = await appReady();
 			app.startup = info;
+			if (!info.opensDocuments) app.starting = false;
 			app.restorePanes(info.panes);
 			const settings = getSettings()
 				.then(applySettings)
@@ -99,6 +100,7 @@
 			await settings;
 			const openStartedAt = performance.now();
 			await app.openStartup();
+			app.starting = false;
 			if (first && app.tabs.length > 0) {
 				await firstPagePainted();
 				void logMetric('first_page_visible_ms', performance.now() - openStartedAt);
@@ -110,6 +112,7 @@
 			// Once the documents are up, so the check never delays them (ADR 0011).
 			update.startChecks();
 		} catch (e) {
+			app.starting = false;
 			app.showError(toAppError(e));
 		}
 	}
@@ -498,7 +501,7 @@
 						{/if}
 					{/key}
 					{/if}
-				{:else}
+				{:else if !app.starting}
 					<StartScreen />
 				{/if}
 			</main>

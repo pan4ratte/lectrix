@@ -264,6 +264,12 @@ pub fn create(app: &AppHandle, label: &str, place: Place) -> tauri::Result<Webvi
             .traffic_light_position(tauri::LogicalPosition::new(13.0, 17.0));
     }
     let state = app.state::<AppState>();
+    // The page knows from its first frame whether the window starts with documents, so it
+    // shows the start screen at once or not at all (`StartupInfo::opens_documents` says
+    // the same once it asks).
+    if opens_documents(&state, label) {
+        builder = builder.initialization_script("window.__LECTRIX_OPENING__ = true;");
+    }
     let (bounds, maximized) = match place {
         Place::Remembered => {
             let saved = state.store.lock().ok().and_then(|s| s.window_placement());
@@ -337,6 +343,17 @@ fn place_beside(
         let origin = from.outer_position().ok()?;
         placement::beside((origin.x, origin.y), size, &monitors)
     }
+}
+
+/// Whether the window `label` starts with documents to open: files from the command line
+/// (which the first window to ask takes), or tabs Rust has for it (a tab moved out of
+/// another window). The start screen waits for them rather than showing for a moment.
+pub fn opens_documents(state: &AppState, label: &str) -> bool {
+    state
+        .startup_paths
+        .lock()
+        .is_ok_and(|p| p.as_ref().is_some_and(|p| !p.is_empty()))
+        || !state.windows.owned_by(label).is_empty()
 }
 
 /// Makes the window `label` for a tab moved out of `from`. The caller gives it the

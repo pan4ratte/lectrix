@@ -11,7 +11,10 @@ the wording, translations): docs/releasing.md, "The changelog".
 ### Start screen
 
 - The tools are cards, each with a line on what it does. A card lifts under the pointer, and a ripple runs from where you click it.
-- In the table of recent files, the row under the pointer is highlighted, and its star and remove buttons fade in.
+- In the light theme, the title bar is now darker than the start screen, as in the dark theme.
+- In a wide window, the tools are on the left, two or three to a row, and the recent files beside them.
+- In the table of recent files, the row under the pointer is highlighted, and its star and remove buttons fade in. The last row has no line under it.
+- A PDF opened from File Explorer while Lectrix is closed opens without the start screen flashing up first.
 
 ### Viewer and tabs
 

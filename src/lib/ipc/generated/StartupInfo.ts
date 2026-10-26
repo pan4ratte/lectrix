@@ -9,6 +9,11 @@ export type StartupInfo = {
  */
 firstWindow: boolean, 
 /**
+ * The window has documents to open as it starts (files from the command line, or a
+ * tab moved out of another window): the start screen waits until they are open.
+ */
+opensDocuments: boolean, 
+/**
  * Milliseconds from the start of `main` to the frontend's first mount.
  */
 mainToReadyMs: number, 
