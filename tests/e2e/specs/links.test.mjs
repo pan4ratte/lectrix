@@ -8,7 +8,9 @@ import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
 
-import { OUT, launch, waitForDocument } from '../lib/app.mjs';
+import { Key } from 'webdriverio';
+
+import { OUT, launch, statusText, waitForDocument } from '../lib/app.mjs';
 
 /** Objects 1..n as a PDF with a classic cross-reference table. */
 function assemble(objects) {
@@ -252,6 +254,72 @@ test('links in the text are followed, and bookmark titles show as in Acrobat', a
 		await click(browser, first);
 		await browser.pause(300);
 		assert.equal(await pageBox(browser), '1', 'the Highlight tool followed a link');
+	} finally {
+		await stop();
+	}
+});
+
+test('a link in marked text is followed; Ctrl+click selects the markup, and a note on a link comes first', async () => {
+	mkdirSync(OUT, { recursive: true });
+	const path = join(OUT, 'links-marked.pdf');
+	writeFileSync(path, fixture());
+	const { browser, stop } = await launch([path]);
+	try {
+		await waitForDocument(browser);
+		const barOrPanel = () => browser.execute(() => document.querySelector('[data-floating-bar], [data-annotation-panel]') !== null);
+
+		// The first line of the contents page, a link to page 2, highlighted.
+		await browser.keys('h');
+		const from = await pagePoint(browser, 0, 76, 88);
+		const to = await pagePoint(browser, 0, 200, 88);
+		await browser
+			.action('pointer')
+			.move({ ...from, origin: 'viewport' })
+			.down()
+			.move({ x: Math.round((from.x + to.x) / 2), y: to.y, origin: 'viewport' })
+			.pause(16)
+			.move({ ...to, origin: 'viewport' })
+			.pause(16)
+			.up()
+			.perform();
+		await browser.waitUntil(async () => /Unsaved changes/.test(await statusText(browser)), { timeoutMsg: 'no highlight was made' });
+		await browser.keys(['Escape']);
+		await browser.keys(['Escape']);
+
+		// With the Select tool the hand and the tint show over the highlighted link, and a
+		// click follows it.
+		const first = await pagePoint(browser, 0, 120, 88);
+		await move(browser, await pagePoint(browser, 0, 450, 300));
+		await move(browser, first);
+		await browser.waitUntil(() => browser.execute(() => document.querySelector('[data-link-hover]') !== null), {
+			timeoutMsg: 'the link under the highlight is not tinted'
+		});
+		await click(browser, first);
+		await browser.waitUntil(async () => (await pageBox(browser)) === '2', { timeoutMsg: 'the link under the highlight was not followed' });
+		assert.equal(await barOrPanel(), false, 'the click selected the highlight too');
+		await browser.keys(['Alt', 'ArrowLeft']);
+		await browser.waitUntil(async () => (await pageBox(browser)) === '1');
+
+		// Ctrl+click selects the highlight instead, and follows nothing.
+		await browser.action('key').down(Key.Ctrl).perform(true);
+		await click(browser, first);
+		await browser.action('key').up(Key.Ctrl).perform();
+		await browser.waitUntil(barOrPanel, { timeoutMsg: 'Ctrl+click did not select the highlight' });
+		await browser.pause(300);
+		assert.equal(await pageBox(browser), '1', 'Ctrl+click followed the link');
+		await browser.keys(['Escape']);
+
+		// A note lies on the text: on the second line's link, a click selects the note.
+		await browser.keys('n');
+		await click(browser, await pagePoint(browser, 0, 100, 120));
+		await browser.waitUntil(barOrPanel, { timeoutMsg: 'no note was placed' });
+		await browser.keys(['Escape']);
+		await browser.keys(['Escape']);
+		await browser.waitUntil(async () => !(await barOrPanel()), { timeoutMsg: 'the note stayed selected' });
+		await click(browser, await pagePoint(browser, 0, 110, 130));
+		await browser.waitUntil(barOrPanel, { timeoutMsg: 'a click on the note did not select it' });
+		await browser.pause(300);
+		assert.equal(await pageBox(browser), '1', 'a click on the note followed the link under it');
 	} finally {
 		await stop();
 	}

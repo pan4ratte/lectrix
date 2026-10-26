@@ -52,6 +52,7 @@
 		type Box,
 		type Handle
 	} from '#lib/features/annotations/geometry.ts';
+	import { marksText } from '#lib/features/annotations/listing.ts';
 	import SelectionBar from '#lib/features/annotations/SelectionBar.svelte';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
 	import { DEFAULT_QUICK_TOOLS, capabilities, isMarkupTool, showsComment } from '#lib/features/annotations/tools.ts';
@@ -1160,6 +1161,14 @@
 		return text ? linkAt(text.links, x, y) : null;
 	}
 
+	/** The link the Select tool would follow at a point where `hit` is (or nothing is): a link
+	 * in the text comes before text markup over it, which marks that text; other annotations
+	 * lie on the text and come before it. */
+	function linkOver(page: number, x: number, y: number, hit: Annotation | null): PageLink | null {
+		if (tools.tool !== 'select' || (hit && !marksText(hit))) return null;
+		return linkUnder(page, x, y);
+	}
+
 	/** A link the Select tool pressed, and where (client pixels): let go there, it is
 	 * followed; dragged from there, text is selected as anywhere else. */
 	let linkPress: { link: PageLink; page: number; x: number; y: number } | null = null;
@@ -1205,7 +1214,9 @@
 			// A side of the selected text comes before an annotation under it.
 			if (beginEdge(event, page, x, y, clicks)) return;
 			const hit = annotationAt(targets(page), x, y, px(4));
-			if (hit && pressAnnotation(event, page, hit, x, y, clicks)) return;
+			// A link in marked text is followed; with Ctrl or Shift the annotation is meant.
+			const toLink = hit && !event.ctrlKey && !event.shiftKey && linkOver(page, x, y, hit) !== null;
+			if (hit && !toLink && pressAnnotation(event, page, hit, x, y, clicks)) return;
 		}
 		if (tool === 'select') {
 			const link = clicks === 1 && !event.shiftKey ? linkUnder(page, x, y) : null;
@@ -1404,12 +1415,14 @@
 			tipPointer = { x: lastPointer.x - rect.left + scrollLeft, y: lastPointer.y - rect.top + scrollTop };
 			const text = tab.text(page);
 			overText = !!text && isOverText(text, x, y);
-			// An annotation or a side of the selection comes before a link under it.
-			const link = tools.tool === 'select' && !hit && !overEdge && text ? linkAt(text.links, x, y) : null;
+			// A side of the selection comes before a link under it, and so does an annotation,
+			// but for text markup: the link is in the text it marks.
+			const link = overEdge ? null : linkOver(page, x, y, hit);
+			if (link) overAnnotation = null;
 			// The same link keeps its object, so the page is not drawn again for every move.
 			if (!link) hoveredLink = null;
 			else if (hoveredLink?.page !== page || hoveredLink.rect !== link.rect) hoveredLink = { page, rect: link.rect };
-			hoverTip(hit, link, page);
+			hoverTip(link ? null : hit, link, page);
 		});
 	}
 
