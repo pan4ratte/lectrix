@@ -166,9 +166,13 @@ test('a closed document reopens from the recent list where it was left', async (
 		await browser.keys(['Control', 'w']);
 		await browser.keys(['Control', 'w']);
 		await (await browser.$('button*=recent-a.pdf')).waitForDisplayed({ timeoutMsg: 'recent-a.pdf is not in the recent list' });
-		// A table: name, when it was opened, size; newest first.
+		// A list: the name over when it was opened, the size and the folder; newest first.
 		const rows = await browser.execute(() =>
-			[...document.querySelectorAll('table tbody tr')].map((tr) => [...tr.cells].slice(0, 3).map((td) => td.textContent?.trim() ?? ''))
+			[...document.querySelectorAll('.recent-row')].map((row) => [
+				row.querySelector('.recent-file-name')?.textContent?.trim() ?? '',
+				row.querySelector('.recent-file-details > :first-child')?.textContent?.trim() ?? '',
+				row.querySelector('.recent-file-size')?.textContent?.trim() ?? ''
+			])
 		);
 		const order = rows.map((r) => r[0]);
 		assert.ok(order[0] === 'recent-b.pdf' && order[1] === 'recent-a.pdf', `newest first: ${order.join(' | ')}`);
@@ -240,7 +244,8 @@ test('a recent file can be pinned to the top of the list, and its menu shows it 
 		await browser.keys(['Control', 'w']);
 		await browser.keys(['Control', 'w']);
 		await (await browser.$('button*=pin-a.pdf')).waitForDisplayed({ timeoutMsg: 'pin-a.pdf is not in the recent list' });
-		const names = () => browser.execute(() => [...document.querySelectorAll('table tbody tr')].map((tr) => tr.cells[0].textContent?.trim() ?? ''));
+		const names = () =>
+			browser.execute(() => [...document.querySelectorAll('.recent-row .recent-file-name')].map((n) => n.textContent?.trim() ?? ''));
 		/** Each row's star: pinned or not, and whether it shows. */
 		const stars = () =>
 			browser.execute(() =>

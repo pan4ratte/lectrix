@@ -86,12 +86,14 @@ test('a long list of recent files scrolls by itself beside the tools, the start 
 		assert.ok(s.listHeight >= 180, `the list keeps 180 px (${JSON.stringify(s)})`);
 		assert.ok(Math.abs(s.below - s.above) <= 1, `as much room under the list as above the content (${JSON.stringify(s)})`);
 
-		// The list starts level with the tools, its heading 10 px above it, as under them.
+		// The list starts level with the tools, its heading 10 px above it, as under them (in
+		// CSS pixels: the boxes are measured at the zoom set above).
 		const level = await browser.execute(() => {
 			const box = (selector) => document.querySelector(selector).getBoundingClientRect();
+			const zoom = Number(document.documentElement.style.zoom) || 1;
 			return {
 				list: Math.round(box('.recent-scroll').top - box('.start-tool').top),
-				heading: Math.round(box('.recent-scroll').top - box('.recent-head').bottom)
+				heading: Math.round((box('.recent-scroll').top - box('.recent-head').bottom) / zoom)
 			};
 		});
 		assert.deepEqual(level, { list: 0, heading: 10 }, 'the list starts level with the tools, its heading just above it');
