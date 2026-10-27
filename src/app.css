@@ -1805,6 +1805,16 @@ button.shortcut-key:hover,
 	flex: 1 0 auto;
 	flex-direction: column;
 }
+/* As wide as the tools, in their columns: the heading over the first two, the update's note
+   over the third. */
+.start-header {
+	display: grid;
+	width: var(--start-tools-w);
+	max-width: 100%;
+	grid-template-columns: minmax(0, 1fr) var(--start-card-w);
+	align-items: center;
+	gap: 12px;
+}
 .start-recent {
 	display: flex;
 	flex: 1 0 auto;
@@ -2597,14 +2607,14 @@ button.shortcut-key:hover,
 /* The start screen's note after an update, beside the app's name (at the right; under it
    in a narrow window), with its close button at the right end, centred. As wide as its
    words, so it fits beside the name over the tools' three cards. */
+/* The update's note: the third tool column's place and width, beside the heading. */
 .start-update {
 	display: flex;
-	max-width: 100%;
+	min-width: 0;
 	align-items: center;
-	gap: 12px;
-	margin-left: auto;
+	gap: 10px;
 	/* No taller than the icon, so the heading stays put when it goes. */
-	padding: 7px 8px 7px 14px;
+	padding: 7px 6px 7px 12px;
 	border: 1px solid var(--lectrix-line);
 	border-radius: var(--radius-panel);
 	background: var(--lectrix-surface-raised);

@@ -185,19 +185,22 @@
 
 <div class="start-screen flex h-full flex-col items-center overflow-auto" {@attach scrollAxes}>
 	<div class="start-content" class:start-split={app.recent.length > 0}>
-		<div class="flex flex-wrap items-center gap-[16px]">
-			<!-- Decorative: the heading names the app. The icon's rounded square is 46 px; the
-			     image has a margin round it. -->
-			<img src={iconUrl} alt="" width="57" height="57" class="start-icon" draggable="false" />
-			<div class="flex flex-col gap-[3px]">
-				<h1 class="start-title">{APP_NAME}</h1>
-				<p class="text-[14px] text-fg-muted">Open a PDF, or drop files anywhere in this window.</p>
+		<!-- The heading over the tools' first two columns, and an update's note over the third. -->
+		<div class="start-header">
+			<div class="flex min-w-0 items-center gap-[16px]">
+				<!-- Decorative: the heading names the app. The icon's rounded square is 46 px; the
+				     image has a margin round it. -->
+				<img src={iconUrl} alt="" width="57" height="57" class="start-icon" draggable="false" />
+				<div class="flex min-w-0 flex-col gap-[3px]">
+					<h1 class="start-title">{APP_NAME}</h1>
+					<p class="text-[14px] text-fg-muted">Open a PDF, or drop files anywhere in this window.</p>
+				</div>
 			</div>
 			{#if app.updatedTo !== null}
 				<div class="start-update" role="status">
 					<span class="shrink-0 text-accent"><Sparkles size={18} aria-hidden="true" /></span>
 					<div class="min-w-0 flex-1">
-						<p class="font-medium">{app.updatedTo ? `Updated to ${app.updatedTo}` : 'Updated'}</p>
+						<p class="truncate font-medium">{app.updatedTo ? `Updated to ${app.updatedTo}` : 'Updated'}</p>
 						<button
 							type="button"
 							class="notice-link text-sm"

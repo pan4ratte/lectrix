@@ -47,10 +47,18 @@ test('on the start screen, the update is told beside the name, once', async () =
 		await browser.saveScreenshot(join(OUT, 'whats-new-start-screen.png'));
 		const beside = await browser.execute(() => {
 			const name = document.querySelector('h1')?.getBoundingClientRect();
+			const third = document.querySelectorAll('.start-tool')[2]?.getBoundingClientRect();
 			const note = document.querySelector('.start-update')?.getBoundingClientRect();
-			return name && note ? { right: note.left > name.right, level: note.top < name.bottom && note.bottom > name.top } : null;
+			return name && third && note
+				? {
+						right: note.left > name.right,
+						level: note.top < name.bottom && note.bottom > name.top,
+						left: Math.round(note.left - third.left),
+						width: Math.round(note.width - third.width)
+					}
+				: null;
 		});
-		assert.deepEqual(beside, { right: true, level: true }, 'the note is to the right of the name');
+		assert.deepEqual(beside, { right: true, level: true, left: 0, width: 0 }, 'the note is over the third column, as wide as it');
 		assert.equal(await (await browser.$('//*[@role="status"][contains(., "was updated")]')).isExisting(), false, 'no notification as well');
 
 		await (await block.$('button=See what’s new')).click();
