@@ -427,7 +427,7 @@
 						{...props}
 						bind:this={list}
 						bind:clientHeight={viewportH}
-						class="tree relative min-h-0 flex-1 overflow-auto px-1 outline-none"
+						class="tree relative min-h-0 flex-1 overflow-x-hidden overflow-y-auto px-1 outline-none"
 						role="tree"
 						aria-label="Bookmarks"
 						tabindex="0"

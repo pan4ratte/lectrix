@@ -565,7 +565,7 @@
 
 <div
 	bind:this={scroller}
-	class="page-grid relative min-h-0 flex-1 overflow-y-auto bg-canvas"
+	class="page-grid relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden bg-canvas"
 	role="listbox"
 	aria-label={label}
 	aria-multiselectable="true"

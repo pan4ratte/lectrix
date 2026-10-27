@@ -148,6 +148,10 @@
 	const rotationOf = (index: number) => tab.shownRotation(index);
 	const layout = $derived(computeLayout(tab.pages, tab.zoom, rotationOf, arrangement));
 	const contentW = $derived(contentWidth(layout, viewportW));
+	/** The pages fit the view's width: it scrolls only up and down. Its width is measured in
+	 * whole pixels, so the content can be a fraction of one wider than the view, and a
+	 * touchpad's diagonal swipe would slide it sideways. */
+	const fitsWidth = $derived(contentW <= viewportW + 1);
 	/** Pages mounted: the viewport plus a quarter screen above and below. Each mounted page
 	 * holds its pixels in the webview, and a wider margin only cost memory (ADR 0002); the
 	 * rows next to these are rendered ahead in Rust instead (below). */
@@ -2163,6 +2167,7 @@
 					{...props}
 					bind:this={scroller}
 					class="viewer-scroll h-full overflow-auto bg-canvas outline-none"
+					style:overflow-x={fitsWidth ? 'hidden' : null}
 					class:cursor-text={overText && !overAnnotation && !overLink && !edgeCursor && (tools.tool === 'select' || isMarkupTool(tools.tool))}
 					class:cursor-crosshair={!overAnnotation && (tools.tool === 'ink' || tools.tool === 'note' || tools.tool === 'freeText')}
 					class:cursor-move={overAnnotation === 'move' && !edgeCursor}

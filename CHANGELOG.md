@@ -38,6 +38,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 ### General
 
 - **Help > About** shows the version as soon as it opens, instead of a moment later.
+- A touchpad swipe that goes partly sideways no longer slides the pages, a panel or a list sideways when they scroll only up and down.
 
 ## 1.3.1
 

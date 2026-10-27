@@ -325,7 +325,7 @@
 					</div>
 				{:else}
 					<form class="mt-4 flex min-h-0 flex-col" onsubmit={print}>
-						<div class="-mx-6 flex min-h-0 gap-6 overflow-y-auto px-6">
+						<div class="-mx-6 flex min-h-0 gap-6 overflow-y-auto overflow-x-hidden px-6">
 							<div class="flex w-[380px] shrink-0 flex-col gap-4" data-print-settings>
 								<div class="flex flex-col gap-2">
 									<div class="flex items-center gap-2">

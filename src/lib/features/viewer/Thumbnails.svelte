@@ -338,7 +338,7 @@
 				<div
 					{...props}
 					bind:this={list}
-					class="min-h-0 flex-1 overflow-y-auto"
+					class="min-h-0 flex-1 overflow-y-auto overflow-x-hidden"
 					class:cursor-grabbing={pan !== null}
 					onscroll={() => (scrollTop = list?.scrollTop ?? 0)}
 					role="listbox"

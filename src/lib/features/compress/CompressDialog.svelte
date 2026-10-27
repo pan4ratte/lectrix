@@ -271,7 +271,7 @@
 				</Dialog.Description>
 
 				{#if step === 'settings'}
-					<div class="-mx-6 mt-4 flex min-h-0 flex-col gap-5 overflow-y-auto px-6" data-compress-settings>
+					<div class="-mx-6 mt-4 flex min-h-0 flex-col gap-5 overflow-y-auto overflow-x-hidden px-6" data-compress-settings>
 						{#if parts.length > 0}
 							<div class="flex flex-col gap-2" data-compress-sizes>
 								<div class="flex h-2 overflow-hidden rounded-full bg-bg" aria-hidden="true">
@@ -434,7 +434,7 @@
 						<button type="button" class="button" onclick={stop} data-compress-stop>Stop</button>
 					</div>
 				{:else if outcome}
-					<div class="-mx-6 mt-4 flex min-h-0 flex-col gap-4 overflow-y-auto px-6" data-compress-result>
+					<div class="-mx-6 mt-4 flex min-h-0 flex-col gap-4 overflow-y-auto overflow-x-hidden px-6" data-compress-result>
 						{#if smaller}
 							<div class="flex flex-col gap-1">
 								<p class="text-lg font-semibold" data-compress-headline>{headline(outcome)}</p>

@@ -81,7 +81,7 @@
 					{#if !alone}
 						<fieldset class="flex flex-col gap-2">
 							<legend class="mb-1 text-sm font-medium">Files</legend>
-							<ol class="flex max-h-[132px] flex-col gap-1 overflow-y-auto text-sm" aria-label="Files to insert">
+							<ol class="flex max-h-[132px] flex-col gap-1 overflow-y-auto overflow-x-hidden text-sm" aria-label="Files to insert">
 								{#each request.sources as source (source.id)}
 									<li class="flex items-baseline justify-between gap-3">
 										<span class="truncate">{source.name}</span>

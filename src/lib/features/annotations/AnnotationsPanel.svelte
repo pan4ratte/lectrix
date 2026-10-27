@@ -897,7 +897,7 @@
 					<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 					<div
 						{...props}
-						class="annotation-list min-h-0 flex-1 overflow-y-auto p-1"
+						class="annotation-list min-h-0 flex-1 overflow-y-auto overflow-x-hidden p-1"
 						role="listbox"
 						aria-label="Annotations"
 						aria-activedescendant={cursor && shownKeys.has(cursor) ? rowId(cursor) : selectedKey ? rowId(selectedKey) : undefined}

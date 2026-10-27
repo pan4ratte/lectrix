@@ -146,7 +146,7 @@
 
 <ul
 	bind:this={list}
-	class="relative min-h-0 flex-1 overflow-y-auto px-2"
+	class="relative min-h-0 flex-1 overflow-y-auto overflow-x-hidden px-2"
 	aria-label="Files"
 	onpointerdown={onPointerDown}
 	onpointermove={onPointerMove}

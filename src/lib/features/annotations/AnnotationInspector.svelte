@@ -262,7 +262,7 @@
 			</svg>
 		{/if}
 		<aside
-			class="flex h-full flex-col gap-[12px] overflow-auto rounded-panel border border-line bg-surface-raised p-[12px] shadow-[0_4px_12px_var(--color-page-shadow)]"
+			class="flex h-full flex-col gap-[12px] overflow-x-hidden overflow-y-auto rounded-panel border border-line bg-surface-raised p-[12px] shadow-[0_4px_12px_var(--color-page-shadow)]"
 			style:max-height={exact ? null : `${Math.min(limit?.h ?? Infinity, viewMax)}px`}
 			aria-label="Annotation comment"
 			data-panel-scroll
