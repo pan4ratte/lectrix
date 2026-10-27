@@ -4,17 +4,8 @@
 	// that colour and each tool's last opacity; "Highlight with note" opens the inspector on
 	// the note. Copy shows a tick for a moment, then the bar closes and the text stays
 	// selected.
-	import {
-		BookmarkPlus,
-		Check,
-		Copy,
-		Highlighter,
-		MessageSquarePlus,
-		Strikethrough,
-		Underline,
-		ZodiacAquarius
-	} from '@lucide/svelte';
-	import { onDestroy, type Component } from 'svelte';
+	import { Check } from '@lucide/svelte';
+	import { onDestroy } from 'svelte';
 
 	import { addBookmark } from '#lib/features/bookmarks/actions.ts';
 	import { copySelection } from '#lib/features/viewer/actions.ts';
@@ -56,16 +47,6 @@
 		clearTimeout(closing);
 	});
 
-	const ICONS: Record<QuickTool, Component<{ size?: number; 'aria-hidden'?: boolean | 'true' }>> = {
-		highlight: Highlighter,
-		underline: Underline,
-		strikeOut: Strikethrough,
-		squiggly: ZodiacAquarius,
-		highlightNote: MessageSquarePlus,
-		copy: Copy,
-		bookmark: BookmarkPlus
-	};
-
 	const shown = $derived(QUICK_TOOLS.filter((t) => chosen.includes(t.id)));
 
 	async function run(tool: QuickTool) {
@@ -95,7 +76,7 @@
 	<ColorPicker color={tools.color} opacity={null} label="Colour" oncolor={(color) => tools.setColor(color)} />
 	<span class="mx-1 h-6 w-px shrink-0 bg-line" aria-hidden="true"></span>
 	{#each shown as t (t.id)}
-		{@const Icon = ICONS[t.id]}
+		{@const Icon = t.icon}
 		{@const done = t.id === 'copy' && copied}
 		<button
 			type="button"

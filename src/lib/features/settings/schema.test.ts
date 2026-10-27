@@ -14,6 +14,7 @@ const STORED: Settings = {
 	toolbarDock: 'top',
 	toolbarPosition: 'bottom',
 	toolbarVisibility: 'always',
+	startLayout: 'adaptive',
 	quickBar: true,
 	quickTools: ['highlight', 'copy'],
 	checkForUpdates: true,
@@ -101,6 +102,13 @@ describe('settings schema', () => {
 		expect(draft.toolbarVisibility).toBe('onHover');
 		visibility.write(draft, false);
 		expect(draft.toolbarVisibility).toBe('always');
+
+		const layout = row('startLayout');
+		if (layout.kind !== 'switch') throw new Error('startLayout is not a switch');
+		expect(layout.read(draft)).toBe(false);
+		layout.write(draft, true);
+		expect(draft.startLayout).toBe('oneColumn');
+		expect(toInput(draft).startLayout).toBe('oneColumn');
 	});
 
 	it('keeps the floating options while the toolbar is docked, in a section that says what they are for', () => {

@@ -9,7 +9,8 @@ into the app or shipped as it is. The app keeps its own copies where it uses the
 | `src-tauri/icons/`, `src-tauri/app-icon.png` | the kit's platform exports of `app-icon/` |
 | `src-tauri/icons/lectrix-pdf.ico` (PDF files on Windows) | `file-icon/windows/lectrix-pdf.ico` |
 | `src/lib/assets/lectrix-icon.svg` (About dialog) | `app-icon/lectrix-icon.svg` |
-| `src/lib/assets/lectrix-file-icon-small.svg` (start screen's recent files) | `file-icon/lectrix-file-icon-small.svg` |
+| `src/lib/assets/lectrix-file-icon-small.svg` (start screen's recent files grid, for a file without a preview) | `file-icon/lectrix-file-icon-small.svg` |
+| `src/lib/components/FileSymbol.svelte` (start screen's recent files list) | `file-icon/lectrix-file-symbol.svg`, drawn inline so it takes the text's colour |
 | `src/lib/assets/fonts/` (ADR 0009) | the kit's Latin, Cyrillic and Greek font build |
 | accent colours in `src/app.css` (ADR 0010) | `tokens.json` |
 
@@ -20,7 +21,8 @@ When a file here changes, copy it to the app in the same change and say so in th
 Lectrix's own artwork in this folder (everything except `yaru/`) is © 2026 Mark Ingrem,
 **all rights reserved**. It is not covered by the repository's AGPL-3.0-or-later licence,
 and it may not be reused or adapted without permission. The same holds for the copies the
-app ships (`src-tauri/icons/`, `src-tauri/app-icon.png`, `src/lib/assets/lectrix-icon.svg`),
+app ships (`src-tauri/icons/`, `src-tauri/app-icon.png`, `src/lib/assets/lectrix-icon.svg`,
+`src/lib/assets/lectrix-file-icon-small.svg`, the drawing in `src/lib/components/FileSymbol.svelte`),
 as `THIRD_PARTY_NOTICES.md` says.
 
 `yaru/` is derived from the Yaru icon theme and is licensed under **CC BY-SA 4.0**
@@ -35,7 +37,7 @@ as `THIRD_PARTY_NOTICES.md` says.
 | `app-icon/` | Master SVGs of the app icon (below) and the macOS Icon Composer layers |
 | `wordmark/` | "Lectrix" as outlines: ink on light, white on dark |
 | `lockup/` | Icon and wordmark together, light and dark, as SVG and a 4× PNG |
-| `file-icon/` | The PDF file icon: master SVG, small-size SVG, and `windows/lectrix-pdf.ico` with its PNGs |
+| `file-icon/` | The PDF file icon: master SVG, small-size SVG, and `windows/lectrix-pdf.ico` with its PNGs; and the one-colour file symbol for lists |
 | `yaru/` | Ubuntu Yaru versions of the app icon and PDF file icon (CC BY-SA 4.0, below) |
 
 ## Colours
@@ -105,6 +107,11 @@ colours, not the brand red (AGENTS.md section 6.5).
 - **Windows:** `lectrix-pdf.ico` is the icon of the `Lectrix.Document` file type. The app
   ships a copy, `src-tauri/icons/lectrix-pdf.ico`, installed next to `lectrix.exe`
   (ADR 0007).
+- **File symbol** (`lectrix-file-symbol.svg`): a file drawn in one colour for lists of
+  files, 24 px: the swan of `lectrix-symbol.svg`, 18 px, in a rounded square (corner 22.5%
+  of its size, as the app icon's), its tails running off the square's right edge as they
+  run off the app icon; the letter and the square both stroked in `currentColor`, with no
+  fill.
 
 ## Yaru versions
 

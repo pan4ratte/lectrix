@@ -4,6 +4,7 @@ import type { Appearance } from "./Appearance";
 import type { PageAdjustments } from "./PageAdjustments";
 import type { QuickTool } from "./QuickTool";
 import type { ScrollMode } from "./ScrollMode";
+import type { StartLayout } from "./StartLayout";
 import type { ToolbarDock } from "./ToolbarDock";
 import type { ToolbarPosition } from "./ToolbarPosition";
 import type { ToolbarStyle } from "./ToolbarStyle";
@@ -13,4 +14,4 @@ export type SettingsInput = {
 /**
  * Empty: use the default (the Windows user name).
  */
-author: string, appearance: Appearance, scrollMode: ScrollMode, toolbarStyle: ToolbarStyle, toolbarDock: ToolbarDock, toolbarPosition: ToolbarPosition, toolbarVisibility: ToolbarVisibility, quickBar: boolean, quickTools: Array<QuickTool>, checkForUpdates: boolean, smoothZoom: boolean, smoothAnnotationScroll: boolean, smoothPageTurn: boolean, smoothBookmarkScroll: boolean, smoothSearchScroll: boolean, searchMarkers: boolean, tooltipDelayMs: number, openCommentAfterMarkup: boolean, rememberAnnotationStyle: boolean, rememberAnnotationSort: boolean, annotationSort: AnnotationSort, selectionHandles: boolean, pdfaReadOnly: boolean, highlightLinks: boolean, linkPreviews: boolean, pageAdjustments: PageAdjustments, colorPanelOnHover: boolean, presetColors: { [key in number]: string }, shortcuts: { [key in string]: Array<string> }, };
+author: string, appearance: Appearance, scrollMode: ScrollMode, toolbarStyle: ToolbarStyle, toolbarDock: ToolbarDock, toolbarPosition: ToolbarPosition, toolbarVisibility: ToolbarVisibility, startLayout: StartLayout, quickBar: boolean, quickTools: Array<QuickTool>, checkForUpdates: boolean, smoothZoom: boolean, smoothAnnotationScroll: boolean, smoothPageTurn: boolean, smoothBookmarkScroll: boolean, smoothSearchScroll: boolean, searchMarkers: boolean, tooltipDelayMs: number, openCommentAfterMarkup: boolean, rememberAnnotationStyle: boolean, rememberAnnotationSort: boolean, annotationSort: AnnotationSort, selectionHandles: boolean, pdfaReadOnly: boolean, highlightLinks: boolean, linkPreviews: boolean, pageAdjustments: PageAdjustments, colorPanelOnHover: boolean, presetColors: { [key in number]: string }, shortcuts: { [key in string]: Array<string> }, };

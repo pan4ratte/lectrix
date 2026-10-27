@@ -1458,6 +1458,7 @@ fn settings_of(stored: &StoredSettings, platform: &dyn Platform) -> Settings {
         toolbar_dock: stored.toolbar_dock,
         toolbar_position: stored.toolbar_position,
         toolbar_visibility: stored.toolbar_visibility,
+        start_layout: stored.start_layout,
         quick_bar: stored.quick_bar,
         quick_tools: stored.quick_tools.clone(),
         check_for_updates: stored.check_for_updates,
@@ -1515,6 +1516,7 @@ pub fn set_settings(
         toolbar_dock: settings.toolbar_dock,
         toolbar_position: settings.toolbar_position,
         toolbar_visibility: settings.toolbar_visibility,
+        start_layout: settings.start_layout,
         quick_bar: settings.quick_bar,
         quick_tools: settings
             .quick_tools

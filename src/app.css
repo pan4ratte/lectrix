@@ -1771,21 +1771,28 @@ button.shortcut-key:hover,
 }
 .start-title {
 	color: var(--lectrix-fg-strong);
-	font-size: 21px;
+	/* Capitals about 20 px tall beside the icon's 46 px square, centred on it. */
+	font-size: 28px;
 	font-weight: 700;
-	letter-spacing: -0.02em;
+	line-height: 1;
+	letter-spacing: -0.025em;
 }
 
 /* The tools are three cards to a row, each 204 px wide whatever the window's width, and
    the start screen keeps at least 40 px round its content. With recent files, a start screen
    wide enough has the tools as a column at the left and the recent files beside them,
    48 px apart; a narrower one, or one without recent files, has the recent files under the
-   tools, as wide as they are. The content fills the start screen's height, and a long list
-   of recent files scrolls in the room left under its heading, never shorter than 180 px:
-   where there is not that much room, the start screen scrolls instead. */
+   tools, as wide as they are, and the start screen scrolls as a whole. Beside the tools,
+   the content fills the start screen's height and ends as far above its bottom as it
+   starts below its top, and a long list of recent files scrolls in the room left under its
+   heading, never shorter than 180 px: where there is not that much room, the start screen
+   scrolls instead. */
 .start-screen {
 	--start-card-w: 204px;
 	--start-tools-w: calc(3 * var(--start-card-w) + 2 * 12px);
+	/* The heading's row, as tall as the icon, and the room under it. */
+	--start-head-h: 46px;
+	--start-head-gap: 26px;
 	container-type: inline-size;
 	padding: 12vh 40px 40px;
 	background: var(--lectrix-start-bg);
@@ -1804,14 +1811,17 @@ button.shortcut-key:hover,
 	display: flex;
 	flex: 1 0 auto;
 	flex-direction: column;
+	margin-top: var(--start-head-gap);
 }
-/* As wide as the tools, in their columns: the heading over the first two, the update's note
-   over the third. */
+/* As wide as the tools, in their columns: the heading over the first, the update's note
+   over the other two. Its height is the icon's whether the note is there or not, so the
+   note comes and goes without moving anything. */
 .start-header {
 	display: grid;
 	width: var(--start-tools-w);
 	max-width: 100%;
-	grid-template-columns: minmax(0, 1fr) var(--start-card-w);
+	height: var(--start-head-h);
+	grid-template-columns: var(--start-card-w) minmax(0, 1fr);
 	align-items: center;
 	gap: 12px;
 }
@@ -1821,24 +1831,41 @@ button.shortcut-key:hover,
 	flex-direction: column;
 	margin-top: 34px;
 }
-/* Wider than the list by the room a row's tint and focus ring take outside it, so they are
-   not cut off. The table's column headings stay at the top as it scrolls, over the rows
-   (but not over the first row's tint and ring), and a row given the keyboard focus scrolls
-   clear of them. */
+/* The heading's row, just above the list in either layout. */
+.recent-head {
+	height: 32px;
+	margin-bottom: 10px;
+}
+/* The room the recent files have. The list is a card as tall as its rows; beside the
+   tools, it scrolls inside itself once it fills the room (below). */
+.recent-area {
+	display: flex;
+	flex-direction: column;
+}
 .recent-scroll {
-	min-height: 180px;
-	flex: 1 1 0;
-	margin: 0 -6px;
-	padding: 0 6px 2px;
-	overflow-x: hidden;
-	overflow-y: auto;
-	scroll-padding-top: 32px;
+	min-height: 0;
+}
+/* The list's card, as the tools' cards are drawn. */
+.recent-scroll:not(.recent-scroll-grid) {
+	padding: 6px;
+	border: 1px solid var(--lectrix-line);
+	border-radius: 16px;
+	background: var(--lectrix-surface-raised);
+	box-shadow: var(--lectrix-shadow-rest);
+}
+/* The grid's cards lift under the pointer: room round them for that and their shadow, the
+   cards themselves still level with the tools. */
+.recent-scroll-grid {
+	margin: -6px;
+	padding: 6px;
 }
 /* The tools' column, the gap and room for the recent files' table (its name column a
    little wider than the date's). */
 @container (min-width: 1164px) {
 	.start-content.start-split {
 		max-width: 1300px;
+		/* With the start screen's 40 px, as much room under it as above it (12vh). */
+		margin-bottom: max(0px, calc(12vh - 40px));
 	}
 	.start-split .start-body {
 		display: grid;
@@ -1846,9 +1873,21 @@ button.shortcut-key:hover,
 		align-items: start;
 		gap: 48px;
 	}
+	/* The recent files' heading goes up beside the app's heading row, so the list starts
+	   level with the tools with its heading just above it, as under them. */
 	.start-split .start-recent {
 		align-self: stretch;
-		margin-top: 0;
+		margin-top: calc(-1 * (32px + 10px));
+	}
+	/* At least 180 px, the list scrolling in it. */
+	.start-split .recent-area {
+		min-height: 180px;
+		flex: 1 1 0;
+	}
+	.start-split .recent-scroll {
+		flex: 0 1 auto;
+		overflow-x: hidden;
+		overflow-y: auto;
 	}
 }
 
@@ -2069,131 +2108,126 @@ button.shortcut-key:hover,
 	animation: recent-enter 100ms ease-out backwards;
 	animation-delay: calc(var(--recent-i, 0) * 5ms);
 }
-.recent-enter thead {
-	animation: recent-fade 100ms ease-out;
-}
-
-/* The table: small capitals over the columns and a line under each row, 12 px in from the
-   lines' ends. The row under the pointer or the keyboard focus takes the tool cards' colour
-   and edge, with corners, 4 px wider than the lines on each side, and the lines above and
-   below it go. The last row has no line under it. */
-.recent-table {
-	--recent-opened-w: 150px;
-	--recent-size-w: 90px;
-	/* The pin and remove buttons, and the 12 px after them. */
-	--recent-actions-w: 88px;
-	width: 100%;
-	table-layout: fixed;
-	border-collapse: separate;
-	border-spacing: 0;
-	font-size: 13.5px;
-	/* The tint of the row under the pointer is drawn under the cells' text (z-index -1),
-	   inside the table. */
-	isolation: isolate;
-}
-.recent-col-opened {
-	width: var(--recent-opened-w);
-}
-.recent-col-size {
-	width: var(--recent-size-w);
-}
-.recent-col-actions {
-	width: var(--recent-actions-w);
-}
-.recent-table th {
-	position: sticky;
-	top: 0;
-	z-index: 1;
-	padding: 0 0 8px;
-	background: var(--lectrix-start-bg);
-	border-bottom: 1px solid var(--lectrix-line);
-	color: var(--lectrix-fg-muted);
-	font-size: 11px;
-	font-weight: 600;
-	letter-spacing: 0.06em;
-	text-align: left;
-	text-transform: uppercase;
-	transition: border-color var(--lectrix-duration-fast);
-}
-.recent-table th.text-right {
-	text-align: right;
-}
-.recent-table td {
-	height: 43px;
-	padding: 0;
-	border-bottom: 1px solid var(--lectrix-line);
-	color: var(--lectrix-fg-muted);
-	white-space: nowrap;
-	transition: border-color var(--lectrix-duration-fast);
-}
-.recent-table :is(th, td):first-child {
-	padding-right: 12px;
-	padding-left: 12px;
-}
-.recent-table :is(th, td):last-child {
-	padding-right: 12px;
-}
-/* The name's button is stretched over the row from its cell, not from the row: WebKit
-   (macOS, Linux) does not position against a table row (WebKit bug 240961), and an overlay
-   on the row there covered the whole start screen, so a click on a tool opened a recent
-   file. The columns after the name have fixed widths, so the overlay reaches past them.
-   Its ::before is the row's tint, under the cells' text. */
-.recent-table td:first-child {
+/* The list: each file a row of the list's card, its file icon, then its name over when it
+   was opened, its size and its folder. A hairline 12 px in from the card's sides parts
+   the rows, and a line across the card parts the pinned files from the others. The row
+   under the pointer or the keyboard focus takes the accent's tint and the tools' blue edge,
+   and the lines beside it go; its icon takes the accent. Pressed, the row sinks
+   a little and a ripple runs from where it was pressed. The name's button is stretched over
+   the row; the pin and remove buttons sit over it. */
+.recent-row {
 	position: relative;
-	color: var(--lectrix-fg);
-}
-.recent-table .recent-open::after,
-.recent-table .recent-open::before {
-	left: -4px;
-	right: calc(-1 * (var(--recent-opened-w) + var(--recent-size-w) + var(--recent-actions-w)) - 4px);
+	display: flex;
+	height: 56px;
+	align-items: center;
+	gap: 12px;
+	padding: 0 12px 0 10px;
 	border-radius: 10px;
+	transition:
+		background-color var(--lectrix-duration-fast),
+		box-shadow var(--lectrix-duration-fast),
+		transform var(--lectrix-duration-base) var(--lectrix-ease-out);
 }
-.recent-table .recent-open::before {
+.recent-row:is(:hover, :has(:focus-visible)) {
+	background: var(--lectrix-tint);
+	box-shadow: inset 0 0 0 1px var(--lectrix-card-hover-line);
+}
+.recent-row:has(> .recent-open:active) {
+	transform: scale(0.99);
+}
+.recent-row + .recent-row::before {
 	position: absolute;
 	top: 0;
-	bottom: 0;
-	z-index: -1;
-	background: var(--lectrix-surface-raised);
-	box-shadow: 0 0 0 1px var(--lectrix-line);
+	right: 12px;
+	left: 12px;
+	height: 1px;
+	background: var(--lectrix-line);
 	content: '';
-	opacity: 0;
-	pointer-events: none;
 	transition: opacity var(--lectrix-duration-fast);
 }
-.recent-table .recent-open:focus-visible::after {
-	outline-offset: 0;
-	border-radius: 10px;
+.recent-row:is(:hover, :has(:focus-visible))::before,
+.recent-row:is(:hover, :has(:focus-visible)) + .recent-row::before {
+	opacity: 0;
 }
-.recent-row:is(:hover, :has(:focus-visible)) .recent-open::before {
+.recent-row-pinned + .recent-row:not(.recent-row-pinned) {
+	margin-top: 9px;
+}
+.recent-row-pinned + .recent-row:not(.recent-row-pinned)::before {
+	top: -5px;
+	right: -6px;
+	left: -6px;
 	opacity: 1;
 }
-.recent-row:last-child > td,
-.recent-row:is(:hover, :has(:focus-visible)) > td,
-.recent-row:has(+ .recent-row:hover) > td,
-.recent-row:has(+ .recent-row :focus-visible) > td,
-.recent-table:has(tbody > .recent-row:first-child:hover) th,
-.recent-table:has(tbody > .recent-row:first-child :focus-visible) th {
-	border-bottom-color: transparent;
-}
-.recent-table:has(tbody > .recent-row:first-child:is(:hover, :has(:focus-visible))) th {
-	z-index: auto;
-}
-.recent-missing td:first-child {
-	color: var(--lectrix-fg-muted);
+.recent-row .start-ripples {
+	overflow: hidden;
+	border-radius: inherit;
 }
 .recent-open-row {
 	display: flex;
-	width: 100%;
 	min-width: 0;
+	flex: 1;
 	align-items: center;
-	gap: 10px;
+	gap: 12px;
+}
+.recent-open-row::after {
+	border-radius: 10px;
+}
+/* The focus ring round the row, as a tool's is round its card. */
+.recent-open-row:focus-visible::after {
+	outline-offset: 0;
+	border-radius: 10px;
+}
+/* The file icon (FileSymbol.svelte): the letter and the square's edge in one grey at rest;
+   under the pointer both take the accent, as a tool's tile edge turns blue. */
+.recent-file-tile {
+	display: flex;
+	flex-shrink: 0;
+	color: var(--lectrix-fg-muted);
+	transition: color var(--lectrix-duration-base);
+}
+.recent-row:is(:hover, :has(:focus-visible)) .recent-file-tile {
+	color: var(--lectrix-accent);
+}
+.recent-file-text {
+	display: flex;
+	min-width: 0;
+	flex-direction: column;
+	gap: 2px;
+}
+.recent-file-name {
+	overflow: hidden;
+	color: var(--lectrix-fg-strong);
+	font-size: 13.5px;
+	font-weight: 500;
+	text-overflow: ellipsis;
+	white-space: nowrap;
+}
+/* When it was opened, its size, then its folder, cut short with "…" where it is too long. */
+.recent-file-details {
+	display: flex;
+	min-width: 0;
+	gap: 5px;
+	color: var(--lectrix-fg-muted);
+	font-size: 12px;
+	white-space: nowrap;
+}
+.recent-file-details > :not(.recent-file-folder) {
+	flex-shrink: 0;
+}
+.recent-file-folder {
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.recent-missing :is(.recent-file-name, .recent-file-tile) {
+	opacity: 0.6;
 }
 .recent-actions {
 	display: flex;
-	justify-content: flex-end;
-	gap: 4px;
+	flex-shrink: 0;
+	gap: 2px;
 }
-.recent-table :is(.recent-pin, .recent-remove) {
+.recent-list :is(.recent-pin, .recent-remove) {
 	width: 28px;
 	height: 28px;
 	border-radius: 7px;
@@ -2201,19 +2235,31 @@ button.shortcut-key:hover,
 
 /* The grid: as many columns as fit, each card the page (in a page-shaped area, at its top
    and centred across, with the page shadow; so it is inset as the text is), then the name,
-   then when it was opened and its size. */
+   then when it was opened and its size. The cards are drawn and lift as the tools' do. */
 .recent-grid {
 	display: grid;
 	grid-template-columns: repeat(auto-fill, minmax(152px, 1fr));
-	gap: 8px;
+	gap: 12px;
 }
 .recent-card {
 	position: relative;
 	min-width: 0;
-	border-radius: var(--radius-panel);
+	border: 1px solid var(--lectrix-line);
+	border-radius: 16px;
+	background: var(--lectrix-surface-raised);
+	box-shadow: var(--lectrix-shadow-rest);
+	transition:
+		transform var(--lectrix-duration-base) var(--lectrix-ease-out),
+		border-color var(--lectrix-duration-base),
+		box-shadow var(--lectrix-duration-base);
 }
-.recent-card:hover {
-	background: var(--lectrix-hover);
+.recent-card:is(:hover, :has(:focus-visible)) {
+	border-color: var(--lectrix-card-hover-line);
+	box-shadow: var(--lectrix-shadow-hover);
+	transform: translateY(-3px);
+}
+.recent-card:has(> .recent-open:active) {
+	transform: translateY(-1px) scale(0.98);
 }
 .recent-card .recent-open {
 	display: flex;
@@ -2222,8 +2268,11 @@ button.shortcut-key:hover,
 	gap: 2px;
 	padding: 12px 12px 10px;
 }
+/* Round the card, outside its edge, as a tool's is. */
 .recent-card .recent-open:focus-visible::after {
-	border-radius: var(--radius-panel);
+	inset: -1px;
+	outline-offset: 2px;
+	border-radius: 16px;
 }
 .recent-preview {
 	position: relative;
@@ -2582,8 +2631,17 @@ button.shortcut-key:hover,
 	flex-basis: 200px;
 }
 .setting-label {
+	display: flex;
+	align-items: center;
+	gap: 8px;
 	color: var(--lectrix-fg);
 	font-size: 14px;
+}
+/* A quick tool's icon before its name, as its button shows it. */
+.setting-label-icon {
+	display: flex;
+	flex-shrink: 0;
+	color: var(--lectrix-fg-muted);
 }
 .setting-row[data-disabled] .setting-label {
 	color: var(--lectrix-fg-muted);
@@ -2608,16 +2666,39 @@ button.shortcut-key:hover,
    in a narrow window), with its close button at the right end, centred. As wide as its
    words, so it fits beside the name over the tools' three cards. */
 /* The update's note: the third tool column's place and width, beside the heading. */
+/* The update's note on the start screen: as tall as the heading's row, its button 6 px
+   clear of its edges. */
 .start-update {
 	display: flex;
+	height: var(--start-head-h);
 	min-width: 0;
 	align-items: center;
 	gap: 10px;
-	/* No taller than the icon, so the heading stays put when it goes. */
-	padding: 7px 6px 7px 12px;
+	padding: 0 6px 0 14px;
 	border: 1px solid var(--lectrix-line);
 	border-radius: var(--radius-panel);
 	background: var(--lectrix-surface-raised);
+}
+.start-update-open {
+	min-width: 0;
+	flex-shrink: 0;
+	white-space: nowrap;
+}
+/* Dismiss: a button of text alone, as tall as See what's new, filled under the pointer. */
+.start-update-dismiss {
+	height: 32px;
+	flex-shrink: 0;
+	padding: 0 10px;
+	border-radius: var(--radius-control);
+	color: var(--lectrix-fg-muted);
+	white-space: nowrap;
+}
+.start-update-dismiss:hover {
+	background: var(--lectrix-hover);
+	color: var(--lectrix-fg);
+}
+.start-update-dismiss:active {
+	background: var(--lectrix-pressed);
 }
 /* A link in a notice's text (the update notice's "See what's new"): the accent, underlined
    under the pointer. A button, since a real link would navigate the webview. */

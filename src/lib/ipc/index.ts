@@ -209,6 +209,7 @@ export type { ToolbarDock } from './generated/ToolbarDock';
 export type { ToolbarPosition } from './generated/ToolbarPosition';
 export type { ToolbarStyle } from './generated/ToolbarStyle';
 export type { ToolbarVisibility } from './generated/ToolbarVisibility';
+export type { StartLayout } from './generated/StartLayout';
 import type { RepairSummary } from './generated/RepairSummary';
 import type { Settings } from './generated/Settings';
 import type { WebPage } from './generated/WebPage';

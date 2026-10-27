@@ -1,8 +1,8 @@
 <script lang="ts">
-	// One setting: its name and description at the left, its control at the right (a switch,
-	// a dropdown, a pill of segments, a text field, a slider, the preset colours or a button,
-	// by the row's kind in schema.ts). The name labels the control, so clicking it flips a switch or focuses the
-	// field. Each change goes to `commit`: switches, dropdowns and segments at once, fields
+	// One setting: its name (after its icon, where it has one) and description at the left,
+	// its control at the right (a switch, a dropdown, a pill of segments, a text field, a
+	// slider, the preset colours or a button, by the row's kind in schema.ts). The name labels
+	// the control, so clicking it flips a switch or focuses the field. Each change goes to `commit`: switches, dropdowns and segments at once, fields
 	// and sliders once they pause or are left. A button goes to `onaction`.
 	import Dropdown from '#lib/components/Dropdown.svelte';
 	import Segmented from '#lib/components/Segmented.svelte';
@@ -35,7 +35,12 @@
 
 <div class="setting-row" data-disabled={disabled ? '' : undefined}>
 	<div class="flex min-w-0 flex-1 flex-col gap-0.5">
-		<label id={labelId} class="setting-label" for={id}>{row.label}</label>
+		<label id={labelId} class="setting-label" for={id}>
+			{#if row.icon}
+				<span class="setting-label-icon"><row.icon size={16} aria-hidden="true" /></span>
+			{/if}
+			{row.label}
+		</label>
 		{#if description}
 			<span id={noteId} class="setting-note">{description}</span>
 		{/if}

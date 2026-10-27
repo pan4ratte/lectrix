@@ -42,20 +42,24 @@ test('a last row of tool cards that is not full is filled', async () => {
 	}
 });
 
-/** How far the start screen and the list of recent files each scroll, and the list's height. */
+/** How far the start screen and the list of recent files each scroll, the height of the
+ * room the list has, and the room above the content and under the list. */
 function scrolling(browser) {
 	return browser.execute(() => {
 		const screen = document.querySelector('.start-screen');
 		const list = document.querySelector('.recent-scroll');
+		const box = screen?.getBoundingClientRect();
 		return {
 			screen: screen ? screen.scrollHeight - screen.clientHeight : -1,
 			list: list ? list.scrollHeight - list.clientHeight : -1,
-			listHeight: list?.clientHeight ?? 0
+			listHeight: document.querySelector('.recent-area')?.clientHeight ?? 0,
+			above: box ? Math.round(document.querySelector('.start-content').getBoundingClientRect().top - box.top) : -1,
+			below: box && list ? Math.round(box.bottom - list.getBoundingClientRect().bottom) : -1
 		};
 	});
 }
 
-test('a long list of recent files scrolls by itself', async () => {
+test('a long list of recent files scrolls by itself beside the tools, the start screen under them', async () => {
 	const files = Array.from({ length: 20 }, (_, i) => sample(`recent-${i + 1}.pdf`, 1));
 	const { browser, stop } = await launch(files);
 	try {
@@ -65,14 +69,13 @@ test('a long list of recent files scrolls by itself', async () => {
 			timeoutMsg: 'the start screen does not list the files as recent'
 		});
 
-		// Under the tools, in CI's window: the list keeps 180 px and the start screen scrolls
-		// only by what that leaves out, not by the whole list.
+		// Under the tools, in CI's window: the whole list shows, and the start screen scrolls.
 		let s = await scrolling(browser);
-		assert.ok(s.list > 0, `the list scrolls (${JSON.stringify(s)})`);
-		assert.ok(s.listHeight >= 180, `the list keeps 180 px (${JSON.stringify(s)})`);
-		assert.ok(s.screen < 180, `the start screen scrolls by the list's shortfall only (${JSON.stringify(s)})`);
+		assert.equal(s.list, 0, `the list does not scroll by itself (${JSON.stringify(s)})`);
+		assert.ok(s.screen > 0, `the start screen scrolls (${JSON.stringify(s)})`);
 
-		// Beside the tools, as in a larger window: only the list scrolls.
+		// Beside the tools, as in a larger window: only the list scrolls, and it ends as far
+		// above the start screen's bottom as the content starts below its top.
 		await browser.execute(() => (document.documentElement.style.zoom = '0.8'));
 		await browser.waitUntil(() => browser.execute(() => getComputedStyle(document.querySelector('.start-body')).display === 'grid'), {
 			timeoutMsg: 'the recent files did not go beside the tools'
@@ -80,14 +83,18 @@ test('a long list of recent files scrolls by itself', async () => {
 		s = await scrolling(browser);
 		assert.ok(s.list > 0, `the list scrolls (${JSON.stringify(s)})`);
 		assert.equal(s.screen, 0, 'the start screen does not scroll');
+		assert.ok(s.listHeight >= 180, `the list keeps 180 px (${JSON.stringify(s)})`);
+		assert.ok(Math.abs(s.below - s.above) <= 1, `as much room under the list as above the content (${JSON.stringify(s)})`);
 
-		// The column headings stay at the top of the list as it scrolls.
-		const head = await browser.execute(() => {
-			const list = document.querySelector('.recent-scroll');
-			list.scrollTop = list.scrollHeight;
-			return Math.round(document.querySelector('.recent-table th').getBoundingClientRect().top - list.getBoundingClientRect().top);
+		// The list starts level with the tools, its heading 10 px above it, as under them.
+		const level = await browser.execute(() => {
+			const box = (selector) => document.querySelector(selector).getBoundingClientRect();
+			return {
+				list: Math.round(box('.recent-scroll').top - box('.start-tool').top),
+				heading: Math.round(box('.recent-scroll').top - box('.recent-head').bottom)
+			};
 		});
-		assert.equal(head, 0, 'the column headings stay in view');
+		assert.deepEqual(level, { list: 0, heading: 10 }, 'the list starts level with the tools, its heading just above it');
 	} finally {
 		await stop();
 	}

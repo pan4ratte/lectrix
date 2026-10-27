@@ -1,6 +1,9 @@
 // Annotation tools and their styles (section 6.5), and the words the UI uses for
 // annotation types and problems.
 
+import { BookmarkPlus, Copy, Highlighter, MessageSquarePlus, Strikethrough, Underline, ZodiacAquarius } from '@lucide/svelte';
+import type { Component } from 'svelte';
+
 import type { Annotation, AnnotationKind, AnnotationProblem, QuickTool } from '#lib/ipc/index.ts';
 
 export type Tool = 'select' | 'highlight' | 'underline' | 'strikeOut' | 'squiggly' | 'note' | 'ink' | 'freeText';
@@ -32,15 +35,20 @@ export const TOOLS: readonly ToolInfo[] = [
 	{ id: 'freeText', label: 'Text box', key: 'T' }
 ];
 
-/** The buttons the bar over selected text can have (Settings), in the order it shows them. */
-export const QUICK_TOOLS: readonly { id: QuickTool; label: string }[] = [
-	{ id: 'highlight', label: 'Highlight' },
-	{ id: 'underline', label: 'Underline' },
-	{ id: 'strikeOut', label: 'Strikeout' },
-	{ id: 'squiggly', label: 'Squiggly underline' },
-	{ id: 'highlightNote', label: 'Highlight with note' },
-	{ id: 'copy', label: 'Copy' },
-	{ id: 'bookmark', label: 'Add bookmark' }
+/** The buttons the bar over selected text can have (Settings), in the order it shows them,
+ * with the icon each has there and in Settings. */
+export const QUICK_TOOLS: readonly {
+	id: QuickTool;
+	label: string;
+	icon: Component<{ size?: number; 'aria-hidden'?: boolean | 'true' }>;
+}[] = [
+	{ id: 'highlight', label: 'Highlight', icon: Highlighter },
+	{ id: 'underline', label: 'Underline', icon: Underline },
+	{ id: 'strikeOut', label: 'Strikeout', icon: Strikethrough },
+	{ id: 'squiggly', label: 'Squiggly underline', icon: ZodiacAquarius },
+	{ id: 'highlightNote', label: 'Highlight with note', icon: MessageSquarePlus },
+	{ id: 'copy', label: 'Copy', icon: Copy },
+	{ id: 'bookmark', label: 'Add bookmark', icon: BookmarkPlus }
 ];
 
 /** The quick tools until Settings are loaded (mirrors QuickTool::DEFAULT in Rust). */

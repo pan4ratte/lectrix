@@ -12,10 +12,13 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 - The tools are cards, each with a line on what it does. A card lifts under the pointer, and a ripple runs from where you click it.
 - In the light theme, the title bar is now darker than the start screen, as in the dark theme.
-- In a wide window, the tools are on the left, three to a row, and the recent files beside them. The tool cards keep their width at any window size, and the cards of a last row that is not full widen to fill it.
-- A long list of recent files scrolls by itself, and the tools stay in view.
-- In the table of recent files, the row under the pointer is highlighted, and its star and remove buttons fade in. The last row has no line under it.
+- In a wide window, the tools are on the left, three to a row, and the recent files beside them, starting level with the tools. The tool cards keep their width at any window size, and the cards of a last row that is not full widen to fill it.
+- In a wide window, a long list of recent files scrolls by itself, and the tools stay in view.
+- Recent files match the tools: the list is a card, with when each file was opened, its size and its folder under its name, and in the grid each file is a card that lifts under the pointer. The file under the pointer is highlighted, and its star and remove buttons fade in. Pinned files are set apart from the others by a line.
 - A PDF opened from File Explorer while Lectrix is closed opens without the start screen flashing up first.
+- The line under Lectrix's name is gone, since the tools say what to do, and the name is larger.
+- **Settings > Appearance > Recent files always under the tools** keeps the recent files under the tools in a wide window too, instead of beside them.
+- After an update, the note beside Lectrix's name is wider, with a **See what’s new** button, and fades away when you close it. It no longer pushes the tools down as it appears.
 
 ### Viewer and tabs
 
@@ -44,6 +47,10 @@ the wording, translations): docs/releasing.md, "The changelog".
 - The **Differences** list groups them into body text, headers and footers, and numbering, as ABBYY FineReader does. Click one, or press **Ctrl+Right** and **Ctrl+Left**, to go to it in both documents. Ignore the ones that don't matter with Delete, one at a time or every one like it, and copy them as text.
 - Choose whether differences in punctuation and one-letter differences count, and whether headers and footers are found and listed apart. Pages without text, such as scans and drawings, are compared as pictures.
 - Save either document with the differences highlighted and commented, for anyone to read in any PDF app, or save a report listing them all. The documents compared are not changed.
+
+### Settings
+
+- **Toolbars > Quick tools** shows each tool's icon beside its name, as the bar over selected text shows it.
 
 ### General
 

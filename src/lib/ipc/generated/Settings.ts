@@ -4,6 +4,7 @@ import type { Appearance } from "./Appearance";
 import type { PageAdjustments } from "./PageAdjustments";
 import type { QuickTool } from "./QuickTool";
 import type { ScrollMode } from "./ScrollMode";
+import type { StartLayout } from "./StartLayout";
 import type { ToolbarDock } from "./ToolbarDock";
 import type { ToolbarPosition } from "./ToolbarPosition";
 import type { ToolbarStyle } from "./ToolbarStyle";
@@ -25,6 +26,10 @@ defaultAuthor: string, appearance: Appearance,
  * How pages are laid out when a document opens.
  */
 scrollMode: ScrollMode, toolbarStyle: ToolbarStyle, toolbarDock: ToolbarDock, toolbarPosition: ToolbarPosition, toolbarVisibility: ToolbarVisibility, 
+/**
+ * How the start screen lays out the tools and the recent files.
+ */
+startLayout: StartLayout, 
 /**
  * Whether the bar of quick tools shows over selected text (section 6.5).
  */

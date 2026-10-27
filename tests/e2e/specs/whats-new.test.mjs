@@ -47,18 +47,22 @@ test('on the start screen, the update is told beside the name, once', async () =
 		await browser.saveScreenshot(join(OUT, 'whats-new-start-screen.png'));
 		const beside = await browser.execute(() => {
 			const name = document.querySelector('h1')?.getBoundingClientRect();
-			const third = document.querySelectorAll('.start-tool')[2]?.getBoundingClientRect();
+			const tools = document.querySelectorAll('.start-tool');
+			const second = tools[1]?.getBoundingClientRect();
+			const third = tools[2]?.getBoundingClientRect();
 			const note = document.querySelector('.start-update')?.getBoundingClientRect();
-			return name && third && note
+			return name && second && third && note
 				? {
 						right: note.left > name.right,
 						level: note.top < name.bottom && note.bottom > name.top,
-						left: Math.round(note.left - third.left),
-						width: Math.round(note.width - third.width)
+						left: Math.round(note.left - second.left),
+						end: Math.round(note.right - third.right)
 					}
 				: null;
 		});
-		assert.deepEqual(beside, { right: true, level: true, left: 0, width: 0 }, 'the note is over the third column, as wide as it');
+		assert.deepEqual(beside, { right: true, level: true, left: 0, end: 0 }, 'the note is over the second and third columns, as wide as both');
+		const toolsTop = () => browser.execute(() => document.querySelector('.start-tool')?.getBoundingClientRect().top);
+		const topWithNote = await toolsTop();
 		assert.equal(await (await browser.$('//*[@role="status"][contains(., "was updated")]')).isExisting(), false, 'no notification as well');
 
 		await (await block.$('button=See what’s new')).click();
@@ -67,7 +71,9 @@ test('on the start screen, the update is told beside the name, once', async () =
 		assert.ok(shown.versions.includes(`Version ${version}`), `versions shown: ${shown.versions.join(', ')}`);
 		assert.ok(shown.sections.includes('Viewer and tabs'), `sections shown: ${shown.sections.join(', ')}`);
 		assert.equal(shown.focused, 'Changes by version', 'the list takes the focus, to scroll from the keyboard');
-		assert.equal(await block.isExisting(), false, 'following it put the note away');
+		// It fades out first.
+		await browser.waitUntil(async () => !(await block.isExisting()), { timeout: 2000, timeoutMsg: 'following it put the note away' });
+		assert.equal(await toolsTop(), topWithNote, 'the tools stay where they were without the note');
 		assert.equal(JSON.parse(readFileSync(STATE, 'utf8')).last_version, version, 'the running version is recorded');
 	} finally {
 		await run.stop();

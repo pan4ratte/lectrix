@@ -13,6 +13,7 @@
 	import { ArrowUpRight, FolderOpen, GitCompareArrows, LayoutGrid, Layers, List, Lock, LockOpen, Shrink, Sparkles, Star, X } from '@lucide/svelte';
 	import { ContextMenu } from 'bits-ui';
 	import type { Component } from 'svelte';
+	import { cubicOut } from 'svelte/easing';
 
 	import fileIconUrl from '#lib/assets/lectrix-file-icon-small.svg';
 	import iconUrl from '#lib/assets/lectrix-icon.svg';
@@ -37,6 +38,20 @@
 	import { scrollAxes } from '#lib/scrollAxes.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 
+	import FileSymbol from './FileSymbol.svelte';
+	import { NOTICE_MOTION_MS, NOTICE_SCALE } from './notices.ts';
+	import { motionMs } from './panes.ts';
+
+	/** The update's note comes and goes as a notification does: it grows from a little
+	 * smaller as it fades in, and shrinks as it fades out. Its row keeps its height, so
+	 * nothing around it moves. At once with reduced motion. */
+	function updateNoteMotion(_node: HTMLElement) {
+		return {
+			duration: motionMs(NOTICE_MOTION_MS),
+			easing: cubicOut,
+			css: (t: number) => `opacity: ${t}; scale: ${NOTICE_SCALE + (1 - NOTICE_SCALE) * t}`
+		};
+	}
 
 	interface Tool {
 		id: string;
@@ -61,7 +76,7 @@
 		{ id: 'compare', label: 'Compare', description: 'Find what changed', icon: GitCompareArrows, command: 'compareFiles', run: () => app.openCompare() }
 	];
 
-	/** A press's ripple, from where it was pressed in the card (CSS pixels of the card, as
+	/** A press's ripple, from where it was pressed in the card or row (CSS pixels of it, as
 	 * any zoom of the page leaves them); none with reduced motion. */
 	function ripple(card: HTMLElement, x: number, y: number) {
 		if (matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -79,9 +94,16 @@
 		layer.append(dot);
 	}
 
+	/** What a press ripples across: a tool's card, or the recent file's row the pressed
+	 * button opens. */
+	const rippleHost = (event: Event) => {
+		const target = event.currentTarget as HTMLElement;
+		return target.closest<HTMLElement>('.recent-row') ?? target;
+	};
+
 	function pressed(event: PointerEvent) {
 		if (event.button !== 0) return;
-		const card = event.currentTarget as HTMLElement;
+		const card = rippleHost(event);
 		const box = card.getBoundingClientRect();
 		const scale = box.width ? card.offsetWidth / box.width : 1;
 		ripple(card, (event.clientX - box.left) * scale, (event.clientY - box.top) * scale);
@@ -89,7 +111,7 @@
 
 	function keyed(event: KeyboardEvent) {
 		if ((event.key !== 'Enter' && event.key !== ' ') || event.repeat) return;
-		const card = event.currentTarget as HTMLElement;
+		const card = rippleHost(event);
 		ripple(card, card.offsetWidth / 2, card.offsetHeight / 2);
 	}
 
@@ -184,46 +206,34 @@
 {/snippet}
 
 <div class="start-screen flex h-full flex-col items-center overflow-auto" {@attach scrollAxes}>
-	<div class="start-content" class:start-split={app.recent.length > 0}>
-		<!-- The heading over the tools' first two columns, and an update's note over the third. -->
+	<div class="start-content" class:start-split={app.recent.length > 0 && app.settings?.startLayout !== 'oneColumn'}>
+		<!-- The heading over the tools' first column, and an update's note over the other two. -->
 		<div class="start-header">
 			<div class="flex min-w-0 items-center gap-[16px]">
 				<!-- Decorative: the heading names the app. The icon's rounded square is 46 px; the
 				     image has a margin round it. -->
 				<img src={iconUrl} alt="" width="57" height="57" class="start-icon" draggable="false" />
-				<div class="flex min-w-0 flex-col gap-[3px]">
-					<h1 class="start-title">{APP_NAME}</h1>
-					<p class="text-[14px] text-fg-muted">Open a PDF, or drop files anywhere in this window.</p>
-				</div>
+				<h1 class="start-title min-w-0">{APP_NAME}</h1>
 			</div>
 			{#if app.updatedTo !== null}
-				<div class="start-update" role="status">
+				<div class="start-update" role="status" transition:updateNoteMotion>
 					<span class="shrink-0 text-accent"><Sparkles size={18} aria-hidden="true" /></span>
-					<div class="min-w-0 flex-1">
-						<p class="truncate font-medium">{app.updatedTo ? `Updated to ${app.updatedTo}` : 'Updated'}</p>
-						<button
-							type="button"
-							class="notice-link text-sm"
-							onclick={() => {
-								app.updatedTo = null;
-								openWhatsNew();
-							}}
-						>
-							See what’s new
-						</button>
-					</div>
+					<p class="min-w-0 flex-1 truncate font-medium">{app.updatedTo ? `Updated to ${app.updatedTo}` : 'Updated'}</p>
+					<button type="button" class="start-update-dismiss" onclick={() => (app.updatedTo = null)}>Dismiss</button>
 					<button
 						type="button"
-						class="icon-button size-6 shrink-0"
-						aria-label="Dismiss"
-						onclick={() => (app.updatedTo = null)}
+						class="button start-update-open"
+						onclick={() => {
+							app.updatedTo = null;
+							openWhatsNew();
+						}}
 					>
-						<X size={14} aria-hidden="true" />
+						See what’s new
 					</button>
 				</div>
 			{/if}
 		</div>
-		<div class="start-body mt-[26px]">
+		<div class="start-body">
 			<div class="start-tools">
 				{#each TOOLS as tool (tool.id)}
 					{@const shortcut = tool.command ? app.shortcut(tool.command) : ''}
@@ -256,7 +266,7 @@
 
 			{#if app.recent.length}
 				<div class="start-recent">
-					<div class="mb-[10px] flex items-center justify-between gap-4">
+					<div class="recent-head flex items-center justify-between gap-4">
 						<h2 id="recent-heading" class="recent-heading">Recent files</h2>
 						<!-- The mark of the view shown glides to the one picked, as the active tool's does. -->
 						<div class="tool-group flex gap-[4px]" role="group" aria-label="Show recent files as" {@attach toolMark}>
@@ -284,101 +294,100 @@
 						</div>
 					</div>
 
-					<div class="recent-scroll">
-						{#if app.recentFilesGrid}
-							<ul class="recent-grid" class:recent-enter={switched} aria-labelledby="recent-heading">
-								{#each app.recent as file, i (file.index)}
-									{@const url = previewUrl(file)}
-									<ContextMenu.Root>
-										<ContextMenu.Trigger>
-											{#snippet child({ props })}
-												<li {...props} class="recent-card" class:recent-missing={!file.exists} style:--recent-i={Math.min(i, STAGGERED)}>
-													<button type="button" class="recent-open" data-tip={folderTip(file)} onclick={() => void app.openRecent(file.index)}>
-														<span class="recent-preview">
-															{#if file.exists && !failed[url]}
-																<img
-																	src={url}
-																	alt=""
-																	class="recent-page"
-																	class:recent-page-loaded={loaded[url]}
-																	draggable="false"
-																	decoding="async"
-																	onload={() => (loaded[url] = true)}
-																	onerror={() => (failed[url] = true)}
-																/>
-															{/if}
-															{#if !file.exists || failed[url]}
-																<!-- Decorative: the name says what it is. -->
-																<img src={fileIconUrl} alt="" class="h-12 w-auto" draggable="false" />
-															{/if}
-														</span>
-														<span class="recent-name">{file.name}</span>
-														<span class="recent-details">
-															<span data-tip={fullDate(file.openedAt)}>{openedDate(file.openedAt)}</span>
-															<span aria-hidden="true">·</span>
-															<span class="tabular-nums">{sizeText(file)}</span>
-														</span>
-													</button>
-													{@render pinButton(file, 'recent-card-button recent-card-pin size-7', 14)}
-													{@render removeButton(file, 'recent-card-button recent-card-remove size-7', 14)}
-												</li>
-											{/snippet}
-										</ContextMenu.Trigger>
-										{@render fileMenu(file)}
-									</ContextMenu.Root>
-								{/each}
-							</ul>
-						{:else}
-							<table class="recent-table" class:recent-enter={switched} aria-labelledby="recent-heading">
-								<colgroup>
-									<col />
-									<col class="recent-col-opened" />
-									<col class="recent-col-size" />
-									<col class="recent-col-actions" />
-								</colgroup>
-								<thead>
-									<tr>
-										<th scope="col">Name</th>
-										<th scope="col">Opened</th>
-										<th scope="col" class="text-right">Size</th>
-										<th scope="col"><span class="sr-only">Actions</span></th>
-									</tr>
-								</thead>
-								<tbody>
+					<div class="recent-area">
+						<div class="recent-scroll" class:recent-scroll-grid={app.recentFilesGrid}>
+							{#if app.recentFilesGrid}
+								<ul class="recent-grid" class:recent-enter={switched} aria-labelledby="recent-heading">
 									{#each app.recent as file, i (file.index)}
+										{@const url = previewUrl(file)}
 										<ContextMenu.Root>
 											<ContextMenu.Trigger>
 												{#snippet child({ props })}
-													<tr {...props} class="recent-row" class:recent-missing={!file.exists} style:--recent-i={Math.min(i, STAGGERED)}>
-														<td>
-															<button
-																type="button"
-																class="recent-open recent-open-row"
-																data-tip={folderTip(file)}
-																onclick={() => void app.openRecent(file.index)}
-															>
-																<!-- Decorative: the name says what it is. -->
-																<img src={fileIconUrl} alt="" height="20" class="h-5 w-auto shrink-0" draggable="false" />
-																<span class="truncate">{file.name}</span>
-															</button>
-														</td>
-														<td class="truncate" data-tip={fullDate(file.openedAt)}>{openedDate(file.openedAt)}</td>
-														<td class="text-right tabular-nums">{sizeText(file)}</td>
-														<td>
-															<div class="recent-actions">
-																{@render pinButton(file, '', 18)}
-																{@render removeButton(file, '', 18)}
-															</div>
-														</td>
-													</tr>
+													<li {...props} class="recent-card" class:recent-missing={!file.exists} style:--recent-i={Math.min(i, STAGGERED)}>
+														<button type="button" class="recent-open" data-tip={folderTip(file)} onclick={() => void app.openRecent(file.index)}>
+															<span class="recent-preview">
+																{#if file.exists && !failed[url]}
+																	<img
+																		src={url}
+																		alt=""
+																		class="recent-page"
+																		class:recent-page-loaded={loaded[url]}
+																		draggable="false"
+																		decoding="async"
+																		onload={() => (loaded[url] = true)}
+																		onerror={() => (failed[url] = true)}
+																	/>
+																{/if}
+																{#if !file.exists || failed[url]}
+																	<!-- Decorative: the name says what it is. -->
+																	<img src={fileIconUrl} alt="" class="h-12 w-auto" draggable="false" />
+																{/if}
+															</span>
+															<span class="recent-name">{file.name}</span>
+															<span class="recent-details">
+																<span data-tip={fullDate(file.openedAt)}>{openedDate(file.openedAt)}</span>
+																<span aria-hidden="true">·</span>
+																<span class="tabular-nums">{sizeText(file)}</span>
+															</span>
+														</button>
+														{@render pinButton(file, 'recent-card-button recent-card-pin size-7', 14)}
+														{@render removeButton(file, 'recent-card-button recent-card-remove size-7', 14)}
+													</li>
 												{/snippet}
 											</ContextMenu.Trigger>
 											{@render fileMenu(file)}
 										</ContextMenu.Root>
 									{/each}
-								</tbody>
-							</table>
-						{/if}
+								</ul>
+							{:else}
+								<ul class="recent-list" class:recent-enter={switched} aria-labelledby="recent-heading">
+									{#each app.recent as file, i (file.index)}
+										<ContextMenu.Root>
+											<ContextMenu.Trigger>
+												{#snippet child({ props })}
+													<li
+														{...props}
+														class="recent-row"
+														class:recent-missing={!file.exists}
+														class:recent-row-pinned={file.pinned}
+														style:--recent-i={Math.min(i, STAGGERED)}
+													>
+														<span class="start-ripples" aria-hidden="true"></span>
+														<button
+															type="button"
+															class="recent-open recent-open-row"
+															onpointerdown={pressed}
+															onkeydown={keyed}
+															onclick={() => void app.openRecent(file.index)}
+														>
+															<span class="recent-file-tile">
+																<!-- Decorative: the name says what it is. -->
+																<FileSymbol />
+															</span>
+															<span class="recent-file-text">
+																<span class="recent-file-name">{file.name}</span>
+																<span class="recent-file-details">
+																	<span>{openedDate(file.openedAt)}</span>
+																	<span aria-hidden="true">·</span>
+																	<span class="recent-file-size tabular-nums">{sizeText(file)}</span>
+																	<span aria-hidden="true">·</span>
+																	<span class="recent-file-folder">{file.exists ? file.folder : `Not found: ${file.folder}`}</span>
+																</span>
+															</span>
+														</button>
+														<span class="recent-actions">
+															{@render pinButton(file, '', 16)}
+															{@render removeButton(file, '', 16)}
+														</span>
+													</li>
+												{/snippet}
+											</ContextMenu.Trigger>
+											{@render fileMenu(file)}
+										</ContextMenu.Root>
+									{/each}
+								</ul>
+							{/if}
+						</div>
 					</div>
 				</div>
 			{/if}

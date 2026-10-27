@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::ipc::{
     AnnotationSort, Appearance, CompareSettings, CompressSettings, PageAdjustments, PaneLayout,
-    PrintPreferences, QuickTool, ScrollMode, ToolbarDock, ToolbarPosition, ToolbarStyle,
-    ToolbarVisibility, ViewState,
+    PrintPreferences, QuickTool, ScrollMode, StartLayout, ToolbarDock, ToolbarPosition,
+    ToolbarStyle, ToolbarVisibility, ViewState,
 };
 use crate::placement::WindowPlacement;
 
@@ -182,6 +182,9 @@ pub struct StoredSettings {
     pub toolbar_position: ToolbarPosition,
     #[serde(default)]
     pub toolbar_visibility: ToolbarVisibility,
+    /// How the start screen lays out the tools and the recent files.
+    #[serde(default)]
+    pub start_layout: StartLayout,
     /// Whether the bar of quick tools shows over selected text.
     #[serde(default = "yes")]
     pub quick_bar: bool,
@@ -285,6 +288,7 @@ impl Default for StoredSettings {
             toolbar_dock: ToolbarDock::default(),
             toolbar_position: ToolbarPosition::default(),
             toolbar_visibility: ToolbarVisibility::default(),
+            start_layout: StartLayout::default(),
             quick_bar: true,
             quick_tools: default_quick_tools(),
             check_for_updates: true,
@@ -852,6 +856,7 @@ mod tests {
             toolbar_dock: ToolbarDock::Right,
             toolbar_position: ToolbarPosition::Left,
             toolbar_visibility: ToolbarVisibility::OnHover,
+            start_layout: StartLayout::OneColumn,
             quick_bar: false,
             quick_tools: vec![QuickTool::Squiggly, QuickTool::Bookmark],
             check_for_updates: false,

@@ -121,7 +121,7 @@ test('the title bar shows the start screen over open documents, which stay open'
 			};
 			const row = document.querySelector('.recent-row');
 			return {
-				size: hit(row?.querySelector('td:nth-child(3)') ?? null) === row?.querySelector('.recent-open'),
+				size: hit(row?.querySelector('.recent-file-size') ?? null) === row?.querySelector('.recent-open'),
 				tool: hit(document.querySelector('[data-tool="open"]'))?.closest('[data-tool]')?.getAttribute('data-tool') ?? null
 			};
 		});

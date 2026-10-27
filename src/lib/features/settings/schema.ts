@@ -38,6 +38,8 @@ interface RowText {
 	/** Unique in the dialog; the control's element id is `setting-<id>`. */
 	id: string;
 	label: string;
+	/** Shown before the label: what the setting puts on screen (a quick tool's button). */
+	icon?: Icon;
 	description?: string | ((draft: Draft) => string);
 	/** Shown, but not changeable, while another setting makes it moot. */
 	disabled?: (draft: Draft) => boolean;
@@ -182,12 +184,13 @@ function segments<K extends KeyOf<string>>(
 }
 
 /** A switch per quick tool, writing the chosen ones in the bar's order. */
-function quickTool(tool: QuickTool, label: string): SettingRow {
+function quickTool(tool: QuickTool, label: string, icon: Icon): SettingRow {
 	return {
 		kind: 'switch',
 		id: `quickTools-${tool}`,
 		key: 'quickTools',
 		label,
+		icon,
 		disabled: (d) => !d.quickBar,
 		read: (d) => d.quickTools.includes(tool),
 		write: (d, on) => {
@@ -419,6 +422,14 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 				]
 			},
 			{
+				title: 'Start screen',
+				rows: [
+					toggleBetween('startLayout', 'adaptive', 'oneColumn', 'Recent files always under the tools', {
+						description: 'Otherwise, in a wide window, they are beside the tools.'
+					})
+				]
+			},
+			{
 				title: 'Visual adjustments',
 				description:
 					'How the pages of every document look. A document you adjust by itself, with the Visual adjustments button above its pages, keeps its own. Files are never changed.',
@@ -566,7 +577,7 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 					toggle('quickBar', 'Show quick tools over selected text', {
 						description: 'Buttons over text you select with the Select tool. The ones switched on below stay so while this is off.'
 					}),
-					...QUICK_TOOLS.map((t) => quickTool(t.id, t.label))
+					...QUICK_TOOLS.map((t) => quickTool(t.id, t.label, t.icon))
 				]
 			}
 		]
@@ -594,6 +605,7 @@ export function toInput(d: Draft): SettingsInput {
 		toolbarDock: d.toolbarDock,
 		toolbarPosition: d.toolbarPosition,
 		toolbarVisibility: d.toolbarVisibility,
+		startLayout: d.startLayout,
 		quickBar: d.quickBar,
 		quickTools: [...d.quickTools],
 		checkForUpdates: d.checkForUpdates,

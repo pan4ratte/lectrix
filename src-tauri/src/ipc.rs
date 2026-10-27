@@ -2116,6 +2116,18 @@ pub enum ToolbarVisibility {
     OnHover,
 }
 
+/// How the start screen lays out the tools and the recent files (section 6.1): beside each
+/// other in a wide window and the files under the tools in a narrow one, or the files
+/// always under the tools.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum StartLayout {
+    #[default]
+    Adaptive,
+    OneColumn,
+}
+
 /// A button of the bar shown over selected text (section 6.5).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -2158,6 +2170,8 @@ pub struct Settings {
     pub toolbar_dock: ToolbarDock,
     pub toolbar_position: ToolbarPosition,
     pub toolbar_visibility: ToolbarVisibility,
+    /// How the start screen lays out the tools and the recent files.
+    pub start_layout: StartLayout,
     /// Whether the bar of quick tools shows over selected text (section 6.5).
     pub quick_bar: bool,
     /// The buttons of that bar, kept while it is switched off; empty: no bar.
@@ -2230,6 +2244,7 @@ pub struct SettingsInput {
     pub toolbar_dock: ToolbarDock,
     pub toolbar_position: ToolbarPosition,
     pub toolbar_visibility: ToolbarVisibility,
+    pub start_layout: StartLayout,
     pub quick_bar: bool,
     pub quick_tools: Vec<QuickTool>,
     pub check_for_updates: bool,

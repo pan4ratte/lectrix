@@ -21,7 +21,7 @@ test('the UI uses the bundled font, and the start screen and About show the icon
 	try {
 		// The icon beside the start screen's heading. Polled rather than held, since the
 		// start screen may render again while the app starts.
-		const startIcon = 'div:has(> div > h1) > img';
+		const startIcon = 'div:has(> h1) > img';
 		await browser.waitUntil(async () => (await image(browser, startIcon)).width > 0, {
 			timeout: 15000,
 			timeoutMsg: 'the start screen shows no icon'
