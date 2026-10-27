@@ -2497,10 +2497,10 @@ button.shortcut-key:hover,
 	color: var(--lectrix-accent);
 }
 /* The start screen's note after an update, beside the app's name (at the right; under it
-   in a narrow window), with its close button at the right end, centred. */
+   in a narrow window), with its close button at the right end, centred. As wide as its
+   words, so it fits beside the name over the tools' three cards. */
 .start-update {
 	display: flex;
-	width: 280px;
 	max-width: 100%;
 	align-items: center;
 	gap: 12px;
