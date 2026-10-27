@@ -25,6 +25,7 @@
 		type CompressSettings
 	} from '#lib/ipc/index.ts';
 	import { pdfaName } from '#lib/format.ts';
+	import { scrollAxes } from '#lib/scrollAxes.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 
 	import { saveCompressed } from './actions.ts';
@@ -212,6 +213,7 @@
 			<!-- svelte-ignore a11y_no_noninteractive_tabindex -->
 			<div
 				class="overflow-auto rounded-[6px] border border-line bg-canvas"
+				{@attach scrollAxes}
 				style:width="{box.width}px"
 				style:height="{box.height}px"
 				bind:this={

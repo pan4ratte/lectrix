@@ -156,6 +156,9 @@
 	 * whole pixels, so the content can be a fraction of one wider than the view, and a
 	 * touchpad's diagonal swipe would slide it sideways. */
 	const fitsWidth = $derived(contentW <= viewportW + 1);
+	/** The pages fit the view's height (a short document, or a wide page zoomed in on one page
+	 * at a time): it scrolls only sideways, for the same reason. */
+	const fitsHeight = $derived(layout.totalHeight <= viewportH + 1);
 	/** Pages mounted: the viewport plus a quarter screen above and below. Each mounted page
 	 * holds its pixels in the webview, and a wider margin only cost memory (ADR 0002); the
 	 * rows next to these are rendered ahead in Rust instead (below). */
@@ -2175,6 +2178,7 @@
 					bind:this={scroller}
 					class="viewer-scroll h-full overflow-auto bg-canvas outline-none"
 					style:overflow-x={fitsWidth ? 'hidden' : null}
+					style:overflow-y={fitsHeight ? 'hidden' : null}
 					class:cursor-text={overText && !overAnnotation && !overLink && !edgeCursor && (toolNow() === 'select' || isMarkupTool(toolNow()))}
 					class:cursor-crosshair={!overAnnotation && (toolNow() === 'ink' || toolNow() === 'note' || toolNow() === 'freeText')}
 					class:cursor-move={overAnnotation === 'move' && !edgeCursor}

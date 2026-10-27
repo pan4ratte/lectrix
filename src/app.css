@@ -1780,7 +1780,9 @@ button.shortcut-key:hover,
    the start screen keeps at least 40 px round its content. With recent files, a start screen
    wide enough has the tools as a column at the left and the recent files beside them,
    48 px apart; a narrower one, or one without recent files, has the recent files under the
-   tools, as wide as they are. */
+   tools, as wide as they are. The content fills the start screen's height, and a long list
+   of recent files scrolls in the room left under its heading, never shorter than 180 px:
+   where there is not that much room, the start screen scrolls instead. */
 .start-screen {
 	--start-card-w: 204px;
 	--start-tools-w: calc(3 * var(--start-card-w) + 2 * 12px);
@@ -1792,11 +1794,35 @@ button.shortcut-key:hover,
 	background: var(--lectrix-start-bar);
 }
 .start-content {
+	display: flex;
 	width: 100%;
 	max-width: var(--start-tools-w);
+	flex: 1 0 auto;
+	flex-direction: column;
+}
+.start-body {
+	display: flex;
+	flex: 1 0 auto;
+	flex-direction: column;
 }
 .start-recent {
+	display: flex;
+	flex: 1 0 auto;
+	flex-direction: column;
 	margin-top: 34px;
+}
+/* Wider than the list by the room a row's tint and focus ring take outside it, so they are
+   not cut off. The table's column headings stay at the top as it scrolls, over the rows
+   (but not over the first row's tint and ring), and a row given the keyboard focus scrolls
+   clear of them. */
+.recent-scroll {
+	min-height: 180px;
+	flex: 1 1 0;
+	margin: 0 -6px;
+	padding: 0 6px 2px;
+	overflow-x: hidden;
+	overflow-y: auto;
+	scroll-padding-top: 32px;
 }
 /* The tools' column, the gap and room for the recent files' table (its name column a
    little wider than the date's). */
@@ -1811,6 +1837,7 @@ button.shortcut-key:hover,
 		gap: 48px;
 	}
 	.start-split .start-recent {
+		align-self: stretch;
 		margin-top: 0;
 	}
 }
@@ -1821,10 +1848,11 @@ button.shortcut-key:hover,
    pointer or the keyboard focus it lifts, its border turns blue, its icon tile takes a tint
    of the accent and rises with a small spring, and the arrow slides in. Pressed, it sinks
    back a little, and a ripple runs out from where it was pressed (from its centre for Enter
-   and Space; StartScreen.svelte). A last row that is not full keeps the cards' width. */
+   and Space; StartScreen.svelte). The grid has six tracks and a card spans two; the cards of
+   a last row that is not full stretch to fill it: one across the whole row, two half each. */
 .start-tools {
 	display: grid;
-	grid-template-columns: repeat(3, var(--start-card-w));
+	grid-template-columns: repeat(6, calc((var(--start-card-w) - 12px) / 2));
 	gap: 12px;
 }
 .start-tool {
@@ -1832,6 +1860,7 @@ button.shortcut-key:hover,
 	display: flex;
 	min-height: 124px;
 	min-width: 0;
+	grid-column: span 2;
 	flex-direction: column;
 	justify-content: space-between;
 	gap: 6px;
@@ -1847,6 +1876,13 @@ button.shortcut-key:hover,
 		transform var(--lectrix-duration-base) var(--lectrix-ease-out),
 		border-color var(--lectrix-duration-base),
 		box-shadow var(--lectrix-duration-base);
+}
+.start-tool:nth-child(3n + 1):last-child {
+	grid-column: span 6;
+}
+.start-tool:nth-child(3n + 1):nth-last-child(2),
+.start-tool:nth-child(3n + 2):last-child {
+	grid-column: span 3;
 }
 .start-tool:is(:hover, :focus-visible) {
 	border-color: var(--lectrix-card-hover-line);
@@ -2055,7 +2091,11 @@ button.shortcut-key:hover,
 	width: var(--recent-actions-w);
 }
 .recent-table th {
+	position: sticky;
+	top: 0;
+	z-index: 1;
 	padding: 0 0 8px;
+	background: var(--lectrix-start-bg);
 	border-bottom: 1px solid var(--lectrix-line);
 	color: var(--lectrix-fg-muted);
 	font-size: 11px;
@@ -2124,6 +2164,9 @@ button.shortcut-key:hover,
 .recent-table:has(tbody > .recent-row:first-child:hover) th,
 .recent-table:has(tbody > .recent-row:first-child :focus-visible) th {
 	border-bottom-color: transparent;
+}
+.recent-table:has(tbody > .recent-row:first-child:is(:hover, :has(:focus-visible))) th {
+	z-index: auto;
 }
 .recent-missing td:first-child {
 	color: var(--lectrix-fg-muted);

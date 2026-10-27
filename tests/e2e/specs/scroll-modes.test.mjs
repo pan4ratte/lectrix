@@ -171,3 +171,39 @@ test('Settings choose how documents opened afterwards are laid out', async () =>
 		await stop();
 	}
 });
+
+test('pages that fit one way scroll only the other way', async () => {
+	const path = sample('scroll-axes.pdf', 2);
+	const { browser, stop } = await launch([path]);
+	try {
+		await waitForDocument(browser);
+		const axes = () =>
+			browser.execute(() => {
+				const s = document.querySelector('.viewer-scroll');
+				const style = getComputedStyle(s);
+				return { x: style.overflowX, y: style.overflowY, wide: s.scrollWidth > s.clientWidth, tall: s.scrollHeight > s.clientHeight };
+			});
+
+		// Continuous, fit to the width: up and down only.
+		let a = await axes();
+		assert.equal(a.x, 'hidden', `fitting the width, the pages do not scroll sideways (${JSON.stringify(a)})`);
+		assert.equal(a.y, 'auto');
+
+		// Two landscape pages a row at a time, zoomed in: wider than the view but not as tall,
+		// so sideways only.
+		await pick(browser, 'Two pages');
+		await (await browser.$('button=View')).click();
+		await (await browser.$('//*[@role="menuitem"][contains(., "Rotate view clockwise")]')).click();
+		const box = await browser.$('[data-zoom-box]');
+		await box.click();
+		await browser.keys([...'60', 'Enter']);
+		await browser.waitUntil(async () => (await box.getValue()) === '60%');
+		await browser.waitUntil(async () => (await axes()).wide, { timeoutMsg: 'the pages are not wider than the view' });
+		a = await axes();
+		assert.equal(a.tall, false, `the row is shorter than the view (${JSON.stringify(a)})`);
+		assert.equal(a.y, 'hidden', 'fitting the height, the pages do not scroll up and down');
+		assert.equal(a.x, 'auto');
+	} finally {
+		await stop();
+	}
+});

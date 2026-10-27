@@ -12,7 +12,8 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 - The tools are cards, each with a line on what it does. A card lifts under the pointer, and a ripple runs from where you click it.
 - In the light theme, the title bar is now darker than the start screen, as in the dark theme.
-- In a wide window, the tools are on the left, three to a row, and the recent files beside them. The tool cards keep their width at any window size.
+- In a wide window, the tools are on the left, three to a row, and the recent files beside them. The tool cards keep their width at any window size, and the cards of a last row that is not full widen to fill it.
+- A long list of recent files scrolls by itself, and the tools stay in view.
 - In the table of recent files, the row under the pointer is highlighted, and its star and remove buttons fade in. The last row has no line under it.
 - A PDF opened from File Explorer while Lectrix is closed opens without the start screen flashing up first.
 
@@ -46,7 +47,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 ### General
 
 - **Help > About** shows the version as soon as it opens, instead of a moment later.
-- A touchpad swipe that goes partly sideways no longer slides the pages, a panel or a list sideways when they scroll only up and down.
+- A touchpad swipe that goes partly sideways no longer slides the pages, the start screen, a panel or a list sideways when they scroll only up and down, nor up and down when they scroll only sideways.
 
 ## 1.3.1
 
