@@ -3280,34 +3280,6 @@ aside[data-pane].pane-overlay > .pane-resizer {
 .compare-open-doc:hover:not(:disabled) {
 	background: var(--lectrix-hover);
 }
-/* The panel's two tabs: text, the one shown underlined in the accent. */
-.compare-tab {
-	display: inline-flex;
-	align-items: center;
-	gap: 6px;
-	padding: 0 10px;
-	border-bottom: 2px solid transparent;
-	color: var(--lectrix-fg-muted);
-	font-size: 13px;
-}
-.compare-tab:hover {
-	color: var(--lectrix-fg);
-}
-.compare-tab[aria-selected='true'] {
-	border-bottom-color: var(--lectrix-accent);
-	color: var(--lectrix-fg);
-	font-weight: 600;
-}
-.compare-count {
-	min-width: 18px;
-	padding: 0 5px;
-	border-radius: 9px;
-	background: var(--lectrix-hover);
-	font-size: 11px;
-	font-weight: 600;
-	line-height: 18px;
-	text-align: center;
-}
 .compare-list:focus-visible {
 	outline: 2px solid var(--lectrix-accent);
 	outline-offset: -2px;
@@ -3338,9 +3310,6 @@ aside[data-pane].pane-overlay > .pane-resizer {
 .compare-row-picked,
 .compare-row-picked:hover {
 	background: var(--lectrix-row-selected);
-}
-.compare-row-current {
-	box-shadow: inset 2px 0 0 var(--lectrix-accent);
 }
 .compare-kind {
 	display: inline-flex;

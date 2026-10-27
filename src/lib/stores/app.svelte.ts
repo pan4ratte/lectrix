@@ -934,7 +934,8 @@ class AppStore {
 					const tab = this.tabs.find((t) => t.id === id);
 					return tab ? (await this.save(tab)) !== null : false;
 				},
-				scrollMode: () => this.settings?.scrollMode ?? 'singlePageContinuous'
+				scrollMode: () => this.settings?.scrollMode ?? 'singlePageContinuous',
+				opened: (result) => void this.handleOpenResults([result])
 			});
 		}
 		this.startShown = false;

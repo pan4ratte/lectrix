@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 
-import type { Difference, DifferenceSide } from '#lib/ipc/index.ts';
+import type { Difference, DifferenceKind, DifferenceSide } from '#lib/ipc/index.ts';
 
-import { copyText, countText, identical, mapPlace, markAt, marksByPage, pageName, placeIn, progressText, sections } from './compare.ts';
+import { copyText, countText, identical, kindShown, mapPlace, markAt, marksByPage, pageName, placeIn, progressText, sections } from './compare.ts';
 
 function side(text: string, page: number, rect: [number, number, number, number] | null): DifferenceSide {
 	return {
@@ -90,6 +90,14 @@ describe('the list', () => {
 		]);
 		expect(sections(list, false, new Set([2]), true)).toEqual([{ group: null, title: 'Differences', ids: [0, 1, 2, 3] }]);
 		expect(sections(list, true, new Set([0, 1, 2, 3]), false)).toEqual([]);
+	});
+
+	it('lists the kinds picked in the filter, or all while none is', () => {
+		const ids = (kinds: DifferenceKind[]) => sections(list, false, new Set(), false, new Set(kinds)).flatMap((s) => s.ids);
+		expect(ids([])).toEqual([0, 1, 2, 3]);
+		expect(ids(['changed'])).toEqual([0, 3]);
+		expect(ids(['inserted', 'deleted'])).toEqual([1, 2]);
+		expect(kindShown('deleted', new Set(['changed']))).toBe(false);
 	});
 
 	it('finds identical differences', () => {

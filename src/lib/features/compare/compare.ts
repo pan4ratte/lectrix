@@ -142,16 +142,25 @@ export const KIND_NAMES: Record<DifferenceKind, string> = {
 	changed: 'Changed'
 };
 
-/** The list's sections: the differences shown (not ignored, or all with `showIgnored`), in
- * FineReader's groups when `grouped`, else in one; empty groups left out. Each holds the
- * differences' numbers in the comparison. */
+/** Whether the list's filter lets a difference of `kind` through: the kinds picked, or all
+ * while none is. */
+export function kindShown(kind: DifferenceKind, kinds: ReadonlySet<DifferenceKind>): boolean {
+	return kinds.size === 0 || kinds.has(kind);
+}
+
+/** The list's sections: the differences shown (not ignored, or all with `showIgnored`; of the
+ * kinds picked in the filter, if any), in FineReader's groups when `grouped`, else in one;
+ * empty groups left out. Each holds the differences' numbers in the comparison. */
 export function sections(
 	differences: readonly Difference[],
 	grouped: boolean,
 	ignored: ReadonlySet<number>,
-	showIgnored: boolean
+	showIgnored: boolean,
+	kinds: ReadonlySet<DifferenceKind> = new Set()
 ): { group: DifferenceGroup | null; title: string; ids: number[] }[] {
-	const shown = differences.map((_, i) => i).filter((i) => showIgnored || !ignored.has(i));
+	const shown = differences
+		.map((_, i) => i)
+		.filter((i) => (showIgnored || !ignored.has(i)) && kindShown(differences[i]!.kind, kinds));
 	if (!grouped) return shown.length ? [{ group: null, title: 'Differences', ids: shown }] : [];
 	const order: DifferenceGroup[] = ['body', 'margins', 'numbering'];
 	return order

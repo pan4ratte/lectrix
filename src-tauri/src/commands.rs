@@ -20,15 +20,15 @@ use tauri_plugin_dialog::DialogExt;
 use crate::annotations::RepairSummary;
 use crate::combine::{self, Progress};
 use crate::ipc::{
-    AppError, CompareOutcome, CompareProgress, CompareSettings, CompareSide, CompressOutcome,
-    CompressProgress, CompressSaved, CompressSettings, CompressStep, DocumentChange, DocumentInfo,
-    DocumentSaved, ImageFormat, LabelMode, LinkPlace, MenuEntry, MergeOutcome, MergePlan,
-    MergeProgress, MergeRequest, MergeStage, MoveTarget, OpenResult, OperationInput, PageHits,
-    PageText, PaneLayout, PrintDone, PrintLayout, PrintProgress, PrintSettings, PrintStart,
-    PrinterDetails, ProtectSaved, ProtectStep, ProtectionChangeInput, ProtectionInfo,
-    ProtectionInput, RecentFile, RecoveredDocument, Reopened, SaveResult, SearchChunk, SearchWord,
-    Settings, SettingsInput, StartupInfo, TabHandoff, UnprotectSaved, UnprotectStep, UnsavedSource,
-    ViewState, WebPage, WindowChrome, WindowDocument, WindowEntry,
+    AppError, CompareOutcome, CompareProgress, CompareSaved, CompareSettings, CompareSide,
+    CompressOutcome, CompressProgress, CompressSaved, CompressSettings, CompressStep,
+    DocumentChange, DocumentInfo, DocumentSaved, ImageFormat, LabelMode, LinkPlace, MenuEntry,
+    MergeOutcome, MergePlan, MergeProgress, MergeRequest, MergeStage, MoveTarget, OpenResult,
+    OperationInput, PageHits, PageText, PaneLayout, PrintDone, PrintLayout, PrintProgress,
+    PrintSettings, PrintStart, PrinterDetails, ProtectSaved, ProtectStep, ProtectionChangeInput,
+    ProtectionInfo, ProtectionInput, RecentFile, RecoveredDocument, Reopened, SaveResult,
+    SearchChunk, SearchWord, Settings, SettingsInput, StartupInfo, TabHandoff, UnprotectSaved,
+    UnprotectStep, UnsavedSource, ViewState, WebPage, WindowChrome, WindowDocument, WindowEntry,
 };
 use crate::platform::Platform;
 use crate::store::StoredSettings;
@@ -866,17 +866,19 @@ fn compare_names(
 }
 
 /// Saves a copy of one of the two documents compared (`side`) with the differences marked
-/// and commented, but those numbered in `skip` (ignored), to a file the Save dialog names.
-/// Returns the file's name, or `None` when the dialog was given up.
+/// and commented, but those numbered in `skip` (ignored), to a file the Save dialog names,
+/// and opens it in a tab of `window`. Returns the file's name and what opening it gave, or
+/// `None` when the dialog was given up.
 #[tauri::command(async)]
 pub fn compare_save_annotated(
-    app: AppHandle,
+    window: WebviewWindow,
     state: State<'_, AppState>,
     old: u32,
     new: u32,
     side: CompareSide,
     skip: Vec<u32>,
-) -> Result<Option<String>, AppError> {
+) -> Result<Option<CompareSaved>, AppError> {
+    let app = window.app_handle();
     let id = match side {
         CompareSide::Old => old,
         CompareSide::New => new,
@@ -887,7 +889,7 @@ pub fn compare_save_annotated(
         .map(|s| s.to_string_lossy().into_owned())
         .unwrap_or_else(|| "Document".into());
     let Some(target) = pick_save_target(
-        &app,
+        app,
         Some("Save the document with the differences"),
         Some(format!("{stem} (differences).pdf")),
         path.parent(),
@@ -912,23 +914,27 @@ pub fn compare_save_annotated(
         &author,
     )?;
     crate::applog::info(format!("saved the differences in {}", target.display()));
-    Ok(Some(file_name(&target)))
+    Ok(Some(CompareSaved {
+        name: file_name(&target),
+        opened: windows::adopt(app, window.label(), state.open(&target)),
+    }))
 }
 
 /// Saves the comparison report (all differences but those numbered in `skip`, in their
 /// groups if `grouped`; `when` is the time compared, as the webview's language writes it)
-/// to a file the Save dialog names. Returns the file's name, or `None` when the dialog
-/// was given up.
+/// to a file the Save dialog names, and opens it in a tab of `window`. Returns the file's
+/// name and what opening it gave, or `None` when the dialog was given up.
 #[tauri::command(async)]
 pub fn compare_save_report(
-    app: AppHandle,
+    window: WebviewWindow,
     state: State<'_, AppState>,
     old: u32,
     new: u32,
     skip: Vec<u32>,
     grouped: bool,
     when: String,
-) -> Result<Option<String>, AppError> {
+) -> Result<Option<CompareSaved>, AppError> {
+    let app = window.app_handle();
     let (old_path, _) = state.documents.source(old)?;
     let (new_path, _) = state.documents.source(new)?;
     let stem = |p: &Path| {
@@ -937,7 +943,7 @@ pub fn compare_save_report(
             .unwrap_or_else(|| "Document".into())
     };
     let Some(target) = pick_save_target(
-        &app,
+        app,
         Some("Save the comparison report"),
         Some(format!(
             "Comparison of {} and {}.pdf",
@@ -964,7 +970,10 @@ pub fn compare_save_report(
         grouped,
     )?;
     crate::applog::info(format!("saved the comparison report {}", target.display()));
-    Ok(Some(file_name(&target)))
+    Ok(Some(CompareSaved {
+        name: file_name(&target),
+        opened: windows::adopt(app, window.label(), state.open(&target)),
+    }))
 }
 
 /// Print (section 6.12, ADR 0028): the printers, and the dialog's choices used last.

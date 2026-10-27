@@ -82,6 +82,8 @@ export type { MergeStage } from './generated/MergeStage';
 export type { UnsavedSource } from './generated/UnsavedSource';
 export type { UnprotectSaved } from './generated/UnprotectSaved';
 import type { UnprotectSaved } from './generated/UnprotectSaved';
+export type { CompareSaved } from './generated/CompareSaved';
+import type { CompareSaved } from './generated/CompareSaved';
 export type { UnprotectStep } from './generated/UnprotectStep';
 import type { UnprotectStep } from './generated/UnprotectStep';
 export type { Allowed } from './generated/Allowed';
@@ -292,14 +294,14 @@ export function compareRun(old: number, newId: number, settings: CompareSettings
 }
 export const compareStop = (old: number, newId: number) => invoke<void>('compare_stop', { old, new: newId });
 export const compareForget = (old: number, newId: number) => invoke<void>('compare_forget', { old, new: newId });
-/** Saves a copy of one document with the differences but `skip` marked; its name, or null
- * when the Save dialog was given up. */
+/** Saves a copy of one document with the differences but `skip` marked and opens it in a
+ * tab: its name and what opening it gave, or null when the Save dialog was given up. */
 export const compareSaveAnnotated = (old: number, newId: number, side: CompareSide, skip: number[]) =>
-	invoke<string | null>('compare_save_annotated', { old, new: newId, side, skip });
-/** Saves the report of the differences but `skip`; its name, or null when the Save dialog
- * was given up. */
+	invoke<CompareSaved | null>('compare_save_annotated', { old, new: newId, side, skip });
+/** Saves the report of the differences but `skip` and opens it in a tab: its name and what
+ * opening it gave, or null when the Save dialog was given up. */
 export const compareSaveReport = (old: number, newId: number, skip: number[], grouped: boolean, when: string) =>
-	invoke<string | null>('compare_save_report', { old, new: newId, skip, grouped, when });
+	invoke<CompareSaved | null>('compare_save_report', { old, new: newId, skip, grouped, when });
 // Print (section 6.12, ADR 0028): the printers, what each takes, the layout of the sheets
 // for the preview, and the job, with progress.
 export const printStart = () => invoke<PrintStart>('print_start');

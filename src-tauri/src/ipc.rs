@@ -333,6 +333,16 @@ pub enum OpenResult {
     },
 }
 
+/// A file Compare saved (section 6.13: a copy with the differences marked, or the report):
+/// its name, and the file opened in a tab of its own, as a file picked in the Open dialog is.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CompareSaved {
+    pub name: String,
+    pub opened: OpenResult,
+}
+
 /// A step of the start screen's Unlock (ADR 0025): removing a file's password and
 /// restrictions into a new file.
 #[derive(Debug, Clone, Serialize, TS)]

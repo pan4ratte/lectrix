@@ -22,6 +22,7 @@ import {
 	type CompareProgress,
 	type CompareSettings,
 	type Difference,
+	type DifferenceKind,
 	type DocumentInfo,
 	type OpenResult,
 	type ScrollMode
@@ -34,6 +35,7 @@ import { DocTab } from '#lib/stores/doc.svelte.ts';
 import {
 	copyText,
 	identical,
+	kindShown,
 	mapPlace,
 	markAt,
 	marksByPage,
@@ -69,6 +71,9 @@ export interface CompareHost {
 	saveTab(id: number): Promise<boolean>;
 	/** How documents are laid out as they open (Settings). */
 	scrollMode(): ScrollMode;
+	/** Takes in a file Rust opened (a copy with the differences marked, the report): its
+	 * tab, shown. */
+	opened(result: OpenResult): void;
 }
 
 export interface CompareResult {
@@ -103,6 +108,9 @@ export class CompareState {
 	showIgnored = $state(false);
 	/** The list in FineReader's groups. */
 	grouped = $state(true);
+	/** The kinds the list's filter shows (all while none is picked); what it leaves out is
+	 * not marked on the pages either. */
+	kinds = $state.raw<ReadonlySet<DifferenceKind>>(new Set());
 	/** The difference selected: marked in both panes. */
 	current = $state<number | null>(null);
 	/** The rows selected in the list (Ctrl and Shift add), for ignoring or copying. */
@@ -112,14 +120,24 @@ export class CompareState {
 	/** The panes scroll together (on from the start, as in FineReader). */
 	locked = $state(true);
 
-	/** Each pane's marks by page, for the differences not ignored. */
+	/** The differences not marked on the pages: those ignored, and those the filter leaves out. */
+	private readonly unmarked = $derived.by(() => {
+		const r = this.result;
+		if (!r || this.kinds.size === 0) return this.ignored;
+		const out = new Set(this.ignored);
+		r.differences.forEach((d, i) => {
+			if (!kindShown(d.kind, this.kinds)) out.add(i);
+		});
+		return out;
+	});
+	/** Each pane's marks by page, for the differences not ignored and not filtered out. */
 	readonly marks = $derived({
-		old: this.result ? marksByPage(this.result.differences, 'old', this.ignored) : new Map<number, CompareMark[]>(),
-		new: this.result ? marksByPage(this.result.differences, 'new', this.ignored) : new Map<number, CompareMark[]>()
+		old: this.result ? marksByPage(this.result.differences, 'old', this.unmarked) : new Map<number, CompareMark[]>(),
+		new: this.result ? marksByPage(this.result.differences, 'new', this.unmarked) : new Map<number, CompareMark[]>()
 	});
 	/** The list as shown, section by section. */
 	readonly sections = $derived(
-		this.result ? sections(this.result.differences, this.grouped, this.ignored, this.showIgnored) : []
+		this.result ? sections(this.result.differences, this.grouped, this.ignored, this.showIgnored, this.kinds) : []
 	);
 	/** The differences listed, in the order they are listed. */
 	readonly listed = $derived(this.sections.flatMap((s) => s.ids.filter((id) => !this.ignored.has(id))));
@@ -358,6 +376,7 @@ export class CompareState {
 		this.picked = new Set();
 		this.current = null;
 		this.showIgnored = false;
+		this.kinds = new Set();
 		this.panel = 'compare';
 	}
 
@@ -433,6 +452,15 @@ export class CompareState {
 		}
 	}
 
+	/** Shows only the kinds picked (all while none is). A difference selected that they leave
+	 * out is no longer selected. */
+	filter(kinds: ReadonlySet<DifferenceKind>) {
+		this.kinds = kinds;
+		const listed = new Set(this.listed);
+		this.picked = new Set([...this.picked].filter((id) => listed.has(id)));
+		if (this.current !== null && !listed.has(this.current)) this.current = null;
+	}
+
 	/** Ignores the differences the same as `id` (same kind, same text in both). */
 	ignoreIdentical(id: number) {
 		if (this.result) this.ignore(identical(this.result.differences, id));
@@ -469,17 +497,19 @@ export class CompareState {
 		return [...this.ignored].sort((a, b) => a - b);
 	}
 
-	/** Saves a copy of one document with the differences marked and commented. */
+	/** Saves a copy of one document with the differences marked and commented, and opens it
+	 * in a tab of its own. */
 	async saveAnnotated(side: Side) {
 		const result = this.result;
 		if (!result) return;
 		try {
-			const name = await compareSaveAnnotated(result.pair[0], result.pair[1], side, this.skip());
-			if (name === null) return;
+			const saved = await compareSaveAnnotated(result.pair[0], result.pair[1], side, this.skip());
+			if (saved === null) return;
+			this.host.opened(saved.opened);
 			const count = result.differences.length - this.ignored.size;
 			this.host.notify({
 				kind: 'info',
-				message: `Saved ${name}, with ${count === 1 ? '1 difference' : `${count.toLocaleString()} differences`} marked.`,
+				message: `Saved ${saved.name}, with ${count === 1 ? '1 difference' : `${count.toLocaleString()} differences`} marked.`,
 				suggestion: `The document compared is unchanged.`
 			});
 		} catch (e) {
@@ -487,14 +517,14 @@ export class CompareState {
 		}
 	}
 
-	/** Saves the report of the differences. */
+	/** Saves the report of the differences and opens it in a tab of its own. */
 	async saveReport() {
 		const result = this.result;
 		if (!result) return;
 		const when = new Intl.DateTimeFormat(undefined, { dateStyle: 'long', timeStyle: 'short' }).format(result.when);
 		try {
-			const name = await compareSaveReport(result.pair[0], result.pair[1], this.skip(), this.grouped, when);
-			if (name !== null) this.host.notify({ kind: 'info', message: `Saved the report ${name}.` });
+			const saved = await compareSaveReport(result.pair[0], result.pair[1], this.skip(), this.grouped, when);
+			if (saved) this.host.opened(saved.opened);
 		} catch (e) {
 			this.host.showError(toAppError(e));
 		}

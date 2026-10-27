@@ -45,7 +45,11 @@
 
 <div class="flex min-h-0 flex-1">
 	<section class="flex min-w-0 flex-1 flex-col" aria-label="Compare documents">
-		<div class="flex h-[40px] shrink-0 items-center gap-1 border-b border-line bg-chrome px-2" role="toolbar" aria-label="Compare">
+		<div
+			class="flex min-h-[40px] shrink-0 flex-wrap items-center justify-center gap-1 border-b border-line bg-chrome px-2 py-1"
+			role="toolbar"
+			aria-label="Compare"
+		>
 			<button
 				type="button"
 				class="icon-button"
@@ -100,23 +104,22 @@
 			<span class="mx-1 h-5 w-px bg-line" aria-hidden="true"></span>
 			<button
 				type="button"
-				class="icon-button tool-button"
+				class="bar-button tool-button"
 				aria-pressed={compare.locked}
-				aria-label="Scroll together"
 				data-tip={compare.locked ? 'Scroll the documents separately' : 'Scroll the documents together'}
 				onclick={() => compare.setLocked(!compare.locked)}
 			>
 				{#if compare.locked}<Link2 size={16} aria-hidden="true" />{:else}<Link2Off size={16} aria-hidden="true" />{/if}
+				Scroll together
 			</button>
 			<button
 				type="button"
-				class="icon-button"
-				aria-label="Swap the documents"
-				data-tip="Swap the documents"
+				class="bar-button"
 				disabled={compare.running || (!compare.views[0] && !compare.views[1])}
 				onclick={() => compare.swap()}
 			>
 				<ArrowLeftRight size={16} aria-hidden="true" />
+				Swap documents
 			</button>
 		</div>
 

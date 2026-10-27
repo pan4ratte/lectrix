@@ -3,13 +3,16 @@
 	// with the options and the Compare button (and the progress while it runs), and a
 	// Differences tab listing what was found, in FineReader's groups, to step through,
 	// ignore, copy, and save as a report.
-	import { ArrowLeftRight, ChevronDown, ChevronUp, FileText, ListTree, Minus, Pencil, Plus, Undo2 } from '@lucide/svelte';
+	import { ChevronDown, ChevronUp, FileDiff, FileText, ListFilter, ListTree, Minus, Pencil, Plus, SlidersHorizontal, Undo2, X } from '@lucide/svelte';
 	import { ContextMenu } from 'bits-ui';
 	import { tick } from 'svelte';
+	import { slide } from 'svelte/transition';
 
 	import Dropdown from '#lib/components/Dropdown.svelte';
+	import { motionMs } from '#lib/components/panes.ts';
 	import ProgressBar from '#lib/components/ProgressBar.svelte';
-	import type { CompareMode, Difference } from '#lib/ipc/index.ts';
+	import { toolMark } from '#lib/features/annotations/toolMark.ts';
+	import type { CompareMode, Difference, DifferenceKind } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 
 	import { KIND_NAMES, countText, pageName, progressText, sideText } from './compare.ts';
@@ -35,6 +38,33 @@
 		return out;
 	});
 	const shownCount = $derived(result ? result.differences.length - compare.ignored.size : 0);
+
+	const TABS = [
+		{ id: 'compare', label: 'Compare', panel: 'compare-options', icon: SlidersHorizontal },
+		{ id: 'differences', label: 'Differences', panel: 'compare-differences', icon: FileDiff }
+	] as const;
+
+	/** The arrow keys, Home and End move between the tabs and show the one they reach. */
+	function onTabKey(event: KeyboardEvent, index: number) {
+		const last = TABS.length - 1;
+		const to: Record<string, number> = {
+			ArrowRight: index === last ? 0 : index + 1,
+			ArrowLeft: index === 0 ? last : index - 1,
+			Home: 0,
+			End: last
+		};
+		const next = to[event.key];
+		if (next === undefined) return;
+		event.preventDefault();
+		const tab = TABS[next]!;
+		if (tab.id === 'differences' && !compared) return;
+		compare.panel = tab.id;
+		document.querySelector<HTMLElement>(`[data-compare-panel-tab="${tab.id}"]`)?.focus();
+	}
+
+	/** The Differences tab opens once there are differences to list: not before the documents
+	 * are compared, nor while they are compared again. */
+	const compared = $derived(compare.result !== null);
 
 	function setOption(key: 'punctuation' | 'oneLetter' | 'margins', on: boolean) {
 		compare.settings = { ...compare.settings, [key]: on };
@@ -102,37 +132,51 @@
 		return `Page ${old} → ${nw}`;
 	}
 
+	// ----- the filter -----
+
+	/** The filter's kinds, in the list's order of icons. */
+	const KINDS: readonly DifferenceKind[] = ['inserted', 'deleted', 'changed'];
+	let filterOpen = $state(false);
+	/** The filter opens and shuts as the annotation list's does (in under 150 ms). */
+	const reveal = () => ({ duration: motionMs(140) });
+
+	function toggleKind(kind: DifferenceKind): Set<DifferenceKind> {
+		const next = new Set(compare.kinds);
+		if (next.has(kind)) next.delete(kind);
+		else next.add(kind);
+		return next;
+	}
+
 	function kindIcon(kind: Difference['kind']) {
 		return kind === 'inserted' ? Plus : kind === 'deleted' ? Minus : Pencil;
 	}
 </script>
 
 <div class="flex h-full min-h-0 flex-col">
-	<div class="flex h-[40px] shrink-0 items-stretch gap-1 border-b border-line px-2" role="tablist" aria-label="Compare">
-		<button
-			type="button"
-			role="tab"
-			class="compare-tab"
-			aria-selected={compare.panel === 'compare'}
-			aria-controls="compare-options"
-			onclick={() => (compare.panel = 'compare')}
-		>
-			Compare
-		</button>
-		<button
-			type="button"
-			role="tab"
-			class="compare-tab"
-			aria-selected={compare.panel === 'differences'}
-			aria-controls="compare-differences"
-			data-compare-differences-tab
-			onclick={() => (compare.panel = 'differences')}
-		>
-			Differences
-			{#if result}
-				<span class="compare-count" class:compare-count-some={shownCount > 0}>{shownCount.toLocaleString()}</span>
-			{/if}
-		</button>
+	<!-- The tabs, as the side panes' are: icons with tooltips, the one shown under the
+	     active tool's mark. -->
+	<div class="flex h-[40px] shrink-0 items-center border-b border-line px-[4px] select-none">
+		<div class="tool-group flex items-center gap-0.5" role="tablist" aria-label="Compare panel" {@attach toolMark}>
+			<span class="tool-mark" aria-hidden="true" hidden></span>
+			{#each TABS as t, i (t.id)}
+				<button
+					type="button"
+					role="tab"
+					class="icon-button tool-button"
+					aria-selected={compare.panel === t.id}
+					aria-controls={t.panel}
+					aria-label={t.label}
+					data-tip={t.label}
+					data-compare-panel-tab={t.id}
+					tabindex={compare.panel === t.id ? 0 : -1}
+					disabled={t.id === 'differences' && !compared}
+					onclick={() => (compare.panel = t.id)}
+					onkeydown={(event) => onTabKey(event, i)}
+				>
+					<t.icon size={18} aria-hidden="true" />
+				</button>
+			{/each}
+		</div>
 	</div>
 
 	{#if compare.panel === 'compare'}
@@ -142,6 +186,7 @@
 				<Dropdown
 					value={compare.settings.mode}
 					options={MODES}
+					class="h-8 w-full text-[13px]"
 					label="Compare pages by"
 					disabled={compare.running}
 					onchange={(mode) => (compare.settings = { ...compare.settings, mode })}
@@ -186,15 +231,6 @@
 					</span>
 				</label>
 			</fieldset>
-			<button
-				type="button"
-				class="button gap-2 self-start"
-				disabled={compare.running || (!compare.views[0] && !compare.views[1])}
-				onclick={() => compare.swap()}
-			>
-				<ArrowLeftRight size={16} aria-hidden="true" />
-				Swap the documents
-			</button>
 
 			<div class="mt-auto flex flex-col gap-2 border-t border-line pt-3">
 				{#if compare.running}
@@ -273,6 +309,21 @@
 				</button>
 				<button
 					type="button"
+					class="icon-button tool-button relative"
+					aria-label={compare.kinds.size ? `Filter the differences (${compare.kinds.size} picked)` : 'Filter the differences'}
+					data-tip="Filter the differences"
+					aria-pressed={filterOpen}
+					aria-expanded={filterOpen}
+					disabled={!result || result.differences.length === 0}
+					onclick={() => (filterOpen = !filterOpen)}
+				>
+					<ListFilter size={16} aria-hidden="true" />
+					{#if compare.kinds.size}
+						<span class="filter-dot" aria-hidden="true"></span>
+					{/if}
+				</button>
+				<button
+					type="button"
 					class="icon-button"
 					aria-label="Save the report"
 					data-tip="Save the report…"
@@ -283,6 +334,32 @@
 				</button>
 			</div>
 
+			{#if filterOpen && result && result.differences.length > 0}
+				<div class="flex flex-col gap-2 border-b border-line px-2 py-2" role="group" aria-label="Filters" transition:slide={reveal()}>
+					<h3 class="filter-heading" id="compare-filter-kinds">Type</h3>
+					<div class="flex flex-wrap items-center gap-0.5" role="group" aria-labelledby="compare-filter-kinds">
+						{#each KINDS as kind (kind)}
+							{@const Icon = kindIcon(kind)}
+							<button
+								type="button"
+								class="icon-button tool-button"
+								aria-label={KIND_NAMES[kind]}
+								data-tip={KIND_NAMES[kind]}
+								aria-pressed={compare.kinds.has(kind)}
+								onclick={() => compare.filter(toggleKind(kind))}
+							>
+								<Icon size={16} aria-hidden="true" class="text-diff-{kind}" />
+							</button>
+						{/each}
+					</div>
+					{#if compare.kinds.size}
+						<button type="button" class="button h-7 gap-1 self-start text-xs" onclick={() => compare.filter(new Set())}>
+							<X size={14} aria-hidden="true" />Clear filters
+						</button>
+					{/if}
+				</div>
+			{/if}
+
 			{#if !result}
 				<div class="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center text-fg-muted">
 					<p>Compare the documents to see their differences here.</p>
@@ -291,6 +368,13 @@
 				<div class="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
 					<p class="font-semibold">No differences found</p>
 					<p class="text-sm text-fg-muted">The documents’ text is the same, with the options chosen.</p>
+				</div>
+			{:else if compare.listed.length === 0 && compare.kinds.size > 0 && !compare.showIgnored}
+				<div class="flex flex-1 flex-col items-center justify-center gap-2 p-6 text-center">
+					<p class="text-sm text-fg-muted">No differences match the filters.</p>
+					<button type="button" class="button h-7 gap-1 text-xs" onclick={() => compare.filter(new Set())}>
+						<X size={14} aria-hidden="true" />Clear filters
+					</button>
 				</div>
 			{:else}
 				<ContextMenu.Root>
@@ -323,7 +407,6 @@
 											id={rowId(id)}
 											class="compare-row"
 											class:compare-row-picked={compare.picked.has(id)}
-											class:compare-row-current={compare.current === id}
 											class:opacity-60={ignored}
 											role="option"
 											tabindex="-1"
