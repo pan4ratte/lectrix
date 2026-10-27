@@ -719,3 +719,129 @@ fn truetype_font(glyphs: u16, mapping: &[(u16, u16)]) -> Vec<u8> {
     }
     font
 }
+
+/// A one-page document whose line of `codes` is drawn with an embedded symbolic Type 1
+/// font (CFF) that has no `/ToUnicode` and names each glyph after its code (`/C65` for
+/// code 65), as 3B2's Advent fonts do: the text is known only by reading the codes as
+/// Adobe's standard encoding. Each code has a glyph of its own, with no outline.
+pub fn code_named_font_document(codes: &[u8]) -> Result<PdfDocument> {
+    let mut used = codes.to_vec();
+    used.sort_unstable();
+    used.dedup();
+    let font = code_named_cff(&used);
+    let shown: String = codes.iter().map(|c| format!("{c:02X}")).collect();
+    let content = format!("BT /F1 24 Tf 72 700 Td <{shown}> Tj ET");
+
+    let mut doc = PdfDocument::new();
+    let file_dict = doc.new_object_from_str("<< /Subtype /Type1C >>")?;
+    let file = doc.add_stream(&Buffer::from_copied_bytes(&font)?, Some(&file_dict), false)?;
+    let mut descriptor = doc.new_object_from_str(
+        "<< /Type /FontDescriptor /FontName /AAAAAA+Coded /Flags 4 \
+         /FontBBox [0 -200 600 800] /ItalicAngle 0 /Ascent 800 /Descent -200 \
+         /CapHeight 700 /StemV 80 >>",
+    )?;
+    descriptor.dict_put("FontFile3", file)?;
+    let descriptor = doc.add_object(&descriptor)?;
+    let widths = vec!["600"; 256].join(" ");
+    let mut font = doc.new_object_from_str(&format!(
+        "<< /Type /Font /Subtype /Type1 /BaseFont /AAAAAA+Coded /FirstChar 0 /LastChar 255 \
+         /Widths [{widths}] /Encoding << /Type /Encoding /Differences [] >> >>"
+    ))?;
+    font.dict_put("FontDescriptor", descriptor)?;
+    let font = doc.add_object(&font)?;
+
+    let stream = doc.add_stream(&Buffer::from_copied_bytes(content.as_bytes())?, None, false)?;
+    let mut fonts = doc.new_dict()?;
+    fonts.dict_put("F1", font)?;
+    let mut resources = doc.new_dict()?;
+    resources.dict_put("Font", fonts)?;
+    let mut page = doc.new_object_from_str("<< /Type /Page /MediaBox [0 0 612 792] >>")?;
+    page.dict_put("Resources", resources)?;
+    page.dict_put("Contents", stream)?;
+    let page = doc.add_object(&page)?;
+    doc.insert_page(0, &page)?;
+    Ok(doc)
+}
+
+/// The smallest CFF font FreeType loads with a glyph for each of `codes` (sorted, at most
+/// 255), named `C` and the code, in a built-in encoding that maps the code to it. Glyph 0
+/// is .notdef; no glyph has an outline.
+fn code_named_cff(codes: &[u8]) -> Vec<u8> {
+    fn index(items: &[Vec<u8>]) -> Vec<u8> {
+        let mut out = (items.len() as u16).to_be_bytes().to_vec();
+        if items.is_empty() {
+            return out;
+        }
+        out.push(2); // offSize
+        let mut offset = 1u16;
+        out.extend(offset.to_be_bytes());
+        for item in items {
+            offset += item.len() as u16;
+            out.extend(offset.to_be_bytes());
+        }
+        for item in items {
+            out.extend(item);
+        }
+        out
+    }
+    // A DICT integer in its five-byte form, so the offsets do not change the DICT's size.
+    let int = |v: usize| {
+        let mut b = vec![29];
+        b.extend((v as i32).to_be_bytes());
+        b
+    };
+    let top_dict = |charset: usize, encoding: usize, charstrings: usize, private: usize| {
+        let mut d = Vec::new();
+        d.extend(int(charset));
+        d.push(15);
+        d.extend(int(encoding));
+        d.push(16);
+        d.extend(int(charstrings));
+        d.push(17);
+        d.extend(int(2)); // the Private DICT's size
+        d.extend(int(private));
+        d.push(18);
+        d
+    };
+
+    let header = [1u8, 0, 4, 4];
+    let names = index(&[b"Coded".to_vec()]);
+    let strings: Vec<Vec<u8>> = codes.iter().map(|c| format!("C{c}").into_bytes()).collect();
+    let strings = index(&strings);
+    let global_subrs = index(&[]);
+    let mut charset = vec![0u8]; // format 0: a string id for each glyph after .notdef
+    for i in 0..codes.len() {
+        charset.extend((391 + i as u16).to_be_bytes()); // custom strings start at 391
+    }
+    let mut encoding = vec![0u8, codes.len() as u8]; // format 0: a code for each glyph
+    encoding.extend(codes);
+    let charstrings = index(&vec![vec![14u8]; codes.len() + 1]); // endchar
+    let private = [139u8, 20]; // defaultWidthX 0
+
+    let top_len = index(&[top_dict(0, 0, 0, 0)]).len();
+    let charset_at = header.len() + names.len() + top_len + strings.len() + global_subrs.len();
+    let encoding_at = charset_at + charset.len();
+    let charstrings_at = encoding_at + encoding.len();
+    let private_at = charstrings_at + charstrings.len();
+    let top = index(&[top_dict(
+        charset_at,
+        encoding_at,
+        charstrings_at,
+        private_at,
+    )]);
+
+    let mut font = header.to_vec();
+    for part in [
+        names,
+        top,
+        strings,
+        global_subrs,
+        charset,
+        encoding,
+        charstrings,
+    ] {
+        font.extend(part);
+    }
+    font.extend(private);
+    font
+}

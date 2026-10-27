@@ -648,6 +648,20 @@ mod tests {
     }
 
     #[test]
+    fn text_in_a_symbolic_type1_font_named_by_codes_is_read_as_standard_encoding() {
+        use crate::testgen::code_named_font_document;
+        // "Aramaic's - fine" with a right quote (39), an en dash (177) and an fi ligature
+        // (174), as Adobe's standard encoding has them.
+        let mut codes = b"Aramaic".to_vec();
+        codes.extend([39, b's', b' ', 177, b' ', 174, b'n', b'e']);
+        let doc = code_named_font_document(&codes).unwrap();
+        let list = display_list(&doc, 0).unwrap();
+        let text = page_text(&list).unwrap();
+        assert_eq!(text.plain_text(), "Aramaic\u{2019}s \u{2013} fine");
+        assert_eq!(search_page(&list, "aramaic").unwrap().len(), 1);
+    }
+
+    #[test]
     fn marks_belong_to_their_word() {
         // A virama and a nukta (Hindi), a Bengali virama, Hebrew points, Persian's
         // zero-width non-joiner, a combining accent.

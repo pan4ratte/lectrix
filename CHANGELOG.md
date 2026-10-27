@@ -28,6 +28,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 - **Ctrl+Shift+T** (**File > Reopen closed tab**) opens the tab you closed last again, at the page you left it on. Press it again for the one closed before.
 - With documents side by side, after you had looked at another tab, **Save** and the side panels could keep acting on the document you clicked away from: Save saved the other document, and the **Bookmarks**, **Annotations** and **Pages** panels showed it. They now follow the document you click.
 - With **Greyscale** on, selected text and search results keep their colours, as annotations do, instead of turning grey.
+- Text in some books from academic publishers, whose fonts number their letters instead of naming them, can now be searched and copied. Before, it could be selected, but search found nothing and copying gave only question marks.
 
 ### Annotations
 

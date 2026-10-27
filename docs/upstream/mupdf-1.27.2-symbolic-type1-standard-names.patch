@@ -1,0 +1,11 @@
+--- a/source/pdf/pdf-font.c
++++ b/source/pdf/pdf-font.c
+@@ -1024,7 +1024,7 @@
+ 		if (kind == TYPE1 && symbolic)
+ 		{
+ 			for (i = 0; i < 256; i++)
+-				if (etable[i] && estrings[i] && !fz_unicode_from_glyph_name(estrings[i]))
++				if (etable[i] && estrings[i] && fz_unicode_from_glyph_name(estrings[i]) == FZ_REPLACEMENT_CHARACTER)
+ 					estrings[i] = (char*) fz_glyph_name_from_adobe_standard[i];
+ 		}
+ 
