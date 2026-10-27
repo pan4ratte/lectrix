@@ -16,8 +16,9 @@ rust-version = "1.99"
 # Without `system-fonts`: Lectrix's own font index replaces font-kit (ADR 0005).
 mupdf = { path = "third_party/mupdf-rs", default-features = false, features = ["base14-fonts", "brotli"] }
 # `libjpeg-turbo` is the fork's feature (below): JPEG decoded by libjpeg-turbo, not MuPDF's
-# bundled libjpeg (ADR 0024).
-mupdf-sys = { git = "https://github.com/messense/mupdf-rs", rev = "537d50556ee8e4abf2435f81357dfef3c145d883", default-features = false, features = ["libjpeg-turbo"] }
+# bundled libjpeg (ADR 0024). `html` builds MuPDF's story engine, which lays out Compare's
+# report (ADR 0031): Windows' build has it always, Linux's and macOS's only with it.
+mupdf-sys = { git = "https://github.com/messense/mupdf-rs", rev = "537d50556ee8e4abf2435f81357dfef3c145d883", default-features = false, features = ["libjpeg-turbo", "html"] }
 thiserror = "=2.0.21"
 
 [profile.dev.package."*"]

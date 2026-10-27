@@ -25,7 +25,10 @@ choices, and the user decided:
 MuPDF has no diff of its own. The pinned 1.27.2 has what the rest needs: structured text
 with each character's box (`text.rs`), display lists rendered to grey pixmaps, and the
 story engine that lays HTML out on pages (`fz_new_story`, `fz_place_story`), which the
-report uses through a shim function (`lectrix_write_html_pdf`).
+report uses through a shim function (`lectrix_write_html_pdf`). The engine lives in
+MuPDF's HTML sources, which Windows' build always compiles and Linux's and macOS's only
+with `mupdf-sys`'s `html` feature, so that feature is on. Documents still open as PDF
+only (`pdf_open_document_with_stream`), so the HTML readers it registers go unused.
 
 ## Decision
 
