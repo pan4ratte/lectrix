@@ -9,6 +9,7 @@ mod crypt;
 mod journal;
 mod objects;
 mod snapshot;
+mod story;
 mod stream;
 mod xref;
 
@@ -17,6 +18,7 @@ pub use crypt::{CryptInfo, crypt_info, file_facts};
 pub use journal::{Journal, JournalState};
 pub use objects::{is_incremental, set_new_stream};
 pub use snapshot::{has_unsaved_changes, save_incremental, save_snapshot};
+pub use story::write_html_pdf;
 pub use stream::{open_pdf_shared, repair, was_repaired};
 pub use xref::trim_unused_objects;
 

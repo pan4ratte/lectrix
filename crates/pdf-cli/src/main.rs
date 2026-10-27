@@ -136,8 +136,46 @@ enum Command {
     },
     /// Print page count, PDF/A claim, page labels, outline and annotations.
     Info { input: PathBuf },
+    /// Compare two documents (section 6.13): list the differences, and optionally write
+    /// annotated copies of either and the report.
+    Compare {
+        old: PathBuf,
+        new: PathBuf,
+        #[arg(long, value_enum, default_value_t = CompareModeArg::Automatic)]
+        mode: CompareModeArg,
+        /// Leave punctuation out.
+        #[arg(long)]
+        no_punctuation: bool,
+        /// Leave out words that differ by one letter.
+        #[arg(long)]
+        no_one_letter: bool,
+        /// Compare headers and footers as body text.
+        #[arg(long)]
+        no_margins: bool,
+        /// Write a copy of the old document with the differences marked.
+        #[arg(long)]
+        annotate_old: Option<PathBuf>,
+        /// Write a copy of the new document with the differences marked.
+        #[arg(long)]
+        annotate_new: Option<PathBuf>,
+        /// Write the report.
+        #[arg(long)]
+        report: Option<PathBuf>,
+        /// Print the differences as JSON lines.
+        #[arg(long)]
+        json: bool,
+    },
     /// Generate a three-page sample whose images cover what Compress handles.
     GenImages { out: PathBuf },
+    /// Generate a document of given text (Compare's tests): a page for each `--page`, its
+    /// lines separated by `|`, each page with `--header` at its top and "Page n" at its foot.
+    GenText {
+        out: PathBuf,
+        #[arg(long, default_value = "Lectrix sample")]
+        header: String,
+        #[arg(long = "page", required = true)]
+        pages: Vec<String>,
+    },
     /// Print what a file's size is made of, and what Compress could remove from it.
     Analyze {
         input: PathBuf,
@@ -504,6 +542,13 @@ struct StyleArgs {
     opacity: f32,
     #[arg(long, default_value = "Lectrix")]
     author: String,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum CompareModeArg {
+    Automatic,
+    Text,
+    Visual,
 }
 
 #[derive(Clone, Copy, ValueEnum)]
@@ -963,6 +1008,33 @@ fn run(command: Command) -> Result<()> {
             }
         }
         Command::Info { input } => info(&input)?,
+        Command::Compare {
+            old,
+            new,
+            mode,
+            no_punctuation,
+            no_one_letter,
+            no_margins,
+            annotate_old,
+            annotate_new,
+            report,
+            json,
+        } => compare_files(
+            &old,
+            &new,
+            pdf_core::compare::Options {
+                punctuation: !no_punctuation,
+                one_letter: !no_one_letter,
+                margins: !no_margins,
+            },
+            match mode {
+                CompareModeArg::Automatic => pdf_core::compare::Mode::Automatic,
+                CompareModeArg::Text => pdf_core::compare::Mode::Text,
+                CompareModeArg::Visual => pdf_core::compare::Mode::Visual,
+            },
+            [annotate_old, annotate_new, report],
+            json,
+        )?,
         Command::GenImages { out } => {
             let doc = testgen::image_sample()?;
             save::save_atomic(&doc, SaveKind::Full, None, &out)?;
@@ -970,6 +1042,15 @@ fn run(command: Command) -> Result<()> {
             for (name, what) in testgen::IMAGE_SAMPLE_CASES {
                 println!("  {name}: {what}");
             }
+        }
+        Command::GenText { out, header, pages } => {
+            let pages: Vec<Vec<String>> = pages
+                .iter()
+                .map(|p| p.split('|').map(str::to_owned).collect())
+                .collect();
+            let doc = testgen::text_document(&header, &pages)?;
+            save::save_atomic(&doc, SaveKind::Full, None, &out)?;
+            println!("wrote {}", out.display());
         }
         Command::Analyze { input, password } => analyze(&input, password.as_deref())?,
         Command::Compress {
@@ -2329,4 +2410,94 @@ fn build_level(
         }
     }
     Ok(out)
+}
+
+fn compare_files(
+    old: &Path,
+    new: &Path,
+    options: pdf_core::compare::Options,
+    mode: pdf_core::compare::Mode,
+    [annotate_old, annotate_new, report]: [Option<PathBuf>; 3],
+    json: bool,
+) -> Result<()> {
+    use pdf_core::compare::annotate::{self, Which};
+    use pdf_core::compare::{self, Kind};
+    let start = Instant::now();
+    let (a, _) = Session::open(old, None)?;
+    let (b, _) = Session::open(new, None)?;
+    let result = compare::run(&a, &b, options, mode, &|_| {}, &|| false);
+    a.close();
+    b.close();
+    let c = result?;
+    let elapsed = start.elapsed();
+    let name = |p: &Path| {
+        p.file_name()
+            .map(|n| n.to_string_lossy().into_owned())
+            .unwrap_or_default()
+    };
+    for (n, d) in c.differences.iter().enumerate() {
+        let kind = match d.kind {
+            Kind::Inserted => "inserted",
+            Kind::Deleted => "deleted",
+            Kind::Changed => "changed",
+        };
+        let group = format!("{:?}", d.group).to_lowercase();
+        if json {
+            println!(
+                "{}",
+                serde_json::json!({
+                    "kind": kind,
+                    "group": group,
+                    "oldPage": d.old.page() + 1,
+                    "newPage": d.new.page() + 1,
+                    "old": d.old.text,
+                    "new": d.new.text,
+                })
+            );
+        } else {
+            println!(
+                "{:>4}. {kind} ({group}), page {} -> {}: {:?} -> {:?}",
+                n + 1,
+                d.old.page() + 1,
+                d.new.page() + 1,
+                d.old.text,
+                d.new.text
+            );
+        }
+    }
+    if !json {
+        println!(
+            "{} differences; {} and {} words; {:.0} ms",
+            c.differences.len(),
+            c.old_words,
+            c.new_words,
+            ms(elapsed)
+        );
+    }
+    let all: Vec<&compare::Difference> = c.differences.iter().collect();
+    for (target, which, source, other) in [
+        (annotate_old, Which::Old, old, name(new)),
+        (annotate_new, Which::New, new, name(old)),
+    ] {
+        if let Some(target) = target {
+            let marks = annotate::annotations(&all, which, &other, "Lectrix");
+            annotate::write_copy(source, None, &target, marks)?;
+            println!("wrote {}", target.display());
+        }
+    }
+    if let Some(target) = report {
+        let page = |p: usize| (p + 1).to_string();
+        let info = compare::report::ReportInfo {
+            old_name: &name(old),
+            new_name: &name(new),
+            when: "",
+            options,
+            grouped: true,
+            old_page: &page,
+            new_page: &page,
+        };
+        compare::report::write(&target, &all, &info)?;
+        println!("wrote {}", target.display());
+    }
+    Ok(())
 }

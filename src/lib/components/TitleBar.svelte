@@ -46,7 +46,7 @@
 	});
 
 	/** Something is open, so the start screen can be shown over it (and left again). */
-	const canShowStart = $derived(app.tabs.length > 0 || app.combine !== null);
+	const canShowStart = $derived(app.tabs.length > 0 || app.combine !== null || app.compare !== null);
 
 	// The icon and name are a button (the start screen), and still move the window when
 	// dragged, as the rest of the bar does: a press that moves becomes a window drag.

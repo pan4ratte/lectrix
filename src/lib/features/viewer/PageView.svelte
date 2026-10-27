@@ -271,6 +271,10 @@
 	const linkTint = $derived(app.settings?.highlightLinks === false ? null : linkHover);
 
 	const hits = $derived(tab.search.byPage.get(index) ?? []);
+	/** The differences this page shows in the Compare view (section 6.13), and the one
+	 * selected there, which is outlined. */
+	const diffMarks = $derived(tab.comparing?.marks(index) ?? []);
+	const diffCurrent = $derived(tab.comparing?.selected() ?? null);
 	const label = $derived(tab.displayLabels?.[index]);
 
 	// Annotations: the selected one's outline and handles, and what is being drawn.
@@ -472,7 +476,7 @@
 			</div>
 		{/if}
 
-		{#if selection.length || hits.length || showSelected || grouped.length || moving.length || linkTint || cursor || (draft && draft.kind !== 'text')}
+		{#if diffMarks.length || selection.length || hits.length || showSelected || grouped.length || moving.length || linkTint || cursor || (draft && draft.kind !== 'text')}
 			<svg
 				class="pointer-events-none absolute inset-0"
 				style:filter={tab.overlayColour}
@@ -481,6 +485,18 @@
 				viewBox="0 0 {size.width} {size.height}"
 				aria-hidden="true"
 			>
+				{#each diffMarks as m, mi (mi)}
+					<rect
+						x={m.rect[0]}
+						y={m.rect[1]}
+						width={m.rect[2] - m.rect[0]}
+						height={m.rect[3] - m.rect[1]}
+						rx={m.caret ? 0 : 1.5 / k}
+						class={['diff-mark', `diff-${m.kind}`, m.caret && 'diff-caret', m.id === diffCurrent && 'diff-current']}
+						vector-effect="non-scaling-stroke"
+						data-diff-mark={m.id}
+					/>
+				{/each}
 				{#each hits as { index: i, hit } (i)}
 					{#each hit.quads as q, qi (qi)}
 						<polygon

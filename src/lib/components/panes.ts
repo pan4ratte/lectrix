@@ -17,6 +17,8 @@ export const RIGHT_LIMITS: PaneLimits = { min: 240, max: 560, initial: 300 };
 
 /** The Combine view's pane, which holds its files and options. */
 export const COMBINE_LIMITS: PaneLimits = { min: 180, max: 480, initial: 224 };
+/** The Compare view's panel: its options and the differences (section 6.13). */
+export const COMPARE_LIMITS: PaneLimits = { min: 260, max: 560, initial: 320 };
 
 /** Each pane takes at most this share of the window, so the page always keeps room. */
 export const MAX_WINDOW_SHARE = 0.4;

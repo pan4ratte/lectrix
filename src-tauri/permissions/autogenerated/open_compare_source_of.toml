@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-compare-source-of"
+description = "Enables the open_compare_source_of command without any pre-configured scope."
+commands.allow = ["open_compare_source_of"]
+
+[[permission]]
+identifier = "deny-open-compare-source-of"
+description = "Denies the open_compare_source_of command without any pre-configured scope."
+commands.deny = ["open_compare_source_of"]

@@ -1940,7 +1940,8 @@ pub struct StartupInfo {
 
 /// The side panes (section 8): which are open, how wide they are, which panels each holds
 /// in which order, the panel each shows, and the size of page thumbnails; also how the start
-/// screen shows recent files, and how wide the Combine view's pane is. Remembered in app
+/// screen shows recent files, and how wide the Combine view's pane and the Compare view's
+/// panel are. Remembered in app
 /// data. Widths are CSS pixels;
 /// the frontend keeps them within its limits, and puts each panel in exactly one pane.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize, TS)]
@@ -1966,6 +1967,8 @@ pub struct PaneLayout {
     pub recent_files_grid: bool,
     /// The width of the Combine view's pane (its files and options), CSS pixels.
     pub combine_width: u32,
+    /// The width of the Compare view's panel (its options and differences), CSS pixels.
+    pub compare_width: u32,
 }
 
 impl Default for PaneLayout {
@@ -1984,6 +1987,7 @@ impl Default for PaneLayout {
             thumbnails_grid: false,
             recent_files_grid: false,
             combine_width: 224,
+            compare_width: 320,
         }
     }
 }
@@ -3146,6 +3150,242 @@ pub enum CompressSaved {
         /// The PDF/A level the file no longer claims.
         pdfa_removed: Option<PdfaLevel>,
     },
+}
+
+// ----- Compare (section 6.13) -----
+
+/// How pages are compared.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum CompareMode {
+    /// By their text, and as images where a page has none.
+    Automatic,
+    Text,
+    Visual,
+}
+
+/// The Compare panel's options, as it sends them to `compare_run` and as they are
+/// remembered for the next time.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CompareSettings {
+    pub punctuation: bool,
+    pub one_letter: bool,
+    /// Headers and footers found automatically.
+    pub margins: bool,
+    pub mode: CompareMode,
+}
+
+impl Default for CompareSettings {
+    fn default() -> Self {
+        CompareSettings {
+            punctuation: true,
+            one_letter: true,
+            margins: true,
+            mode: CompareMode::Automatic,
+        }
+    }
+}
+
+impl CompareSettings {
+    pub fn options(self) -> pdf_core::compare::Options {
+        pdf_core::compare::Options {
+            punctuation: self.punctuation,
+            one_letter: self.one_letter,
+            margins: self.margins,
+        }
+    }
+
+    pub fn mode(self) -> pdf_core::compare::Mode {
+        match self.mode {
+            CompareMode::Automatic => pdf_core::compare::Mode::Automatic,
+            CompareMode::Text => pdf_core::compare::Mode::Text,
+            CompareMode::Visual => pdf_core::compare::Mode::Visual,
+        }
+    }
+}
+
+/// Sent on `compare_run`'s channel while comparing.
+#[derive(Debug, Clone, Copy, Serialize, TS)]
+#[serde(tag = "stage", rename_all = "camelCase")]
+#[ts(export)]
+pub enum CompareProgress {
+    /// Pages of both documents read, of how many they have together.
+    Reading {
+        done: u32,
+        total: u32,
+    },
+    Comparing,
+    /// Pages compared as images.
+    Images {
+        done: u32,
+        total: u32,
+    },
+}
+
+impl From<pdf_core::compare::Progress> for CompareProgress {
+    fn from(p: pdf_core::compare::Progress) -> Self {
+        let n = |v: usize| u32::try_from(v).unwrap_or(u32::MAX);
+        match p {
+            pdf_core::compare::Progress::Reading { done, total } => CompareProgress::Reading {
+                done: n(done),
+                total: n(total),
+            },
+            pdf_core::compare::Progress::Comparing => CompareProgress::Comparing,
+            pdf_core::compare::Progress::Images { done, total } => CompareProgress::Images {
+                done: n(done),
+                total: n(total),
+            },
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum DifferenceKind {
+    Inserted,
+    Deleted,
+    Changed,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum DifferenceGroup {
+    Body,
+    /// Headers and footers.
+    Margins,
+    Numbering,
+}
+
+/// A rectangle on a page: view space at zoom 1 (`[x0, y0, x1, y1]`).
+#[derive(Debug, Clone, Copy, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DifferenceRect {
+    pub page: u32,
+    pub rect: [f32; 4],
+}
+
+/// Where the other document's text would go: a line at `x` from `y0` to `y1`.
+#[derive(Debug, Clone, Copy, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DifferenceCaret {
+    pub page: u32,
+    pub x: f32,
+    pub y0: f32,
+    pub y1: f32,
+}
+
+/// A difference as one document has it.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct DifferenceSide {
+    /// Its text there (cut short past a few hundred characters); empty when it has none.
+    pub text: String,
+    /// The text was cut short.
+    pub cut: bool,
+    /// The page it is on, or would be.
+    pub page: u32,
+    pub rects: Vec<DifferenceRect>,
+    pub caret: Option<DifferenceCaret>,
+}
+
+/// The longest text a difference sends; the list shows less, the report more.
+const DIFFERENCE_TEXT_MAX: usize = 400;
+
+impl From<&pdf_core::compare::Side> for DifferenceSide {
+    fn from(s: &pdf_core::compare::Side) -> Self {
+        let n = |v: usize| u32::try_from(v).unwrap_or(u32::MAX);
+        let cut = s.text.chars().count() > DIFFERENCE_TEXT_MAX;
+        DifferenceSide {
+            text: s.text.chars().take(DIFFERENCE_TEXT_MAX).collect(),
+            cut,
+            page: n(s.page()),
+            rects: s
+                .rects
+                .iter()
+                .map(|r| DifferenceRect {
+                    page: n(r.page),
+                    rect: r.rect,
+                })
+                .collect(),
+            caret: s.caret.map(|c| DifferenceCaret {
+                page: n(c.page),
+                x: c.x,
+                y0: c.y0,
+                y1: c.y1,
+            }),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Difference {
+    pub kind: DifferenceKind,
+    pub group: DifferenceGroup,
+    /// As the first document has it.
+    pub old: DifferenceSide,
+    /// As the second document has it.
+    pub new: DifferenceSide,
+}
+
+impl From<&pdf_core::compare::Difference> for Difference {
+    fn from(d: &pdf_core::compare::Difference) -> Self {
+        use pdf_core::compare::{Group, Kind};
+        Difference {
+            kind: match d.kind {
+                Kind::Inserted => DifferenceKind::Inserted,
+                Kind::Deleted => DifferenceKind::Deleted,
+                Kind::Changed => DifferenceKind::Changed,
+            },
+            group: match d.group {
+                Group::Body => DifferenceGroup::Body,
+                Group::Margins => DifferenceGroup::Margins,
+                Group::Numbering => DifferenceGroup::Numbering,
+            },
+            old: (&d.old).into(),
+            new: (&d.new).into(),
+        }
+    }
+}
+
+/// A place the two documents line up at, as pages from the start with the part of a page
+/// as a fraction: what scrolling them together follows.
+#[derive(Debug, Clone, Copy, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CompareAnchor {
+    pub old: f64,
+    pub new: f64,
+}
+
+/// What comparing found.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CompareOutcome {
+    pub differences: Vec<Difference>,
+    pub anchors: Vec<CompareAnchor>,
+    /// How many words each document has.
+    pub old_words: u32,
+    pub new_words: u32,
+}
+
+/// One of the two documents compared.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum CompareSide {
+    Old,
+    New,
 }
 
 #[cfg(test)]

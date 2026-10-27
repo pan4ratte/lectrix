@@ -9,7 +9,7 @@
 	// to the top of the list, and a right-click offers opening it, pinning it, showing it in
 	// its folder and removing it. After an update, a block beside the app's name links to
 	// What's new. Also shown over open documents, from the title bar's icon and name.
-	import { ArrowUpRight, FolderOpen, LayoutGrid, Layers, List, Lock, LockOpen, Shrink, Sparkles, Star, X } from '@lucide/svelte';
+	import { ArrowUpRight, FolderOpen, GitCompareArrows, LayoutGrid, Layers, List, Lock, LockOpen, Shrink, Sparkles, Star, X } from '@lucide/svelte';
 	import { ContextMenu } from 'bits-ui';
 	import type { Component } from 'svelte';
 
@@ -55,7 +55,8 @@
 		{ id: 'organize', label: 'Organize pages', description: 'Reorder, rotate or delete', icon: LayoutGrid, run: () => void organizeFile() },
 		{ id: 'unlock', label: 'Unlock', description: 'Remove a password', icon: LockOpen, command: 'unlockFile', run: () => void unlockFile() },
 		{ id: 'protect', label: 'Protect', description: 'Add a password', icon: Lock, command: 'protectFile', run: () => void protectFile() },
-		{ id: 'compress', label: 'Compress', description: 'Reduce file size', icon: Shrink, command: 'compressFile', run: () => void compressFile() }
+		{ id: 'compress', label: 'Compress', description: 'Reduce file size', icon: Shrink, command: 'compressFile', run: () => void compressFile() },
+		{ id: 'compare', label: 'Compare', description: 'Find what changed', icon: GitCompareArrows, command: 'compareFiles', run: () => app.openCompare() }
 	];
 
 	/** A press's ripple, from where it was pressed in the card (CSS pixels of the card, as

@@ -344,6 +344,24 @@ and run `python tests/interop/run.py compress`, which writes each preset's resul
 - [ ] A signed file of your own: the dialog says its signatures will not be valid; Acrobat
       shows the copy's signature as invalid, the original's still valid.
 
+## Compare
+
+Make the two versions with `pdf-cli gen-text` as `tests/e2e/specs/compare.test.mjs` does, or
+take two versions of a document of your own, and compare them in Lectrix.
+
+- [ ] Save the first document with the differences marked, and open the copy in Acrobat
+      Reader, Edge, Firefox and Foxit: each difference is highlighted in its colour (a
+      sticky note where text was inserted), its comment says what the other document has
+      there, and the comments list shows them. Print a page from Acrobat Reader.
+- [ ] The same for the second document; the documents compared are unchanged.
+- [ ] Save the report and open it in Acrobat Reader: the summary, the table in its groups,
+      text in other scripts (Cyrillic, CJK) readable.
+- [ ] Two versions of a long document of your own: the differences FineReader finds, if you
+      have it, are the ones Lectrix finds; scrolling one pane keeps the other on the same
+      passage across pages added or removed.
+- [ ] A scanned document and a copy with one page changed: compared as images, the changed
+      area is marked.
+
 ## Print
 
 On a paper printer of your own, with a document whose pages are not all alike (a book with

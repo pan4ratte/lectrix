@@ -91,6 +91,7 @@ Under each version, the sections with changes, in this order (`SECTIONS` in
 | Organizing pages | the grid of a document's pages: moving, rotating, deleting, extracting |
 | Compressing files | the Compress dialog |
 | Printing | the Print dialog |
+| Comparing documents | the Compare view: the documents compared, the options, the differences, the report |
 | Settings | the Settings dialog |
 | Installation and updates | installers, file association, the updater |
 | General | what touches the whole app: speed, stability, the look, keyboard, accessibility |

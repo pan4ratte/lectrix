@@ -10,9 +10,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 use crate::ipc::{
-    AnnotationSort, Appearance, CompressSettings, PageAdjustments, PaneLayout, PrintPreferences,
-    QuickTool, ScrollMode, ToolbarDock, ToolbarPosition, ToolbarStyle, ToolbarVisibility,
-    ViewState,
+    AnnotationSort, Appearance, CompareSettings, CompressSettings, PageAdjustments, PaneLayout,
+    PrintPreferences, QuickTool, ScrollMode, ToolbarDock, ToolbarPosition, ToolbarStyle,
+    ToolbarVisibility, ViewState,
 };
 use crate::placement::WindowPlacement;
 
@@ -66,6 +66,10 @@ struct Data {
     /// read are forgotten, not an unreadable state file.
     #[serde(default, deserialize_with = "or_none")]
     compress: Option<CompressSettings>,
+    /// The Compare panel's options used last (section 6.13), read as the Compress settings
+    /// are.
+    #[serde(default, deserialize_with = "or_none")]
+    compare: Option<CompareSettings>,
     /// The Print dialog's choices used last (section 6.12), read as the Compress settings
     /// are.
     #[serde(default, deserialize_with = "or_none")]
@@ -435,6 +439,17 @@ impl Store {
     pub fn set_compress_settings(&mut self, settings: CompressSettings) {
         if self.data.compress != Some(settings) {
             self.data.compress = Some(settings);
+            self.persist();
+        }
+    }
+
+    pub fn compare_settings(&self) -> Option<CompareSettings> {
+        self.data.compare
+    }
+
+    pub fn set_compare_settings(&mut self, settings: CompareSettings) {
+        if self.data.compare != Some(settings) {
+            self.data.compare = Some(settings);
             self.persist();
         }
     }
@@ -975,6 +990,7 @@ mod tests {
             thumbnails_grid: true,
             recent_files_grid: true,
             combine_width: 300,
+            compare_width: 360,
         };
         store.set_panes(panes.clone());
         assert_eq!(Store::load(Some(file.clone())).panes(), panes);
@@ -994,6 +1010,7 @@ mod tests {
         assert!(!partial.thumbnails_fit);
         assert!(!partial.thumbnails_grid);
         assert_eq!(partial.combine_width, 224);
+        assert_eq!(partial.compare_width, 320);
         // From before panels could move: the sidebar and annotation pane's names.
         fs::write(
             &file,

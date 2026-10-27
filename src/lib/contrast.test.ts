@@ -189,6 +189,15 @@ describe.each([
 		for (const mark of ['--lectrix-search-marker', '--lectrix-search-marker-current']) {
 			expect(contrast(solid(mark, vars), canvas), `${mark} on the canvas`).toBeGreaterThanOrEqual(3);
 		}
+		// Compare's differences: their edges and carets on the page (white in both themes),
+		// and their kinds as text in the panel, on the chrome and on a selected row there.
+		for (const kind of ['inserted', 'deleted', 'changed']) {
+			expect(contrast(solid(`--lectrix-diff-${kind}-edge`, vars), '#ffffff'), `${kind} edge on the page`).toBeGreaterThanOrEqual(3);
+			const text = solid(`--lectrix-diff-${kind}`, vars);
+			const chrome = solid('--lectrix-chrome', vars);
+			expect(contrast(text, chrome), `${kind} text on the chrome`).toBeGreaterThanOrEqual(4.5);
+			expect(contrast(text, on('--lectrix-row-selected', vars, chrome)), `${kind} text on a selected row`).toBeGreaterThanOrEqual(4.5);
+		}
 		for (let i = 1; i <= 6; i++) {
 			const source = solid(`--lectrix-source-${i}`, vars);
 			for (const bg of ['--lectrix-surface', '--lectrix-chrome', '--lectrix-canvas']) {

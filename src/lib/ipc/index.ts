@@ -121,6 +121,22 @@ import type { PrinterDetails } from './generated/PrinterDetails';
 export type { PrinterEntry } from './generated/PrinterEntry';
 export type { SheetArea } from './generated/SheetArea';
 export type { SheetPlacement } from './generated/SheetPlacement';
+export type { CompareAnchor } from './generated/CompareAnchor';
+export type { CompareMode } from './generated/CompareMode';
+export type { CompareOutcome } from './generated/CompareOutcome';
+import type { CompareOutcome } from './generated/CompareOutcome';
+export type { CompareProgress } from './generated/CompareProgress';
+import type { CompareProgress } from './generated/CompareProgress';
+export type { CompareSettings } from './generated/CompareSettings';
+import type { CompareSettings } from './generated/CompareSettings';
+export type { CompareSide } from './generated/CompareSide';
+import type { CompareSide } from './generated/CompareSide';
+export type { Difference } from './generated/Difference';
+export type { DifferenceCaret } from './generated/DifferenceCaret';
+export type { DifferenceGroup } from './generated/DifferenceGroup';
+export type { DifferenceKind } from './generated/DifferenceKind';
+export type { DifferenceRect } from './generated/DifferenceRect';
+export type { DifferenceSide } from './generated/DifferenceSide';
 export type { CompressAnalysis } from './generated/CompressAnalysis';
 export type { CompressFound } from './generated/CompressFound';
 export type { CompressOutcome } from './generated/CompressOutcome';
@@ -259,6 +275,31 @@ export function compressRun(token: number, settings: CompressSettings, onProgres
 export const compressStop = (token: number) => invoke<void>('compress_stop', { token });
 export const compressSave = (token: number, copy: boolean) => invoke<CompressSaved>('compress_save', { token, copy });
 export const compressCancel = (token: number) => invoke<void>('compress_cancel', { token });
+// Compare (section 6.13): two documents opened as sources (not tabs) and compared; the
+// comparison waits in Rust, by the pair, for the annotated copies and the report.
+/** Asks for one of the documents to compare in the Open dialog; null when none was picked. */
+export const openCompareSource = (second: boolean) => invoke<OpenResult | null>('open_compare_source', { second });
+/** Opens the file of document `id`, open in a tab, as a source to compare (as saved). */
+export const openCompareSourceOf = (id: number) => invoke<OpenResult>('open_compare_source_of', { id });
+/** The Compare panel's options used last. */
+export const compareSettings = () => invoke<CompareSettings>('compare_settings');
+/** Compares document `old` with document `new`, with progress; `compareStop` stops it (the
+ * `cancelled` code). */
+export function compareRun(old: number, newId: number, settings: CompareSettings, onProgress: (p: CompareProgress) => void) {
+	const channel = new Channel<CompareProgress>();
+	channel.onmessage = onProgress;
+	return invoke<CompareOutcome>('compare_run', { old, new: newId, settings, onProgress: channel });
+}
+export const compareStop = (old: number, newId: number) => invoke<void>('compare_stop', { old, new: newId });
+export const compareForget = (old: number, newId: number) => invoke<void>('compare_forget', { old, new: newId });
+/** Saves a copy of one document with the differences but `skip` marked; its name, or null
+ * when the Save dialog was given up. */
+export const compareSaveAnnotated = (old: number, newId: number, side: CompareSide, skip: number[]) =>
+	invoke<string | null>('compare_save_annotated', { old, new: newId, side, skip });
+/** Saves the report of the differences but `skip`; its name, or null when the Save dialog
+ * was given up. */
+export const compareSaveReport = (old: number, newId: number, skip: number[], grouped: boolean, when: string) =>
+	invoke<string | null>('compare_save_report', { old, new: newId, skip, grouped, when });
 // Print (section 6.12, ADR 0028): the printers, what each takes, the layout of the sheets
 // for the preview, and the job, with progress.
 export const printStart = () => invoke<PrintStart>('print_start');

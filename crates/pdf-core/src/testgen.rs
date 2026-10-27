@@ -166,6 +166,50 @@ fn page_content(index: usize, visible: Rect) -> String {
     s
 }
 
+/// A Letter-size document with a page for each list of lines (Helvetica 12 pt, Latin-1
+/// only), each page with `header` at its top and "Page n" at its bottom: what Compare's
+/// tests compare.
+pub fn text_document(header: &str, pages: &[Vec<String>]) -> Result<PdfDocument> {
+    let mut doc = PdfDocument::new();
+    let font = doc.add_simple_font(&Font::new("Helvetica")?, SimpleFontEncoding::Latin)?;
+    let escape = |t: &str| {
+        t.replace('\\', "\\\\")
+            .replace('(', "\\(")
+            .replace(')', "\\)")
+    };
+    for (n, lines) in pages.iter().enumerate() {
+        let mut content = format!(
+            "BT /F1 10 Tf 72 750 Td ({}) Tj ET\nBT /F1 10 Tf 280 36 Td (Page {}) Tj ET\n",
+            escape(header),
+            n + 1
+        );
+        for (i, line) in lines.iter().enumerate() {
+            content.push_str(&format!(
+                "BT /F1 12 Tf 72 {} Td ({}) Tj ET\n",
+                700.0 - i as f64 * 16.0,
+                escape(line)
+            ));
+        }
+        let stream =
+            doc.add_stream(&Buffer::from_copied_bytes(content.as_bytes())?, None, false)?;
+        let mut fonts = doc.new_dict()?;
+        fonts.dict_put("F1", font.clone())?;
+        let mut resources = doc.new_dict()?;
+        resources.dict_put("Font", fonts)?;
+        let mut page = doc.new_dict()?;
+        page.dict_put("Type", PdfObject::new_name("Page")?)?;
+        page.dict_put(
+            "MediaBox",
+            objects::rect_array(&doc, Rect::new(0.0, 0.0, 612.0, 792.0))?,
+        )?;
+        page.dict_put("Resources", resources)?;
+        page.dict_put("Contents", stream)?;
+        let page = doc.add_object(&page)?;
+        doc.insert_page(doc.page_count()?, &page)?;
+    }
+    Ok(doc)
+}
+
 /// What [`image_sample`] draws, by image resource name.
 pub const IMAGE_SAMPLE_CASES: &[(&str, &str)] = &[
     (

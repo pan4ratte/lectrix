@@ -130,6 +130,18 @@
 	--lectrix-link-hover: rgb(47 93 170 / 0.16);
 	--lectrix-search-hit: rgb(255 196 0 / 0.38);
 	--lectrix-search-current: rgb(255 120 0 / 0.5);
+	/* Compare (section 6.13): differences marked on the page, which is white in both themes
+	   (the dark theme keeps these): a tint over the text, and an edge and caret at 3:1 on it. */
+	--lectrix-diff-inserted-fill: rgb(46 160 67 / 0.26);
+	--lectrix-diff-deleted-fill: rgb(229 72 77 / 0.26);
+	--lectrix-diff-changed-fill: rgb(255 170 0 / 0.32);
+	--lectrix-diff-inserted-edge: #1a7f37;
+	--lectrix-diff-deleted-edge: #c62828;
+	--lectrix-diff-changed-edge: #9a6700;
+	/* The same kinds as text in the Compare panel, at 4.5:1 on the chrome and a selected row. */
+	--lectrix-diff-inserted: #136429;
+	--lectrix-diff-deleted: #a61f1f;
+	--lectrix-diff-changed: #734c00;
 	/* The marks beside the pages' scrollbar for a search's matches, and for the one shown:
 	   over the canvas, at 3:1. */
 	--lectrix-search-marker: #a87400;
@@ -177,6 +189,9 @@
 		--lectrix-start-bg: var(--lectrix-canvas);
 		--lectrix-search-marker: #ffc400;
 		--lectrix-search-marker-current: #ff7a1a;
+		--lectrix-diff-inserted: #4ac26b;
+		--lectrix-diff-deleted: #f47067;
+		--lectrix-diff-changed: #d8a32b;
 		--lectrix-tab-active: #2a2f37;
 		--lectrix-tab-active-line: transparent;
 		--lectrix-button: #262a31;
@@ -228,6 +243,9 @@
 	--lectrix-start-bg: var(--lectrix-canvas);
 	--lectrix-search-marker: #ffc400;
 	--lectrix-search-marker-current: #ff7a1a;
+	--lectrix-diff-inserted: #4ac26b;
+	--lectrix-diff-deleted: #f47067;
+	--lectrix-diff-changed: #d8a32b;
 	--lectrix-tab-active: #2a2f37;
 	--lectrix-tab-active-line: transparent;
 	--lectrix-button: #262a31;
@@ -403,6 +421,43 @@ input[type='color'],
 }
 .fill-search-current {
 	fill: var(--lectrix-search-current);
+}
+/* Compare's differences on the page (section 6.13). */
+.diff-mark {
+	stroke-width: 0;
+}
+.diff-inserted {
+	fill: var(--lectrix-diff-inserted-fill);
+	stroke: var(--lectrix-diff-inserted-edge);
+}
+.diff-deleted {
+	fill: var(--lectrix-diff-deleted-fill);
+	stroke: var(--lectrix-diff-deleted-edge);
+}
+.diff-changed {
+	fill: var(--lectrix-diff-changed-fill);
+	stroke: var(--lectrix-diff-changed-edge);
+}
+.diff-mark.diff-caret.diff-inserted {
+	fill: var(--lectrix-diff-inserted-edge);
+}
+.diff-mark.diff-caret.diff-deleted {
+	fill: var(--lectrix-diff-deleted-edge);
+}
+.diff-mark.diff-caret.diff-changed {
+	fill: var(--lectrix-diff-changed-edge);
+}
+.diff-mark.diff-current {
+	stroke-width: 1.5px;
+}
+.text-diff-inserted {
+	color: var(--lectrix-diff-inserted);
+}
+.text-diff-deleted {
+	color: var(--lectrix-diff-deleted);
+}
+.text-diff-changed {
+	color: var(--lectrix-diff-changed);
 }
 .bg-search-marker {
 	background: var(--lectrix-search-marker);
@@ -3124,6 +3179,150 @@ aside[data-pane].pane-overlay > .pane-resizer {
 		transition: none !important;
 		animation: none !important;
 	}
+}
+
+/* ----- Compare (section 6.13) ----- */
+
+/* A pane's header: which document it holds, its name, and its buttons. */
+.compare-header {
+	display: flex;
+	height: 32px;
+	flex-shrink: 0;
+	align-items: center;
+	gap: 6px;
+	padding: 0 4px 0 12px;
+	border-bottom: 1px solid var(--lectrix-line);
+	background: var(--lectrix-chrome);
+	font-size: 12px;
+	user-select: none;
+}
+.compare-header-focused {
+	box-shadow: inset 0 2px 0 var(--lectrix-accent);
+}
+.compare-header .icon-button {
+	width: 26px;
+	height: 26px;
+}
+/* An empty slot, and the same while a file is dragged over it. */
+.compare-slot {
+	display: flex;
+	min-height: 0;
+	flex: 1;
+	flex-direction: column;
+	align-items: center;
+	justify-content: center;
+	gap: 12px;
+	padding: 24px;
+	background: var(--lectrix-canvas);
+	text-align: center;
+}
+.compare-slot-target {
+	box-shadow: inset 0 0 0 2px var(--lectrix-accent);
+}
+.compare-open-docs {
+	display: flex;
+	width: 100%;
+	max-width: 320px;
+	flex-direction: column;
+	gap: 2px;
+}
+.compare-open-doc {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 6px 10px;
+	border-radius: var(--radius-control);
+	text-align: left;
+}
+.compare-open-doc:hover:not(:disabled) {
+	background: var(--lectrix-hover);
+}
+/* The panel's two tabs: text, the one shown underlined in the accent. */
+.compare-tab {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 0 10px;
+	border-bottom: 2px solid transparent;
+	color: var(--lectrix-fg-muted);
+	font-size: 13px;
+}
+.compare-tab:hover {
+	color: var(--lectrix-fg);
+}
+.compare-tab[aria-selected='true'] {
+	border-bottom-color: var(--lectrix-accent);
+	color: var(--lectrix-fg);
+	font-weight: 600;
+}
+.compare-count {
+	min-width: 18px;
+	padding: 0 5px;
+	border-radius: 9px;
+	background: var(--lectrix-hover);
+	font-size: 11px;
+	font-weight: 600;
+	line-height: 18px;
+	text-align: center;
+}
+.compare-list:focus-visible {
+	outline: 2px solid var(--lectrix-accent);
+	outline-offset: -2px;
+}
+.compare-section {
+	position: sticky;
+	top: 0;
+	z-index: 1;
+	display: flex;
+	gap: 6px;
+	padding: 8px 12px 4px;
+	background: var(--lectrix-chrome);
+	font-size: 12px;
+	font-weight: 600;
+}
+.compare-row {
+	display: flex;
+	align-items: flex-start;
+	gap: 8px;
+	margin: 0 4px;
+	padding: 6px 8px;
+	border-radius: var(--radius-control);
+	cursor: default;
+}
+.compare-row:hover {
+	background: var(--lectrix-hover);
+}
+.compare-row-picked,
+.compare-row-picked:hover {
+	background: var(--lectrix-row-selected);
+}
+.compare-row-current {
+	box-shadow: inset 2px 0 0 var(--lectrix-accent);
+}
+.compare-kind {
+	display: inline-flex;
+	padding-top: 2px;
+}
+/* A difference's text: three lines at most. */
+.compare-text {
+	display: -webkit-box;
+	overflow: hidden;
+	-webkit-box-orient: vertical;
+	-webkit-line-clamp: 3;
+	line-clamp: 3;
+	overflow-wrap: anywhere;
+}
+/* A button that reads as a link, in a line of text. */
+.link-button {
+	padding: 0;
+	border: 0;
+	background: transparent;
+	color: var(--lectrix-accent);
+	text-decoration: underline;
+	text-underline-offset: 2px;
+}
+.link-button:hover {
+	text-decoration-thickness: 2px;
 }
 
 /* Thin, quiet scrollbars, as in Windows 11 apps. */

@@ -65,6 +65,7 @@ lectrix/
 │  │  │  ├─ merge/           # stitching, and extracting pages into a new file
 │  │  │  ├─ pages.rs         # moving and deleting pages (ADR 0018)
 │  │  │  ├─ compress/        # Compress: images, fonts, removals, duplicates (ADR 0027)
+│  │  │  ├─ compare/         # Compare: words, the diff, pages as images, the annotated copy, the report (ADR 0031)
 │  │  │  ├─ print/           # printing: pages on sheets, bands for printers, the PDF for CUPS (ADR 0028)
 │  │  │  ├─ save.rs          # incremental / full / atomic replace
 │  │  │  ├─ ops.rs           # operation enum, undo/redo

@@ -35,6 +35,7 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 			{ command: 'open', label: 'Open', keys: ['Ctrl+O'], inInputs: true },
 			{ command: 'reopenClosedTab', label: 'Reopen closed tab', keys: ['Ctrl+Shift+T'], inInputs: true },
 			{ command: 'combineFiles', label: 'Combine files', keys: [], inInputs: true },
+			{ command: 'compareFiles', label: 'Compare documents', keys: [], inInputs: true },
 			{ command: 'unlockFile', label: 'Unlock', keys: [], inInputs: true },
 			{ command: 'protectFile', label: 'Protect', keys: [], inInputs: true },
 			{ command: 'compressFile', label: 'Compress', keys: [], inInputs: true },
@@ -94,7 +95,9 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 			{ command: 'back', label: 'Back', keys: ['Alt+Left'], mac: ['Ctrl+[', 'Alt+Left'], aliases: ['BrowserBack'] },
 			{ command: 'forward', label: 'Forward', keys: ['Alt+Right'], mac: ['Ctrl+]', 'Alt+Right'], aliases: ['BrowserForward'] },
 			{ command: 'nextTab', label: 'Next tab', keys: ['Ctrl+Tab', 'Ctrl+Page Down'], inInputs: true },
-			{ command: 'previousTab', label: 'Previous tab', keys: ['Ctrl+Shift+Tab', 'Ctrl+Page Up'], inInputs: true }
+			{ command: 'previousTab', label: 'Previous tab', keys: ['Ctrl+Shift+Tab', 'Ctrl+Page Up'], inInputs: true },
+			{ command: 'nextDifference', label: 'Next difference, comparing documents', keys: ['Ctrl+Right'] },
+			{ command: 'previousDifference', label: 'Previous difference, comparing documents', keys: ['Ctrl+Left'] }
 		]
 	},
 	{

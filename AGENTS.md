@@ -99,7 +99,7 @@ What each feature does is specified in `docs/spec/`, one file per feature, under
 - **6.5 Annotations** ([annotations.md](docs/spec/annotations.md)): the tools, colors, the bar, the inspector, the annotation list. Every change is one undo step.
 - **6.6 Settings, About and installers** ([settings.md](docs/spec/settings.md)): a new setting is a field in Rust's `Settings` plus a row in `src/lib/features/settings/schema.ts`; a new command with a shortcut is an entry in `SHORTCUT_GROUPS` (`src/lib/shortcuts.ts`); only what differs from the defaults is stored.
 - **6.7 Organize pages** ([organize.md](docs/spec/organize.md)): each change is one undo step (ADR 0018), and what is kept by page follows its page (`DocumentChange.pageMap`).
-- **6.8 Unlock** ([unlock.md](docs/spec/unlock.md)) · **6.9 Protect** ([protect.md](docs/spec/protect.md)) · **6.10 Document properties** ([properties.md](docs/spec/properties.md)) · **6.11 Compress** ([compress.md](docs/spec/compress.md)) · **6.12 Print** ([print.md](docs/spec/print.md)).
+- **6.8 Unlock** ([unlock.md](docs/spec/unlock.md)) · **6.9 Protect** ([protect.md](docs/spec/protect.md)) · **6.10 Document properties** ([properties.md](docs/spec/properties.md)) · **6.11 Compress** ([compress.md](docs/spec/compress.md)) · **6.12 Print** ([print.md](docs/spec/print.md)) · **6.13 Compare** ([compare.md](docs/spec/compare.md); the documents compared are only read).
 
 ## 7. Document model, undo/redo and saving
 

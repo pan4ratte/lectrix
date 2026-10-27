@@ -46,6 +46,7 @@ In full, with measurements: [known-gaps.md](status/known-gaps.md).
 - **A change of a document's protection is lost in a crash.**
 - **Document properties:** one language for title and description, one creator item; "Fast web view" after an incremental save.
 - **Compress:** scans gain little (JBIG2 and MRC come with OCR); some images are not downsampled or are left as they are; one threshold for black and white; not yet compared with Acrobat and FineReader by a person.
+- **Compare:** scans compare only as pictures (until OCR); moved text shows as deleted and inserted; two-column pages scroll together less closely; formatting changes are not found; not yet checked by a person in other readers or against FineReader.
 - **Print:** on Windows each sheet is an image (large spool jobs); no pages per sheet, booklets, posters or tray by page size; the preview's greys are the webview's; not yet on a paper printer; landscape duplex edges to be settled.
 
 ## Split view
@@ -80,8 +81,8 @@ Version `1.2.0`. In full: [releases.md](status/releases.md).
 
 ## Planned tools
 
-Unlock, Protect, Document properties and Compress are built; Compare, then OCR with
-compression for scans, come next. In full: [planned-tools.md](status/planned-tools.md).
+Unlock, Protect, Document properties, Compress and Compare are built; OCR with compression
+for scans comes next. In full: [planned-tools.md](status/planned-tools.md).
 
 ## Upstream work
 

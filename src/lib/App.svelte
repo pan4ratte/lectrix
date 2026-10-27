@@ -33,6 +33,7 @@
 	import { fullscreen } from '#lib/features/fullscreen/fullscreen.svelte.ts';
 	import { applySettings } from '#lib/features/settings/apply.ts';
 	import CombineView from '#lib/features/merge/CombineView.svelte';
+	import CompareView from '#lib/features/compare/CompareView.svelte';
 	import PageLabelsDialog from '#lib/features/labels/PageLabelsDialog.svelte';
 	import PropertiesDialog from '#lib/features/properties/PropertiesDialog.svelte';
 	import ProtectDialog from '#lib/features/protect/ProtectDialog.svelte';
@@ -73,6 +74,9 @@
 	import { PLATFORM } from '#lib/platform.ts';
 	import { COMMIT_FIELD_FIRST, commandFor, isBlocked, isBrowserZoomKey, isTextInput } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
+
+	/** The Compare view's slot that files dragged over the window are over, if any. */
+	let compareSlot: 0 | 1 | null = null;
 
 	// The document shown is read from `app.active` each time, never kept in a $derived
 	// here: Svelte 5.57 leaves a $derived stale for good when a closing component's
@@ -253,7 +257,7 @@
 		const tab = app.active;
 		const group = tab ? app.activeGroup : null;
 		const names = group?.joined ? [...new Set(group.views.map((v) => v.name))].join(', ') : null;
-		const shown = names ?? tab?.name ?? (app.combineActive ? 'Combine files' : null);
+		const shown = names ?? tab?.name ?? (app.combineActive ? 'Combine files' : app.compareActive ? 'Compare documents' : null);
 		void getCurrentWindow()
 			.setTitle(shown ? `${shown} - ${APP_NAME}` : APP_NAME)
 			.catch(() => {});
@@ -297,6 +301,7 @@
 			onMergeSourcesAdded((results) => {
 				const grid = app.dropGrid;
 				if (grid === 'organize' && app.active) insertDropped(app.active, results);
+				else if (grid === 'compare' && app.compare) void app.compare.dropped(results, compareSlot);
 				else if (app.combine && (grid === 'combine' || !grid)) app.combine.addOpened(results);
 				// The grid closed while the files were opening.
 				else app.discardSources(results);
@@ -329,6 +334,15 @@
 					else if (drop.type === 'drop') organize.fileDropped();
 					else organize.fileLeft();
 					return;
+				}
+				// Over the Compare view, the slot under the pointer takes one file dropped.
+				if (app.dropGrid === 'compare' && (drop.type === 'enter' || drop.type === 'over' || drop.type === 'drop')) {
+					const ratio = window.devicePixelRatio || 1;
+					const x = drop.position.x / ratio;
+					const y = drop.position.y / ratio;
+					const pane = document.elementFromPoint(x, y)?.closest('[data-compare-pane]');
+					const side = pane?.getAttribute('data-compare-pane');
+					compareSlot = side === 'old' ? 0 : side === 'new' ? 1 : null;
 				}
 				app.dropTarget = drop.type === 'enter' || drop.type === 'over';
 			})
@@ -422,6 +436,10 @@
 		{#if app.combineActive && app.combine}
 			<main class="flex min-w-0 flex-1 flex-col bg-canvas">
 				<CombineView combine={app.combine} />
+			</main>
+		{:else if app.compareActive && app.compare}
+			<main class="flex min-w-0 flex-1 flex-col bg-canvas">
+				<CompareView compare={app.compare} />
 			</main>
 		{:else}
 			{@render paneButton('left')}
@@ -544,6 +562,6 @@
 		class="pointer-events-none fixed inset-2 z-40 flex items-center justify-center rounded-panel border-2 border-dashed border-accent bg-surface/80 text-lg"
 		aria-hidden="true"
 	>
-		{app.combineActive ? 'Drop PDFs to add them' : 'Drop PDFs to open them'}
+		{app.combineActive ? 'Drop PDFs to add them' : app.compareActive ? 'Drop one PDF on a side, or two to compare them' : 'Drop PDFs to open them'}
 	</div>
 {/if}

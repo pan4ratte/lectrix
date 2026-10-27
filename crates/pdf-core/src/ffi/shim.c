@@ -542,3 +542,48 @@ int lectrix_pdf_has_unsaved_changes(fz_context *ctx, pdf_document *doc, int *cha
 		return lectrix_caught(ctx, err);
 	return 0;
 }
+
+/*
+ * Lays HTML out on pages of `width` by `height` points, `margin` from each edge, and
+ * writes them to a new PDF at `path` (Compare's report). MuPDF's story engine does the
+ * layout, with its built-in fonts.
+ */
+int lectrix_write_html_pdf(fz_context *ctx, const char *path, const char *html, const char *css,
+	float width, float height, float margin, lectrix_error *err)
+{
+	fz_buffer *buf = NULL;
+	fz_story *story = NULL;
+	fz_document_writer *writer = NULL;
+	fz_rect mediabox = fz_make_rect(0, 0, width, height);
+	fz_rect where = fz_make_rect(margin, margin, width - margin, height - margin);
+
+	fz_var(buf);
+	fz_var(story);
+	fz_var(writer);
+	fz_try(ctx)
+	{
+		int more;
+		buf = fz_new_buffer_from_copied_data(ctx, (const unsigned char *)html, strlen(html));
+		story = fz_new_story(ctx, buf, css, 10, NULL);
+		writer = fz_new_pdf_writer(ctx, path, "compress");
+		do
+		{
+			fz_rect filled;
+			fz_device *dev = fz_begin_page(ctx, writer, mediabox);
+			more = fz_place_story(ctx, story, where, &filled);
+			fz_draw_story(ctx, story, dev, fz_identity);
+			fz_end_page(ctx, writer);
+		}
+		while (more);
+		fz_close_document_writer(ctx, writer);
+	}
+	fz_always(ctx)
+	{
+		fz_drop_document_writer(ctx, writer);
+		fz_drop_story(ctx, story);
+		fz_drop_buffer(ctx, buf);
+	}
+	fz_catch(ctx)
+		return lectrix_caught(ctx, err);
+	return 0;
+}

@@ -34,6 +34,7 @@ import {
 	pageTone as toneOf,
 	sameAdjustments
 } from '#lib/features/viewer/adjustments.ts';
+import type { ComparePane } from '#lib/features/compare/compare.svelte.ts';
 import type { OrganizeState } from '#lib/features/organize/organize.svelte.ts';
 import { NavHistory, type ViewPosition } from '#lib/features/viewer/history.ts';
 import {
@@ -840,6 +841,9 @@ export class DocTab {
 	readonly history = new NavHistory();
 	readonly search = new SearchState(this);
 	viewer: ViewerApi | null = null;
+	/** Shown in the Compare view (section 6.13): its pane there, read only, with the
+	 * differences marked on its pages. Null for a tab. */
+	comparing: ComparePane | null = null;
 
 	/** `scrollMode` is the Settings choice for documents being opened. A tab moved here from
 	 * another window brings what it had there instead (`handoff`). Given a view in place of

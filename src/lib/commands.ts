@@ -111,10 +111,20 @@ export const commands = {
 	/** Closes the tab shown; in a joined tab, the pane in focus (section 6.1, split view). */
 	closeTab: () => {
 		if (app.combineActive) void app.closeCombine();
+		else if (app.compareActive) void app.closeCompare();
 		else if (app.active && app.activeGroup?.joined) void app.closePane(app.active);
 		else if (app.active) void app.closeTab(app.active.id);
 	},
 	combineFiles: () => app.openCombine(),
+	/** The Compare view (section 6.13), with the document shown as the first document. */
+	compareFiles: () => app.openCompare(),
+	/** The next and the previous difference in the Compare view. */
+	nextDifference: () => {
+		if (app.compareActive) app.compare?.step(1);
+	},
+	previousDifference: () => {
+		if (app.compareActive) app.compare?.step(-1);
+	},
 	/** A PDF without its password and restrictions (section 6.8): the protected document
 	 * shown, or else a file the Open dialog asks for. */
 	unlockFile: () => {

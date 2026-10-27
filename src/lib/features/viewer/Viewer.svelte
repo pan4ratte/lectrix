@@ -124,6 +124,10 @@
 
 	let { tab }: { tab: DocTab } = $props();
 
+	/** The tool in use. A pane of the Compare view (section 6.13) is read only: there the
+	 * Select tool, whatever tool is picked for the documents in tabs. */
+	const toolNow = (): typeof tools.tool => (tab.comparing ? 'select' : tools.tool);
+
 	let scroller: HTMLDivElement | undefined = $state();
 	let scrollTop = $state(0);
 	let scrollLeft = $state(0);
@@ -1031,7 +1035,7 @@
 	function selectionEdgeAt(page: number, x: number, y: number): SelectionEdge | null {
 		const sel = tab.selection;
 		const text = tab.text(page);
-		if (!sel || !text || !(tools.tool === 'select' || isMarkupTool(tools.tool))) return null;
+		if (!sel || !text || !(toolNow() === 'select' || isMarkupTool(toolNow()))) return null;
 		const [start, end] = ordered(sel.anchor, sel.focus);
 		return edgeAt(text, start, end, x, y, px(EDGE_REACH_PX));
 	}
@@ -1089,7 +1093,7 @@
 	 * press is left to the tool.
 	 */
 	function pressAnnotation(event: PointerEvent, page: number, hit: Annotation, x: number, y: number, clicks: number): boolean {
-		const tool = tools.tool;
+		const tool = toolNow();
 		const caps = capabilities(hit, tab.flags.canAnnotate);
 		const at = { x: event.clientX, y: event.clientY };
 		if (event.ctrlKey && clicks === 1) {
@@ -1169,7 +1173,7 @@
 	 * in the text comes before text markup over it, which marks that text; other annotations
 	 * lie on the text and come before it. */
 	function linkOver(page: number, x: number, y: number, hit: Annotation | null): PageLink | null {
-		if (tools.tool !== 'select' || (hit && !marksText(hit))) return null;
+		if (toolNow() !== 'select' || (hit && !marksText(hit))) return null;
 		return linkUnder(page, x, y);
 	}
 
@@ -1199,7 +1203,9 @@
 		}
 		const page = pageUnder(event.clientX, event.clientY);
 		const [x, y] = pointOn(page, event.clientX, event.clientY);
-		const tool = tools.tool;
+		// A difference's mark pressed selects it; the text under it selects as anywhere else.
+		if (clicks === 1) tab.comparing?.press(page, x, y);
+		const tool = toolNow();
 		if (tool !== 'select' && refuseIfLocked(tab)) return;
 
 		// Alt with a markup tool draws an area highlight, and the pen draws, over annotations too.
@@ -1217,7 +1223,8 @@
 			}
 			// A side of the selected text comes before an annotation under it.
 			if (beginEdge(event, page, x, y, clicks)) return;
-			const hit = annotationAt(targets(page), x, y, px(4));
+			// The Compare view's panes leave annotations as they are: no selecting them there.
+			const hit = tab.comparing ? null : annotationAt(targets(page), x, y, px(4));
 			// A link in marked text is followed; with Ctrl or Shift the annotation is meant.
 			const toLink = hit && !event.ctrlKey && !event.shiftKey && linkOver(page, x, y, hit) !== null;
 			if (hit && !toLink && pressAnnotation(event, page, hit, x, y, clicks)) return;
@@ -1411,8 +1418,8 @@
 			overAnnotation = null;
 			const hit = annotationAt(targets(page), x, y, px(4));
 			// With another tool, one not selected shows that a click selects it; the pen draws.
-			if (hit && tools.tool !== 'ink') {
-				const asSelect = tools.tool === 'select' || isSelected(page, hit);
+			if (hit && toolNow() !== 'ink') {
+				const asSelect = toolNow() === 'select' || isSelected(page, hit);
 				overAnnotation = asSelect && capabilities(hit, tab.flags.canAnnotate).move ? 'move' : 'select';
 			}
 			const rect = scroller.getBoundingClientRect();
@@ -1518,7 +1525,7 @@
 		dragging = false;
 		cancelAnimationFrame(autoScroll);
 		if (scroller?.hasPointerCapture(event.pointerId)) scroller.releasePointerCapture(event.pointerId);
-		const tool = tools.tool;
+		const tool = toolNow();
 		switch (g.kind) {
 			case 'text': {
 				if (g.grabbed) break;
@@ -1652,7 +1659,7 @@
 	 * last line, on the side it went.
 	 */
 	const selectionAnchor = $derived.by(() => {
-		if (dragging || tools.tool !== 'select') return null;
+		if (dragging || toolNow() !== 'select') return null;
 		if (!quickTools.some((t) => quickToolAllowed(t, tab.flags, tab.canEditBookmarks))) return null;
 		void tab.textVersion;
 		const sel = tab.selection;
@@ -1833,7 +1840,7 @@
 		if (!now || compareCarets(now.anchor, anchor) !== 0 || compareCarets(now.focus, from) !== 0) return;
 		tab.selection = { anchor, focus };
 		tab.caret = null;
-		if (isMarkupTool(tools.tool)) keyMade = true;
+		if (isMarkupTool(toolNow())) keyMade = true;
 		lineGoal = goal ? { focus, point: goal } : null;
 		const text = tab.text(focus.page);
 		const box = text ? caretBox(text, focus) : null;
@@ -1865,10 +1872,10 @@
 	function onKeyUp(event: KeyboardEvent) {
 		if (event.key !== 'Shift' || !keyMade) return;
 		keyMade = false;
-		const tool = tools.tool;
+		const tool = toolNow();
 		keySteps = keySteps.then(async () => {
 			const sel = tab.selection;
-			if (!isMarkupTool(tool) || tools.tool !== tool || !sel || compareCarets(sel.anchor, sel.focus) === 0) return;
+			if (!isMarkupTool(tool) || toolNow() !== tool || !sel || compareCarets(sel.anchor, sel.focus) === 0) return;
 			const at = sel.focus;
 			await markSelection(tab, tool);
 			// Unless the new markup opened its comment (Settings).
@@ -1884,7 +1891,7 @@
 	// Another tool takes the text cursor away; a selection made by the keys is marked only
 	// by the markup tool it was made with.
 	$effect(() => {
-		const tool = tools.tool;
+		const tool = toolNow();
 		untrack(() => {
 			keyMade = false;
 			if (!caretTool(tool)) tab.caret = null;
@@ -2168,8 +2175,8 @@
 					bind:this={scroller}
 					class="viewer-scroll h-full overflow-auto bg-canvas outline-none"
 					style:overflow-x={fitsWidth ? 'hidden' : null}
-					class:cursor-text={overText && !overAnnotation && !overLink && !edgeCursor && (tools.tool === 'select' || isMarkupTool(tools.tool))}
-					class:cursor-crosshair={!overAnnotation && (tools.tool === 'ink' || tools.tool === 'note' || tools.tool === 'freeText')}
+					class:cursor-text={overText && !overAnnotation && !overLink && !edgeCursor && (toolNow() === 'select' || isMarkupTool(toolNow()))}
+					class:cursor-crosshair={!overAnnotation && (toolNow() === 'ink' || toolNow() === 'note' || toolNow() === 'freeText')}
 					class:cursor-move={overAnnotation === 'move' && !edgeCursor}
 					class:cursor-pointer={(overAnnotation === 'select' || overLink) && !edgeCursor}
 					class:cursor-ew-resize={edgeCursor === 'ew'}

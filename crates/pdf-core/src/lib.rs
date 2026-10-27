@@ -1,6 +1,7 @@
 //! All PDF logic for Lectrix. No Tauri dependency.
 
 pub mod annot;
+pub mod compare;
 pub mod compress;
 pub mod docinfo;
 pub mod error;

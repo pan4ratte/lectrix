@@ -558,6 +558,26 @@ impl Session {
         Ok((text::page_text(&list)?, revision))
     }
 
+    /// Text geometry of `page` without its annotations (the page's own text: what Compare
+    /// compares, section 6.13), from a display list made for this alone and not cached, so
+    /// reading every page does not push the pages on screen out of the cache.
+    pub fn content_text(&self, page: usize) -> Result<PageText> {
+        let (list, _) = self.content_list(page)?;
+        text::page_text(&list)
+    }
+
+    /// The display list of `page` without its annotations, not cached, and the revision it
+    /// shows.
+    pub fn content_list(&self, page: usize) -> Result<(Arc<DisplayList>, u64)> {
+        self.call(|reply| Command::DisplayList {
+            page,
+            hidden: Vec::new(),
+            part: Part::Content,
+            cache: false,
+            reply,
+        })
+    }
+
     /// Searches `pages` for `needle` (a range past the last page stops at the last page).
     /// Pages are visited one by one, so callers search large documents in chunks and can
     /// stop between them. Display lists built for the

@@ -49,6 +49,11 @@ export function toggleZoomLock(group = app.activeGroup) {
  * another starts from where everything is now.
  */
 export function scrolled(view: DocTab) {
+	// A pane of the Compare view follows the comparison's own lines (section 6.13).
+	if (view.comparing) {
+		view.comparing.scrolled();
+		return;
+	}
 	const group = app.groupOf(view);
 	if (!group?.locked || !view.viewer) return;
 	const now = view.viewer.place();

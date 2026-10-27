@@ -296,6 +296,15 @@ Part of the status: [docs/status.md](../status.md) is the index a session reads,
     on a duplex printer: print two landscape pages with "flip on the long edge" and check
     the back is upright when the sheet is turned over its long edge.
 
+## Compare
+
+- **Scans compare only as pictures** until OCR comes (what changes then: [planned-tools.md](planned-tools.md), item 4): areas of the page that differ, not words. FineReader reads them first. Two scans of the same page that are shifted or turned a little differ everywhere; they are laid one over the other from their top-left corners, not aligned.
+- **Moved text** shows as deleted where it was and inserted where it went, as in FineReader; Acrobat shows it moved.
+- **Formatting is not compared:** fonts, sizes, bold and colours, as in FineReader. Acrobat reports them. The text MuPDF reads has them, so this could come.
+- **Two-column pages** read column by column; scrolling together follows the comparison's anchors only forwards, so it lines the panes up less closely there.
+- **The annotated copy and the report** are not yet checked by a person in Acrobat Reader, Edge, Firefox and Foxit (`docs/manual-checklist.md`, "Compare"), nor compared with FineReader's on the same files.
+- **Speed:** a 2,881-page dictionary compared with itself takes 4.4 s and with three of its pages deleted 4.6 s; 328 JPEG-scanned pages compared as images 15 s (release build, on battery). Comparing does not start to list until it ends.
+
 ## Split view
 
 - **A joined tab moved to another window** (its menu, File > Move tab to new window, a drag) arrives there as one tab per document, not joined: a window gets its tabs from Rust (`list_open_documents`), which knows documents, not views. A second view of a document stays behind and goes. To keep them joined, the handoff would carry the group.

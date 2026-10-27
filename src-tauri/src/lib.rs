@@ -5,6 +5,7 @@ mod annotations;
 mod applog;
 mod combine;
 mod commands;
+mod compare;
 mod compress;
 mod documents;
 mod ipc;
@@ -86,6 +87,8 @@ pub struct AppState {
     protect: protect::Protect,
     /// Files waiting to be compressed, and their results (section 6.11).
     compress: compress::Compress,
+    /// Comparisons, waiting for their annotated copies and reports (section 6.13).
+    compare: compare::Compare,
     /// Printers' sheets, and jobs printing (section 6.12).
     print: print::Print,
 }
@@ -400,6 +403,7 @@ pub fn run() {
                 unprotect: unprotect::Unprotect::default(),
                 protect: protect::Protect::default(),
                 compress: compress::Compress::new(compress_folder),
+                compare: compare::Compare::default(),
                 print: print::Print::default(),
             });
             app.manage(menu::Menus::default());
@@ -509,6 +513,14 @@ pub fn run() {
             commands::compress_stop,
             commands::compress_save,
             commands::compress_cancel,
+            commands::open_compare_source,
+            commands::open_compare_source_of,
+            commands::compare_settings,
+            commands::compare_run,
+            commands::compare_stop,
+            commands::compare_forget,
+            commands::compare_save_annotated,
+            commands::compare_save_report,
             commands::print_start,
             commands::print_printer,
             commands::print_printer_settings,

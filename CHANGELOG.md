@@ -35,6 +35,14 @@ the wording, translations): docs/releasing.md, "The changelog".
 - In the **Annotations** panel, Shift+click a row to select every row from the one you clicked before, or press Shift with the arrow keys. The new **Select all** button in the panel's header, or Ctrl+A in the list, selects every annotation the list shows: with a search or filters on, only the ones they leave in. Click the button again to deselect them. Right-click one of them to delete them all.
 - With the highlight, underline, strikeout, squiggly, note and text box tools, click an annotation to select it, as with the Select tool: its bar or comment shows, and you can recolour, move or delete it without switching tools. Dragging from an annotation still does what the tool does, so you can highlight text under a highlight. The pen still draws wherever you press it.
 
+### Comparing documents
+
+- **Compare** on the start screen and **File > Compare documents…** find what changed between two versions of a document, word by word. Open one version on each side, or pick a document you have open, or drop the files there, and click **Compare**. With a document open, it is the first of the two.
+- The differences are marked on both documents side by side: inserted text in green, deleted text in red, changed text in yellow. The two scroll and zoom together, keeping the same passages side by side even where pages were added or removed.
+- The **Differences** list groups them into body text, headers and footers, and numbering, as ABBYY FineReader does. Click one, or press **Ctrl+Right** and **Ctrl+Left**, to go to it in both documents. Ignore the ones that don't matter with Delete, one at a time or every one like it, and copy them as text.
+- Choose whether differences in punctuation and one-letter differences count, and whether headers and footers are found and listed apart. Pages without text, such as scans and drawings, are compared as pictures.
+- Save either document with the differences highlighted and commented, for anyone to read in any PDF app, or save a report listing them all. The documents compared are not changed.
+
 ### General
 
 - **Help > About** shows the version as soon as it opens, instead of a moment later.

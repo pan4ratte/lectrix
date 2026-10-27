@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-compare-settings"
+description = "Enables the compare_settings command without any pre-configured scope."
+commands.allow = ["compare_settings"]
+
+[[permission]]
+identifier = "deny-compare-settings"
+description = "Denies the compare_settings command without any pre-configured scope."
+commands.deny = ["compare_settings"]

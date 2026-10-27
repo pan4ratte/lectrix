@@ -20,14 +20,15 @@ use tauri_plugin_dialog::DialogExt;
 use crate::annotations::RepairSummary;
 use crate::combine::{self, Progress};
 use crate::ipc::{
-    AppError, CompressOutcome, CompressProgress, CompressSaved, CompressSettings, CompressStep,
-    DocumentChange, DocumentInfo, DocumentSaved, ImageFormat, LabelMode, LinkPlace, MenuEntry,
-    MergeOutcome, MergePlan, MergeProgress, MergeRequest, MergeStage, MoveTarget, OpenResult,
-    OperationInput, PageHits, PageText, PaneLayout, PrintDone, PrintLayout, PrintProgress,
-    PrintSettings, PrintStart, PrinterDetails, ProtectSaved, ProtectStep, ProtectionChangeInput,
-    ProtectionInfo, ProtectionInput, RecentFile, RecoveredDocument, Reopened, SaveResult,
-    SearchChunk, SearchWord, Settings, SettingsInput, StartupInfo, TabHandoff, UnprotectSaved,
-    UnprotectStep, UnsavedSource, ViewState, WebPage, WindowChrome, WindowDocument, WindowEntry,
+    AppError, CompareOutcome, CompareProgress, CompareSettings, CompareSide, CompressOutcome,
+    CompressProgress, CompressSaved, CompressSettings, CompressStep, DocumentChange, DocumentInfo,
+    DocumentSaved, ImageFormat, LabelMode, LinkPlace, MenuEntry, MergeOutcome, MergePlan,
+    MergeProgress, MergeRequest, MergeStage, MoveTarget, OpenResult, OperationInput, PageHits,
+    PageText, PaneLayout, PrintDone, PrintLayout, PrintProgress, PrintSettings, PrintStart,
+    PrinterDetails, ProtectSaved, ProtectStep, ProtectionChangeInput, ProtectionInfo,
+    ProtectionInput, RecentFile, RecoveredDocument, Reopened, SaveResult, SearchChunk, SearchWord,
+    Settings, SettingsInput, StartupInfo, TabHandoff, UnprotectSaved, UnprotectStep, UnsavedSource,
+    ViewState, WebPage, WindowChrome, WindowDocument, WindowEntry,
 };
 use crate::platform::Platform;
 use crate::store::StoredSettings;
@@ -756,6 +757,214 @@ pub fn compress_save(
 #[tauri::command]
 pub fn compress_cancel(state: State<'_, AppState>, token: u32) {
     state.compress.cancel(token);
+}
+
+// ----- comparing documents (section 6.13) -----
+
+/// Shows the Open dialog for one of the two documents to compare and opens it as a source
+/// (not a tab). `None` when no file was picked.
+#[tauri::command(async)]
+pub fn open_compare_source(
+    app: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    second: bool,
+) -> Result<Option<OpenResult>, AppError> {
+    let title = if second {
+        "Open the second document"
+    } else {
+        "Open the first document"
+    };
+    Ok(pick_pdfs(&app, Some(title), false)?
+        .first()
+        .map(|p| windows::adopt(&app, window.label(), state.open_source(p))))
+}
+
+/// Opens the file of document `id`, open in a tab, as a source to compare: the file as
+/// saved, with the password that opened it.
+#[tauri::command(async)]
+pub fn open_compare_source_of(
+    app: AppHandle,
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    id: u32,
+) -> Result<OpenResult, AppError> {
+    let (path, password) = state.documents.file_of(id)?;
+    let opened =
+        state
+            .documents
+            .open_source(&path, password.as_deref(), state.platform, &state.store);
+    Ok(windows::adopt(&app, window.label(), opened))
+}
+
+/// The Compare panel's options used last, or its defaults.
+#[tauri::command]
+pub fn compare_settings(state: State<'_, AppState>) -> CompareSettings {
+    state
+        .store
+        .lock()
+        .ok()
+        .and_then(|s| s.compare_settings())
+        .unwrap_or_default()
+}
+
+/// Compares document `old` with document `new` (both open as sources), reporting progress
+/// on `on_progress`, and remembers the options. Stopped with `compare_stop`, it fails with
+/// the `cancelled` code.
+#[tauri::command(async)]
+pub fn compare_run(
+    state: State<'_, AppState>,
+    old: u32,
+    new: u32,
+    settings: CompareSettings,
+    on_progress: Channel<CompareProgress>,
+) -> Result<CompareOutcome, AppError> {
+    if let Ok(mut store) = state.store.lock() {
+        store.set_compare_settings(settings);
+    }
+    let sessions = (state.documents.session(old)?, state.documents.session(new)?);
+    state.compare.run((old, new), sessions, settings, move |p| {
+        // The webview may have gone away; comparing finishes regardless.
+        let _ = on_progress.send(p);
+    })
+}
+
+#[tauri::command]
+pub fn compare_stop(state: State<'_, AppState>, old: u32, new: u32) {
+    state.compare.stop((old, new));
+}
+
+/// Forgets the comparison of two documents (the Compare view closed, or one of them
+/// replaced). Their documents are closed with `close_document`.
+#[tauri::command]
+pub fn compare_forget(state: State<'_, AppState>, old: u32, new: u32) {
+    state.compare.forget((old, new));
+}
+
+/// The file names of the two documents compared, and refuses `target` if it is one of
+/// their files: those are only read.
+fn compare_names(
+    state: &AppState,
+    old: u32,
+    new: u32,
+    target: &Path,
+) -> Result<(String, String), AppError> {
+    let (old_path, _) = state.documents.source(old)?;
+    let (new_path, _) = state.documents.source(new)?;
+    for path in [&old_path, &new_path] {
+        if state.platform.same_file(path, target) {
+            return Err(AppError::new(
+                format!(
+                    "{} is one of the documents being compared.",
+                    file_name(path)
+                ),
+                Some("Save under another name."),
+            ));
+        }
+    }
+    Ok((file_name(&old_path), file_name(&new_path)))
+}
+
+/// Saves a copy of one of the two documents compared (`side`) with the differences marked
+/// and commented, but those numbered in `skip` (ignored), to a file the Save dialog names.
+/// Returns the file's name, or `None` when the dialog was given up.
+#[tauri::command(async)]
+pub fn compare_save_annotated(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    old: u32,
+    new: u32,
+    side: CompareSide,
+    skip: Vec<u32>,
+) -> Result<Option<String>, AppError> {
+    let id = match side {
+        CompareSide::Old => old,
+        CompareSide::New => new,
+    };
+    let (path, password) = state.documents.source(id)?;
+    let stem = path
+        .file_stem()
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "Document".into());
+    let Some(target) = pick_save_target(
+        &app,
+        Some("Save the document with the differences"),
+        Some(format!("{stem} (differences).pdf")),
+        path.parent(),
+    )?
+    else {
+        return Ok(None);
+    };
+    let (old_name, new_name) = compare_names(&state, old, new, &target)?;
+    let other = match side {
+        CompareSide::Old => new_name,
+        CompareSide::New => old_name,
+    };
+    let author = author(&state)?;
+    state.compare.save_annotated(
+        (old, new),
+        side,
+        &skip,
+        &path,
+        password.as_deref(),
+        &target,
+        &other,
+        &author,
+    )?;
+    crate::applog::info(format!("saved the differences in {}", target.display()));
+    Ok(Some(file_name(&target)))
+}
+
+/// Saves the comparison report (all differences but those numbered in `skip`, in their
+/// groups if `grouped`; `when` is the time compared, as the webview's language writes it)
+/// to a file the Save dialog names. Returns the file's name, or `None` when the dialog
+/// was given up.
+#[tauri::command(async)]
+pub fn compare_save_report(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    old: u32,
+    new: u32,
+    skip: Vec<u32>,
+    grouped: bool,
+    when: String,
+) -> Result<Option<String>, AppError> {
+    let (old_path, _) = state.documents.source(old)?;
+    let (new_path, _) = state.documents.source(new)?;
+    let stem = |p: &Path| {
+        p.file_stem()
+            .map(|s| s.to_string_lossy().into_owned())
+            .unwrap_or_else(|| "Document".into())
+    };
+    let Some(target) = pick_save_target(
+        &app,
+        Some("Save the comparison report"),
+        Some(format!(
+            "Comparison of {} and {}.pdf",
+            stem(&old_path),
+            stem(&new_path)
+        )),
+        new_path.parent(),
+    )?
+    else {
+        return Ok(None);
+    };
+    let names = compare_names(&state, old, new, &target)?;
+    let labels = |id: u32| -> Option<Vec<String>> {
+        let info = state.documents.session(id).ok()?.info().ok()?;
+        info.labels.map(|l| l.labels)
+    };
+    state.compare.save_report(
+        (old, new),
+        &skip,
+        &target,
+        (&names.0, &names.1),
+        (labels(old), labels(new)),
+        &when,
+        grouped,
+    )?;
+    crate::applog::info(format!("saved the comparison report {}", target.display()));
+    Ok(Some(file_name(&target)))
 }
 
 /// Print (section 6.12, ADR 0028): the printers, and the dialog's choices used last.

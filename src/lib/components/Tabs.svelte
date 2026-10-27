@@ -12,7 +12,7 @@
 	// the tabs (the title bar's icon and name), none is selected; the one it was shown over
 	// keeps the row's place in the Tab order. A tab grows into the row as it opens and shrinks
 	// away as it closes.
-	import { FileText, Layers, Lock, X } from '@lucide/svelte';
+	import { FileText, GitCompareArrows, Layers, Lock, X } from '@lucide/svelte';
 	import { ContextMenu } from 'bits-ui';
 	import { tick } from 'svelte';
 
@@ -220,6 +220,16 @@
 
 	// ----- keyboard -----
 
+	function onCompareKeyDown(event: KeyboardEvent) {
+		if (event.key === 'Delete') {
+			event.preventDefault();
+			void app.closeCompare();
+		} else if (isPick(event)) {
+			event.preventDefault();
+			app.openCompare();
+		}
+	}
+
 	function onCombineKeyDown(event: KeyboardEvent) {
 		if (event.key === 'Delete') {
 			event.preventDefault();
@@ -270,19 +280,20 @@
 
 	// ----- context menu -----
 
-	/** The tab that was right-clicked: a document's (its key), or (null) the Combine view's. */
-	let contextKey = $state<number | null>(null);
-	const contextGroup = $derived(contextKey === null ? null : groupOf(contextKey));
+	/** The tab that was right-clicked: a document's (its key), or the Combine view's or the
+	 * Compare view's. */
+	let contextKey = $state<number | 'combine' | 'compare'>('combine');
+	const contextGroup = $derived(typeof contextKey === 'number' ? groupOf(contextKey) : null);
 	const contextIndex = $derived(contextGroup ? app.groups.indexOf(contextGroup) : -1);
 	/** The tab shown, which the right-clicked one can go beside. */
 	const shownGroup = () => (app.active ? app.activeGroup : null);
 	/** Lectrix's other windows, asked for as the menu opens. */
 	let otherWindows = $state<WindowEntry[]>([]);
 
-	function onContextMenu(key: number | null) {
+	function onContextMenu(key: number | 'combine' | 'compare') {
 		contextKey = key;
 		otherWindows = [];
-		if (key === null) return;
+		if (typeof key !== 'number') return;
 		void listWindows()
 			.then((windows) => (otherWindows = windows))
 			.catch(() => {});
@@ -421,7 +432,7 @@
 							}
 						}}
 						onkeydown={onCombineKeyDown}
-						oncontextmenu={() => onContextMenu(null)}
+						oncontextmenu={() => onContextMenu('combine')}
 					>
 						<Layers size={14} aria-hidden="true" class="shrink-0" />
 						<span class="truncate" class:text-fg-muted={!active}>Combine files</span>
@@ -438,13 +449,55 @@
 						</button>
 					</div>
 				{/if}
+				{#if app.compare}
+					{@const active = app.compareActive}
+					{@const reachable = active || (app.startShown && app.groups.length === 0 && !app.combine)}
+					<div
+						in:tabIn
+						out:tabOut
+						data-compare-tab
+						class="doc-tab group relative flex h-8 max-w-56 min-w-28 shrink items-center gap-2 pr-[4px] pl-3"
+						role="tab"
+						tabindex={reachable ? 0 : -1}
+						aria-selected={active}
+						data-tip="Compare documents"
+						onpointerdown={(e) => {
+							if (e.button === 1) {
+								e.preventDefault();
+								void app.closeCompare();
+							} else if (e.button === 0 && !(e.target as HTMLElement).closest('[data-close]')) {
+								app.openCompare();
+							}
+						}}
+						onkeydown={onCompareKeyDown}
+						oncontextmenu={() => onContextMenu('compare')}
+					>
+						<GitCompareArrows size={14} aria-hidden="true" class="shrink-0" />
+						<span class="truncate" class:text-fg-muted={!active}>Compare documents</span>
+						<button
+							type="button"
+							data-close
+							class="icon-button tab-close ml-auto shrink-0"
+							aria-label="Close Compare documents"
+							data-tip={app.hint('Close', 'closeTab')}
+							tabindex={reachable ? 0 : -1}
+							onclick={() => void app.closeCompare()}
+						>
+							<X size={14} aria-hidden="true" />
+						</button>
+					</div>
+				{/if}
 			</div>
 		{/snippet}
 	</ContextMenu.Trigger>
 	<ContextMenu.Portal>
 		<ContextMenu.Content class="menu-content">
-			{#if contextKey === null}
+			{#if contextKey === 'combine'}
 				<ContextMenu.Item class="menu-item" onSelect={() => void app.closeCombine()}>
+					Close<span class="menu-shortcut">{app.shortcut('closeTab')}</span>
+				</ContextMenu.Item>
+			{:else if contextKey === 'compare'}
+				<ContextMenu.Item class="menu-item" onSelect={() => void app.closeCompare()}>
 					Close<span class="menu-shortcut">{app.shortcut('closeTab')}</span>
 				</ContextMenu.Item>
 			{:else}

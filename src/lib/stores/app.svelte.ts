@@ -58,6 +58,7 @@ import {
 } from '#lib/ipc/index.ts';
 import {
 	COMBINE_LIMITS,
+	COMPARE_LIMITS,
 	DEFAULT_ARRANGEMENT,
 	LEFT_LIMITS,
 	RIGHT_LIMITS,
@@ -69,6 +70,7 @@ import {
 	type PanelArrangement
 } from '#lib/components/panes.ts';
 import { fullscreen } from '#lib/features/fullscreen/fullscreen.svelte.ts';
+import { CompareState } from '#lib/features/compare/compare.svelte.ts';
 import { CombineState } from '#lib/features/merge/combine.svelte.ts';
 import { reportDetail, signedWarning } from '#lib/features/merge/pages.ts';
 import { clampThumbWidth, DEFAULT_THUMB_WIDTH } from '#lib/features/viewer/thumbs.ts';
@@ -106,7 +108,7 @@ export interface PasswordRequest {
 	retry: boolean;
 	/** What the file is opened for: a tab, the Combine view, inserting its pages, removing
 	 * its password (Unlock), changing its protection (Protect) or compressing it. */
-	purpose: 'open' | 'combine' | 'insert' | 'unlock' | 'protect' | 'compress';
+	purpose: 'open' | 'combine' | 'compare' | 'insert' | 'unlock' | 'protect' | 'compress';
 	/** Takes the password (null for Cancel) in place of opening the file: Unlock's,
 	 * Protect's and Compress's. */
 	answer?: (password: string | null) => Promise<void>;
@@ -219,6 +221,7 @@ class AppStore {
 	recentFilesGrid = $state(false);
 	/** The width of the Combine view's pane (its files and options). */
 	combineWidth = $state(COMBINE_LIMITS.initial);
+	compareWidth = $state(COMPARE_LIMITS.initial);
 	#leftActive = $state<PanelId | null>(null);
 	#rightActive = $state<PanelId | null>(null);
 	/** The remembered pane layout is in; until then panes neither animate nor are saved. */
@@ -323,6 +326,10 @@ class AppStore {
 	combine = $state<CombineState | null>(null);
 	/** The Combine view is the tab on screen. */
 	combineActive = $state(false);
+	/** The Compare view, while it is open (shown as a tab of its own, section 6.13). */
+	compare = $state<CompareState | null>(null);
+	/** The Compare view is the tab on screen. */
+	compareActive = $state(false);
 	/** "Insert pages from file" waiting for its options. */
 	insertRequest = $state<InsertRequest | null>(null);
 	/** Where pages go when the insert file is still waiting for its password. */
@@ -339,8 +346,9 @@ class AppStore {
 	/** The start screen is on screen while documents (or the Combine view) stay open in
 	 * their tabs: shown from the title bar's icon and name, left by picking a tab. */
 	startShown = $state(false);
-	/** The start screen was shown over the Combine view, which going back returns to. */
-	private startOverCombine = false;
+	/** The view the start screen was shown over (the Combine or the Compare view), which
+	 * going back returns to. */
+	private startOver: 'combine' | 'compare' | null = null;
 	private exiting = false;
 	/** Tabs on their way to another window. */
 	private moving = new Set<number>();
@@ -348,7 +356,7 @@ class AppStore {
 	/** The document on screen (the pane in focus, in a joined tab); null while the Combine
 	 * view or the start screen is. */
 	get active(): DocTab | null {
-		return this.combineActive || this.startShown ? null : (this.activeGroup?.focused ?? null);
+		return this.combineActive || this.compareActive || this.startShown ? null : (this.activeGroup?.focused ?? null);
 	}
 
 	/** One view of each document in the window. */
@@ -413,6 +421,7 @@ class AppStore {
 		this.thumbnailsGrid = panes.thumbnailsGrid;
 		this.recentFilesGrid = panes.recentFilesGrid;
 		this.combineWidth = clampWidth(panes.combineWidth, COMBINE_LIMITS);
+		this.compareWidth = clampWidth(panes.compareWidth, COMPARE_LIMITS);
 		this.panesRestored = true;
 	}
 
@@ -430,7 +439,8 @@ class AppStore {
 			thumbnailsFit: this.thumbnailsFit,
 			thumbnailsGrid: this.thumbnailsGrid,
 			recentFilesGrid: this.recentFilesGrid,
-			combineWidth: this.combineWidth
+			combineWidth: this.combineWidth,
+			compareWidth: this.compareWidth
 		};
 	}
 
@@ -730,6 +740,7 @@ class AppStore {
 		if (!this.groups.includes(group)) return;
 		this.startShown = false;
 		if (this.combineActive) this.leaveCombine();
+		if (this.compareActive) this.leaveCompare();
 		if (this.activeKey === group.key && (!view || group.focused === view)) return;
 		const previous = this.active;
 		if (previous) this.rememberView(previous);
@@ -759,7 +770,7 @@ class AppStore {
 	focusView(view: DocTab) {
 		const group = this.groupOf(view);
 		if (!group) return;
-		if (group !== this.activeGroup || this.startShown || this.combineActive) this.show(group, view);
+		if (group !== this.activeGroup || this.startShown || this.combineActive || this.compareActive) this.show(group, view);
 		else group.focusOn(view);
 	}
 
@@ -895,6 +906,7 @@ class AppStore {
 			});
 		}
 		this.startShown = false;
+		this.compareActive = false;
 		this.combineActive = true;
 	}
 
@@ -902,10 +914,57 @@ class AppStore {
 		this.combineActive = false;
 	}
 
+	// ----- comparing documents (section 6.13) -----
+
+	/** Opens (or shows) the Compare view. Opened with a document shown, that document is the
+	 * first one (the document at hand is compared with another). */
+	openCompare() {
+		const current = this.active;
+		if (current) this.rememberView(current);
+		const fresh = !this.compare;
+		if (!this.compare) {
+			this.compare = new CompareState({
+				notify: (toast, timeoutMs) => this.notify(toast, timeoutMs),
+				showError: (error) => this.showError(error),
+				ask: (request) => this.ask(request),
+				askPassword: (token, name, retry, answer) => this.askPassword(token, name, retry, 'compare', answer),
+				openDocuments: () =>
+					this.documents.map((t) => ({ id: t.id, name: t.name, dirty: t.state.dirty, untitled: t.untitled })),
+				saveTab: async (id) => {
+					const tab = this.tabs.find((t) => t.id === id);
+					return tab ? (await this.save(tab)) !== null : false;
+				},
+				scrollMode: () => this.settings?.scrollMode ?? 'singlePageContinuous'
+			});
+		}
+		this.startShown = false;
+		this.combineActive = false;
+		this.compareActive = true;
+		if (fresh && current && !current.untitled) void this.compare.openTab(0, current.id);
+	}
+
+	private leaveCompare() {
+		this.compareActive = false;
+	}
+
+	/** Closes the Compare view and the documents it opened. The documents compared are only
+	 * read, so nothing is asked. */
+	async closeCompare() {
+		const compare = this.compare;
+		if (!compare) return;
+		this.leaveCompare();
+		this.compare = null;
+		this.endStartIfAlone();
+		if (this.tabs.length === 0 && this.combine && !this.startShown) this.openCombine();
+		await compare.dispose();
+	}
+
 	/** The grid of pages on screen, if one is: the Combine view's, or that of a document
-	 * whose pages are being organized. Files dropped on the window go there. */
-	get dropGrid(): 'combine' | 'organize' | null {
+	 * whose pages are being organized; or the Compare view. Files dropped on the window go
+	 * there. */
+	get dropGrid(): 'combine' | 'compare' | 'organize' | null {
 		if (this.combineActive) return 'combine';
+		if (this.compareActive) return 'compare';
 		return !this.startShown && this.active?.organize ? 'organize' : null;
 	}
 
@@ -952,20 +1011,22 @@ class AppStore {
 		if (this.startShown) {
 			this.startShown = false;
 			// (Or to the Combine view when the documents were closed meanwhile.)
-			if ((this.startOverCombine || this.tabs.length === 0) && this.combine) this.openCombine();
+			if ((this.startOver === 'combine' || this.tabs.length === 0) && this.combine) this.openCombine();
+			else if ((this.startOver === 'compare' || this.tabs.length === 0) && this.compare) this.openCompare();
 			return;
 		}
 		const current = this.active;
-		if (!current && !this.combineActive) return;
+		if (!current && !this.combineActive && !this.compareActive) return;
 		if (current) this.rememberView(current);
-		this.startOverCombine = this.combineActive;
+		this.startOver = this.combineActive ? 'combine' : this.compareActive ? 'compare' : null;
 		if (this.combineActive) this.leaveCombine();
+		if (this.compareActive) this.leaveCompare();
 		this.startShown = true;
 	}
 
 	/** With the last tab closed, the start screen is simply what shows. */
 	private endStartIfAlone() {
-		if (this.tabs.length === 0 && !this.combine) this.startShown = false;
+		if (this.tabs.length === 0 && !this.combine && !this.compare) this.startShown = false;
 	}
 
 	// ----- inserting pages from files (section 6.4) -----
@@ -1198,12 +1259,12 @@ class AppStore {
 	/** The document's tab is all this window shows: in a new window it would be this window
 	 * again. */
 	isOnlyTab(id: number): boolean {
-		return this.groups.length === 1 && !this.combine && this.groups[0]!.views.every((v) => v.id === id);
+		return this.groups.length === 1 && !this.combine && !this.compare && this.groups[0]!.views.every((v) => v.id === id);
 	}
 
 	/** The tab is all this window shows. */
 	isOnlyGroup(group: TabGroup): boolean {
-		return this.groups.length === 1 && this.groups[0] === group && !this.combine;
+		return this.groups.length === 1 && this.groups[0] === group && !this.combine && !this.compare;
 	}
 
 	/**
@@ -1226,7 +1287,7 @@ class AppStore {
 			const label = await moveDocument(id, target, tab.handoff());
 			if (label === null) return null;
 			this.removeDocument(id);
-			if (this.tabs.length === 0 && !this.combine) void getCurrentWindow().close();
+			if (this.tabs.length === 0 && !this.combine && !this.compare) void getCurrentWindow().close();
 			return label;
 		} catch (e) {
 			this.showError(toAppError(e));
@@ -1290,6 +1351,7 @@ class AppStore {
 			this.activeKey = next?.key ?? null;
 			// The last document gone while the Combine view is open: show it.
 			if (!next && this.combine && !this.startShown) this.openCombine();
+			else if (!next && this.compare && !this.startShown) this.openCompare();
 		}
 		this.endStartIfAlone();
 	}
@@ -1360,6 +1422,8 @@ class AppStore {
 	 */
 	async confirmExit(): Promise<boolean> {
 		if (this.exiting) return true;
+		// Comparing writes nothing: stopped without asking.
+		this.compare?.stop();
 		if (this.combine?.running) {
 			// Closing now would leave the unfinished file behind; stop the merge first.
 			const choice = await this.ask({
