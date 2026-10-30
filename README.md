@@ -16,7 +16,7 @@
 
 - **Free, and private.** Open-source, with no paid version or paid features, no account and no data collected. Lectrix works offline and goes online only to check for a new version, which **Settings** can turn off.
 - **The same app on Windows, macOS and Linux.** One interface and the same tools on all three systems; none of them is treated as second-class.
-- **Lightweight and fast.** The Windows installer is under 8 MB. On a mid-range laptop the window is up in a tenth of a second, and the first page of a 1,000-page book in another tenth.
+- **Lightweight and fast.** The Windows installer is under 9 MB. On a mid-range laptop the window is up in a tenth of a second, and the first page of a 1,000-page book is on screen within 0.6 seconds of launch.
 - **Designed with care.** A modern, well thought-out interface that takes the pain out of the part of a PDF app you meet most: everyday use. Choose a light or a dark theme, dock the annotation toolbar or let it float at any edge of the pages, pick the quick tools offered for selected text, move the side panels between the two panes, and change any keyboard shortcut.
 - **Careful with your files.** Saving never leaves a half-written file behind, and a copy of your unsaved changes, kept every two minutes, is offered back after a crash.
 
@@ -50,6 +50,69 @@ Add several PDFs, see all their pages together in one grid, then reorder, rotate
 ### Annotations that work everywhere
 
 What you write in Lectrix opens as you made it in Acrobat, in Edge, Chrome and Firefox, and in Foxit. **Document > Repair annotations** fixes annotations made in other apps that show wrongly, or not at all, elsewhere.
+
+
+## How Lectrix compares
+
+### Tools
+
+| | Lectrix | Acrobat Pro | FineReader PDF | Foxit PDF Editor | PDF-XChange Editor | Okular | SumatraPDF⁶ |
+| --- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| **The app** | | | | | | | |
+| Price | Free | $19.99 a month¹ | $99 a year² | From $10.99 a month, or $209.99 once | Free³, or $62 once | Free | Free |
+| Open source | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ✅ |
+| Windows | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| macOS | ✅ | ✅ | Fewer tools² | ✅ | ❌ | Test builds only⁴ | ❌ |
+| Linux | ✅ | ❌ | ❌ | ❌ | ❌ | ✅ | ❌ |
+| Windows download | 8.7 MB | 1.7 GB | Not published⁵ | Not published⁵ | 402 MB | 164 MB⁴ | 11 MB |
+| **What Lectrix does** | | | | | | | |
+| Annotations | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Edit bookmarks | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Page labels | ✅ | ✅ | ❌ | ✅ | ✅ | ❌ | ❌ |
+| Combine files | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Organise pages | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Compress | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Compare documents | ✅ | ✅ | Corporate² | ✅ | Plus³ | ❌ | ❌ |
+| Add and remove passwords | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| **What Lectrix doesn't do yet** | | | | | | | |
+| Recognise text in scans (OCR) | Planned | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Fill forms | Planned | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Digital signatures | Planned | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
+| Edit the text on a page | Planned | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Redaction | Planned | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+| Convert to Word and Excel | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
+
+1. On a yearly plan. Acrobat Reader is free: it reads, annotates, fills forms and signs.
+2. Standard edition for Windows. The Corporate edition, which adds Compare, is $165 a year. The macOS version is $69 a year and has fewer PDF tools.
+3. The free version puts a watermark on files changed with paid tools. Compare needs Editor Plus, $79 once.
+4. KDE's own Windows build; KDE recommends the Microsoft Store version. On macOS there are only untested nightly builds.
+5. They ask for 1.6 GB (FineReader) and 7.5 GB (Foxit) of free disk space.
+6. Version 3.6.1. Version 3.7, in pre-release, adds combining and organising pages, compression, passwords, form filling, digital signatures and redaction.
+
+### Everyday use
+
+Much of the work on Lectrix goes into how its tools feel, not only into what they do.
+
+| | Lectrix | Acrobat Pro | FineReader PDF | Foxit PDF Editor | PDF-XChange Editor | Okular | SumatraPDF |
+| --- | :---: | :---: | :---: | :---: | :---: | :---: | :---: |
+| First page of a 1,000-page book on screen⁷ | 0.6 s | 0.9 s | 1.2 s | Not tested¹⁰ | 1.1 s | 1.8 s | 0.4 s |
+| Tools over selected text, of your choice | ✅ | A fixed set | ❌ | A fixed set | ❌ | ❌ | ❌ |
+| Annotation toolbar at any edge of the window | ✅ | ❌ | ❌ | ❌ | Classic interface⁹ | ✅ | ❌ |
+| Change any keyboard shortcut | ✅ | ❌ | OCR Editor only⁸ | ✅ | ✅ | ✅ | ✅ |
+| Dark pages for reading at night | ✅ | ✅ | ❌ | ✅ | ✅ | ✅ | ✅ |
+| Brightness, contrast and sepia | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| Documents side by side in one window | Up to four, scrolling and zooming together | One document split in two | ❌ | Not documented¹⁰ | ✅ | ❌ | ❌ |
+| Presenter view on a second screen | ✅ | ❌ | ❌ | ❌ | ❌ | ❌ | ❌ |
+| No ads, upgrade prompts or sign-in | ✅ | ❌ | ✅ | ❌ | ❌ | ✅ | ✅ |
+
+7. From launch until the page is on screen, measured the same way for every app on one laptop: the median of three runs after a first one.
+8. FineReader's PDF editor has fixed shortcuts; only its OCR Editor lets you change them.
+9. In PDF-XChange's classic interface, toolbars can be docked at any edge; its default ribbon stays at the top.
+10. Foxit was not installed for these tests, and its manual doesn't say.
+
+Tested with Acrobat Pro 24.1, FineReader PDF 16, PDF-XChange Editor 11.1, Okular 26.08 and SumatraPDF 3.6.1 on Windows 11.
+
+Checked in October 2026 against each maker's website; prices are in US dollars, for one user. Found something out of date? Please [open an issue](https://github.com/pan4ratte/lectrix/issues).
 
 
 ## Download and install
