@@ -236,22 +236,10 @@ pub enum Place {
 /// On Windows this must not run in a synchronous command or an event handler (the window
 /// is made on the main thread, which those block).
 pub fn create(app: &AppHandle, label: &str, place: Place) -> tauri::Result<WebviewWindow> {
-    let mut config = app
-        .config()
-        .app
-        .windows
-        .iter()
-        .find(|w| w.label == MAIN)
-        .cloned()
-        .ok_or(tauri::Error::WindowNotFound)?;
+    let mut config = main_config(app)?;
     config.label = label.to_owned();
     let platform = platform::current();
-    let mut builder = tauri::WebviewWindowBuilder::from_config(app, &config)?
-        .zoom_hotkeys_enabled(platform.webview_needs_zoom_controls());
-    // The same for every window: webviews that share a data folder must agree on them.
-    if let Some(args) = platform.webview_browser_args() {
-        builder = builder.additional_browser_args(&args);
-    }
+    let mut builder = builder(app, &config)?;
     // On macOS the window keeps the system's frame (its shadow, rounded corners and
     // resizing) and buttons, which lie over the app's title bar at its left end, centred in
     // its 35 px (TitleBar.svelte leaves room for them). Elsewhere the app draws its own.
@@ -296,6 +284,32 @@ pub fn create(app: &AppHandle, label: &str, place: Place) -> tauri::Result<Webvi
         .unwrap_or_default();
     crate::apply_appearance_to(&window, appearance);
     Ok(window)
+}
+
+/// The first window's configuration (tauri.conf.json), which every window starts from.
+pub fn main_config(app: &AppHandle) -> tauri::Result<tauri::utils::config::WindowConfig> {
+    app.config()
+        .app
+        .windows
+        .iter()
+        .find(|w| w.label == MAIN)
+        .cloned()
+        .ok_or(tauri::Error::WindowNotFound)
+}
+
+/// A window's builder with what every Lectrix webview needs.
+pub fn builder<'a>(
+    app: &'a AppHandle,
+    config: &tauri::utils::config::WindowConfig,
+) -> tauri::Result<tauri::WebviewWindowBuilder<'a, tauri::Wry, AppHandle>> {
+    let platform = platform::current();
+    let mut builder = tauri::WebviewWindowBuilder::from_config(app, config)?
+        .zoom_hotkeys_enabled(platform.webview_needs_zoom_controls());
+    // The same for every window: webviews that share a data folder must agree on them.
+    if let Some(args) = platform.webview_browser_args() {
+        builder = builder.additional_browser_args(&args);
+    }
+    Ok(builder)
 }
 
 /// LECTRIX_WINDOW_SIZE=<width>x<height>, in logical pixels: the size of a window that has
@@ -414,7 +428,7 @@ pub fn for_new_files(app: &AppHandle) -> Option<String> {
 pub fn under_cursor(app: &AppHandle, except: &str) -> Option<String> {
     platform::current()
         .window_under_cursor(app)
-        .filter(|label| label != except)
+        .filter(|label| label != except && !crate::audience::is_audience(label))
 }
 
 /// Gives what was just opened to the window that asked for it. A file that is open
@@ -453,9 +467,15 @@ pub fn move_into(app: &AppHandle, id: u32, to: &str) {
 /// closed (the user saved them or chose not to, at its close prompt). With the last
 /// window Lectrix quits, and the process takes its documents with it.
 pub fn destroyed(app: &AppHandle, label: &str) {
+    if crate::audience::is_audience(label) {
+        crate::audience::destroyed(app, label);
+        return;
+    }
+    // Its presentation's screen goes with it.
+    crate::audience::close_for(app, label);
     let state = app.state::<AppState>();
     let ids = state.windows.forget(label);
-    if !app.webview_windows().keys().any(|l| l != label) {
+    if !crate::audience::app_windows(app).any(|l| l != label) {
         return;
     }
     for id in ids {

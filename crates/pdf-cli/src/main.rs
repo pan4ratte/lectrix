@@ -1,6 +1,7 @@
 //! `pdf-cli`: every pdf-core operation from the command line, for tests, the interop
 //! harness, and reproducing engine bugs without the UI.
 
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::time::Instant;
@@ -22,6 +23,7 @@ use pdf_core::merge::{
 };
 use pdf_core::ops::{InsertSource, Operation};
 use pdf_core::outline::{self, Bookmark, OutlineItem, OutlineTarget, Target, ViewDest};
+use pdf_core::presentation::{self, PagePresentation, Transition, TransitionStyle};
 use pdf_core::render;
 use pdf_core::save::{self, SaveKind};
 use pdf_core::session::Session;
@@ -66,7 +68,18 @@ enum Command {
         /// annotate, form, accessibility, assemble; or none. Annotating alone by default.
         #[arg(long, value_parser = parse_permissions, default_value = "annotate")]
         allow: u32,
+        /// A page's transition in presentations, as PAGE:STYLE[:SECONDS[:DIRECTION]]
+        /// (0-based page; Split, Blinds, Box, Wipe, Dissolve, Glitter, Fly, Push, Cover,
+        /// Uncover or Fade; DIRECTION in degrees, or None). Repeatable.
+        #[arg(long = "transition", value_parser = parse_transition)]
+        transitions: Vec<(usize, Transition)>,
+        /// How long a page shows in presentations before the next comes, as PAGE:SECONDS
+        /// (0-based page). Repeatable.
+        #[arg(long = "duration", value_parser = parse_duration)]
+        durations: Vec<(usize, f32)>,
     },
+    /// What each page asks of a presentation: its transition and display duration.
+    Presentation { input: PathBuf },
     /// List the printers the system has (section 6.12), the default one marked, with what
     /// each takes.
     Printers,
@@ -866,6 +879,8 @@ fn run(command: Command) -> Result<()> {
             password,
             owner_password,
             allow,
+            transitions,
+            durations,
         } => {
             let doc = testgen::sample_document(&SampleSpec {
                 pages,
@@ -876,6 +891,16 @@ fn run(command: Command) -> Result<()> {
                 pdfa,
                 ..SampleSpec::default()
             })?;
+            let mut asked: BTreeMap<usize, PagePresentation> = BTreeMap::new();
+            for (page, transition) in transitions {
+                asked.entry(page).or_default().transition = Some(transition);
+            }
+            for (page, seconds) in durations {
+                asked.entry(page).or_default().seconds = Some(seconds);
+            }
+            for (page, what) in &asked {
+                presentation::write_page_presentation(&doc, *page, what)?;
+            }
             if password.is_some() || owner_password.is_some() {
                 let mut options = PdfWriteOptions::default();
                 options
@@ -891,6 +916,40 @@ fn run(command: Command) -> Result<()> {
                 save::save_atomic(&doc, SaveKind::Full, None, &out)?;
             }
             println!("wrote {} ({pages} pages)", out.display());
+        }
+        Command::Presentation { input } => {
+            let pages = presentation::page_presentation(&open(&input)?)?;
+            for (page, what) in pages.iter().enumerate() {
+                if what.is_empty() {
+                    continue;
+                }
+                let mut line = format!("{page}:");
+                if let Some(t) = what.transition {
+                    let direction = t.direction.map_or("None".into(), |d| d.to_string());
+                    line.push_str(&format!(
+                        " {} {}s{}{} direction {direction}",
+                        t.style.name(),
+                        t.seconds,
+                        if t.horizontal {
+                            " horizontal"
+                        } else {
+                            " vertical"
+                        },
+                        if t.inward { " inward" } else { " outward" },
+                    ));
+                    if t.style == TransitionStyle::Fly {
+                        line.push_str(&format!(
+                            " scale {}{}",
+                            t.scale,
+                            if t.opaque { " opaque" } else { "" }
+                        ));
+                    }
+                }
+                if let Some(seconds) = what.seconds {
+                    line.push_str(&format!(" shows {seconds}s"));
+                }
+                println!("{line}");
+            }
         }
         Command::Printers => {
             let printers = pdf_core::platform::printers();
@@ -2245,6 +2304,47 @@ fn repair_annotations(input: &Path, out: Option<&Path>) -> Result<()> {
     })();
     session.close();
     result
+}
+
+/// `gen --transition`: PAGE:STYLE[:SECONDS[:DIRECTION]].
+fn parse_transition(s: &str) -> std::result::Result<(usize, Transition), String> {
+    let parts: Vec<&str> = s.split(':').collect();
+    let (Some(page), Some(style)) = (parts.first(), parts.get(1)) else {
+        return Err("expected PAGE:STYLE[:SECONDS[:DIRECTION]]".into());
+    };
+    let page = page.parse().map_err(|e| format!("page: {e}"))?;
+    let style =
+        TransitionStyle::from_name(style.as_bytes()).ok_or(format!("unknown style {style}"))?;
+    let seconds = match parts.get(2) {
+        Some(s) => s.parse().map_err(|e| format!("seconds: {e}"))?,
+        None => 1.0,
+    };
+    let direction = match parts.get(3) {
+        Some(&"None") => None,
+        Some(d) => Some(d.parse().map_err(|e| format!("direction: {e}"))?),
+        None => Some(0),
+    };
+    Ok((
+        page,
+        Transition {
+            style,
+            seconds,
+            horizontal: true,
+            inward: true,
+            direction,
+            scale: 1.0,
+            opaque: false,
+        },
+    ))
+}
+
+/// `gen --duration`: PAGE:SECONDS.
+fn parse_duration(s: &str) -> std::result::Result<(usize, f32), String> {
+    let (page, seconds) = s.split_once(':').ok_or("expected PAGE:SECONDS")?;
+    Ok((
+        page.parse().map_err(|e| format!("page: {e}"))?,
+        seconds.parse().map_err(|e| format!("seconds: {e}"))?,
+    ))
 }
 
 fn parse_rect(s: &str) -> std::result::Result<Rect, String> {

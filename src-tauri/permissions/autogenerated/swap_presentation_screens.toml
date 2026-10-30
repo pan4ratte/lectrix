@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-swap-presentation-screens"
+description = "Enables the swap_presentation_screens command without any pre-configured scope."
+commands.allow = ["swap_presentation_screens"]
+
+[[permission]]
+identifier = "deny-swap-presentation-screens"
+description = "Denies the swap_presentation_screens command without any pre-configured scope."
+commands.deny = ["swap_presentation_screens"]

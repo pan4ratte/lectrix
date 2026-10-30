@@ -32,7 +32,7 @@ Part of the Lectrix specification. [AGENTS.md](../../AGENTS.md) holds the rules 
 
 ## 8.4 Shortcuts on other keyboards and on macOS
 
-The default shortcuts are listed in section 8.5. With a keyboard layout that types non-Latin letters (Russian, Greek...), letter shortcuts follow the key's place on a US keyboard, so Ctrl+Я is Ctrl+Z; Latin layouts such as AZERTY or Dvorak use the letter typed. On macOS, Ctrl in a shortcut is the Command key (the Control key answers to it too, and is the one meant with Tab, since Command+Tab switches apps), shortcuts are shown as the system shows them (⇧⌘S, ⌃⇥), Command with H or M (and Option+Command+H) belong to the system and can't be given to a command, and some commands come with the keys Mac apps use (`mac` in `shortcuts.ts`): Quit ⌘Q, Close ⌘W alone, Redo ⇧⌘Z first, Find next and previous ⌘G and ⇧⌘G, Go to page ⌥⌘G, Back and Forward ⌘[ and ⌘], Full screen ⇧⌘F (F11 is the system's there).
+The default shortcuts are listed in section 8.5. With a keyboard layout that types non-Latin letters (Russian, Greek...), letter shortcuts follow the key's place on a US keyboard, so Ctrl+Я is Ctrl+Z; Latin layouts such as AZERTY or Dvorak use the letter typed. On macOS, Ctrl in a shortcut is the Command key (the Control key answers to it too, and is the one meant with Tab, since Command+Tab switches apps), shortcuts are shown as the system shows them (⇧⌘S, ⌃⇥), Command with H or M (and Option+Command+H) belong to the system and can't be given to a command, and some commands come with the keys Mac apps use (`mac` in `shortcuts.ts`): Quit ⌘Q, Close ⌘W alone, Redo ⇧⌘Z first, Find next and previous ⌘G and ⇧⌘G, Go to page ⌥⌘G, Back and Forward ⌘[ and ⌘], Full screen ⇧⌘F (F11 is the system's there), Presentation ⌥⌘P.
 
 ## 8.5 Visual style, behavior, accessibility and default shortcuts
 
@@ -66,6 +66,7 @@ The default shortcuts are listed in section 8.5. With a keyboard layout that typ
 | Add bookmark | Ctrl+B |
 | Zoom in / out / fit width | Ctrl+= / Ctrl+- / Ctrl+0 |
 | Full screen | F11 |
+| Presentation | F5 / Ctrl+L |
 | Show or hide both side panes | F4 |
 | In full screen, show the side panes and the toolbar | Alt (held) |
 | Go to page | Ctrl+G |

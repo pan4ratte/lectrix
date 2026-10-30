@@ -3,6 +3,7 @@
 
 mod annotations;
 mod applog;
+mod audience;
 mod combine;
 mod commands;
 mod compare;
@@ -265,7 +266,11 @@ fn dark(appearance: ipc::Appearance) -> Option<bool> {
 /// Applies the Settings appearance to every window: its frame, background and the
 /// webview's `prefers-color-scheme` (the frontend also marks the forced theme itself).
 pub(crate) fn apply_appearance(app: &AppHandle, appearance: ipc::Appearance) {
-    for window in app.webview_windows().values() {
+    for window in app
+        .webview_windows()
+        .values()
+        .filter(|w| !audience::is_audience(w.label()))
+    {
         if let Err(e) = platform::current().set_appearance(window, dark(appearance)) {
             applog::warn(format!("could not change the window theme: {e}"));
         }
@@ -407,6 +412,7 @@ pub fn run() {
                 print: print::Print::default(),
             });
             app.manage(menu::Menus::default());
+            app.manage(audience::Audiences::default());
             // Working copies of documents an earlier run never saved, and that no recovery
             // copy waits to bring back.
             app.state::<AppState>().documents.sweep_working_copies();
@@ -423,6 +429,13 @@ pub fn run() {
         // The system's menu bar (macOS): a choice goes to the window whose menus it shows.
         .on_menu_event(|app, event| menu::chosen(app, &event))
         .on_window_event(|window, event| match event {
+            // An audience screen (a presentation's pages) is only a picture: nothing is
+            // dropped on it, and its place and focus are not Lectrix's (audience.rs).
+            WindowEvent::DragDrop(_)
+            | WindowEvent::Moved(_)
+            | WindowEvent::Resized(_)
+            | WindowEvent::Focused(_)
+                if audience::is_audience(window.label()) => {}
             WindowEvent::DragDrop(DragDropEvent::Drop { paths, .. }) => {
                 let app = window.app_handle();
                 let label = window.label();
@@ -540,6 +553,10 @@ pub fn run() {
             commands::get_document_info,
             commands::list_open_documents,
             commands::get_page_text,
+            commands::get_page_presentation,
+            audience::open_audience_screen,
+            audience::swap_presentation_screens,
+            audience::close_audience_screen,
             commands::search_text,
             commands::apply_operation,
             commands::open_merge_sources,

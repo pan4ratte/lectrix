@@ -39,7 +39,7 @@ const pause = (ms: number) => (inBrowser && ms > 0 ? new Promise<void>((done) =>
  * time; or after `SWITCH_WAIT_MS`, for a window that was that size already. The promise
  * resolves then too.
  */
-function windowSwitched(resized: () => void): { done: Promise<void>; cancel: () => void } {
+export function windowSwitched(resized: () => void): { done: Promise<void>; cancel: () => void } {
 	if (!inBrowser) {
 		resized();
 		return { done: Promise.resolve(), cancel: () => {} };

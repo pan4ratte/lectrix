@@ -265,6 +265,7 @@ export function appMenus(platform: Platform = PLATFORM): AppMenu[] {
 				]
 			},
 			command('fullScreen', 'Full screen', reading),
+			command('presentation', 'Presentation', reading),
 			separator,
 			command('goToPage', 'Go to page…', reading),
 			command('back', 'Back', reading && !!tab?.history.canGoBack),

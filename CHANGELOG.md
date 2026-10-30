@@ -6,6 +6,19 @@ shows this file, and each GitHub release is written from it. How to write it (th
 the wording, translations): docs/releasing.md, "The changelog".
 -->
 
+## Unreleased
+
+### Viewer and tabs
+
+- **View > Presentation** (F5) shows the document one page at a time, as large as fits the screen, on black, starting at the page you are on. Turn pages with the arrow keys, Space, a click or the mouse wheel, go back with a right click, type a page number and press Enter to go there, and press B or W to blank the screen black or white. Links on the page work. Moving the mouse shows a small bar at the bottom with the page number and buttons. Press Esc to end it, back at the page you reached.
+- Presentations play the page transitions a document comes with, such as wipes, fades and pushes, and turn to the next page by themselves when the document gives a page a set time, as decks exported from PowerPoint or Beamer often do.
+- With a second screen, such as a projector, a presentation shows the pages there, and your screen shows the presenter view: the page, the next page, the page's notes (the comments of its annotations), a timer and the time, with buttons to blank the screen and to swap screens.
+- Presentations show the pages with your visual adjustments, as the viewer does.
+
+### Settings
+
+- **Settings > Viewing > Presentation** turns off the presenter view on a second screen, page transitions, or pages turning by themselves.
+
 ## 1.4.0
 
 ### Start screen

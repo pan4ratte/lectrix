@@ -72,6 +72,7 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 			{ command: 'rotateViewCounterClockwise', label: 'Rotate view counter-clockwise', keys: [], inInputs: true },
 			{ command: 'toggleCoverPage', label: 'Cover page alone', keys: [], inInputs: true },
 			{ command: 'fullScreen', label: 'Full screen', keys: ['F11'], mac: ['Ctrl+Shift+F'], inInputs: true },
+			{ command: 'presentation', label: 'Presentation', keys: ['F5', 'Ctrl+L'], mac: ['Ctrl+Alt+P', 'Ctrl+L'], inInputs: true },
 			{ command: 'toggleTheme', label: 'Switch between the light and dark theme', keys: [], inInputs: true },
 			{ command: 'toggleLeftPane', label: 'Show or hide the left pane', keys: [], inInputs: true },
 			{ command: 'toggleRightPane', label: 'Show or hide the right pane', keys: [], inInputs: true },

@@ -52,6 +52,7 @@ use crate::merge::{self, MergeReport};
 use crate::ops::{NumberedDests, Operation, OutlineEffect};
 use crate::outline::{self, Outline};
 use crate::pages::DeleteReport;
+use crate::presentation::{self, PagePresentation};
 use crate::properties::{self, Properties, UsedFont};
 use crate::protection::{self, ProtectionInfo, ProtectionSettings, Restrictions};
 use crate::render::{self, Part, PixelRect, RgbaImage};
@@ -281,6 +282,9 @@ enum Command {
     Links {
         page: usize,
         reply: Reply<(Vec<PageLink>, u64)>,
+    },
+    Presentation {
+        reply: Reply<(Vec<PagePresentation>, u64)>,
     },
     Save {
         kind: SaveKind,
@@ -637,6 +641,12 @@ impl Session {
         self.call(|reply| Command::Links { page, reply })
     }
 
+    /// What each page asks of a presentation, its transition and display duration
+    /// (`presentation.rs`), and the revision they were read at.
+    pub fn page_presentation(&self) -> Result<(Vec<PagePresentation>, u64)> {
+        self.call(|reply| Command::Presentation { reply })
+    }
+
     /// Counts annotation problems that "Repair annotations" would fix (section 5.3).
     pub fn scan_annotations(&self) -> Result<RepairScan> {
         self.call(|reply| Command::ScanAnnotations { reply })
@@ -873,6 +883,10 @@ fn actor(origin: Origin, rx: Receiver<Command>, ready: SyncSender<Result<Documen
             Command::Links { page, reply } => {
                 let links = links::page_links(&actor.doc, page);
                 let _ = reply.send(links.map(|links| (links, actor.revision())));
+            }
+            Command::Presentation { reply } => {
+                let pages = presentation::page_presentation(&actor.doc);
+                let _ = reply.send(pages.map(|pages| (pages, actor.revision())));
             }
             Command::Save {
                 kind,

@@ -35,6 +35,8 @@
 	import CombineView from '#lib/features/merge/CombineView.svelte';
 	import CompareView from '#lib/features/compare/CompareView.svelte';
 	import PageLabelsDialog from '#lib/features/labels/PageLabelsDialog.svelte';
+	import Presentation from '#lib/features/presentation/Presentation.svelte';
+	import { presentation } from '#lib/features/presentation/presentation.svelte.ts';
 	import PropertiesDialog from '#lib/features/properties/PropertiesDialog.svelte';
 	import ProtectDialog from '#lib/features/protect/ProtectDialog.svelte';
 	import CompressDialog from '#lib/features/compress/CompressDialog.svelte';
@@ -206,6 +208,11 @@
 			: shownWidth(app.rightWidth, RIGHT_LIMITS, window.innerWidth);
 	};
 
+	// A presentation is of one document: it ends when another is shown, or none.
+	$effect(() => {
+		if (presentation.on && app.active !== presentation.tab) void presentation.stop();
+	});
+
 	// Only a document is shown full screen: with the last one closed, or the Combine view up,
 	// the window goes back to what it was.
 	$effect(() => {
@@ -315,7 +322,10 @@
 			onSettingsChanged(applySettings),
 			onRecentChanged(() => void app.loadRecent()),
 			onTouchpadPinch(dispatchPinch),
-			getCurrentWindow().onResized(() => void fullscreen.windowResized().catch(() => {})),
+			getCurrentWindow().onResized(() => {
+				void fullscreen.windowResized().catch(() => {});
+				void presentation.windowResized().catch(() => {});
+			}),
 			getCurrentWindow().onCloseRequested(async (event) => {
 				if (await app.confirmExit()) return;
 				event.preventDefault();
@@ -552,6 +562,10 @@
 <SettingsDialog />
 <AboutDialog />
 <WhatsNewDialog />
+<!-- Under dialogs and notifications, which show over it. -->
+{#if presentation.on && presentation.tab}
+	<Presentation tab={presentation.tab} />
+{/if}
 <DialogHost />
 <PasswordDialog />
 <Toasts />

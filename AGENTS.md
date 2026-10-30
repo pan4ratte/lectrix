@@ -50,7 +50,7 @@ All PDF reading and writing happens in Rust through MuPDF; the Svelte frontend n
 - **Threading:** each open document has its own actor thread that exclusively owns its MuPDF document; commands reach it through a channel. Parallel rendering uses display lists on a worker pool with cloned contexts (ADR 0001).
 - **Pages** come from the `lectrix://page/…` protocol, whose URL carries the document revision, so cache invalidation is automatic. **Text geometry** comes to the frontend once per page and revision; the frontend hit-tests and selects locally, and Rust computes the final quads.
 - **IPC:** commands live in `src-tauri/src/commands.rs`, all typed (`ts-rs` generates their TypeScript; never hand-write it). Every mutating command returns the new revision plus the changed data. A new command is declared in `src-tauri/build.rs` and granted in `src-tauri/capabilities/default.json` (a test checks both), or calling it fails at run time.
-- **Windows:** every window is the whole app. Rust sends an event to the window it concerns (`emit_to`), and the frontend listens through its own window (`listen` in `src/lib/ipc/index.ts`).
+- **Windows:** every window is the whole app, but a presentation's audience screen, which shows only its pages (ADR 0033). Rust sends an event to the window it concerns (`emit_to`), and the frontend listens through its own window (`listen` in `src/lib/ipc/index.ts`).
 
 ## 4. Repository layout
 

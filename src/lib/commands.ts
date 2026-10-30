@@ -7,6 +7,7 @@ import { addBookmark } from '#lib/features/bookmarks/actions.ts';
 import { openWhatsNew } from '#lib/features/changelog/announce.ts';
 import { toggleFullScreen } from '#lib/features/fullscreen/actions.ts';
 import { showLabels } from '#lib/features/labels/actions.ts';
+import { togglePresentation } from '#lib/features/presentation/actions.ts';
 import { toggleTheme } from '#lib/features/settings/apply.ts';
 import { insertFromFile, toggleOrganize } from '#lib/features/organize/actions.ts';
 import { openProperties } from '#lib/features/properties/actions.ts';
@@ -197,6 +198,8 @@ export const commands = {
 		// Full screen shows the pages alone; the grid of pages being organized is not that.
 		if (!app.active?.organize) void toggleFullScreen();
 	},
+	/** The pages one at a time, as large as fits the screen (section 6.1), and back. */
+	presentation: () => void togglePresentation(),
 	/** The other theme, light or dark, from the one on screen. */
 	toggleTheme: () => void toggleTheme(),
 	toggleLeftPane: reading(() => app.togglePane('left')),

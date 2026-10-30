@@ -24,11 +24,12 @@ use crate::ipc::{
     CompressOutcome, CompressProgress, CompressSaved, CompressSettings, CompressStep,
     DocumentChange, DocumentInfo, DocumentSaved, ImageFormat, LabelMode, LinkPlace, MenuEntry,
     MergeOutcome, MergePlan, MergeProgress, MergeRequest, MergeStage, MoveTarget, OpenResult,
-    OperationInput, PageHits, PageText, PaneLayout, PrintDone, PrintLayout, PrintProgress,
-    PrintSettings, PrintStart, PrinterDetails, ProtectSaved, ProtectStep, ProtectionChangeInput,
-    ProtectionInfo, ProtectionInput, RecentFile, RecoveredDocument, Reopened, SaveResult,
-    SearchChunk, SearchWord, Settings, SettingsInput, StartupInfo, TabHandoff, UnprotectSaved,
-    UnprotectStep, UnsavedSource, ViewState, WebPage, WindowChrome, WindowDocument, WindowEntry,
+    OperationInput, PageHits, PagePresentation, PageText, PaneLayout, PrintDone, PrintLayout,
+    PrintProgress, PrintSettings, PrintStart, PrinterDetails, ProtectSaved, ProtectStep,
+    ProtectionChangeInput, ProtectionInfo, ProtectionInput, RecentFile, RecoveredDocument,
+    Reopened, SaveResult, SearchChunk, SearchWord, Settings, SettingsInput, StartupInfo,
+    TabHandoff, UnprotectSaved, UnprotectStep, UnsavedSource, ViewState, WebPage, WindowChrome,
+    WindowDocument, WindowEntry,
 };
 use crate::platform::Platform;
 use crate::store::StoredSettings;
@@ -362,7 +363,7 @@ pub fn discard_recovered(state: State<'_, AppState>, slots: Vec<String>) {
 /// window's documents close, once it is gone (`windows::destroyed`).
 #[tauri::command]
 pub fn exit_confirmed(app: AppHandle, window: WebviewWindow, state: State<'_, AppState>) {
-    if !app.webview_windows().keys().any(|l| l != window.label()) {
+    if !crate::audience::app_windows(&app).any(|l| l != window.label()) {
         state.documents.recovery().close();
     }
 }
@@ -1289,7 +1290,7 @@ pub fn list_windows(app: AppHandle, window: WebviewWindow) -> Vec<WindowEntry> {
     let mut others: Vec<WindowEntry> = app
         .webview_windows()
         .into_iter()
-        .filter(|(label, _)| label != window.label())
+        .filter(|(label, _)| label != window.label() && !crate::audience::is_audience(label))
         .map(|(label, w)| WindowEntry {
             title: w.title().unwrap_or_default(),
             label,
@@ -1312,7 +1313,8 @@ pub fn list_windows(app: AppHandle, window: WebviewWindow) -> Vec<WindowEntry> {
 #[tauri::command(async)]
 pub fn close_other_windows(app: AppHandle, window: WebviewWindow) {
     for (label, other) in app.webview_windows() {
-        if label == window.label() {
+        // An audience screen goes with its window.
+        if label == window.label() || crate::audience::is_audience(&label) {
             continue;
         }
         // One made a moment ago can't ask yet.
@@ -1338,6 +1340,17 @@ pub fn get_page_text(state: State<'_, AppState>, id: u32, page: u32) -> Result<P
         }
     };
     Ok(PageText::new(page as usize, revision, text, links))
+}
+
+/// What each page of document `id` asks of a presentation: its transition and how long
+/// it shows (section 6.1).
+#[tauri::command(async)]
+pub fn get_page_presentation(
+    state: State<'_, AppState>,
+    id: u32,
+) -> Result<Vec<PagePresentation>, AppError> {
+    let (pages, _) = state.documents.session(id)?.page_presentation()?;
+    Ok(pages.into_iter().map(PagePresentation::from).collect())
 }
 
 /// Searches pages `start .. start + count` (at most 64 per call).
@@ -1477,6 +1490,9 @@ fn settings_of(stored: &StoredSettings, platform: &dyn Platform) -> Settings {
         pdfa_read_only: stored.pdfa_read_only,
         highlight_links: stored.highlight_links,
         link_previews: stored.link_previews,
+        presentation_transitions: stored.presentation_transitions,
+        presentation_timing: stored.presentation_timing,
+        presenter_view: stored.presenter_view,
         page_adjustments: stored.page_adjustments,
         color_panel_on_hover: stored.color_panel_on_hover,
         preset_colors: stored.preset_colors.clone(),
@@ -1548,6 +1564,9 @@ pub fn set_settings(
         pdfa_read_only: settings.pdfa_read_only,
         highlight_links: settings.highlight_links,
         link_previews: settings.link_previews,
+        presentation_transitions: settings.presentation_transitions,
+        presentation_timing: settings.presentation_timing,
+        presenter_view: settings.presenter_view,
         page_adjustments: settings.page_adjustments.clamped(),
         color_panel_on_hover: settings.color_panel_on_hover,
         // Only colours of presets the panel has, written one way.
@@ -1594,7 +1613,7 @@ fn store_settings(
     drop(store);
     crate::apply_appearance(app, stored.appearance);
     let settings = settings_of(&stored, state.platform);
-    for label in app.webview_windows().into_keys() {
+    for label in crate::audience::app_windows(app) {
         if label != window.label()
             && let Err(e) = app.emit_to(label.as_str(), crate::SETTINGS_CHANGED, &settings)
         {

@@ -421,6 +421,41 @@ roman front matter and a landscape table, or `pdf-cli merge mixed.pdf a.pdf --pa
       same at the right, where they open to its left and the toolbar keeps clear of the
       pages' scrollbar.
 
+## Presentation
+
+- [ ] Open a slide deck saved as PDF and a portrait document. From page 3 of each, press F5:
+      the screen goes black and then shows page 3 alone, as large as fits, sharp, in the
+      middle; taskbar and title bar are gone. Arrows, Space, Page Down and a click turn
+      pages at once (no blank or blurry page); a right click and Backspace go back.
+- [ ] Turn the mouse wheel one notch at a time: one page each. Swipe two fingers on a
+      touchpad, up and down: one page per swipe, even a long one. On a touchscreen, swipe
+      left and right.
+- [ ] Type 7 and press Enter: page 7. Press B, then any arrow: black, then the same page.
+      W, then Esc: white, then the same page, and the presentation goes on.
+- [ ] Move the mouse: the pointer and a bar in the middle of the bottom show, and go after a few
+      seconds at rest. Its buttons turn pages and End presentation ends it. Press Tab:
+      the bar shows with its first button focused, and Tab keeps going round its buttons.
+- [ ] A document with links (a contents page): the hand shows over a link, and a click
+      goes to its page, still presenting. A web link opens in the browser.
+- [ ] Press Esc: the window comes back as it was (maximized or not), at the page reached.
+      From full screen (F11, then F5), Esc leaves full screen on. Alt+F4 while presenting
+      closes Lectrix.
+- [ ] A deck exported from PowerPoint with transitions (or a Beamer deck with
+      `\transwipe`, `\transdissolve` and `\transduration`): each page comes with its
+      transition, smoothly, for about as long as in Acrobat; pressing a key during one goes
+      on at once. A page with a set time turns by itself, and not while the screen is
+      blank. Settings > Viewing > Presentation: turning transitions off, then timing off,
+      stops each. With Windows' animations off, pages change at once.
+- [ ] With visual adjustments on (dark, sepia), F5: the pages look as in the viewer.
+- [ ] With a projector or second monitor connected, F5: the pages fill the other screen,
+      and this one shows the presenter view, with the page, the next page, the timer and
+      the time. A page with a sticky note shows its text under Notes. Keys turn pages in
+      either window; a click on the other screen turns too. Black screen and White screen
+      blank the other screen only. Swap screens: the two change places; Esc then brings the
+      window back to its own screen, as it was before (maximized, or a window). Alt+F4 on
+      the pages' screen ends the presentation. With the setting off, F5 presents on this
+      screen alone. Try a second screen at another scale (100% beside 150%): both sharp.
+
 ## Visual adjustments
 
 - [ ] In a document with photographs and highlights, open Visual adjustments (the button

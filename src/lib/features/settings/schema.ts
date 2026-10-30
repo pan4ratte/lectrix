@@ -362,6 +362,21 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 				]
 			},
 			{
+				title: 'Presentation',
+				rows: [
+					toggle('presenterView', 'Presenter view on a second screen', {
+						description:
+							'With a second screen, View > Presentation shows the pages there, and the page, the next page, its notes and a timer on this one.'
+					}),
+					toggle('presentationTransitions', 'Play page transitions', {
+						description: 'Pages come on screen with the transitions the document gives them, such as a wipe or a fade.'
+					}),
+					toggle('presentationTiming', 'Turn pages after the time the document sets', {
+						description: 'When the document shows a page for a set time, the next page comes by itself once it is up.'
+					})
+				]
+			},
+			{
 				title: 'Tooltips',
 				rows: [
 					{
@@ -624,6 +639,9 @@ export function toInput(d: Draft): SettingsInput {
 		pdfaReadOnly: d.pdfaReadOnly,
 		highlightLinks: d.highlightLinks,
 		linkPreviews: d.linkPreviews,
+		presentationTransitions: d.presentationTransitions,
+		presentationTiming: d.presentationTiming,
+		presenterView: d.presenterView,
 		pageAdjustments: { ...d.pageAdjustments } satisfies PageAdjustments,
 		colorPanelOnHover: d.colorPanelOnHover,
 		presetColors: { ...d.presetColors },

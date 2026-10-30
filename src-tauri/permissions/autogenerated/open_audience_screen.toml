@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-open-audience-screen"
+description = "Enables the open_audience_screen command without any pre-configured scope."
+commands.allow = ["open_audience_screen"]
+
+[[permission]]
+identifier = "deny-open-audience-screen"
+description = "Denies the open_audience_screen command without any pre-configured scope."
+commands.deny = ["open_audience_screen"]

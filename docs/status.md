@@ -28,6 +28,7 @@ In full, with measurements: [known-gaps.md](status/known-gaps.md).
 - **Annotations the list filters out** still show in thumbnails and in the page's text.
 - **Windows:** a tab dragged out shows nothing outside its window and drops at the end of the row; panes and thumbnail size are shared; search, selection and tool stay behind; windows are not reopened; an update put off in one window is unknown to the others.
 - **Full screen:** the switch holds frames 40 to 100 ms; the pane strip is 4 px; not remembered; a real Alt key is untried.
+- **Presentation:** Dissolve and Glitter are approximated; the presenter view has not run on a real second screen; not yet tried by a person.
 - **Visual adjustments:** inversion is approximate; pages with annotations take a second image; no commands; scrolling with them not measured.
 - **Links** answer by `/Rect` only and need a pointer; only http and https open; bookmarks have no tooltip saying where they lead.
 - **Undo history restarts** after each save and after a crash restore (MuPDF can't load a journal).

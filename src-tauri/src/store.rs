@@ -236,6 +236,15 @@ pub struct StoredSettings {
     /// Whether a tooltip on the link under the pointer says where it leads.
     #[serde(default = "yes")]
     pub link_previews: bool,
+    /// Whether a presentation plays the document's page transitions.
+    #[serde(default = "yes")]
+    pub presentation_transitions: bool,
+    /// Whether a presentation turns pages by itself after the document's times.
+    #[serde(default = "yes")]
+    pub presentation_timing: bool,
+    /// Whether a presentation uses a second screen, with the presenter view on this one.
+    #[serde(default = "yes")]
+    pub presenter_view: bool,
     /// The visual adjustments every document is shown with, unless it has its own.
     #[serde(default)]
     pub page_adjustments: PageAdjustments,
@@ -307,6 +316,9 @@ impl Default for StoredSettings {
             pdfa_read_only: true,
             highlight_links: true,
             link_previews: true,
+            presentation_transitions: true,
+            presentation_timing: true,
+            presenter_view: true,
             page_adjustments: PageAdjustments::default(),
             color_panel_on_hover: true,
             preset_colors: BTreeMap::new(),
@@ -878,6 +890,9 @@ mod tests {
             pdfa_read_only: false,
             highlight_links: false,
             link_previews: false,
+            presentation_transitions: false,
+            presentation_timing: false,
+            presenter_view: false,
             page_adjustments: PageAdjustments {
                 sepia: 45,
                 contrast: 110,
@@ -933,6 +948,9 @@ mod tests {
         assert!(v1.settings().pdfa_read_only);
         assert!(v1.settings().highlight_links);
         assert!(v1.settings().link_previews);
+        assert!(v1.settings().presentation_transitions);
+        assert!(v1.settings().presentation_timing);
+        assert!(v1.settings().presenter_view);
         assert!(v1.settings().color_panel_on_hover);
         assert!(v1.settings().preset_colors.is_empty());
         assert!(v1.settings().shortcuts.is_empty());

@@ -74,6 +74,14 @@ Part of the status: [docs/status.md](../status.md) is the index a session reads,
   brings the right pane over it. The end-to-end test presses F11 and Alt through
   WebDriver, inside the webview: that a real Alt key opens no system menu, and that
   Alt+F4 and Alt+Tab still do what they do, is in the manual checklist, not yet done.
+- **Presentation** (section 6.1, ADR 0033). Dissolve fades and Glitter is a soft wipe,
+  rather than scattering pixels as the standard describes; transitions move in screen
+  space, so on a page turned on screen they move as it is seen. The presenter view and
+  its audience screen have run only on one screen (`LECTRIX_AUDIENCE_ANY_SCREEN`): a real
+  second screen, Swap screens and the window's return after it, a projector at another
+  scale, and macOS and Linux, are in the manual checklist, not yet done; with three
+  screens or more, the pages go to the first other one, with no choice. The wheel,
+  swipes, a link followed, a real F5 and Alt+F4 are in the checklist too.
 - **Visual adjustments.** Invert colours keeps hues by CSS's `hue-rotate`, which is an
   approximation: saturated colours come out darker or lighter than they were, and
   photographs look odd, as inverted ones do. Annotations are left out of it and of

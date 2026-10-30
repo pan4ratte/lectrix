@@ -103,6 +103,10 @@
 	--lectrix-info-bg: #eef4fd;
 	--lectrix-page-shadow: rgb(0 0 0 / 0.14);
 	--lectrix-overlay: rgb(0 0 0 / 0.5);
+	/* Presentation (section 6.1): the screen around the page, and the blank screens B and W
+	   give, the same in both themes. */
+	--lectrix-presentation: #000000;
+	--lectrix-presentation-white: #ffffff;
 	/* macOS: what dims the window behind a sheet, much less than elsewhere, as the system's
 	   own sheets do; and the sheet's shadow. */
 	--lectrix-sheet-overlay: rgb(0 0 0 / 0.1);
@@ -306,6 +310,8 @@
 	--color-danger-bg: var(--lectrix-danger-bg);
 	--color-info-bg: var(--lectrix-info-bg);
 	--color-page-shadow: var(--lectrix-page-shadow);
+	--color-presentation: var(--lectrix-presentation);
+	--color-presentation-white: var(--lectrix-presentation-white);
 	--font-sans: 'Google Sans', 'Segoe UI Variable Text', 'Segoe UI Variable', 'Segoe UI', system-ui, sans-serif;
 	--radius-control: 6px;
 	--radius-panel: 8px;
@@ -706,6 +712,20 @@ input[type='color'],
 }
 .annotation-toolbar-right.annotation-toolbar-hidden {
 	transform: translate(12px, -50%);
+}
+/* Presentation's controls (section 6.1): they fade while the pointer rests, and are out of
+   the way of clicks meanwhile. They are there at once when shown, so Tab can focus them. */
+.presentation-controls {
+	transition:
+		opacity 120ms ease-out,
+		visibility 0s;
+}
+.presentation-controls-hidden {
+	visibility: hidden;
+	opacity: 0;
+	transition:
+		opacity 120ms ease-out,
+		visibility 0s 120ms;
 }
 /* The toolbar docked at a side of the pages (Settings): a bar of its own in the view bar's
    colour, its tools stacked, with a line between it and the pages. */

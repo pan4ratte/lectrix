@@ -1,0 +1,7 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "audience",
+  "description": "A presentation's audience screen (audience.rs): a picture of the pages on a second screen. It hears what to show from the window presenting and tells it the keys and clicks it gets, by events, and logs what fails; it calls nothing else.",
+  "windows": ["audience-*"],
+  "permissions": ["core:event:default", "allow-log-error"]
+}

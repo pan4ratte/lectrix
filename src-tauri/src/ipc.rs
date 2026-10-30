@@ -1807,6 +1807,85 @@ pub struct PageLink {
     pub target: BookmarkTarget,
 }
 
+/// What a page asks of a presentation (section 6.1): its transition and how long it shows.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct PagePresentation {
+    /// How the page comes on screen (`/Trans`); null for at once.
+    pub transition: Option<Transition>,
+    /// How many seconds it shows before the next page comes by itself (`/Dur`).
+    pub seconds: Option<f32>,
+}
+
+/// A page's transition (`/Trans`, ISO 32000-2 section 12.4.4.1).
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct Transition {
+    pub style: TransitionStyle,
+    /// How long it takes, in seconds.
+    pub seconds: f32,
+    /// Split and Blinds: horizontal lines (else vertical ones).
+    pub horizontal: bool,
+    /// Split, Box and Fly: inward from the edges (else outward from the middle).
+    pub inward: bool,
+    /// Wipe, Glitter, Fly, Cover, Uncover and Push: the direction, in degrees
+    /// counter-clockwise from left to right; null for none (a Fly that only scales).
+    pub direction: Option<u16>,
+    /// Fly: the scale it starts at (in) or ends at (out).
+    pub scale: f32,
+    /// Fly: what moves is opaque.
+    pub opaque: bool,
+}
+
+#[derive(Debug, Clone, Copy, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum TransitionStyle {
+    Split,
+    Blinds,
+    Box,
+    Wipe,
+    Dissolve,
+    Glitter,
+    Fly,
+    Push,
+    Cover,
+    Uncover,
+    Fade,
+}
+
+impl From<pdf_core::presentation::PagePresentation> for PagePresentation {
+    fn from(p: pdf_core::presentation::PagePresentation) -> Self {
+        use pdf_core::presentation::TransitionStyle as S;
+        PagePresentation {
+            seconds: p.seconds,
+            transition: p.transition.map(|t| Transition {
+                style: match t.style {
+                    S::Split => TransitionStyle::Split,
+                    S::Blinds => TransitionStyle::Blinds,
+                    S::Box => TransitionStyle::Box,
+                    S::Wipe => TransitionStyle::Wipe,
+                    S::Dissolve => TransitionStyle::Dissolve,
+                    S::Glitter => TransitionStyle::Glitter,
+                    S::Fly => TransitionStyle::Fly,
+                    S::Push => TransitionStyle::Push,
+                    S::Cover => TransitionStyle::Cover,
+                    S::Uncover => TransitionStyle::Uncover,
+                    S::Fade => TransitionStyle::Fade,
+                },
+                seconds: t.seconds,
+                horizontal: t.horizontal,
+                inward: t.inward,
+                direction: t.direction,
+                scale: t.scale,
+                opaque: t.opaque,
+            }),
+        }
+    }
+}
+
 impl PageText {
     pub fn new(
         page: usize,
@@ -2216,6 +2295,15 @@ pub struct Settings {
     pub highlight_links: bool,
     /// Whether a tooltip on the link under the pointer says where it leads (section 6.1).
     pub link_previews: bool,
+    /// Whether a presentation plays the transitions the document gives its pages (section
+    /// 6.1); otherwise pages change at once.
+    pub presentation_transitions: bool,
+    /// Whether a presentation turns to the next page by itself after the time the document
+    /// gives a page (section 6.1).
+    pub presentation_timing: bool,
+    /// Whether, with a second screen, a presentation shows the pages there and the
+    /// presenter view on the window's screen (section 6.1).
+    pub presenter_view: bool,
     /// The visual adjustments every document is shown with, unless it has its own
     /// (section 6.1): the pages as they are until changed in Settings.
     pub page_adjustments: PageAdjustments,
@@ -2263,6 +2351,9 @@ pub struct SettingsInput {
     pub pdfa_read_only: bool,
     pub highlight_links: bool,
     pub link_previews: bool,
+    pub presentation_transitions: bool,
+    pub presentation_timing: bool,
+    pub presenter_view: bool,
     pub page_adjustments: PageAdjustments,
     pub color_panel_on_hover: bool,
     pub preset_colors: BTreeMap<u8, String>,

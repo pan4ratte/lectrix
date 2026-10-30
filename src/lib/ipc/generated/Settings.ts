@@ -111,6 +111,21 @@ highlightLinks: boolean,
  */
 linkPreviews: boolean, 
 /**
+ * Whether a presentation plays the transitions the document gives its pages (section
+ * 6.1); otherwise pages change at once.
+ */
+presentationTransitions: boolean, 
+/**
+ * Whether a presentation turns to the next page by itself after the time the document
+ * gives a page (section 6.1).
+ */
+presentationTiming: boolean, 
+/**
+ * Whether, with a second screen, a presentation shows the pages there and the
+ * presenter view on the window's screen (section 6.1).
+ */
+presenterView: boolean, 
+/**
  * The visual adjustments every document is shown with, unless it has its own
  * (section 6.1): the pages as they are until changed in Settings.
  */
