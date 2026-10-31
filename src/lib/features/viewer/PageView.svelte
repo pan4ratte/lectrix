@@ -599,16 +599,31 @@
 						vector-effect="non-scaling-stroke"
 					/>
 				{:else if draft?.kind === 'ink'}
-					{@const style = tools.style('ink')}
-					<polyline
-						points={draft.points.join(' ')}
-						fill="none"
-						stroke={style.color}
-						stroke-width={style.width}
-						stroke-opacity={style.opacity}
-						stroke-linecap="round"
-						stroke-linejoin="round"
-					/>
+					{@const style = tools.style(draft.tool)}
+					<!-- One group, so where strokes meet (an arrow's head) they show no darker. -->
+					<g opacity={style.opacity}>
+						{#each draft.strokes as stroke, i (i)}
+							<polyline
+								points={(stroke.length === 2 ? [...stroke, ...stroke] : stroke).join(' ')}
+								fill="none"
+								stroke={style.color}
+								stroke-width={style.width}
+								stroke-linecap="round"
+								stroke-linejoin="round"
+							/>
+						{/each}
+					</g>
+					{#if draft.lead}
+						{@const tip = draft.strokes[0] ?? []}
+						<line
+							x1={tip[tip.length - 2]}
+							y1={tip[tip.length - 1]}
+							x2={draft.lead[0]}
+							y2={draft.lead[1]}
+							class="pen-string"
+							vector-effect="non-scaling-stroke"
+						/>
+					{/if}
 				{:else if draft?.kind === 'area'}
 					{@const b = draft.box}
 					<rect

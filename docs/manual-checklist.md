@@ -488,6 +488,21 @@ roman front matter and a landscape table, or `pdf-cli merge mixed.pdf a.pdf --pa
 - [ ] Scroll a long document quickly with adjustments on: as smooth as without.
 - [ ] Close Lectrix and open the file again: adjusted as it was; another file is not.
 
+## Shapes and the pen's smoothing
+
+- [ ] With the Shapes tool (S; click its button again for the shapes), draw a line, an
+      arrow, a rectangle and an ellipse, and each again with Shift held (45° steps, a
+      square, a circle). Each looks the same while dragged and once let go; Esc during a
+      drag drops it.
+- [ ] Save, and open the file in Acrobat, Edge and Firefox: every shape shows as drawn,
+      the rectangle's corners and the arrow's head where they were drawn, and Acrobat lists
+      each as a drawing (pencil) that can be recoloured and deleted.
+- [ ] In the pen's panel (click the Pen button once it is picked), turn Smoothing up to
+      50% and write a word with the mouse, then with a stylus if one is at hand: the
+      strokes are steadier than at Off, the dashed line shows the string, and each stroke
+      ends where the pen was lifted.
+- [ ] Select a drawing and change its width on the slider: one undo step puts it back.
+
 ## Pages turned on screen
 
 - [ ] In a scan with a page that lies on its side, go to that page and press Rotate

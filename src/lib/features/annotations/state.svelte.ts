@@ -1,9 +1,10 @@
 // The active annotation tool, the colour every tool draws with, and the last-used opacity,
-// stroke width and font size of each tool (section 6.5). They are a per-user convenience
-// kept in the webview's storage; losing them only resets the defaults. Only what differs
-// from the defaults is kept, so a tool the user never restyled follows the defaults of the
-// running version.
+// stroke width, font size, shape and smoothing of each tool (section 6.5). They are a
+// per-user convenience kept in the webview's storage; losing them only resets the defaults.
+// Only what differs from the defaults is kept, so a tool the user never restyled follows the
+// defaults of the running version.
 
+import { isShapeKind } from './pen.ts';
 import {
 	changedStyles,
 	DEFAULT_COLOR,
@@ -41,6 +42,8 @@ function loadStyles(): { styles: Record<DrawTool, OwnStyle>; color: string } {
 			if (typeof s.opacity === 'number' && s.opacity >= 0.1 && s.opacity <= 1) styles[tool].opacity = s.opacity;
 			if (typeof s.width === 'number' && s.width >= 0.25 && s.width <= 48) styles[tool].width = s.width;
 			if (typeof s.fontSize === 'number' && s.fontSize >= 4 && s.fontSize <= 144) styles[tool].fontSize = s.fontSize;
+			if (isShapeKind(s.shape)) styles[tool].shape = s.shape;
+			if (typeof s.smoothing === 'number' && s.smoothing >= 0 && s.smoothing <= 100) styles[tool].smoothing = s.smoothing;
 		}
 		const own = localStorage.getItem(COLOR_KEY);
 		// Versions that kept a colour for each tool: the highlight's becomes everyone's.

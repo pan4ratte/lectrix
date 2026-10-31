@@ -110,7 +110,9 @@ export type AnnotationDraft =
 	| { kind: 'moves'; page: number; items: { page: number; id: number; box: Box }[] }
 	/** The rectangle the Select tool drags to select the annotations it touches. */
 	| { kind: 'marquee'; page: number; box: Box }
-	| { kind: 'ink'; page: number; points: number[] }
+	/** A drawing: the pen's stroke or a shape, drawn in the style of `tool`. `lead`: where
+	 * the pointer is, which a smoothed stroke's tip trails on a string. */
+	| { kind: 'ink'; tool: 'ink' | 'shape'; page: number; strokes: number[][]; lead?: [number, number] | null }
 	| { kind: 'area'; page: number; box: Box }
 	/** A text box being typed: new (`id` null) or an existing one being edited. `turn`: how
 	 * far its text is turned from the page as the document has it (for a new one, as far

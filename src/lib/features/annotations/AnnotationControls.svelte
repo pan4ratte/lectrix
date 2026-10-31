@@ -14,7 +14,8 @@
 	import { barControls } from './bars.ts';
 	import ColorPicker from './ColorPicker.svelte';
 	import { typeIcon } from './icons.ts';
-	import { FONT_SIZES, MARKUP_SUBTYPES, PEN_WIDTHS, ptOptions, typeName, type MarkupKind } from './tools.ts';
+	import StrokePicker from './StrokePicker.svelte';
+	import { FONT_SIZES, MARKUP_SUBTYPES, ptOptions, typeName, type MarkupKind } from './tools.ts';
 	import { toolMark } from './toolMark.ts';
 
 	interface Props {
@@ -48,14 +49,7 @@
 		/>
 	{/if}
 	{#if caps.restyle && a.kind === 'ink'}
-		<Dropdown
-			class="toolbar-dropdown"
-			label="Stroke width"
-			tip="Stroke width"
-			value={a.width ?? 1}
-			options={ptOptions([...PEN_WIDTHS, a.width ?? 1])}
-			onchange={(width) => void update(tab, a.page, a.id, { width })}
-		/>
+		<StrokePicker width={a.width ?? 1} onwidth={(width) => void update(tab, a.page, a.id, { width })} />
 	{/if}
 	{#if caps.restyle && a.kind === 'freeText'}
 		<Dropdown

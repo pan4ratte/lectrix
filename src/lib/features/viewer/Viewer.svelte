@@ -54,8 +54,9 @@
 	} from '#lib/features/annotations/geometry.ts';
 	import { marksText } from '#lib/features/annotations/listing.ts';
 	import SelectionBar from '#lib/features/annotations/SelectionBar.svelte';
+	import { MAX_STRING_PX, Stabilizer, constrainEnd, shapeStrokes, type ShapeKind } from '#lib/features/annotations/pen.ts';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
-	import { DEFAULT_QUICK_TOOLS, capabilities, isMarkupTool, showsComment } from '#lib/features/annotations/tools.ts';
+	import { DEFAULT_QUICK_TOOLS, capabilities, isMarkupTool, showsComment, type Tool } from '#lib/features/annotations/tools.ts';
 	import { scrolled } from '#lib/features/split/sync.ts';
 	import { pageUrl, type Annotation, type PageLink } from '#lib/ipc/index.ts';
 	import { PLATFORM } from '#lib/platform.ts';
@@ -967,7 +968,11 @@
 				before: readonly AnnotationRef[];
 				moved: boolean;
 		  }
-		| { kind: 'ink'; page: number; points: number[] }
+		// The pen drawing freehand: `points` where its tip has been, which trails the pointer
+		// as far as the smoothing says (`stabilizer`; null without smoothing).
+		| { kind: 'ink'; page: number; points: number[]; stabilizer: Stabilizer | null }
+		// The Shapes tool drawing a shape from `start` to `end` (Shift held constrains it).
+		| { kind: 'shape'; page: number; shape: ShapeKind; start: [number, number]; end: [number, number] }
 		| { kind: 'area'; page: number; start: [number, number] }
 		| { kind: 'textbox'; page: number; start: [number, number] };
 
@@ -1232,9 +1237,10 @@
 		const tool = toolNow();
 		if (tool !== 'select' && refuseIfLocked(tab)) return;
 
-		// Alt with a markup tool draws an area highlight, and the pen draws, over annotations too.
+		// Alt with a markup tool draws an area highlight, and the pen and the Shapes tool draw,
+		// over annotations too.
 		const area = isMarkupTool(tool) && event.altKey;
-		if (!area && tool !== 'ink') {
+		if (!area && !drawsOver(tool)) {
 			// The selected annotation is an object whatever the tool: its corner handles resize
 			// it, a drag moves it, a double-click opens its text.
 			const selected = tab.selectedAnnotationInfo;
@@ -1283,8 +1289,15 @@
 			}
 		} else if (tool === 'ink') {
 			tab.selection = null;
-			tab.draft = { kind: 'ink', page, points: [x, y] };
-			begin(event, { kind: 'ink', page, points: [x, y] });
+			const radius = px((tools.style('ink').smoothing / 100) * MAX_STRING_PX);
+			const stabilizer = radius > 0 ? new Stabilizer([x, y], radius) : null;
+			tab.draft = { kind: 'ink', tool: 'ink', page, strokes: [[x, y]] };
+			begin(event, { kind: 'ink', page, points: [x, y], stabilizer });
+		} else if (tool === 'shape') {
+			tab.selection = null;
+			shiftHeld = event.shiftKey;
+			tab.draft = null;
+			begin(event, { kind: 'shape', page, shape: tools.style('shape').shape, start: [x, y], end: [x, y] });
 		} else if (tool === 'note') {
 			event.preventDefault();
 			// The icon's top-left corner at the click, kept on the page: where the icon is as
@@ -1307,6 +1320,26 @@
 			tab.draft = { kind: 'area', page, box: [x, y, x, y] };
 			begin(event, { kind: 'textbox', page, start: [x, y] });
 		}
+	}
+
+	/** The tools that draw wherever they are pressed, on annotations too, and select none. */
+	function drawsOver(tool: Tool): boolean {
+		return tool === 'ink' || tool === 'shape';
+	}
+
+	/** Shift was held at the pointer's last move: a shape being drawn is constrained. */
+	let shiftHeld = false;
+
+	/** The strokes of the shape `g` draws, as the pointer and Shift leave it, kept on its page. */
+	function shapeOf(g: Extract<Gesture, { kind: 'shape' }>): number[][] {
+		const end = constrainEnd(g.shape, g.start, g.end, shiftHeld, tab.pages[g.page]!);
+		return shapeStrokes(g.shape, g.start, end, tools.style('shape').width);
+	}
+
+	/** Shows the shape `g` draws, once it is more than a click. */
+	function drawShape(g: Extract<Gesture, { kind: 'shape' }>) {
+		const big = Math.hypot(g.end[0] - g.start[0], g.end[1] - g.start[1]) >= px(3);
+		tab.draft = big ? { kind: 'ink', tool: 'shape', page: g.page, strokes: shapeOf(g) } : null;
 	}
 
 	/** Follows the pointer during a drag. */
@@ -1383,10 +1416,14 @@
 			const box = g.handle ? resizeBox(g.box, g.handle, dx, dy, px(8)) : clampBox(moveBox(g.box, dx, dy), s.width, s.height);
 			tab.draft = { kind: 'move', page: g.page, id: g.id, box };
 		} else if (g.kind === 'ink') {
+			const [tx, ty] = g.stabilizer ? g.stabilizer.follow([x, y]) : [x, y];
+			const lead: [number, number] | null = g.stabilizer ? [x, y] : null;
 			const n = g.points.length;
-			if (Math.hypot(x - g.points[n - 2]!, y - g.points[n - 1]!) < px(1)) return;
-			g.points.push(x, y);
-			tab.draft = { kind: 'ink', page: g.page, points: [...g.points] };
+			if (Math.hypot(tx - g.points[n - 2]!, ty - g.points[n - 1]!) >= px(1)) g.points.push(tx, ty);
+			tab.draft = { kind: 'ink', tool: 'ink', page: g.page, strokes: [[...g.points]], lead };
+		} else if (g.kind === 'shape') {
+			g.end = [x, y];
+			drawShape(g);
 		} else if (g.kind === 'area' || g.kind === 'textbox') {
 			tab.draft = { kind: 'area', page: g.page, box: [g.start[0], g.start[1], x, y] };
 		}
@@ -1420,6 +1457,7 @@
 
 	function onPointerMove(event: PointerEvent) {
 		lastPointer = { x: event.clientX, y: event.clientY };
+		shiftHeld = event.shiftKey;
 		if (gesture) {
 			dragTo(event.clientX, event.clientY);
 			return;
@@ -1441,8 +1479,9 @@
 			overEdge = selectionEdgeAt(page, x, y);
 			overAnnotation = null;
 			const hit = annotationAt(targets(page), x, y, px(4));
-			// With another tool, one not selected shows that a click selects it; the pen draws.
-			if (hit && toolNow() !== 'ink') {
+			// With another tool, one not selected shows that a click selects it; the pen and the
+			// Shapes tool draw.
+			if (hit && !drawsOver(toolNow())) {
 				const asSelect = toolNow() === 'select' || isSelected(page, hit);
 				overAnnotation = asSelect && capabilities(hit, tab.flags.canAnnotate).move ? 'move' : 'select';
 			}
@@ -1598,12 +1637,30 @@
 				break;
 			}
 			case 'ink': {
+				// Smoothed, the stroke ends where the pointer was let go, not where its tip trailed.
+				if (g.stabilizer) {
+					const [x, y] = pointOn(g.page, event.clientX, event.clientY);
+					const n = g.points.length;
+					if (Math.hypot(x - g.points[n - 2]!, y - g.points[n - 1]!) >= px(1)) g.points.push(x, y);
+				}
 				await create(tab, 'ink', [
 					{ page: g.page, body: { tool: 'ink', strokes: [g.points], width: tools.style('ink').width } }
 				]);
 				// The pen stays: a drawing is often several strokes.
 				tab.selectedAnnotation = null;
 				tab.draft = null;
+				break;
+			}
+			case 'shape': {
+				// A click draws no shape.
+				const drawn = tab.draft?.kind === 'ink';
+				tab.draft = null;
+				if (drawn && event.type === 'pointerup') {
+					await create(tab, 'shape', [
+						{ page: g.page, body: { tool: 'ink', strokes: shapeOf(g), width: tools.style('shape').width } }
+					]);
+					tab.selectedAnnotation = null;
+				}
 				break;
 			}
 			case 'area': {
@@ -1894,6 +1951,10 @@
 	/** Shift let go: a markup tool marks what the keys selected, and the text cursor stays
 	 * where they left it, so the keys can go on from there. */
 	function onKeyUp(event: KeyboardEvent) {
+		if (event.key === 'Shift' && gesture?.kind === 'shape') {
+			shiftHeld = false;
+			drawShape(gesture);
+		}
 		if (event.key !== 'Shift' || !keyMade) return;
 		keyMade = false;
 		const tool = toolNow();
@@ -1941,17 +2002,22 @@
 	function onKeyDown(event: KeyboardEvent) {
 		// Keys in the comment panel are its own: Delete there doesn't delete the annotation.
 		if ((event.target as HTMLElement).closest('[data-annotation-panel]')) return;
-		if (event.key === 'Escape' && gesture?.kind === 'marquee') {
+		if (event.key === 'Escape' && (gesture?.kind === 'marquee' || gesture?.kind === 'ink' || gesture?.kind === 'shape')) {
 			// Esc while an area is dragged puts the selection back as it was, and does nothing
-			// else (the rest of the drag selects nothing).
+			// else (the rest of the drag selects nothing); while the pen draws, it drops the
+			// stroke or the shape.
 			event.preventDefault();
 			event.stopPropagation();
-			tab.selectAnnotations(gesture.before);
+			if (gesture.kind === 'marquee') tab.selectAnnotations(gesture.before);
 			tab.draft = null;
 			gesture = null;
 			dragging = false;
 			cancelAnimationFrame(autoScroll);
 			return;
+		}
+		if (event.key === 'Shift' && gesture?.kind === 'shape') {
+			shiftHeld = true;
+			drawShape(gesture);
 		}
 		if (event.target === scroller && extendOnKey(event)) {
 			event.preventDefault();
@@ -2201,7 +2267,7 @@
 					style:overflow-x={fitsWidth ? 'hidden' : null}
 					style:overflow-y={fitsHeight ? 'hidden' : null}
 					class:cursor-text={overText && !overAnnotation && !overLink && !edgeCursor && (toolNow() === 'select' || isMarkupTool(toolNow()))}
-					class:cursor-crosshair={!overAnnotation && (toolNow() === 'ink' || toolNow() === 'note' || toolNow() === 'freeText')}
+					class:cursor-crosshair={!overAnnotation && (drawsOver(toolNow()) || toolNow() === 'note' || toolNow() === 'freeText')}
 					class:cursor-move={overAnnotation === 'move' && !edgeCursor}
 					class:cursor-pointer={(overAnnotation === 'select' || overLink) && !edgeCursor}
 					class:cursor-ew-resize={edgeCursor === 'ew'}

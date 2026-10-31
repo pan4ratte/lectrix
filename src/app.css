@@ -491,6 +491,56 @@ input[type='color'],
 	stroke: var(--lectrix-accent);
 	stroke-width: 1px;
 }
+/* A tool button that opens the tool's options once the tool is picked (ToolOptions): a
+   small mark in its lower right corner says so. */
+.tool-button-more::after {
+	position: absolute;
+	right: 3px;
+	bottom: 3px;
+	width: 0;
+	height: 0;
+	border-style: solid;
+	border-width: 0 0 4px 4px;
+	border-color: transparent transparent currentColor transparent;
+	content: '';
+	opacity: 0.7;
+}
+/* A tool's options: wider than the visual adjustments' panel, for the shapes' Shift hints. */
+.tool-options {
+	width: 244px;
+}
+.shape-choice {
+	display: flex;
+	height: 30px;
+	align-items: center;
+	gap: 8px;
+	margin: 0 -6px;
+	padding: 0 6px;
+	border-radius: 4px;
+	outline: none;
+}
+.shape-choice:hover {
+	background: var(--lectrix-hover);
+}
+.shape-choice:focus-visible {
+	outline: 2px solid var(--lectrix-focus);
+	outline-offset: -2px;
+}
+.shape-choice .menu-shortcut {
+	padding-left: 12px;
+}
+.tool-options-rule {
+	height: 1px;
+	margin: 8px 0 10px;
+	background: var(--lectrix-menu-line);
+}
+/* The string a smoothed pen's tip trails the pointer on (section 6.5). */
+.pen-string {
+	stroke: var(--lectrix-accent);
+	stroke-width: 1px;
+	stroke-dasharray: 3 2;
+	opacity: 0.7;
+}
 .annotation-handle {
 	fill: var(--lectrix-surface-raised);
 	stroke: var(--lectrix-accent);

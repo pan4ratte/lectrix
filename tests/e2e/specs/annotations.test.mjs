@@ -576,22 +576,24 @@ test('quick tools over selected text, the annotation bar, and where the toolbar 
 			`docked at the left: ${JSON.stringify(atLeft)}`
 		);
 		await (await browser.$('[role=toolbar][aria-label="Annotation tools"] button[aria-label="Pen"]')).click();
-		const width = await browser.$('[role=toolbar][aria-label="Annotation tools"] button[aria-label="Stroke width"]');
-		await width.waitForDisplayed({ timeoutMsg: 'no stroke width for the Pen tool' });
-		// (Once it has slid open: until then its text is clipped.)
-		await browser.waitUntil(() => browser.execute(() => document.getAnimations().every((a) => a.playState !== 'running')));
-		assert.match(await width.getText(), /^[\d.]+$/, 'the stacked stroke width shows more than its number');
-		await width.click();
-		const widths = await browser.$('.dropdown-list');
-		await widths.waitForDisplayed({ timeoutMsg: 'the stroke widths did not open' });
-		// (Once the list has been placed: it is laid out at the window's corner first.)
-		const listLeft = () => browser.execute(() => document.querySelector('.dropdown-list').getBoundingClientRect().left);
+		// Picked, the Pen's own button opens its stroke's panel, beside the toolbar.
+		const pen = await browser.$('[role=toolbar][aria-label="Annotation tools"] button[data-tool-options="Pen"]');
+		await browser.waitUntil(async () => (await pen.getAttribute('aria-pressed')) === 'true', { timeoutMsg: 'the pen was not picked' });
+		assert.equal(await browser.$('.adjust-panel').isExisting(), false, 'picking the pen opened its panel');
+		await pen.click();
+		const penPanel = await browser.$('.adjust-panel[aria-label="Pen"]');
+		await penPanel.waitForDisplayed({ timeoutMsg: 'the pen panel did not open' });
+		// (Once the panel has been placed: it is laid out at the window's corner first.)
+		const panelLeft = () => browser.execute(() => document.querySelector('.adjust-panel').getBoundingClientRect().left);
 		await browser
-			.waitUntil(async () => (await listLeft()) >= atLeft.right, { timeout: 3000 })
-			.catch(async () => assert.fail(`the stroke widths opened over the toolbar: ${await listLeft()} < ${atLeft.right}`));
-		assert.match(await widths.getText(), /2 pt/, 'the list names the widths in full');
+			.waitUntil(async () => (await panelLeft()) >= atLeft.right, { timeout: 3000 })
+			.catch(async () => assert.fail(`the pen panel opened over the toolbar: ${await panelLeft()} < ${atLeft.right}`));
+		// The width named in full, and smoothing, which is off until changed.
+		const penText = await penPanel.getText();
+		assert.match(penText, /Stroke width\s+2 pt/, `the pen panel: ${penText}`);
+		assert.match(penText, /Smoothing\s+Off/, 'the freehand pen has no smoothing, or starts smoothed');
 		await browser.keys(['Escape']);
-		await widths.waitForExist({ reverse: true });
+		await penPanel.waitForExist({ reverse: true });
 		const penColours = await openColours(browser, await browser.$('[role=toolbar][aria-label="Annotation tools"]'));
 		const coloursLeft = () => browser.execute(() => document.querySelector('.color-panel').getBoundingClientRect().left);
 		await browser
@@ -1442,6 +1444,58 @@ test('a click selects an annotation with any tool but the pen, and a drag from i
 		await expectSelected('Highlight', 'a click with the note tool');
 		await browser.pause(300);
 		assert.equal((await listRows(browser)).length, 4, 'a note was placed on the highlight');
+		await deselect('Note');
+
+		// The Shapes tool: picked from the pen, its panel stays shut; picked, its button opens
+		// it. A rectangle dragged is a drawing; Esc while one is dragged drops it; and a shape
+		// has nothing to smooth.
+		await browser.keys('p');
+		const toolbar = await browser.$('[role=toolbar][aria-label="Annotation tools"]');
+		const shapesButton = await toolbar.$('button[data-tool-options="Shapes"]');
+		await shapesButton.click();
+		await browser.waitUntil(async () => (await activeTool()) === 'Shapes', { timeoutMsg: 'the Shapes tool was not picked' });
+		await browser.pause(200);
+		assert.equal(await browser.$('.adjust-panel').isExisting(), false, 'picking the Shapes tool opened its panel');
+		const pickShape = async (name) => {
+			await shapesButton.click();
+			// (Found anew: each opening makes a new panel.)
+			const shapesPanel = await browser.$('.adjust-panel[aria-label="Shapes"]');
+			await shapesPanel.waitForDisplayed({ timeoutMsg: 'the Shapes button opened no panel' });
+			assert.equal(
+				await browser.execute(() => document.activeElement?.getAttribute('aria-checked')),
+				'true',
+				'the panel did not put the focus on the shape in use'
+			);
+			const labels = await browser.execute(() => [...document.querySelectorAll('.tool-options [role=radio]')].map((i) => i.textContent));
+			const at = labels.findIndex((l) => l.includes(name));
+			assert.ok(at >= 0, `no ${name} in the shapes: ${JSON.stringify(labels)}`);
+			await (await browser.$$('.tool-options [role=radio]'))[at].click();
+			await browser.waitUntil(async () => (await (await browser.$$('.tool-options [role=radio]'))[at].getAttribute('aria-checked')) === 'true', {
+				timeoutMsg: `the Shapes tool did not take the ${name} shape`
+			});
+			// The panel stays for the stroke; Esc closes it.
+			assert.ok(await shapesPanel.isDisplayed(), 'picking a shape closed the panel');
+			assert.doesNotMatch(await shapesPanel.getText(), /Smoothing/, 'shapes offer smoothing');
+			await browser.keys('Escape');
+			await shapesPanel.waitForExist({ reverse: true });
+			assert.equal(await activeTool(), 'Shapes', 'Esc in the panel left the Shapes tool');
+		};
+		await pickShape('Ellipse');
+		await pickShape('Rectangle');
+		await drag(browser, await pagePoint(browser, 0, 320, 400), await pagePoint(browser, 0, 450, 480));
+		await waitForRowCount(browser, 5, 'a rectangle');
+		assert.equal((await listRows(browser)).filter((r) => r.startsWith('Drawing')).length, 3, 'the rectangle is no drawing');
+		await browser
+			.action('pointer')
+			.move({ ...(await pagePoint(browser, 0, 320, 520)), origin: 'viewport' })
+			.down()
+			.move({ ...(await pagePoint(browser, 0, 450, 600)), origin: 'viewport', duration: 50 })
+			.perform(true);
+		await browser.keys('Escape');
+		await browser.action('pointer').up().perform();
+		await browser.pause(300);
+		assert.equal((await listRows(browser)).length, 5, 'Esc did not drop the rectangle being dragged');
+		assert.equal(await activeTool(), 'Shapes', 'Esc while drawing left the Shapes tool');
 	} finally {
 		await stop();
 	}

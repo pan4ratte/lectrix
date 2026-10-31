@@ -6,7 +6,9 @@ import type { Component } from 'svelte';
 
 import type { Annotation, AnnotationKind, AnnotationProblem, QuickTool } from '#lib/ipc/index.ts';
 
-export type Tool = 'select' | 'highlight' | 'underline' | 'strikeOut' | 'squiggly' | 'note' | 'ink' | 'freeText';
+import type { ShapeKind } from './pen.ts';
+
+export type Tool = 'select' | 'highlight' | 'underline' | 'strikeOut' | 'squiggly' | 'note' | 'ink' | 'shape' | 'freeText';
 /** Tools that create something. */
 export type DrawTool = Exclude<Tool, 'select'>;
 export type MarkupKind = 'highlight' | 'underline' | 'strikeOut' | 'squiggly';
@@ -32,6 +34,7 @@ export const TOOLS: readonly ToolInfo[] = [
 	{ id: 'squiggly', label: 'Squiggly underline' },
 	{ id: 'note', label: 'Note', key: 'N' },
 	{ id: 'ink', label: 'Pen', key: 'P' },
+	{ id: 'shape', label: 'Shapes', key: 'S' },
 	{ id: 'freeText', label: 'Text box', key: 'T' }
 ];
 
@@ -130,6 +133,10 @@ export interface ToolStyle {
 	width: number;
 	/** Text box font size, points. */
 	fontSize: number;
+	/** What the Shapes tool draws. */
+	shape: ShapeKind;
+	/** How much the pen smooths its strokes, 0 to 100 (%). */
+	smoothing: number;
 }
 
 /** What each tool keeps of its own: everything but the colour, which all tools share. */
@@ -138,18 +145,21 @@ export type OwnStyle = Omit<ToolStyle, 'color'>;
 /** The colour every tool starts with: Acrobat's highlight yellow. */
 export const DEFAULT_COLOR = ACROBAT_YELLOW;
 
+const BASE_STYLE: OwnStyle = { opacity: 1, width: 2, fontSize: 12, shape: 'rectangle', smoothing: 0 };
+
 /**
  * Each tool's own style until the user changes it: highlights at Acrobat's 40% opacity,
- * everything else opaque.
+ * everything else opaque; the pen unsmoothed; the Shapes tool draws rectangles.
  */
 export const DEFAULT_STYLES: Readonly<Record<DrawTool, OwnStyle>> = {
-	highlight: { opacity: 0.4, width: 2, fontSize: 12 },
-	underline: { opacity: 1, width: 2, fontSize: 12 },
-	strikeOut: { opacity: 1, width: 2, fontSize: 12 },
-	squiggly: { opacity: 1, width: 2, fontSize: 12 },
-	note: { opacity: 1, width: 2, fontSize: 12 },
-	ink: { opacity: 1, width: 2, fontSize: 12 },
-	freeText: { opacity: 1, width: 2, fontSize: 12 }
+	highlight: { ...BASE_STYLE, opacity: 0.4 },
+	underline: BASE_STYLE,
+	strikeOut: BASE_STYLE,
+	squiggly: BASE_STYLE,
+	note: BASE_STYLE,
+	ink: BASE_STYLE,
+	shape: BASE_STYLE,
+	freeText: BASE_STYLE
 };
 
 /** The parts of `styles` that differ from the defaults: what is remembered of them. */
@@ -164,7 +174,6 @@ export function changedStyles(styles: Readonly<Record<DrawTool, OwnStyle>>): Par
 	return changed;
 }
 
-export const PEN_WIDTHS: readonly number[] = [0.5, 1, 2, 3, 5, 8];
 export const FONT_SIZES: readonly number[] = [8, 9, 10, 11, 12, 14, 16, 18, 24, 36];
 
 /** Sizes in points as dropdown options, smallest first, each once; the number alone where

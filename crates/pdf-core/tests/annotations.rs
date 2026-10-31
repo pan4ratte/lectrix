@@ -350,6 +350,110 @@ fn every_type_has_every_profile_key_on_every_page_geometry() {
     }
 }
 
+/// The pen's shapes (section 6.5) are drawings: a rectangle is one closed stroke, an arrow
+/// its shaft and its head, an ellipse many points on the curve. Written, a rectangle and an
+/// arrow keep every corner, and an ellipse is simplified within the tolerance (rule 9).
+#[test]
+fn the_pens_shapes_are_drawings_that_keep_their_corners() {
+    let dir = out_dir("annotations-shapes");
+    for (case, spec) in geometry_cases()
+        .into_iter()
+        .filter(|(case, _)| ["normal", "r90", "crop"].contains(case))
+    {
+        let src = sample_file(&dir, &format!("{case}-src.pdf"), spec);
+        let mut doc = open(&src);
+        let pts = |v: &[(f64, f64)]| v.iter().map(|&(x, y)| Point::new(x, y)).collect::<Vec<_>>();
+        let rectangle = vec![pts(&[
+            (100.0, 100.0),
+            (250.0, 100.0),
+            (250.0, 180.0),
+            (100.0, 180.0),
+            (100.0, 100.0),
+        ])];
+        let arrow = vec![
+            pts(&[(100.0, 300.0), (260.0, 220.0)]),
+            pts(&[(245.0, 220.6), (260.0, 220.0), (252.0, 232.7)]),
+        ];
+        let ellipse: Vec<Point> = (0..=72)
+            .map(|i| {
+                let t = f64::from(i) / 72.0 * std::f64::consts::TAU;
+                Point::new(200.0 + 90.0 * t.cos(), 420.0 + 50.0 * t.sin())
+            })
+            .collect();
+        let shapes = [rectangle, arrow, vec![ellipse]];
+        let mut ids = Vec::new();
+        for strokes in &shapes {
+            let new = NewAnnotation {
+                page: 0,
+                body: Body::Ink {
+                    strokes: strokes.clone(),
+                    width: 3.0,
+                },
+                color: BLUE,
+                opacity: 1.0,
+                author: "Tëster".into(),
+            };
+            ids.push(annot::create(&mut doc, &new).unwrap());
+        }
+        let out = dir.join(format!("{case}.pdf"));
+        let doc = save_and_reopen(&doc, &src, &out);
+        qpdf_check(&out);
+
+        let page_obj = doc.find_page(0).unwrap();
+        let geometry = PageGeometry::new(&read_page_boxes(&page_obj).unwrap());
+        let written = |id: usize| -> Vec<Vec<Point>> {
+            let obj = doc.new_indirect(ids[id].xref, 0).unwrap();
+            assert_eq!(get(&obj, "Subtype").as_name().unwrap(), b"Ink");
+            objects::array_items(&get(&obj, "InkList"))
+                .unwrap()
+                .iter()
+                .map(|stroke| {
+                    objects::numbers(stroke)
+                        .unwrap()
+                        .unwrap()
+                        .chunks(2)
+                        .map(|c| geometry.user_to_view(Point::new(c[0], c[1])))
+                        .collect()
+                })
+                .collect()
+        };
+        let same = |a: &[Point], b: &[Point]| {
+            a.len() == b.len()
+                && a.iter()
+                    .zip(b)
+                    .all(|(p, q)| (p.x - q.x).abs() < 0.01 && (p.y - q.y).abs() < 0.01)
+        };
+        for (id, shape) in shapes.iter().enumerate().take(2) {
+            let back = written(id);
+            assert_eq!(back.len(), shape.len(), "{case} shape {id}");
+            for (stroke, asked) in back.iter().zip(shape) {
+                assert!(same(stroke, asked), "{case} shape {id}: {stroke:?}");
+            }
+        }
+        let [ellipse] = &written(2)[..] else {
+            panic!("{case}: the ellipse is not one stroke");
+        };
+        let asked = &shapes[2][0];
+        assert!(ellipse.len() < asked.len(), "{case}: {}", ellipse.len());
+        assert!(
+            same(&ellipse[..1], &asked[..1]) && same(&ellipse[ellipse.len() - 1..], &asked[..1])
+        );
+        for p in asked {
+            let d = ellipse
+                .windows(2)
+                .map(|w| segment_distance(*p, w[0], w[1]))
+                .fold(f64::INFINITY, f64::min);
+            assert!(d <= INK_TOLERANCE + 1e-3, "{case}: {p:?} {d}");
+        }
+        assert!(
+            read_page(&doc, 0)
+                .unwrap()
+                .iter()
+                .all(|a| a.problems.is_empty())
+        );
+    }
+}
+
 fn segment_distance(p: Point, a: Point, b: Point) -> f64 {
     let (dx, dy) = (b.x - a.x, b.y - a.y);
     let len2 = dx * dx + dy * dy;

@@ -18,10 +18,18 @@ the wording, translations): docs/releasing.md, "The changelog".
 - The marks of a search's matches beside the scrollbar are where the scrollbar shows them: in a long book, a match near its start or end was marked several pages away.
 - A new button in the search bar has the counter follow the view: as you scroll, it counts the matches on screen, and next and previous go on from there instead of from the match you last went to.
 
+### Annotations
+
+- A new **Shapes** tool (S) draws lines, arrows, rectangles and ellipses: click its button again to pick the shape. Hold Shift for lines at 45° steps, squares and circles. Shapes are saved as ordinary drawings, so every PDF reader shows them, and they move and resize like any drawing.
+- The stroke width is a slider, from 0.5 to 12 pt. For the pen and the Shapes tool, click the tool's button once it is picked; a selected drawing has it too.
+- A new **Smoothing** slider, under the pen's stroke width, steadies pen strokes: the pen trails the pointer a little and ignores small wobbles, which helps when writing with a mouse.
+- Press Esc while drawing to drop the stroke or shape.
+
 ### Settings
 
 - **Settings > Viewing > Presentation** turns off the presenter view on a second screen, page transitions, or pages turning by themselves.
 - **Settings > Viewing > Search** has the search bar's counter follow the view, as its new button does.
+- **Settings > Shortcuts** can give each shape of the Shapes tool a shortcut.
 
 ## 1.4.0
 

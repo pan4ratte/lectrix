@@ -1,6 +1,7 @@
 // App commands, shared by the menus and the keyboard shortcuts (section 8).
 
 import { copyInContext, refuseIfLocked, repair } from '#lib/features/annotations/actions.ts';
+import type { ShapeKind } from '#lib/features/annotations/pen.ts';
 import { tools } from '#lib/features/annotations/state.svelte.ts';
 import type { Tool } from '#lib/features/annotations/tools.ts';
 import { addBookmark } from '#lib/features/bookmarks/actions.ts';
@@ -100,6 +101,15 @@ function useTool(tool: Tool) {
 		if (tool !== 'select' && refuseIfLocked(t)) return;
 		tools.tool = tool;
 	});
+}
+
+/** Picks the Shapes tool, drawing `shape` (section 6.5). */
+function useShape(shape: ShapeKind) {
+	const pick = useTool('shape');
+	return () => {
+		pick();
+		if (tools.tool === 'shape') tools.setStyle('shape', { shape });
+	};
 }
 
 export const commands = {
@@ -252,6 +262,11 @@ export const commands = {
 	toolNote: useTool('note'),
 	toolPen: useTool('ink'),
 	toolText: useTool('freeText'),
+	toolShapes: useTool('shape'),
+	shapeLine: useShape('line'),
+	shapeArrow: useShape('arrow'),
+	shapeRectangle: useShape('rectangle'),
+	shapeEllipse: useShape('ellipse'),
 	/** The number keys: a preset colour for new annotations, whatever the tool (section 6.5). */
 	colour1: () => tools.pickPreset(1),
 	colour2: () => tools.pickPreset(2),

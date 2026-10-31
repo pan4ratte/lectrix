@@ -72,7 +72,7 @@ The default shortcuts are listed in section 8.5. With a keyboard layout that typ
 | Go to page | Ctrl+G |
 | Next / previous tab | Ctrl+Tab / Ctrl+Shift+Tab |
 | Reopen closed tab | Ctrl+Shift+T |
-| Select / Highlight / Underline / Note / Pen / Text box tool | Esc / H / U / N / P / T |
+| Select / Highlight / Underline / Note / Pen / Shapes / Text box tool | Esc / H / U / N / P / S / T |
 | Rename bookmark | F2 |
 | Delete selection | Del |
 | Move the text cursor | Arrows (with Ctrl, by a word / a paragraph) |

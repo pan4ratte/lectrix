@@ -1,8 +1,9 @@
 <script lang="ts">
 	// The annotation toolbar (sections 6.5 and 8): the colour every tool draws with, before the
 	// tools, so it can be picked before a tool is; then the tools, and the rest of the style
-	// the active tool draws with (remembered per tool: the opacity, in the colour's panel, the
-	// stroke width, the font size).
+	// the active tool draws with (remembered per tool: the opacity, in the colour's panel; the
+	// pen's stroke and the Shapes tool's shape and stroke, in a panel its button opens once
+	// the tool is picked; the text box's font size, after the tools).
 	// Settings dock it, always shown: in the bar at the top of the document, beside the page
 	// and zoom controls (ViewBar.svelte places it), or in a bar of its own at the left or the
 	// right of the pages (App.svelte); or make it float over the page canvas, at any of its
@@ -15,6 +16,7 @@
 		Highlighter,
 		Minimize,
 		PenLine,
+		Shapes,
 		StickyNote,
 		Strikethrough,
 		TextCursor,
@@ -39,7 +41,11 @@
 	import ColorPicker from './ColorPicker.svelte';
 	import { tools } from './state.svelte.ts';
 	import { GLIDE_MS, toolMark } from './toolMark.ts';
-	import { FONT_SIZES, PEN_WIDTHS, TOOLS, ptOptions, type Tool } from './tools.ts';
+	import { SHAPES } from './pen.ts';
+	import ShapeChoice from './ShapeChoice.svelte';
+	import StrokeSettings from './StrokeSettings.svelte';
+	import ToolOptions from './ToolOptions.svelte';
+	import { FONT_SIZES, TOOLS, ptOptions, type Tool } from './tools.ts';
 
 	/** `dock`: where it is docked (in the bar at the top of the document, or a bar at a side
 	 * of the pages), rather than floating over the pages. */
@@ -53,6 +59,7 @@
 		squiggly: ZodiacAquarius,
 		note: StickyNote,
 		ink: PenLine,
+		shape: Shapes,
 		freeText: Type
 	};
 
@@ -202,53 +209,74 @@
 		<span class="tool-mark" aria-hidden="true" hidden></span>
 		{#each TOOLS as t (t.id)}
 			{@const Icon = ICONS[t.id]}
-			<button
-				type="button"
-				class="icon-button tool-button"
-				aria-pressed={active === t.id}
-				aria-label={t.label}
-				data-tip={t.key ? `${t.label} (${t.key})` : t.label}
-				aria-disabled={t.id !== 'select' && locked}
-				onclick={() => pick(t.id)}
-			>
-				<Icon size={18} aria-hidden="true" />
-			</button>
+			{@const tip = t.key ? `${t.label} (${t.key})` : t.label}
+			{#if t.id === 'ink'}
+				{@const pen = tools.style('ink')}
+				<ToolOptions
+					label={t.label}
+					icon={Icon}
+					active={active === 'ink'}
+					{locked}
+					{tip}
+					activeTip="Pen: click for its stroke"
+					{side}
+					onpick={() => pick('ink')}
+				>
+					<StrokeSettings
+						width={pen.width}
+						smoothing={pen.smoothing}
+						onwidth={(width) => tools.setStyle('ink', { width })}
+						onsmoothing={(smoothing) => tools.setStyle('ink', { smoothing })}
+					/>
+				</ToolOptions>
+			{:else if t.id === 'shape'}
+				{@const shapes = tools.style('shape')}
+				{@const current = SHAPES.find((s) => s.id === shapes.shape) ?? SHAPES[0]!}
+				<ToolOptions
+					label={t.label}
+					icon={current.icon}
+					active={active === 'shape'}
+					{locked}
+					tip="{current.label} ({t.key})"
+					activeTip="{current.label}: click for the shape and its stroke"
+					{side}
+					onpick={() => pick('shape')}
+				>
+					<ShapeChoice shape={shapes.shape} onshape={(shape) => tools.setStyle('shape', { shape })} />
+					<StrokeSettings width={shapes.width} onwidth={(width) => tools.setStyle('shape', { width })} />
+				</ToolOptions>
+			{:else}
+				<button
+					type="button"
+					class="icon-button tool-button"
+					aria-pressed={active === t.id}
+					aria-label={t.label}
+					data-tip={tip}
+					aria-disabled={t.id !== 'select' && locked}
+					onclick={() => pick(t.id)}
+				>
+					<Icon size={18} aria-hidden="true" />
+				</button>
+			{/if}
 		{/each}
 	</span>
 
-	{#if style && (drawTool === 'ink' || drawTool === 'freeText')}
+	{#if style && drawTool === 'freeText'}
 		<span class={['flex items-center gap-0.5', stacked && 'flex-col']} transition:slide={reveal()}>
 			{@render rule()}
-			{#if drawTool === 'ink'}
-				<span class="flex" transition:slide={reveal()}>
-					<Dropdown
-						class={stacked ? 'toolbar-dropdown toolbar-dropdown-stacked' : 'toolbar-dropdown'}
-						label="Stroke width"
-						tip="Stroke width"
-						value={style.width}
-						options={ptOptions(PEN_WIDTHS)}
-						{side}
-						sideOffset={menuOffset(side, 4)}
-						compact={stacked}
-						onchange={(width) => tools.setStyle('ink', { width })}
-					/>
-				</span>
-			{/if}
-			{#if drawTool === 'freeText'}
-				<span class="flex" transition:slide={reveal()}>
-					<Dropdown
-						class={stacked ? 'toolbar-dropdown toolbar-dropdown-stacked' : 'toolbar-dropdown'}
-						label="Font size"
-						tip="Font size"
-						value={style.fontSize}
-						options={ptOptions(FONT_SIZES)}
-						{side}
-						sideOffset={menuOffset(side, 4)}
-						compact={stacked}
-						onchange={(fontSize) => tools.setStyle('freeText', { fontSize })}
-					/>
-				</span>
-			{/if}
+			<span class="flex" transition:slide={reveal()}>
+				<Dropdown
+					class={stacked ? 'toolbar-dropdown toolbar-dropdown-stacked' : 'toolbar-dropdown'}
+					label="Font size"
+					tip="Font size"
+					value={style.fontSize}
+					options={ptOptions(FONT_SIZES)}
+					{side}
+					sideOffset={menuOffset(side, 4)}
+					compact={stacked}
+					onchange={(fontSize) => tools.setStyle('freeText', { fontSize })}
+				/>
+			</span>
 		</span>
 	{/if}
 
