@@ -70,6 +70,11 @@ smoothSearchScroll: boolean,
  */
 searchMarkers: boolean, 
 /**
+ * Whether the search's counter follows the view: next and previous go on from what is
+ * on screen (section 6.1).
+ */
+searchFollowsView: boolean, 
+/**
  * How long the pointer rests on an annotation before its comment shows, in ms.
  */
 tooltipDelayMs: number, 

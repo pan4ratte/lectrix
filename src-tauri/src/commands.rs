@@ -1481,6 +1481,7 @@ fn settings_of(stored: &StoredSettings, platform: &dyn Platform) -> Settings {
         smooth_bookmark_scroll: stored.smooth_bookmark_scroll,
         smooth_search_scroll: stored.smooth_search_scroll,
         search_markers: stored.search_markers,
+        search_follows_view: stored.search_follows_view,
         tooltip_delay_ms: stored.tooltip_delay_ms,
         open_comment_after_markup: stored.open_comment_after_markup,
         remember_annotation_style: stored.remember_annotation_style,
@@ -1548,6 +1549,7 @@ pub fn set_settings(
         smooth_bookmark_scroll: settings.smooth_bookmark_scroll,
         smooth_search_scroll: settings.smooth_search_scroll,
         search_markers: settings.search_markers,
+        search_follows_view: settings.search_follows_view,
         tooltip_delay_ms: settings
             .tooltip_delay_ms
             .min(crate::store::MAX_TOOLTIP_DELAY_MS),

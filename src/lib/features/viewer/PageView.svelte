@@ -501,7 +501,7 @@
 					{#each hit.quads as q, qi (qi)}
 						<polygon
 							points="{q[0]},{q[1]} {q[2]},{q[3]} {q[6]},{q[7]} {q[4]},{q[5]}"
-							class={i === tab.search.current ? 'fill-search-current' : 'fill-search-hit'}
+							class={i === tab.search.current && !tab.search.between ? 'fill-search-current' : 'fill-search-hit'}
 						/>
 					{/each}
 				{/each}

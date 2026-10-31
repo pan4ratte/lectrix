@@ -208,6 +208,10 @@ pub struct StoredSettings {
     /// Whether the matches of a search are marked beside the pages' scrollbar.
     #[serde(default = "yes")]
     pub search_markers: bool,
+    /// Whether the search's counter follows the view: next and previous go on from what
+    /// is on screen, not from the match last gone to.
+    #[serde(default)]
+    pub search_follows_view: bool,
     /// How long the pointer rests on an annotation before its comment shows.
     #[serde(default = "default_tooltip_delay")]
     pub tooltip_delay_ms: u32,
@@ -307,6 +311,7 @@ impl Default for StoredSettings {
             smooth_bookmark_scroll: true,
             smooth_search_scroll: true,
             search_markers: true,
+            search_follows_view: false,
             tooltip_delay_ms: DEFAULT_TOOLTIP_DELAY_MS,
             open_comment_after_markup: false,
             remember_annotation_style: true,
@@ -878,6 +883,7 @@ mod tests {
             smooth_bookmark_scroll: false,
             smooth_search_scroll: false,
             search_markers: false,
+            search_follows_view: true,
             tooltip_delay_ms: 800,
             open_comment_after_markup: true,
             remember_annotation_style: false,
@@ -939,6 +945,7 @@ mod tests {
         assert!(v1.settings().smooth_bookmark_scroll);
         assert!(v1.settings().smooth_search_scroll);
         assert!(v1.settings().search_markers);
+        assert!(!v1.settings().search_follows_view);
         assert_eq!(v1.settings().tooltip_delay_ms, DEFAULT_TOOLTIP_DELAY_MS);
         assert!(!v1.settings().open_comment_after_markup);
         assert!(v1.settings().remember_annotation_style);

@@ -157,6 +157,10 @@ class SearchState {
 	query = $state('');
 	hits = $state<SearchHit[]>([]);
 	current = $state(-1);
+	/** The counter follows the view (Settings) and no match is on screen: `current` is the
+	 * last match above it, passed rather than shown. Next goes to the match after it,
+	 * previous to it. */
+	between = $state(false);
 	running = $state(false);
 	/** The search stopped with an error (the document closed or could not be read). */
 	failed = $state(false);
@@ -169,6 +173,8 @@ class SearchState {
 	/** A hit to go to as soon as the search has found it (Enter, Next or Previous pressed
 	 * before it had). */
 	private pending: { from: SearchFrom; direction: 1 | -1; reveal: boolean; smooth: boolean } | null = null;
+	/** When a match was last gone to, so that the view on its way there is not followed. */
+	private selectedAt = 0;
 
 	constructor(private readonly tab: DocTab) {}
 
@@ -193,6 +199,7 @@ class SearchState {
 		this.pending = null;
 		this.hits = [];
 		this.current = -1;
+		this.between = false;
 		this.searched = 0;
 		this.failed = false;
 		this.words.clear();
@@ -285,6 +292,8 @@ class SearchState {
 		const hit = this.hits[index];
 		if (!hit) return;
 		this.current = index;
+		this.between = false;
+		this.selectedAt = performance.now();
 		if (options.reveal === false) return;
 		const xs = hit.quads.flatMap((q) => [q[0]!, q[2]!, q[4]!, q[6]!]);
 		const ys = hit.quads.flatMap((q) => [q[1]!, q[3]!, q[5]!, q[7]!]);
@@ -303,14 +312,40 @@ class SearchState {
 	step(direction: 1 | -1, options: { smooth?: boolean } = {}) {
 		const n = this.hits.length;
 		if (this.current >= 0) {
-			this.select((((this.current + direction) % n) + n) % n, options);
+			// A match passed, not shown: previous goes to it.
+			const to = this.between && direction < 0 ? this.current : this.current + direction;
+			this.select(((to % n) + n) % n, options);
 			return;
 		}
 		if (!n && !this.running) return;
 		this.pending = { from: { page: this.tab.currentPage }, direction, reveal: true, smooth: options.smooth === true };
 		this.settle(!this.running);
 	}
+
+	/** Goes to match `number` (counted from 1), typed in the counter. */
+	goToNumber(number: number, options: { smooth?: boolean } = {}) {
+		if (!Number.isInteger(number) || number < 1 || number > this.hits.length) return false;
+		this.select(number - 1, options);
+		return true;
+	}
+
+	/** The counter following the view (Settings): `index` is the match it counts, shown or
+	 * passed (`between`), or -1 above every match. */
+	follow(index: number, between: boolean) {
+		if (index === this.current && between === this.between) return;
+		this.current = index;
+		this.between = index >= 0 && between;
+	}
+
+	/** A match was gone to a moment ago: the view may still be on its way there. */
+	get arriving(): boolean {
+		return performance.now() - this.selectedAt < FOLLOW_SETTLE_MS;
+	}
 }
+
+/** How long after a match is gone to the view is left to get there before the counter
+ * follows it again, in ms: a glide (140 ms) or a row coming in, with time to spare. */
+const FOLLOW_SETTLE_MS = 600;
 
 /** What a search does once it finds hits (`SearchState.start`). */
 export interface SearchGo {

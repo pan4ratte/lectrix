@@ -347,6 +347,9 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 				rows: [
 					toggle('searchMarkers', 'Mark matches beside the scrollbar', {
 						description: 'While you search a document, a mark beside its scrollbar shows where each match is.'
+					}),
+					toggle('searchFollowsView', 'Counter follows the view', {
+						description: 'As you scroll, the match counter moves to the matches on screen, and next and previous go on from there.'
 					})
 				]
 			},
@@ -630,6 +633,7 @@ export function toInput(d: Draft): SettingsInput {
 		smoothBookmarkScroll: d.smoothBookmarkScroll,
 		smoothSearchScroll: d.smoothSearchScroll,
 		searchMarkers: d.searchMarkers,
+		searchFollowsView: d.searchFollowsView,
 		tooltipDelayMs: Number(d.tooltipDelayMs),
 		openCommentAfterMarkup: d.openCommentAfterMarkup,
 		rememberAnnotationStyle: d.rememberAnnotationStyle,

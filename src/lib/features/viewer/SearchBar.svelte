@@ -1,8 +1,10 @@
 <script lang="ts">
 	// Find in document (Ctrl+F): searches as you type, without moving the view; Enter /
 	// Shift+Enter (or F3) go to the next and previous match. Under the field, the words of the document that contain what
-	// is typed, with how many matches each has (section 6.1), as a combobox's list.
-	import { ChevronDown, ChevronUp, X } from '@lucide/svelte';
+	// is typed, with how many matches each has (section 6.1), as a combobox's list. The
+	// counter's number can be typed over to go to that match, and a switch has the counter
+	// follow the view.
+	import { ChevronDown, ChevronUp, LocateFixed, X } from '@lucide/svelte';
 	import { onMount, untrack } from 'svelte';
 	import { cubicOut } from 'svelte/easing';
 	import { fly } from 'svelte/transition';
@@ -11,7 +13,7 @@
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { DocTab } from '#lib/stores/doc.svelte.ts';
 
-	import { searchGlides } from './search.ts';
+	import { searchGlides, setSearchFollowsView } from './search.ts';
 	import { splitMatch, type Suggestion } from './suggestions.ts';
 
 	let { tab }: { tab: DocTab } = $props();
@@ -103,6 +105,48 @@
 		tab.viewer?.focus();
 	}
 
+	// The counter's number: the match shown, which can be typed over (Enter goes to the match
+	// typed, Esc or leaving the box puts it back).
+	let counter: HTMLInputElement | undefined = $state();
+	let counterEditing = $state(false);
+	let counterDraft = $state('');
+	let counterInvalid = $state(false);
+	const counterText = $derived(search.current >= 0 ? String(search.current + 1) : '');
+	/** Wide enough for the largest number, so the bar does not shift as it changes. */
+	const counterWidth = $derived(`calc(${String(search.hits.length).length}ch + 14px)`);
+	const follows = $derived(app.settings?.searchFollowsView === true);
+
+	function onCounterFocus() {
+		counterEditing = true;
+		counterDraft = counterText;
+		counterInvalid = false;
+		listOpen = false;
+		queueMicrotask(() => counter?.select());
+	}
+
+	function endCounterEdit() {
+		counterEditing = false;
+		counterInvalid = false;
+	}
+
+	function onCounterKey(event: KeyboardEvent) {
+		if (event.key === 'Enter') {
+			event.preventDefault();
+			if (!search.goToNumber(Number(counterDraft.trim()), { smooth: searchGlides() })) {
+				counterInvalid = true;
+				return;
+			}
+			endCounterEdit();
+			// Back in the field, where Enter and Shift+Enter go on from the match.
+			input?.focus();
+		} else if (event.key === 'Escape') {
+			event.preventDefault();
+			event.stopPropagation();
+			endCounterEdit();
+			input?.focus();
+		}
+	}
+
 	const status = $derived.by(() => {
 		if (!search.query) return '';
 		if (search.hits.length === 0) return search.running ? 'Searching…' : 'No results';
@@ -141,9 +185,45 @@
 			aria-activedescendant={listShown && active >= 0 ? `${LIST_ID}-${active}` : undefined}
 			data-search-input
 		/>
-		<span class="min-w-20 px-1 text-center text-sm text-fg-muted tabular-nums" aria-live="polite">
-			{status}
+		<span class="sr-only" aria-live="polite">{status}</span>
+		<span class="flex min-w-20 items-center justify-center gap-1 px-1 text-sm whitespace-nowrap text-fg-muted tabular-nums" aria-hidden={search.hits.length === 0 ? 'true' : undefined}>
+			{#if search.hits.length > 0}
+				<input
+					bind:this={counter}
+					class="field h-7 px-0.5 text-center tabular-nums"
+					class:field-invalid={counterInvalid}
+					style:width={counterWidth}
+					value={counterEditing ? counterDraft : counterText}
+					placeholder="–"
+					inputmode="numeric"
+					oninput={(e) => {
+						counterDraft = e.currentTarget.value;
+						counterInvalid = false;
+					}}
+					onfocus={onCounterFocus}
+					onblur={endCounterEdit}
+					onkeydown={onCounterKey}
+					aria-label="Match number, of {search.hits.length}"
+					aria-invalid={counterInvalid}
+					data-tip="Type a match number and press Enter"
+					data-search-counter
+				/>
+				<span>of {search.hits.length}{search.running ? '…' : ''}</span>
+			{:else}
+				{status}
+			{/if}
 		</span>
+		<button
+			type="button"
+			class="icon-button tool-button"
+			aria-label="Counter follows the view"
+			aria-pressed={follows}
+			data-tip="Counter follows the view"
+			onclick={() => void setSearchFollowsView(!follows)}
+			data-search-follow
+		>
+			<LocateFixed size={16} aria-hidden="true" />
+		</button>
 		<button
 			type="button"
 			class="icon-button"

@@ -58,6 +58,7 @@
 	import { DEFAULT_QUICK_TOOLS, capabilities, isMarkupTool, showsComment } from '#lib/features/annotations/tools.ts';
 	import { scrolled } from '#lib/features/split/sync.ts';
 	import { pageUrl, type Annotation, type PageLink } from '#lib/ipc/index.ts';
+	import { PLATFORM } from '#lib/platform.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { AnnotationRef, DocTab } from '#lib/stores/doc.svelte.ts';
 
@@ -87,7 +88,8 @@
 	import PageView from './PageView.svelte';
 	import { AHEAD_PRIORITY, scheduler, type Ticket } from './scheduler.ts';
 	import SearchBar from './SearchBar.svelte';
-	import { CURRENT_MARK_PX, MARK_PX, searchMarks } from './searchmarks.ts';
+	import { followedHit } from './searchfollow.ts';
+	import { CURRENT_MARK_PX, MARK_PX, scrollbarTrack, searchMarks } from './searchmarks.ts';
 	import {
 		caretBox,
 		caretPoint,
@@ -176,24 +178,43 @@
 		if (viewportH > 0) tab.currentPage = currentPage(layout, scrollTop, viewportH);
 	});
 
+	/** How far down its page box the middle of match `i`'s first line is, in CSS pixels. */
+	function hitY(i: number): number | null {
+		const hit = tab.search.hits[i];
+		const q = hit?.quads[0];
+		if (!hit || !q || !tab.pages[hit.page]) return null;
+		const x = (q[0]! + q[2]! + q[4]! + q[6]!) / 4;
+		const y = (q[1]! + q[3]! + q[5]! + q[7]!) / 4;
+		return toBox(hit.page, x, y)[1];
+	}
+
 	/** The marks of the search's matches beside the scrollbar (section 6.1), while the search
 	 * bar is open and Settings have them. */
 	const marks = $derived.by(() => {
 		const search = tab.search;
 		if (!search.open || app.settings?.searchMarkers === false || search.hits.length === 0) return null;
-		return searchMarks(
-			layout,
-			search.hits,
-			search.current,
-			(i) => {
-				const q = search.hits[i]!.quads[0];
-				if (!q || !tab.pages[search.hits[i]!.page]) return null;
-				const x = (q[0]! + q[2]! + q[4]! + q[6]!) / 4;
-				const y = (q[1]! + q[3]! + q[5]! + q[7]!) / 4;
-				return toBox(search.hits[i]!.page, x, y)[1];
-			},
-			viewportH
-		);
+		const track = scrollbarTrack(PLATFORM, scrollbarW, viewportH, layout.totalHeight);
+		return searchMarks(layout, search.hits, search.between ? -1 : search.current, hitY, track);
+	});
+
+	// The search's counter follows the view while Settings ask for it: it counts the matches
+	// on screen as the pages scroll, unless the view is on its way to a match gone to.
+	$effect(() => {
+		const search = tab.search;
+		if (!search.open || app.settings?.searchFollowsView !== true || search.hits.length === 0 || viewportH === 0) return;
+		const top = scrollTop;
+		const bottom = scrollTop + viewportH;
+		const pages = pagesInRange(layout, top, bottom);
+		untrack(() => {
+			if (search.arriving) return;
+			const place = (i: number) => {
+				const y = hitY(i);
+				const box = layout.pages[search.hits[i]!.page];
+				return y === null || !box ? null : box.top + y;
+			};
+			const followed = followedHit(search.hits, pages, place, top, bottom, { index: search.current, between: search.between });
+			search.follow(followed.index, followed.between);
+		});
 	});
 
 	function pageBox(index: number) {

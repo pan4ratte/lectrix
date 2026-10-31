@@ -192,3 +192,86 @@ test('the search bar suggests words, marks its matches and glides to them', asyn
 		await stop();
 	}
 });
+
+test('the counter takes a match number, and can follow the view', async () => {
+	const path = sample('search-follow.pdf', PAGES);
+	const { browser, stop } = await launch([path]);
+	try {
+		await waitForDocument(browser);
+		await browser.keys(['Control', 'f']);
+		await (await field(browser)).waitForDisplayed({ timeoutMsg: 'Ctrl+F did not open the search bar' });
+		await (await field(browser)).setValue('brown');
+		await waitForStatus(browser, String(PAGES), 'typing "brown"');
+
+		// A number typed in the counter goes to that match; one past the last is refused.
+		const counter = await browser.$('[data-search-counter]');
+		await counter.click();
+		await browser.keys(['7', 'Enter']);
+		await waitForStatus(browser, `7 of ${PAGES}`, 'match 7 typed in the counter');
+		await browser.waitUntil(() => browser.execute(() => document.querySelector('.page[data-page="6"] .fill-search-current') !== null), {
+			timeoutMsg: "the view did not go to page 7's match"
+		});
+		assert.equal(await browser.execute(() => document.activeElement?.matches('[data-search-input]')), true, 'the focus did not go back to the field');
+		await counter.click();
+		await browser.keys(['1', '2', 'Enter']);
+		await browser.waitUntil(async () => (await counter.getAttribute('aria-invalid')) === 'true', { timeoutMsg: 'match 12 of 9 was not refused' });
+		assert.equal(await searchStatus(browser), `7 of ${PAGES}`);
+		await browser.keys('Escape');
+		assert.equal(await counter.getValue(), '7', 'Esc did not put the number back');
+		assert.equal(await browser.execute(() => document.querySelector('[role="search"]') !== null), true, 'Esc in the counter closed the bar');
+
+		// Static (the default): scrolled away, the counter stays, and next goes on from it.
+		const follow = await browser.$('[data-search-follow]');
+		assert.equal(await follow.getAttribute('aria-pressed'), 'false');
+		/** Scrolls the view so that its top is `share` of the way down page `index`'s box. */
+		const scrollTo = async (index, share) => {
+			// Go to page: its page is mounted at the top of the view.
+			await (await browser.$('[data-page-box]')).click();
+			await browser.keys([...String(index + 1), 'Enter']);
+			await browser.waitUntil(() => browser.execute((i) => document.querySelector(`.page[data-page="${i}"]`) !== null, index), {
+				timeoutMsg: `page ${index + 1} was not gone to`
+			});
+			await browser.execute(
+				(i, s) => {
+					const scroller = document.querySelector('.viewer-scroll');
+					const r = document.querySelector(`.page[data-page="${i}"]`).getBoundingClientRect();
+					scroller.scrollTop += r.top - scroller.getBoundingClientRect().top + r.height * s;
+				},
+				index,
+				share
+			);
+		};
+		// Page 3's top: only its match is on screen (96 pt down a page taller than the view).
+		await scrollTo(2, 0);
+		await browser.pause(700);
+		assert.equal(await searchStatus(browser), `7 of ${PAGES}`, 'the static counter followed the view');
+
+		// Following: the counter counts the match on screen, and next goes on from it.
+		await follow.click();
+		await browser.waitUntil(async () => (await follow.getAttribute('aria-pressed')) === 'true', { timeoutMsg: 'the switch did not turn on' });
+		await waitForStatus(browser, `3 of ${PAGES}`, 'the counter following the view on page 3');
+		await (await field(browser)).click();
+		await browser.keys('Enter');
+		await waitForStatus(browser, `4 of ${PAGES}`, 'next after following to page 3');
+		// No match on screen (between page 5's and page 6's): the counter counts page 5's,
+		// passed; previous goes to it, next past it.
+		await browser.pause(700);
+		await scrollTo(4, 0.2);
+		await waitForStatus(browser, `5 of ${PAGES}`, 'the counter between two matches');
+		assert.equal(await browser.execute(() => document.querySelector('.page .fill-search-current')), null, 'a match passed was shown as the current one');
+		await (await field(browser)).click();
+		await browser.keys(['Shift', 'Enter']);
+		await waitForStatus(browser, `5 of ${PAGES}`, 'previous from between pages 5 and 6');
+		await browser.waitUntil(() => browser.execute(() => document.querySelector('.page[data-page="4"] .fill-search-current') !== null), {
+			timeoutMsg: "previous did not show page 5's match"
+		});
+		await browser.pause(700);
+		await scrollTo(4, 0.2);
+		await waitForStatus(browser, `5 of ${PAGES}`, 'the counter between two matches again');
+		await (await field(browser)).click();
+		await browser.keys('Enter');
+		await waitForStatus(browser, `6 of ${PAGES}`, 'next from between pages 5 and 6');
+	} finally {
+		await stop();
+	}
+});

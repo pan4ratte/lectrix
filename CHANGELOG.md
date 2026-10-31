@@ -14,10 +14,14 @@ the wording, translations): docs/releasing.md, "The changelog".
 - Presentations play the page transitions a document comes with, such as wipes, fades and pushes, and turn to the next page by themselves when the document gives a page a set time, as decks exported from PowerPoint or Beamer often do.
 - With a second screen, such as a projector, a presentation shows the pages there, and your screen shows the presenter view: the page, the next page, the page's notes (the comments of its annotations), a timer and the time, with buttons to blank the screen and to swap screens.
 - Presentations show the pages with your visual adjustments, as the viewer does.
+- In the search bar, type a match's number in the counter and press Enter to go straight to it.
+- The marks of a search's matches beside the scrollbar are where the scrollbar shows them: in a long book, a match near its start or end was marked several pages away.
+- A new button in the search bar has the counter follow the view: as you scroll, it counts the matches on screen, and next and previous go on from there instead of from the match you last went to.
 
 ### Settings
 
 - **Settings > Viewing > Presentation** turns off the presenter view on a second screen, page transitions, or pages turning by themselves.
+- **Settings > Viewing > Search** has the search bar's counter follow the view, as its new button does.
 
 ## 1.4.0
 

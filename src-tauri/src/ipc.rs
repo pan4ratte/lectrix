@@ -2272,6 +2272,9 @@ pub struct Settings {
     /// Whether the matches of a search are marked beside the pages' scrollbar (section
     /// 6.1).
     pub search_markers: bool,
+    /// Whether the search's counter follows the view: next and previous go on from what is
+    /// on screen (section 6.1).
+    pub search_follows_view: bool,
     /// How long the pointer rests on an annotation before its comment shows, in ms.
     pub tooltip_delay_ms: u32,
     /// Whether marking text up selects the new annotation and opens the inspector on its
@@ -2342,6 +2345,7 @@ pub struct SettingsInput {
     pub smooth_bookmark_scroll: bool,
     pub smooth_search_scroll: bool,
     pub search_markers: bool,
+    pub search_follows_view: bool,
     pub tooltip_delay_ms: u32,
     pub open_comment_after_markup: bool,
     pub remember_annotation_style: bool,

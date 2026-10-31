@@ -261,6 +261,16 @@ Needs an installed earlier release and a newer one published (ADR 0011,
 - [ ] Show a document twice, annotate in one view: the highlight shows in both. Zoom one with
       the lock on: the other follows.
 
+## Search
+
+- [ ] Search a long book for a word with many matches. Type a number in the counter and
+      press Enter: the view goes to that match, and Enter goes on to the next. A number
+      above the count: the box is marked, nothing moves; Esc puts the number back.
+- [ ] Turn on the counter's follow button, scroll far from the match shown: the counter
+      counts the matches on screen, and next and previous go on from there. Scroll to a
+      place with no match on screen: previous goes to the one just above. Turn it off:
+      scrolling leaves the counter alone again.
+
 ## Recent files
 
 - [ ] Right-click a recent file on the start screen, **Open file location**: File Explorer

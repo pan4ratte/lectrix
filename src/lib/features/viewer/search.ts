@@ -1,6 +1,9 @@
 // Find in document (section 6.1): the commands that open the search bar and step through
 // its matches.
 
+import { applySettings } from '#lib/features/settings/apply.ts';
+import { toDraft, toInput } from '#lib/features/settings/schema.ts';
+import { setSettings, toAppError } from '#lib/ipc/index.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 import type { DocTab, SearchFrom } from '#lib/stores/doc.svelte.ts';
 
@@ -38,6 +41,19 @@ export async function find(tab: DocTab) {
 	const input = document.querySelector<HTMLInputElement>('[data-search-input]');
 	input?.focus();
 	input?.select();
+}
+
+/** The search bar's switch: whether the counter follows the view (Settings). */
+export async function setSearchFollowsView(on: boolean) {
+	const s = app.settings;
+	if (!s || s.searchFollowsView === on) return;
+	// Shown at once; stored (and sent to the other windows) on the way.
+	app.settings = { ...s, searchFollowsView: on };
+	try {
+		applySettings(await setSettings(toInput({ ...toDraft(s), searchFollowsView: on })));
+	} catch (e) {
+		app.showError(toAppError(e));
+	}
 }
 
 /** Goes to the next or previous match. */
