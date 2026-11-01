@@ -85,6 +85,12 @@ Version `1.2.0`. In full: [releases.md](status/releases.md).
 Unlock, Protect, Document properties, Compress and Compare are built; OCR with compression
 for scans comes next. In full: [planned-tools.md](status/planned-tools.md).
 
+## Planned translation
+
+The frontend's text translated by the community on Hosted Weblate (Libre plan), with
+Paraglide JS; Rust's text stays in English. Not started. In full:
+[planned-translation.md](status/planned-translation.md).
+
 ## Upstream work
 
 Bugs found in MuPDF, GTK, WebKitGTK and Svelte, and patches to offer, with what was sent:
