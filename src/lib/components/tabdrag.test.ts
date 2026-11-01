@@ -1,6 +1,18 @@
 import { describe, expect, it } from 'vitest';
 
-import { TEAR_OFF, dragShift, dropIndex, reordered, tornOff, type Span } from './tabdrag.ts';
+import {
+	EDGE_SCROLL,
+	EDGE_SCROLL_MAX,
+	REVEAL_MARGIN,
+	TEAR_OFF,
+	dragShift,
+	dropIndex,
+	edgeScrollSpeed,
+	revealScroll,
+	reordered,
+	tornOff,
+	type Span
+} from './tabdrag.ts';
 
 /** Three tabs 2 px apart: 100, 180 and 120 px wide, the first at 300. */
 const TABS: Span[] = [
@@ -103,5 +115,41 @@ describe('a tab comes off its row', () => {
 		expect(tornOff({ x: -1, y: 20 }, row, 1200)).toBe(true);
 		expect(tornOff({ x: 1201, y: 20 }, row, 1200)).toBe(true);
 		expect(tornOff({ x: 1200, y: 20 }, row, 1200)).toBe(false);
+	});
+});
+
+describe('a row too long for its room', () => {
+	/** The row's visible part: 400 px from 100. */
+	const VIEW: Span = { left: 100, right: 500 };
+
+	it('leaves the scroll as it is for a tab in view', () => {
+		expect(revealScroll(50, VIEW, { left: 200, right: 300 })).toBe(50);
+	});
+
+	it('scrolls a tab hidden at either end into view, with room beyond it', () => {
+		// Past the end by 40 px: 40 more, and the margin.
+		expect(revealScroll(50, VIEW, { left: 440, right: 540 })).toBe(50 + 40 + REVEAL_MARGIN);
+		// Before the start by 30 px.
+		expect(revealScroll(50, VIEW, { left: 70, right: 170 })).toBe(50 - 30 - REVEAL_MARGIN);
+	});
+
+	it('shows the start of a tab wider than the view', () => {
+		expect(revealScroll(0, VIEW, { left: 300, right: 800 })).toBe(200);
+	});
+
+	it('keeps less margin where the view has little room to spare', () => {
+		// 380 px of tab in 400 px: 10 px either side.
+		expect(revealScroll(0, VIEW, { left: 300, right: 680 })).toBe(190);
+	});
+
+	it('scrolls a dragged tab faster the nearer the pointer is to an end', () => {
+		expect(edgeScrollSpeed(300, VIEW)).toBe(0);
+		expect(edgeScrollSpeed(VIEW.left + EDGE_SCROLL, VIEW)).toBe(0);
+		const near = edgeScrollSpeed(VIEW.right - EDGE_SCROLL / 2, VIEW);
+		expect(near).toBeGreaterThan(0);
+		expect(near).toBeLessThan(EDGE_SCROLL_MAX);
+		expect(edgeScrollSpeed(VIEW.right, VIEW)).toBe(EDGE_SCROLL_MAX);
+		expect(edgeScrollSpeed(VIEW.right + 200, VIEW)).toBe(EDGE_SCROLL_MAX);
+		expect(edgeScrollSpeed(VIEW.left - 200, VIEW)).toBe(-EDGE_SCROLL_MAX);
 	});
 });

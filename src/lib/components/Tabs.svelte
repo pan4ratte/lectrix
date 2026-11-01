@@ -11,10 +11,13 @@
 	// closing it closes each of them. Its context menu offers the same moves. While the start screen shows over
 	// the tabs (the title bar's icon and name), none is selected; the one it was shown over
 	// keeps the row's place in the Tab order. A tab grows into the row as it opens and shrinks
-	// away as it closes.
+	// away as it closes. A row too long for the bar scrolls sideways, with no scrollbar: an end
+	// with tabs hidden past it fades out, the wheel scrolls it, the row glides to the tab shown,
+	// and a tab dragged against an end scrolls it.
 	import { FileText, GitCompareArrows, Layers, Lock, X } from '@lucide/svelte';
 	import { ContextMenu } from 'bits-ui';
-	import { tick } from 'svelte';
+	import { onDestroy, tick } from 'svelte';
+	import { cubicOut } from 'svelte/easing';
 
 	import { tooManyPanes } from '#lib/commands.ts';
 	import { APP_NAME } from '#lib/config.ts';
@@ -26,8 +29,18 @@
 	import { app } from '#lib/stores/app.svelte.ts';
 	import type { TabGroup } from '#lib/stores/group.svelte.ts';
 
-	import { DRAG_THRESHOLD, dragShift, dropIndex, reordered, tornOff, type Span } from './tabdrag.ts';
-	import { tabIn, tabOut } from './tabmotion.ts';
+	import { motionMs } from './panes.ts';
+	import {
+		DRAG_THRESHOLD,
+		dragShift,
+		dropIndex,
+		edgeScrollSpeed,
+		reordered,
+		revealScroll,
+		tornOff,
+		type Span
+	} from './tabdrag.ts';
+	import { TAB_MOTION_MS, tabIn, tabOut } from './tabmotion.ts';
 
 	let strip: HTMLDivElement | undefined = $state();
 
@@ -112,6 +125,7 @@
 		} else {
 			clearDrop();
 			follow(drag, strip);
+			if (!edgeFrame) edgeFrame = requestAnimationFrame(edgeScroll);
 		}
 	}
 
@@ -163,6 +177,8 @@
 	function endDrag() {
 		const pointer = drag?.pointer;
 		drag = null;
+		cancelAnimationFrame(edgeFrame);
+		edgeFrame = 0;
 		clearDrop();
 		if (pointer !== undefined && strip?.hasPointerCapture(pointer)) strip.releasePointerCapture(pointer);
 	}
@@ -216,6 +232,125 @@
 		event.preventDefault();
 		event.stopPropagation();
 		endDrag();
+	}
+
+	// ----- a row too long for its room -----
+
+	/** Tabs hidden past the start or the end of the row, which fades out there. */
+	let hiddenBefore = $state(false);
+	let hiddenAfter = $state(false);
+
+	function measureScroll() {
+		if (!strip) return;
+		const max = strip.scrollWidth - strip.clientWidth;
+		hiddenBefore = strip.scrollLeft > 0.5;
+		hiddenAfter = strip.scrollLeft < max - 0.5;
+	}
+
+	/** Measures the row again as it, or a tab in it, changes size: the window resized, a tab
+	 * growing in or shrinking away. */
+	let sizes: ResizeObserver | null = null;
+	function watchSize(node: Element) {
+		sizes ??= new ResizeObserver(measureScroll);
+		sizes.observe(node);
+		return () => sizes?.unobserve(node);
+	}
+	onDestroy(() => {
+		sizes?.disconnect();
+		cancelAnimationFrame(glide);
+	});
+
+	// The wheel scrolls the row sideways (a touchpad's sideways swipe too). Not passive, so
+	// the page does not take it as well.
+	$effect(() => {
+		const row = strip;
+		if (!row) return;
+		const onWheel = (event: WheelEvent) => {
+			if (event.ctrlKey || row.scrollWidth <= row.clientWidth) return;
+			const delta = Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+			if (delta === 0) return;
+			event.preventDefault();
+			stopGlide();
+			let unit = 1;
+			if (event.deltaMode === WheelEvent.DOM_DELTA_LINE) unit = 16;
+			else if (event.deltaMode === WheelEvent.DOM_DELTA_PAGE) unit = row.clientWidth;
+			row.scrollLeft += delta * unit;
+		};
+		row.addEventListener('wheel', onWheel, { passive: false });
+		return () => row.removeEventListener('wheel', onWheel);
+	});
+
+	/** The tab shown: a document's (its key), the Combine view's or the Compare view's; none
+	 * under the start screen. */
+	const shownKey = $derived(
+		app.startShown ? null : app.combineActive ? 'combine' : app.compareActive ? 'compare' : app.activeKey
+	);
+
+	/** The row gliding to the tab shown: its animation frame, 0 when still. */
+	let glide = 0;
+
+	function stopGlide() {
+		cancelAnimationFrame(glide);
+		glide = 0;
+	}
+
+	/** Glides the row to the tab shown, if it is out of view, in 140 ms (at once with reduced
+	 * motion). Where it goes is worked out again each frame, so a tab that is still growing
+	 * in is in full view as the glide ends. */
+	function revealShown() {
+		const row = strip;
+		const tab = row?.querySelector<HTMLElement>('[role="tab"][aria-selected="true"]');
+		if (!row || !tab) return;
+		stopGlide();
+		const from = row.scrollLeft;
+		/** Where the row goes: from where it started, the tab where it would be there. */
+		const target = () => {
+			const r = tab.getBoundingClientRect();
+			const shift = row.scrollLeft - from;
+			return revealScroll(from, row.getBoundingClientRect(), { left: r.left + shift, right: r.right + shift });
+		};
+		if (Math.abs(target() - from) < 1) return;
+		const ms = motionMs(TAB_MOTION_MS);
+		if (ms === 0) {
+			row.scrollLeft = target();
+			return;
+		}
+		const start = performance.now();
+		const step = (now: number) => {
+			const t = Math.min(1, (now - start) / ms);
+			row.scrollLeft = from + (target() - from) * cubicOut(t);
+			glide = t < 1 && tab.isConnected ? requestAnimationFrame(step) : 0;
+		};
+		glide = requestAnimationFrame(step);
+	}
+
+	// As another tab is shown, it comes into view; again once a tab that opens has grown to
+	// its width.
+	$effect(() => {
+		if (shownKey === null) return;
+		let timer = 0;
+		void tick().then(() => {
+			revealShown();
+			timer = window.setTimeout(revealShown, motionMs(TAB_MOTION_MS) + 20);
+		});
+		return () => clearTimeout(timer);
+	});
+
+	/** A tab dragged against an end of the row scrolls it, frame by frame, until the row ends
+	 * or the pointer moves away from it. */
+	let edgeFrame = 0;
+	function edgeScroll() {
+		edgeFrame = 0;
+		if (!strip || !drag?.moving || drag.off) return;
+		stopGlide();
+		const view = strip.getBoundingClientRect();
+		const speed = edgeScrollSpeed(drag.x, { left: view.left, right: view.right });
+		if (speed === 0) return;
+		const before = strip.scrollLeft;
+		strip.scrollLeft = before + speed;
+		if (strip.scrollLeft === before) return;
+		follow(drag, strip);
+		edgeFrame = requestAnimationFrame(edgeScroll);
 	}
 
 	// ----- keyboard -----
@@ -345,9 +480,13 @@
 			<div
 				{...props}
 				bind:this={strip}
-				class="flex h-full min-w-0 items-center gap-0.5"
+				class="tab-strip flex h-full min-w-0 items-center gap-0.5"
+				class:tab-strip-before={hiddenBefore}
+				class:tab-strip-after={hiddenAfter}
 				role="tablist"
 				aria-label="Open documents"
+				onscroll={measureScroll}
+				{@attach watchSize}
 			>
 				{#each app.groups as group (group.key)}
 					{@const active = group.key === app.activeKey && !app.combineActive && !app.startShown}
@@ -359,6 +498,7 @@
 						in:tabIn
 						out:tabOut
 						data-tab={group.key}
+						{@attach watchSize}
 						class="doc-tab group relative flex h-8 min-w-28 shrink items-center gap-1 pr-[4px] pl-3"
 						class:max-w-56={!group.joined}
 						class:doc-tab-joined={group.joined}
@@ -418,6 +558,7 @@
 						in:tabIn
 						out:tabOut
 						data-combine-tab
+						{@attach watchSize}
 						class="doc-tab group relative flex h-8 max-w-56 min-w-28 shrink items-center gap-2 pr-[4px] pl-3"
 						role="tab"
 						tabindex={reachable ? 0 : -1}
@@ -456,6 +597,7 @@
 						in:tabIn
 						out:tabOut
 						data-compare-tab
+						{@attach watchSize}
 						class="doc-tab group relative flex h-8 max-w-56 min-w-28 shrink items-center gap-2 pr-[4px] pl-3"
 						role="tab"
 						tabindex={reachable ? 0 : -1}

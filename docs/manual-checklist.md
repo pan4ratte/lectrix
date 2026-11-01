@@ -529,6 +529,10 @@ roman front matter and a landscape table, or `pdf-cli merge mixed.pdf a.pdf --pa
 
 - [ ] With three documents open, drag a tab along the others: it follows the pointer, the
       others make way, and it stays where it is dropped.
+- [ ] Open documents until the tabs no longer fit: the row stops before the + button and the
+      window buttons, fading out at the end where tabs are hidden. The mouse wheel over it
+      scrolls it sideways; the tab just opened, and a tab picked with Ctrl+Tab, scroll into
+      view. Drag a tab against either end: the row scrolls, and the tab can be dropped there.
 - [ ] Add a highlight, then drag that tab down onto the page and let go: a new window opens
       under the pointer with the document on the same page, still marked unsaved, and Undo
       takes the highlight back. The first window no longer has the tab.

@@ -1815,6 +1815,34 @@ button.shortcut-key:hover,
 	background: var(--lectrix-tab-active);
 	box-shadow: inset 0 0 0 1px var(--lectrix-tab-active-line);
 }
+/* Its focus ring inside it, so the row, which scrolls, does not clip it. */
+.doc-tab:focus-visible {
+	outline-offset: -2px;
+}
+/* The tabs' row scrolls sideways once the tabs, each at its narrowest, need more room than
+   the bar has, with no scrollbar; an end with tabs hidden past it fades out. */
+.tab-strip {
+	--tab-fade-start: 0px;
+	--tab-fade-end: 0px;
+	--tab-fade: linear-gradient(
+		to right,
+		transparent,
+		#000 var(--tab-fade-start),
+		#000 calc(100% - var(--tab-fade-end)),
+		transparent
+	);
+	overflow-x: auto;
+	overflow-y: hidden;
+	scrollbar-width: none;
+	-webkit-mask-image: var(--tab-fade);
+	mask-image: var(--tab-fade);
+}
+.tab-strip-before {
+	--tab-fade-start: 24px;
+}
+.tab-strip-after {
+	--tab-fade-end: 24px;
+}
 /* A tab being dragged along the row follows the pointer, over the tabs it passes. */
 .doc-tab-held {
 	z-index: 1;
