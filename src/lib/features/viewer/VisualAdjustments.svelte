@@ -44,9 +44,10 @@
 	}
 
 	// Esc closes the panel and nothing else: the window's own Esc (the selection, the tool,
-	// full screen) is not for a panel that is open.
+	// full screen) is not for a panel that is open. The button answers it too, as the focus
+	// stays there a moment after the panel opens, before it moves to the first slider.
 	function onContentKey(event: KeyboardEvent) {
-		if (event.key !== 'Escape') return;
+		if (event.key !== 'Escape' || !open) return;
 		event.preventDefault();
 		event.stopPropagation();
 		open = false;
@@ -59,6 +60,7 @@
 		aria-label={adjusted ? `${LABEL}: on` : LABEL}
 		data-tip={open ? undefined : LABEL}
 		data-visual-adjustments
+		onkeydown={onContentKey}
 	>
 		<Contrast size={16} aria-hidden="true" />
 		{#if adjusted}

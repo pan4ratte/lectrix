@@ -124,7 +124,7 @@ The app should feel like a native Windows 11 app: calm, fast and keyboard-friend
 
 Interoperability is verified by machines on every commit and by a person before every release; neither replaces the other. The corpus, the interop harness and its suites, the debug menu, CI and the soak run are described in [docs/testing.md](docs/testing.md).
 
-- **Run:** `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test` (`cargo test -p lectrix` regenerates the IPC types), `npm run check`, `npx vitest run`. End-to-end: build the release app (`npx tauri build --no-bundle`), then `npm run test:ci --prefix tests/e2e -- specs/<name>.test.mjs`, which shows the app as CI's runners do (1024 x 768, reduced motion); run them that way before pushing.
+- **Run:** `cargo fmt --check`, `cargo clippy -- -D warnings`, `cargo test` (`cargo test -p lectrix` regenerates the IPC types), `npm run check`, `npx vitest run`. End-to-end: build the release app and `pdf-cli`, which makes the tests' files (`npx tauri build --no-bundle`, `cargo build --release -p pdf-cli`; a stale `pdf-cli` fails them), then `npm run test:ci --prefix tests/e2e -- specs/<name>.test.mjs`, which shows the app as CI's runners do (1024 x 768, reduced motion); run them that way before pushing.
 - **Write:** round-trip tests for each annotation type, outlines, labels and merges; `qpdf --check` on every file a test produces (any warning fails); test outputs go to `target/test-output/`.
 - **Never** modify files in `tests/corpus/`, and never weaken the interop profile, a test or a threshold to get a green build.
 - The user performs the manual release checklist (`docs/manual-checklist.md`); keep it current. A new kind of notification gets an item in the Debug menu (`src/lib/features/debug/`).

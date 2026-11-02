@@ -10,7 +10,7 @@ import { test } from 'node:test';
 
 import { Key } from 'webdriverio';
 
-import { OUT, launch, statusText, waitForDocument } from '../lib/app.mjs';
+import { OUT, atRest, launch, statusText, waitForDocument } from '../lib/app.mjs';
 import { cli, sample } from '../lib/pdfcli.mjs';
 
 /** The annotations on disk, as `pdf-cli annot list` prints them (without object numbers). */
@@ -39,7 +39,9 @@ async function waitForRowCount(browser, n, message) {
 }
 
 /** Converts page points of page `index` (view space at zoom 1) to viewport pixels. */
-/** Opens the annotation pane and waits until it has finished sliding in. */
+/** Opens the annotation pane and waits until it has finished sliding in, and the pages have
+ * been fitted to the narrower view: the viewer re-fits a frame or two after the pane takes its
+ * room (with reduced motion, at once), and a point measured before lands elsewhere after. */
 async function showAnnotations(browser) {
 	await (await browser.$('button[aria-label="Show right pane"]')).click();
 	await browser.waitUntil(
@@ -50,6 +52,7 @@ async function showAnnotations(browser) {
 			}),
 		{ timeoutMsg: 'the annotation pane did not open' }
 	);
+	await atRest(browser, '.page');
 }
 
 async function pagePoint(browser, index, x, y) {

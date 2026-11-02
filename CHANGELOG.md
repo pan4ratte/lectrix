@@ -17,6 +17,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 - In the search bar, type a match's number in the counter and press Enter to go straight to it.
 - The marks of a search's matches beside the scrollbar are where the scrollbar shows them: in a long book, a match near its start or end was marked several pages away.
 - A new button in the search bar has the counter follow the view: as you scroll, it counts the matches on screen, and next and previous go on from there instead of from the match you last went to.
+- Esc closes the visual adjustments panel even when pressed the moment it opens; it could stay open.
 - With many tabs open, the tabs no longer run under the window buttons: the row scrolls sideways with the mouse wheel, fades out at the end where tabs are hidden, and glides to keep the tab you are on in view. Drag a tab to either end to scroll the row while moving it.
 
 ### Annotations
