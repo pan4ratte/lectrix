@@ -4,8 +4,9 @@
 //!
 //! [`render`] draws a page, [`encode`] writes it in a format, [`names`] names the files,
 //! and [`run`] exports a job's pages on worker threads, into temporary files that take
-//! their names only once every page is written.
+//! their names only once every page is written. [`copy`] draws a page for the clipboard.
 
+pub mod copy;
 pub mod encode;
 pub mod names;
 mod run;

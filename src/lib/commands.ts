@@ -13,7 +13,7 @@ import { toggleTheme } from '#lib/features/settings/apply.ts';
 import { insertFromFile, toggleOrganize } from '#lib/features/organize/actions.ts';
 import { openProperties } from '#lib/features/properties/actions.ts';
 import { openPrint } from '#lib/features/print/actions.ts';
-import { openExport } from '#lib/features/export/actions.ts';
+import { copyPage, openExport } from '#lib/features/export/actions.ts';
 import { compressDocument, compressFile } from '#lib/features/compress/actions.ts';
 import { protectDocument, protectFile } from '#lib/features/protect/actions.ts';
 import { unlockDocument, unlockFile } from '#lib/features/unprotect/actions.ts';
@@ -193,6 +193,9 @@ export const commands = {
 		else if (app.active) void app.redo(app.active);
 	},
 	copy: withTab((t) => copyInContext(t)),
+	/** The current page (in Organize pages, the one selected) on the clipboard as an image
+	 * (section 6.14). */
+	copyPageImage: withTab((t) => copyPage(t)),
 	find: reading((t) => find(t)),
 	findNext: reading((t) => findStep(t, 1)),
 	findPrevious: reading((t) => findStep(t, -1)),

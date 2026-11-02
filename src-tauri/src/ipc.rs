@@ -2307,6 +2307,8 @@ pub struct Settings {
     /// Whether, with a second screen, a presentation shows the pages there and the
     /// presenter view on the window's screen (section 6.1).
     pub presenter_view: bool,
+    /// The resolution Copy page as image draws a page at, dots per inch (section 6.14).
+    pub copy_image_dpi: u16,
     /// The visual adjustments every document is shown with, unless it has its own
     /// (section 6.1): the pages as they are until changed in Settings.
     pub page_adjustments: PageAdjustments,
@@ -2358,6 +2360,7 @@ pub struct SettingsInput {
     pub presentation_transitions: bool,
     pub presentation_timing: bool,
     pub presenter_view: bool,
+    pub copy_image_dpi: u16,
     pub page_adjustments: PageAdjustments,
     pub color_panel_on_hover: bool,
     pub preset_colors: BTreeMap<u8, String>,
@@ -3660,6 +3663,19 @@ pub struct ExportPreview {
     pub bytes: u64,
     /// The resolution the preview is drawn at: the one asked for, or lower for a page
     /// too large to preview at it.
+    pub dpi: u16,
+}
+
+/// A page put on the clipboard as an image (section 6.14).
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct CopiedPage {
+    /// Its size in pixels.
+    pub width: u32,
+    pub height: u32,
+    /// The resolution it was drawn at: the one Settings gives, or lower for a page too
+    /// large to copy at it.
     pub dpi: u16,
 }
 

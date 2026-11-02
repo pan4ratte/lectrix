@@ -12,6 +12,7 @@ import type { Component } from 'svelte';
 
 import { APP_NAME } from '#lib/config.ts';
 import { MAX_TIP_DELAY_MS } from '#lib/features/annotations/bars.ts';
+import { DPI_PRESETS } from '#lib/features/export/export.ts';
 import { QUICK_TOOLS } from '#lib/features/annotations/tools.ts';
 import { ADJUST_MAX, ADJUST_MIN, ADJUST_STEP, SEPIA_MAX, isAdjusted } from '#lib/features/viewer/adjustments.ts';
 import type {
@@ -380,6 +381,25 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 				]
 			},
 			{
+				title: 'Copy page as image',
+				rows: [
+					{
+						kind: 'choice',
+						id: 'copyImageDpi',
+						key: 'copyImageDpi',
+						label: 'Resolution',
+						description:
+							'Copy page as image, in Edit and in a page’s right-click menu, draws the page at this resolution. 150 dpi suits documents and slides; 300 dpi, printing.',
+						options: DPI_PRESETS.map((dpi) => ({ value: String(dpi), label: `${dpi} dpi` })),
+						read: (d) => String(d.copyImageDpi),
+						write: (d, value) => {
+							const dpi = DPI_PRESETS.find((p) => String(p) === value);
+							if (dpi) d.copyImageDpi = dpi;
+						}
+					}
+				]
+			},
+			{
 				title: 'Tooltips',
 				rows: [
 					{
@@ -646,6 +666,7 @@ export function toInput(d: Draft): SettingsInput {
 		presentationTransitions: d.presentationTransitions,
 		presentationTiming: d.presentationTiming,
 		presenterView: d.presenterView,
+		copyImageDpi: d.copyImageDpi,
 		pageAdjustments: { ...d.pageAdjustments } satisfies PageAdjustments,
 		colorPanelOnHover: d.colorPanelOnHover,
 		presetColors: { ...d.presetColors },

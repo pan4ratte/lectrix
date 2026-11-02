@@ -54,7 +54,7 @@
 	} from '#lib/features/annotations/geometry.ts';
 	import { marksText } from '#lib/features/annotations/listing.ts';
 	import SelectionBar from '#lib/features/annotations/SelectionBar.svelte';
-	import { openExport } from '#lib/features/export/actions.ts';
+	import { copyPage, openExport } from '#lib/features/export/actions.ts';
 	import { MAX_STRING_PX, Stabilizer, constrainEnd, shapeStrokes, type ShapeKind } from '#lib/features/annotations/pen.ts';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
 	import { DEFAULT_QUICK_TOOLS, capabilities, isMarkupTool, showsComment, type Tool } from '#lib/features/annotations/tools.ts';
@@ -2391,6 +2391,9 @@
 					<span class="menu-shortcut">{app.shortcut('copy')}</span>
 				</ContextMenu.Item>
 				<ContextMenu.Separator class="menu-separator" />
+				<ContextMenu.Item class="menu-item" onSelect={() => void copyPage(tab, menuPage)} data-copy-page>
+					Copy page as image{#if app.shortcut('copyPageImage')}<span class="menu-shortcut">{app.shortcut('copyPageImage')}</span>{/if}
+				</ContextMenu.Item>
 				<ContextMenu.Item class="menu-item" onSelect={() => openExport(tab, { page: menuPage })} data-export-page>
 					Export page as image…
 				</ContextMenu.Item>

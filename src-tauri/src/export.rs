@@ -396,10 +396,7 @@ impl Export {
 /// The resolution a page `width` x `height` points is previewed at: `dpi`, or lower to
 /// keep within [`PREVIEW_MAX_PIXELS`].
 pub fn preview_dpi(dpi: u16, width: f32, height: f32) -> u16 {
-    let area = f64::from(width.max(1.0)) * f64::from(height.max(1.0)) / (72.0 * 72.0);
-    let most = (PREVIEW_MAX_PIXELS as f64 / area).sqrt().floor();
-    let most = most.clamp(f64::from(export::DPI_RANGE.0), f64::from(u16::MAX)) as u16;
-    dpi.min(most)
+    export::copy::fit_dpi(dpi, width, height, PREVIEW_MAX_PIXELS)
 }
 
 #[cfg(test)]

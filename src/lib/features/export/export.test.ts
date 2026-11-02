@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
 	DPI_RANGE,
 	colours,
+	copiedMessage,
 	doneMessage,
 	exampleName,
 	existingText,
@@ -121,5 +122,12 @@ describe('names and messages', () => {
 			'Exported a page of r.pdf to r-04.png in Pictures.'
 		);
 		expect(doneMessage('r.pdf', { ...done, pages: 0, files: 0 }, 'png')).toMatch(/^Nothing was exported/);
+	});
+});
+
+describe('copying a page as an image', () => {
+	it('says which page, and the resolution when it was lower than asked', () => {
+		expect(copiedMessage('iv', 150, 150)).toBe('Copied page iv as an image.');
+		expect(copiedMessage('3', 212, 300)).toBe('Copied page 3 as an image, at 212 dpi as the page is large.');
 	});
 });

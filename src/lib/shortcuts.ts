@@ -57,6 +57,7 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 			{ command: 'undo', label: 'Undo', keys: ['Ctrl+Z'] },
 			{ command: 'redo', label: 'Redo', keys: ['Ctrl+Y', 'Ctrl+Shift+Z'], mac: ['Ctrl+Shift+Z', 'Ctrl+Y'] },
 			{ command: 'copy', label: 'Copy selection', keys: ['Ctrl+C'] },
+			{ command: 'copyPageImage', label: 'Copy page as image', keys: [], inInputs: true },
 			{ command: 'find', label: 'Find', keys: ['Ctrl+F'], inInputs: true },
 			{ command: 'findNext', label: 'Find next', keys: ['F3'], mac: ['Ctrl+G', 'F3'], inInputs: true },
 			{ command: 'findPrevious', label: 'Find previous', keys: ['Shift+F3'], mac: ['Ctrl+Shift+G', 'Shift+F3'], inInputs: true }

@@ -381,6 +381,7 @@ test('pages come from files where the menu says, and go into a new document', as
 				'Rotate counter-clockwise',
 				'Delete page…',
 				'Extract page into a new document',
+				'Copy page as image',
 				'Export page as image…',
 				'Insert pages from file before…',
 				'Insert pages from file after…',

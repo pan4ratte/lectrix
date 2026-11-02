@@ -315,6 +315,9 @@ Part of the status: [docs/status.md](../status.md) is the index a session reads,
   - Not yet checked by a person: the files in other apps (Photoshop, GIMP, a browser,
     Windows Photos, a fax or archive viewer for Group 4 TIFF), and against Acrobat's
     export (`docs/manual-checklist.md`, "Export as images").
+  - Copy page as image stops at 36 million pixels (a larger page is copied at a lower
+    resolution), as the clipboard takes the page uncompressed; untested on macOS and, by
+    a person, in other apps and on Linux (X11, Wayland).
 
 ## Compare
 

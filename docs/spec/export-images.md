@@ -5,6 +5,7 @@ Part of the Lectrix specification. [AGENTS.md](../../AGENTS.md) holds the rules 
 A document's pages saved as images: each page drawn as it shows, at a resolution, in colour, greys or black and white, as PNG, JPEG or TIFF, a file a page or (TIFF) one file of them all (ADR 0034). Pages are drawn by MuPDF as the viewer draws them; the document is only read.
 
 - **Where it is:** **File > Export > Pages as images…** (after Print…; a command without a default shortcut, section 6.6), for the document shown, in the viewer or while its pages are organized; there it starts with the selected pages. A page's right-click menu in the viewer has **Export page as image…**, which starts with that page; Organize pages has **Export** on its bar, after Extract, and **Export page as image…** ("Export 3 pages as images…") in its menu, both for the selected pages (section 6.7). Not on the start screen or in the Combine view.
+- **Copy page as image** (below, "Copying a page") puts one page on the clipboard instead.
 - What is exported is the document as it is open, its unsaved changes included. A document whose security settings forbid copying its content can be exported all the same (the user's decision, ADR 0034); one that forbids printing too.
 
 ## The dialog
@@ -42,6 +43,15 @@ A page of more than 16 million pixels at the resolution chosen is previewed at t
 - Done, the dialog closes and a notification says "Exported 12 pages of report.pdf as PNG images to Pictures." ("Exported a page of report.pdf to report-007.png in Pictures.", "Exported 12 pages of report.pdf to report.tif in Pictures."), with **Open file location** (Show in Finder on macOS, Show in folder on Linux), which shows the first file in its folder. With every file kept: "Nothing was exported: every file was already in its folder."
 - Stopped: "Exporting was stopped. No file was written." A file that can't be written: "Lectrix couldn't write the images in Pictures." with "Check that the drive has room and that you may save files there, then try again, or pick another folder."
 
+## Copying a page
+
+**Copy page as image** puts a page on the clipboard, to paste into a document, a slide, an image editor or a chat. It is in **Edit** (after Copy; a command without a default shortcut, section 6.6), for the current page, or in Organize pages for the page selected (with several, or none, it is disabled: the clipboard holds one image); in a page's right-click menu in the viewer, for the page right-clicked, before Export page as image…; and in Organize pages' right-click menu, before Export page as image…, with one page selected.
+
+- The page is drawn as it is exported (above): as it shows, its annotations and form fields included, unsaved changes too, on white, in colour, at the resolution **Settings > Viewing > Copy page as image** gives (72, 96, 150, 300 or 600 dpi; 150 to start with). The visual adjustments are not applied (section 6.1).
+- A page of more than 36 million pixels at that resolution (A4 and Letter fit at 600 dpi) is copied at the highest resolution under it.
+- Done, a notification says so: "Copied page iv as an image." (by its label), or "Copied page 3 as an image, at 212 dpi as the page is large." A page too large even at 10 dpi: "This page is too large to copy as an image.", with "Export it with File > Export > Pages as images instead." The clipboard taken by another app: "The page couldn't be copied to the clipboard.", with "Try again. If another app is using the clipboard, close it first."
+- On Windows the clipboard gets the page as a PNG and as a bitmap (`CF_DIBV5`), so it pastes into Word, PowerPoint, Paint, browsers and chat apps; on Linux as `image/png`, on X11 and Wayland; on macOS as an image. A document that forbids copying its content can be copied all the same, as it can be exported (ADR 0034).
+
 ## The files (ADR 0034)
 
 - **PNG:** colour (RGB), grey or one bit a pixel; the resolution (`pHYs`) and sRGB in the file; compressed well (the `png` crate's High).
@@ -54,3 +64,4 @@ A page of more than 16 million pixels at the resolution chosen is previewed at t
 - The formats, the Save dialog Acrobat's way (one name, the files beside it), and the dialog with a preview: the user's decisions (2026-11-02), as are exporting documents that forbid copying and naming files by number or label.
 - WebP and JPEG XL were built and dropped (the user's decision, 2026-11-02): JPEG XL's encoder made the app 2 MB larger, WebP has little demand in a PDF app, and both encoders were AGPL-3.0-only (ADR 0034).
 - The defaults: PNG, 150 dpi, colour, quality 85, annotations on, files named by number.
+- Copy page as image: through Tauri's clipboard plugin, its resolution a setting, 150 dpi to start with (the user's decisions, 2026-11-02). The page's menus, Edit and Organize pages' menu have it; Organize pages' bar doesn't, as it is full already.

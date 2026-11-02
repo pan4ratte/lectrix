@@ -102,6 +102,8 @@ import type { ProtectSaved } from './generated/ProtectSaved';
 export type { ProtectStep } from './generated/ProtectStep';
 import type { ProtectStep } from './generated/ProtectStep';
 export type { Restrictions } from './generated/Restrictions';
+export type { CopiedPage } from './generated/CopiedPage';
+import type { CopiedPage } from './generated/CopiedPage';
 export type { ExportDone } from './generated/ExportDone';
 import type { ExportDone } from './generated/ExportDone';
 export type { ExportFormat } from './generated/ExportFormat';
@@ -361,6 +363,9 @@ export const exportStop = (id: number) => invoke<void>('export_stop', { id });
 /** Forgets a planned export: the dialog closed without exporting. */
 export const exportForget = (id: number) => invoke<void>('export_forget', { id });
 export const exportShowInFolder = (token: number) => invoke<void>('export_show_in_folder', { token });
+/** Puts a page on the clipboard as an image, at the resolution Settings gives (lower for a
+ * large page). */
+export const copyPageImage = (id: number, page: number) => invoke<CopiedPage>('copy_page_image', { id, page });
 /** URL of the image `exportPreview` made. */
 export function exportPreviewUrl(token: number): string {
 	const base = isWindows() ? 'http://lectrix.localhost' : 'lectrix://localhost';

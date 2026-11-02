@@ -131,6 +131,10 @@ presentationTiming: boolean,
  */
 presenterView: boolean, 
 /**
+ * The resolution Copy page as image draws a page at, dots per inch (section 6.14).
+ */
+copyImageDpi: number, 
+/**
  * The visual adjustments every document is shown with, unless it has its own
  * (section 6.1): the pages as they are until changed in Settings.
  */

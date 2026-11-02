@@ -419,6 +419,16 @@ matter):
       with that page, or those pages.
 - [ ] Compare a page exported at 300 dpi with Acrobat's **Export a PDF > Image** at 300
       dpi: same size in pixels, the same look.
+- [ ] **Copy page as image** from a page's right-click menu, then paste: into Word or
+      LibreOffice Writer, Paint (or GIMP), a browser's chat app and a Telegram message.
+      The page shows, its annotations on it, sharp at 150 dpi; the notification names the
+      page by its label.
+- [ ] Settings > Viewing > Copy page as image at 600 dpi: a Letter page pastes at 5,100 ×
+      6,600 pixels; a poster-size page says it was copied at a lower resolution.
+- [ ] Edit > Copy page as image copies the current page; in Organize pages, the one page
+      selected (disabled with two selected).
+- [ ] On Linux, X11 and Wayland: the page pastes into GIMP and LibreOffice, also after
+      Lectrix is closed if a clipboard manager runs.
 
 ## Full screen
 

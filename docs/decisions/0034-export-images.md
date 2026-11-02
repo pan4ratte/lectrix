@@ -55,6 +55,16 @@ writes LZW and Deflate and many pages to a file, but has no bilevel images.
    respected; this is a deliberate exception for exporting images, where a picture of a
    page is what printing the page or taking a screenshot of it would give.
 
+8. **Copy page as image** draws a page as exporting does, in colour at the resolution
+   Settings gives (150 dpi to start with), and Rust puts it on the clipboard through
+   Tauri's clipboard plugin (`tauri-plugin-clipboard-manager` 2.5.0, MIT or Apache-2.0,
+   the user's choice) and arboard under it: on Windows as a PNG and a `CF_DIBV5` bitmap,
+   on Linux as `image/png` (X11 and Wayland). The webview gets no clipboard permission.
+   The clipboard takes four bytes a pixel, and on Windows a bitmap of as many besides, so
+   a page is copied with at most 36 million pixels (A4 and Letter at 600 dpi), a larger
+   one at the highest resolution under that, and the notification says which. Its copy
+   permission is not checked, as for exporting (7).
+
 ## Measurements
 
 Release build, 2026-11-02, on mains (the machine has many cores), `pdf-cli
@@ -101,6 +111,9 @@ group, while jxl-rs 0.8.0 could.
 
 ## Consequences
 
+- Copy page as image adds the clipboard plugin, arboard, and the `image` crate with its
+  PNG and BMP codecs (arboard's own PNG writer for the clipboard), clipboard-win on
+  Windows and x11rb and wl-clipboard-rs on Linux: `lectrix.exe` is 0.5 MB larger (28.93 to 29.45 MB, release build).
 - The program is 0.25 MB larger (`pdf-cli` 12.05 to 12.31 MB: the `tiff` crate and the
   export code).
 - `pdf-cli export-images` exports headlessly, for tests and measurements.

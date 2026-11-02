@@ -3,9 +3,10 @@
 // dialog, answered by LECTRIX_DIALOG), writes a file a page, and a notification says so,
 // with a button that shows the files in their folder (LECTRIX_FOLDER_LOG). Files already
 // there are asked about. A page's right-click menu and Organize pages open the dialog for
-// that page and for the pages selected.
+// that page and for the pages selected. Copy page as image puts a page on the clipboard.
 
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { test } from 'node:test';
@@ -177,6 +178,47 @@ test('Organize pages exports the pages selected, and Esc closes the dialog witho
 		);
 		await keys(browser, ['Escape']);
 		await browser.waitUntil(async () => (await step(browser)) === null, { timeoutMsg: 'Esc did not close the dialog' });
+	} finally {
+		await stop();
+	}
+});
+
+/** What the clipboard holds as an image: the bitmap's size, and whether a PNG is there too. */
+function clipboardImage() {
+	const script = [
+		'Add-Type -AssemblyName System.Windows.Forms',
+		'$i = [System.Windows.Forms.Clipboard]::GetImage()',
+		"if ($i) { '{0}x{1}' -f $i.Width, $i.Height } else { 'none' }",
+		"[System.Windows.Forms.Clipboard]::ContainsData('PNG')"
+	].join('; ');
+	const [size, png] = execFileSync('powershell', ['-NoProfile', '-STA', '-Command', script], { encoding: 'utf8' })
+		.trim()
+		.split(/\s+/);
+	return { size, png: png === 'True' };
+}
+
+test('Copy page as image puts the page right-clicked on the clipboard, at 150 dpi', async () => {
+	const doc = sample('copy-page.pdf', 3);
+	const { browser, stop } = await launch([doc]);
+	try {
+		await waitForDocument(browser);
+		await atRest(browser, '.page[data-page="0"]');
+		const r = await browser.execute(() => document.querySelector('.page[data-page="0"]').getBoundingClientRect().toJSON());
+		const at = { x: Math.round(r.left + r.width / 2), y: Math.round(r.top + Math.min(r.height / 2, 100)) };
+		await browser.action('pointer').move({ ...at, origin: 'viewport' }).down({ button: 2 }).up({ button: 2 }).perform();
+		await (await browser.$('//*[@role="menuitem"][contains(., "Copy page as image")]')).click();
+		await browser.waitUntil(async () => (await notices(browser)).includes('Copied page 1 as an image.'), {
+			timeout: 30_000,
+			timeoutMsg: `nothing said the page was copied: ${await notices(browser)}`
+		});
+		// Letter at 150 dpi, as a bitmap and as a PNG.
+		assert.deepEqual(clipboardImage(), { size: '1275x1650', png: true });
+
+		// Edit has it too, for the current page.
+		await (await browser.$('button=Edit')).click();
+		const item = await browser.$('//*[@role="menuitem"][contains(., "Copy page as image")]');
+		assert.notEqual(await item.getAttribute('aria-disabled'), 'true', 'Edit > Copy page as image is disabled');
+		await keys(browser, ['Escape']);
 	} finally {
 		await stop();
 	}

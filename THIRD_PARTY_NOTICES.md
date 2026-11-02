@@ -11,6 +11,7 @@ following third-party components. Every one has an AGPL-compatible license.
 | libjpeg-turbo's decoder and MozJPEG's encoder, as MozJPEG 4 (the libjpeg-turbo Project, Mozilla and others; built by the `mozjpeg-sys` crate) | IJG AND BSD-3-Clause AND Zlib | JPEG decoding in MuPDF, statically linked in place of MuPDF's bundled libjpeg (ADR 0024), and JPEG encoding in Compress (ADR 0027). This software is based in part on the work of the Independent JPEG Group. |
 | Tauri, tauri-build, tauri-plugin-dialog, tauri-plugin-single-instance | MIT OR Apache-2.0 | app shell |
 | tauri-plugin-updater, and through it reqwest, hyper, rustls, ring, rustls-platform-verifier, minisign-verify and zip | MIT, Apache-2.0, ISC (ring: Apache-2.0 AND ISC) | updates from GitHub releases (ADR 0011) |
+| tauri-plugin-clipboard-manager, and through it arboard, image (its PNG and BMP codecs), clipboard-win and error-code (Windows), x11rb and wl-clipboard-rs (Linux) | MIT OR Apache-2.0; BSL-1.0 (clipboard-win, error-code) | Copy page as image (section 6.14, ADR 0034) |
 | windows | MIT OR Apache-2.0 | DirectWrite installed-font index (`pdf-core` `platform` module, ADR 0005) |
 | webview2-com, windows-core | MIT OR Apache-2.0 | WebView2 memory target level while minimized (app `platform` module, ADR 0002) |
 | thiserror | MIT OR Apache-2.0 | error types |

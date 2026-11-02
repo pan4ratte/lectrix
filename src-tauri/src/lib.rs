@@ -357,6 +357,9 @@ pub fn run() {
     }
     let result = builder
         .plugin(tauri_plugin_dialog::init())
+        // Copy page as image (section 6.14). Only Rust uses it: the webview has no
+        // clipboard permission.
+        .plugin(tauri_plugin_clipboard_manager::init())
         // Updates from GitHub releases (ADR 0011). Only Rust uses it: the webview has no
         // updater permission and goes through Lectrix's own commands in update.rs.
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -552,6 +555,7 @@ pub fn run() {
             commands::export_stop,
             commands::export_forget,
             commands::export_show_in_folder,
+            commands::copy_page_image,
             commands::protect_pick,
             commands::protect_password,
             commands::protect_save,

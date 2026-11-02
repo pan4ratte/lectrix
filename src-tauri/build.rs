@@ -47,6 +47,7 @@ const COMMANDS: &[&str] = &[
     "export_stop",
     "export_forget",
     "export_show_in_folder",
+    "copy_page_image",
     "protect_pick",
     "protect_password",
     "protect_save",

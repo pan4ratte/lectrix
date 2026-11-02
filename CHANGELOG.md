@@ -33,6 +33,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 - Each page becomes a file of its own, named after the name you give and the page's number or its page label. TIFF can also put every page in one file.
 - If some of the files are already there, Lectrix asks whether to replace them or keep them.
 - Export a single page from its right-click menu, or the pages selected in **Organize pages** from its bar or right-click menu.
+- **Copy page as image**, in a page's right-click menu and in **Edit**, puts the page on the clipboard as a picture, annotations and all, to paste into a document, a slide, an image editor or a chat. **Settings > Viewing** sets its resolution, 150 dpi to start with.
 
 ### Settings
 

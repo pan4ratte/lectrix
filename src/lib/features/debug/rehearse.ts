@@ -6,7 +6,7 @@ import { getVersion } from '@tauri-apps/api/app';
 
 import { showUpdated } from '#lib/features/changelog/announce.ts';
 import { changelogMarkdown, hasChanges, parseChangelog } from '#lib/features/changelog/changelog.ts';
-import { doneMessage, SHOW_IN_FOLDER } from '#lib/features/export/export.ts';
+import { copiedMessage, doneMessage, SHOW_IN_FOLDER } from '#lib/features/export/export.ts';
 import { hintFullScreen } from '#lib/features/fullscreen/actions.ts';
 import { notifyDeleted } from '#lib/features/organize/notify.ts';
 import { recoveryQuestion } from '#lib/features/recovery/recovery.ts';
@@ -132,6 +132,12 @@ export function rehearseExported(oneFile: boolean) {
 		message: doneMessage(name, done, oneFile ? 'tiff' : 'png'),
 		action: { label: SHOW_IN_FOLDER, run: () => rehearseInfoAbout(`the system would show ${done.first} in its folder.`) }
 	});
+}
+
+/** The notification once a page is copied as an image (section 6.14): at the resolution
+ * Settings gives, or lower for a large page. */
+export function rehearseCopied(large: boolean) {
+	app.notify({ kind: 'info', message: large ? copiedMessage('3', 212, 300) : copiedMessage('iv', 150, 150) });
 }
 
 /** The notification after a save that took the PDF/A claim out of a file. */

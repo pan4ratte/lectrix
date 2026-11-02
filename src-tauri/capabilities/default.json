@@ -60,6 +60,7 @@
     "allow-export-stop",
     "allow-export-forget",
     "allow-export-show-in-folder",
+    "allow-copy-page-image",
     "allow-protect-pick",
     "allow-protect-password",
     "allow-protect-save",

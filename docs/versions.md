@@ -31,6 +31,7 @@ Recorded at project start (2026-10-02). Versions are pinned exactly in `Cargo.to
 | tauri | 2.12.1 |
 | tauri-build | 2.7.1 |
 | tauri-plugin-dialog | 2.8.1 |
+| tauri-plugin-clipboard-manager | 2.5.0 (Copy page as image, ADR 0034; only Rust uses it; brings arboard 3.7, image 0.25 with PNG and BMP, clipboard-win on Windows, x11rb and wl-clipboard-rs on Linux) |
 | tauri-plugin-single-instance | 2.5.2 (forwards a second launch's files to the running window) |
 | tauri-plugin-updater | 2.13.1 (updates from GitHub releases, ADR 0011; brings reqwest 0.13, rustls 0.23 with ring, rustls-platform-verifier, minisign-verify, zip) |
 | windows-sys | 0.61.2 (Windows `platform` module; already in the tree through Tauri) |

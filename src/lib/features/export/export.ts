@@ -251,6 +251,13 @@ export function doneMessage(name: string, done: ExportDone, format: ExportFormat
 	return `Exported ${pagesText(done.pages)} of ${name} as ${formatName(format)} images to ${done.folder}.`;
 }
 
+/** The notification once page `name` is on the clipboard, drawn at `dpi` where Settings asks
+ * for `asked` (less for a large page). */
+export function copiedMessage(name: string, dpi: number, asked: number): string {
+	if (dpi < asked) return `Copied page ${name} as an image, at ${dpi} dpi as the page is large.`;
+	return `Copied page ${name} as an image.`;
+}
+
 /** The size of a page's file, as the preview says it; "about" when estimated. */
 export function previewSizeText(bytes: number, estimated: boolean): string {
 	return `${estimated ? 'about ' : ''}${fileSize(bytes)}`;

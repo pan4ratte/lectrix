@@ -253,6 +253,9 @@ pub struct StoredSettings {
     /// Whether a presentation uses a second screen, with the presenter view on this one.
     #[serde(default = "yes")]
     pub presenter_view: bool,
+    /// The resolution Copy page as image draws a page at, dots per inch.
+    #[serde(default = "default_copy_image_dpi")]
+    pub copy_image_dpi: u16,
     /// The visual adjustments every document is shown with, unless it has its own.
     #[serde(default)]
     pub page_adjustments: PageAdjustments,
@@ -273,6 +276,14 @@ pub struct StoredSettings {
 
 fn yes() -> bool {
     true
+}
+
+/// The resolution Copy page as image draws pages at until the user sets one (section
+/// 6.14).
+pub const DEFAULT_COPY_IMAGE_DPI: u16 = 150;
+
+fn default_copy_image_dpi() -> u16 {
+    DEFAULT_COPY_IMAGE_DPI
 }
 
 /// The comment tooltip's delay until the user sets one (section 6.5).
@@ -328,6 +339,7 @@ impl Default for StoredSettings {
             presentation_transitions: true,
             presentation_timing: true,
             presenter_view: true,
+            copy_image_dpi: DEFAULT_COPY_IMAGE_DPI,
             page_adjustments: PageAdjustments::default(),
             color_panel_on_hover: true,
             preset_colors: BTreeMap::new(),
@@ -914,6 +926,7 @@ mod tests {
             presentation_transitions: false,
             presentation_timing: false,
             presenter_view: false,
+            copy_image_dpi: 300,
             page_adjustments: PageAdjustments {
                 sepia: 45,
                 contrast: 110,
@@ -973,6 +986,7 @@ mod tests {
         assert!(v1.settings().presentation_transitions);
         assert!(v1.settings().presentation_timing);
         assert!(v1.settings().presenter_view);
+        assert_eq!(v1.settings().copy_image_dpi, DEFAULT_COPY_IMAGE_DPI);
         assert!(v1.settings().color_panel_on_hover);
         assert!(v1.settings().preset_colors.is_empty());
         assert!(v1.settings().shortcuts.is_empty());

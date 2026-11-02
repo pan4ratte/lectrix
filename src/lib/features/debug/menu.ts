@@ -9,6 +9,7 @@ import { app } from '#lib/stores/app.svelte.ts';
 import {
 	clearRehearsals,
 	rehearseBanner,
+	rehearseCopied,
 	rehearseError,
 	rehearseExported,
 	rehearseFullScreen,
@@ -68,7 +69,9 @@ export function debugMenu(): AppMenu {
 				item('full-screen', 'Full screen started', rehearseFullScreen),
 				item('pages-deleted', 'Pages deleted', rehearsePagesDeleted),
 				item('exported', 'Pages exported as images', () => rehearseExported(false)),
-				item('exported-tiff', 'Pages exported as one TIFF file', () => rehearseExported(true))
+				item('exported-tiff', 'Pages exported as one TIFF file', () => rehearseExported(true)),
+				item('copied', 'Page copied as an image', () => rehearseCopied(false)),
+				item('copied-large', 'Large page copied as an image', () => rehearseCopied(true))
 			]),
 			submenu(
 				'File changed on disk',

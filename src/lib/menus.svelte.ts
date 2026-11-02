@@ -7,6 +7,7 @@ import { commands, setViewMode, type CommandName } from '#lib/commands.ts';
 import { APP_NAME } from '#lib/config.ts';
 import { copiesSelection } from '#lib/features/annotations/actions.ts';
 import { debugMenu } from '#lib/features/debug/menu.ts';
+import { pageToCopy } from '#lib/features/export/actions.ts';
 import { update } from '#lib/features/update/update.svelte.ts';
 import { MAX_PANES } from '#lib/features/split/split.ts';
 import { VIEW_MODES } from '#lib/features/viewer/layout.ts';
@@ -80,6 +81,7 @@ export function appMenus(platform: Platform = PLATFORM): AppMenu[] {
 	/** A document is being read: its pages are not being organized (section 6.7), where the
 	 * viewer and the side panes are not on screen. */
 	const reading = tab !== null && !tab.organize;
+	const copiesPage = tab !== null && pageToCopy(tab) !== null;
 	/** The tab shown, which can be several documents side by side (section 6.1). */
 	const group = app.activeGroup;
 	const joined = !!group?.joined && hasDoc;
@@ -180,6 +182,7 @@ export function appMenus(platform: Platform = PLATFORM): AppMenu[] {
 					system('copy'),
 					system('paste'),
 					system('selectAll'),
+					command('copyPageImage', 'Copy page as image', copiesPage),
 					separator,
 					{
 						kind: 'submenu',
@@ -192,7 +195,14 @@ export function appMenus(platform: Platform = PLATFORM): AppMenu[] {
 						]
 					}
 				]
-			: [undo, redo, separator, command('copy', 'Copy', !!tab && copiesSelection(tab)), command('find', 'Find…', reading)]
+			: [
+					undo,
+					redo,
+					separator,
+					command('copy', 'Copy', !!tab && copiesSelection(tab)),
+					command('copyPageImage', 'Copy page as image', copiesPage),
+					command('find', 'Find…', reading)
+				]
 	};
 
 	const view: AppMenu = {

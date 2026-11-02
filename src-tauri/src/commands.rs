@@ -21,7 +21,7 @@ use crate::annotations::RepairSummary;
 use crate::combine::{self, Progress};
 use crate::ipc::{
     AppError, CompareOutcome, CompareProgress, CompareSaved, CompareSettings, CompareSide,
-    CompressOutcome, CompressProgress, CompressSaved, CompressSettings, CompressStep,
+    CompressOutcome, CompressProgress, CompressSaved, CompressSettings, CompressStep, CopiedPage,
     DocumentChange, DocumentInfo, DocumentSaved, ExportDone, ExportPreferences, ExportPreview,
     ExportProgress, ExportSettings, ExportTarget, ImageFormat, LabelMode, LinkPlace, MenuEntry,
     MergeOutcome, MergePlan, MergeProgress, MergeRequest, MergeStage, MoveTarget, OpenResult,
@@ -1166,6 +1166,49 @@ pub fn export_run(
     })
 }
 
+/// Puts page `page` of document `id` on the clipboard as an image (section 6.14): drawn as
+/// it shows, annotations and all, at the resolution Settings gives (lower for a large
+/// page). Like exporting, it doesn't check the document's copy permission (ADR 0034).
+#[tauri::command(async)]
+pub fn copy_page_image(
+    app: AppHandle,
+    state: State<'_, AppState>,
+    id: u32,
+    page: u32,
+) -> Result<CopiedPage, AppError> {
+    use tauri_plugin_clipboard_manager::ClipboardExt;
+    let session = state.documents.session(id)?;
+    let dpi = state
+        .store
+        .lock()
+        .map_err(|_| AppError::bad_state())?
+        .settings()
+        .copy_image_dpi;
+    let page = page as usize;
+    let list = session.export_list(page, true)?;
+    let copied = pdf_core::export::copy::copy_image(&list, page, dpi).map_err(|e| match e {
+        pdf_core::Error::PageTooLarge { .. } => AppError::new(
+            "This page is too large to copy as an image.",
+            Some("Export it with File > Export > Pages as images instead."),
+        ),
+        e => e.into(),
+    })?;
+    drop(list);
+    let image = tauri::image::Image::new_owned(copied.rgba, copied.width, copied.height);
+    app.clipboard().write_image(&image).map_err(|e| {
+        crate::applog::warn(format!("copy page image: {e}"));
+        AppError::new(
+            "The page couldn’t be copied to the clipboard.",
+            Some("Try again. If another app is using the clipboard, close it first."),
+        )
+    })?;
+    Ok(CopiedPage {
+        width: copied.width,
+        height: copied.height,
+        dpi: copied.dpi,
+    })
+}
+
 #[tauri::command]
 pub fn export_stop(state: State<'_, AppState>, id: u32) {
     state.export.stop(id);
@@ -1626,6 +1669,7 @@ fn settings_of(stored: &StoredSettings, platform: &dyn Platform) -> Settings {
         presentation_transitions: stored.presentation_transitions,
         presentation_timing: stored.presentation_timing,
         presenter_view: stored.presenter_view,
+        copy_image_dpi: stored.copy_image_dpi,
         page_adjustments: stored.page_adjustments,
         color_panel_on_hover: stored.color_panel_on_hover,
         preset_colors: stored.preset_colors.clone(),
@@ -1701,6 +1745,9 @@ pub fn set_settings(
         presentation_transitions: settings.presentation_transitions,
         presentation_timing: settings.presentation_timing,
         presenter_view: settings.presenter_view,
+        copy_image_dpi: settings
+            .copy_image_dpi
+            .clamp(pdf_core::export::DPI_RANGE.0, pdf_core::export::DPI_RANGE.1),
         page_adjustments: settings.page_adjustments.clamped(),
         color_panel_on_hover: settings.color_panel_on_hover,
         // Only colours of presets the panel has, written one way.

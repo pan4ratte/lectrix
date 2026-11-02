@@ -37,6 +37,7 @@ const STORED: Settings = {
 	presentationTransitions: true,
 	presentationTiming: false,
 	presenterView: true,
+	copyImageDpi: 150,
 	pageAdjustments: { brightness: 100, contrast: 100, invert: false, grayscale: false, sepia: 0 },
 	colorPanelOnHover: true,
 	presetColors: { 2: '#12ab34' },
