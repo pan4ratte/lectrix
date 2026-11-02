@@ -26,6 +26,14 @@ the wording, translations): docs/releasing.md, "The changelog".
 - A new **Smoothing** slider, under the pen's stroke width, steadies pen strokes: the pen trails the pointer a little and ignores small wobbles, which helps when writing with a mouse.
 - Press Esc while drawing to drop the stroke or shape.
 
+### Exporting images
+
+- **File > Export > Pages as images…** saves the document's pages, or the pages you choose, as PNG, JPEG or TIFF images, at the resolution you pick, in colour, greyscale or black and white, with or without annotations.
+- A preview shows a page as it will be saved, as a whole or pixel for pixel, with its size in pixels and the size of its file.
+- Each page becomes a file of its own, named after the name you give and the page's number or its page label. TIFF can also put every page in one file.
+- If some of the files are already there, Lectrix asks whether to replace them or keep them.
+- Export a single page from its right-click menu, or the pages selected in **Organize pages** from its bar or right-click menu.
+
 ### Settings
 
 - **Settings > Viewing > Presentation** turns off the presenter view on a second screen, page transitions, or pages turning by themselves.

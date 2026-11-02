@@ -5,6 +5,7 @@ pub mod compare;
 pub mod compress;
 pub mod docinfo;
 pub mod error;
+pub mod export;
 pub mod ffi;
 pub mod fonts;
 pub mod geometry;

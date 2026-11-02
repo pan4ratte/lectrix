@@ -4,8 +4,20 @@
 	// from a file and into a new document, and the page labels, each with its name beside
 	// its icon; the size of the pictures; how many pages are selected; and at the end Done,
 	// which goes back to reading.
-	import { FileOutput, FilePlus, LockOpen, RotateCcw, RotateCw, Tag, Trash, ZoomIn, ZoomOut } from '@lucide/svelte';
+	import {
+		FileImage,
+		FileOutput,
+		FilePlus,
+		LockOpen,
+		RotateCcw,
+		RotateCw,
+		Tag,
+		Trash,
+		ZoomIn,
+		ZoomOut
+	} from '@lucide/svelte';
 
+	import { openExport } from '#lib/features/export/actions.ts';
 	import { showLabels } from '#lib/features/labels/actions.ts';
 	import { unlockDocument } from '#lib/features/unprotect/actions.ts';
 
@@ -82,6 +94,17 @@
 		onclick={() => organize.extract(organize.selectedSet)}
 	>
 		<FileOutput size={16} aria-hidden="true" />Extract
+	</button>
+	<button
+		type="button"
+		class="bar-button"
+		aria-label="Export selected pages as images"
+		data-tip={app.hint('Export the selected pages as images', 'exportImages')}
+		disabled={selected === 0}
+		onclick={() => openExport(tab, { selected: organize.indexes(organize.selected) })}
+		data-organize-export
+	>
+		<FileImage size={16} aria-hidden="true" />Export
 	</button>
 	<button
 		type="button"

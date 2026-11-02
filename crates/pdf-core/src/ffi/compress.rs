@@ -54,6 +54,7 @@ unsafe extern "C" {
         stride: isize,
         quality: c_int,
         subsample: c_int,
+        dpi: c_int,
         out: *mut *mut c_uchar,
         out_len: *mut usize,
         err: *mut LectrixError,
@@ -289,6 +290,20 @@ pub fn encode_jpeg(
     quality: u8,
     subsample: bool,
 ) -> Result<Vec<u8>> {
+    encode_jpeg_at(samples, width, height, n, quality, subsample, 0)
+}
+
+/// Encodes `samples` as [`encode_jpeg`] does, with `dpi` (pixels per inch, 1 to 65535) in
+/// its JFIF header; 0 writes none.
+pub fn encode_jpeg_at(
+    samples: &[u8],
+    width: usize,
+    height: usize,
+    n: usize,
+    quality: u8,
+    subsample: bool,
+    dpi: u16,
+) -> Result<Vec<u8>> {
     let (w, h, n_) = dims(width, height, n, samples.len())?;
     let mut out = std::ptr::null_mut();
     let mut len = 0;
@@ -304,6 +319,7 @@ pub fn encode_jpeg(
             (width * n) as isize,
             c_int::from(quality),
             c_int::from(subsample),
+            c_int::from(dpi),
             &mut out,
             &mut len,
             &mut err,

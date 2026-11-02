@@ -13,6 +13,7 @@ import { toggleTheme } from '#lib/features/settings/apply.ts';
 import { insertFromFile, toggleOrganize } from '#lib/features/organize/actions.ts';
 import { openProperties } from '#lib/features/properties/actions.ts';
 import { openPrint } from '#lib/features/print/actions.ts';
+import { openExport } from '#lib/features/export/actions.ts';
 import { compressDocument, compressFile } from '#lib/features/compress/actions.ts';
 import { protectDocument, protectFile } from '#lib/features/protect/actions.ts';
 import { unlockDocument, unlockFile } from '#lib/features/unprotect/actions.ts';
@@ -159,6 +160,11 @@ export const commands = {
 	},
 	/** The Print dialog for the document shown (section 6.12). */
 	print: withTab(openPrint),
+	/** The Export as images dialog for the document shown (section 6.14): its pages
+	 * selected in Organize pages, or all of them. */
+	exportImages: withTab((t) =>
+		openExport(t, { selected: t.organize ? t.organize.indexes(t.organize.selected) : undefined })
+	),
 	/** The active tab into a window of its own (section 8). */
 	moveTabToNewWindow: withTab(() => {
 		const group = app.activeGroup;

@@ -102,6 +102,22 @@ import type { ProtectSaved } from './generated/ProtectSaved';
 export type { ProtectStep } from './generated/ProtectStep';
 import type { ProtectStep } from './generated/ProtectStep';
 export type { Restrictions } from './generated/Restrictions';
+export type { ExportDone } from './generated/ExportDone';
+import type { ExportDone } from './generated/ExportDone';
+export type { ExportFormat } from './generated/ExportFormat';
+export type { ExportPreferences } from './generated/ExportPreferences';
+import type { ExportPreferences } from './generated/ExportPreferences';
+export type { ExportPreview } from './generated/ExportPreview';
+import type { ExportPreview } from './generated/ExportPreview';
+export type { ExportProgress } from './generated/ExportProgress';
+import type { ExportProgress } from './generated/ExportProgress';
+export type { ExportSettings } from './generated/ExportSettings';
+import type { ExportSettings } from './generated/ExportSettings';
+export type { ExportTarget } from './generated/ExportTarget';
+import type { ExportTarget } from './generated/ExportTarget';
+export type { FileNaming } from './generated/FileNaming';
+export type { ImageColour } from './generated/ImageColour';
+export type { TiffCompression } from './generated/TiffCompression';
 export type { PrintDone } from './generated/PrintDone';
 import type { PrintDone } from './generated/PrintDone';
 export type { PrintDuplex } from './generated/PrintDuplex';
@@ -323,6 +339,33 @@ export function printRun(id: number, settings: PrintSettings, onProgress: (p: Pr
 	return invoke<PrintDone>('print_run', { id, settings, onProgress: channel });
 }
 export const printStop = (id: number) => invoke<void>('print_stop', { id });
+// Pages exported as images (section 6.14, ADR 0034): the choices used last, a page as it
+// will be exported, where the Save dialog says the files go, and the export, with progress.
+export const exportStart = () => invoke<ExportPreferences | null>('export_start');
+/** A page as `settings` export it; a preview asked for later stops this one (the
+ * `cancelled` code). Its image is at `exportPreviewUrl(token)`. */
+export const exportPreview = (id: number, page: number, settings: ExportSettings) =>
+	invoke<ExportPreview>('export_preview', { id, page, settings });
+/** Shows the Save dialog and plans the export: the files it writes and those already there,
+ * or null when the dialog was given up. */
+export const exportPick = (id: number, settings: ExportSettings) =>
+	invoke<ExportTarget | null>('export_pick', { id, settings });
+/** Exports as `exportPick` planned, with progress; `exportStop` stops it (the `cancelled`
+ * code). */
+export function exportRun(id: number, skipExisting: boolean, onProgress: (p: ExportProgress) => void) {
+	const channel = new Channel<ExportProgress>();
+	channel.onmessage = onProgress;
+	return invoke<ExportDone>('export_run', { id, skipExisting, onProgress: channel });
+}
+export const exportStop = (id: number) => invoke<void>('export_stop', { id });
+/** Forgets a planned export: the dialog closed without exporting. */
+export const exportForget = (id: number) => invoke<void>('export_forget', { id });
+export const exportShowInFolder = (token: number) => invoke<void>('export_show_in_folder', { token });
+/** URL of the image `exportPreview` made. */
+export function exportPreviewUrl(token: number): string {
+	const base = isWindows() ? 'http://lectrix.localhost' : 'lectrix://localhost';
+	return `${base}/export/${token}`;
+}
 // Protect (section 6.9, ADR 0026): a file given a password, restrictions or both, as a tool
 // on a file or as a change of a document's protection that its next save writes.
 export const protectPick = () => invoke<ProtectStep>('protect_pick');

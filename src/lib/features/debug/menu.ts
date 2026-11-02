@@ -10,6 +10,7 @@ import {
 	clearRehearsals,
 	rehearseBanner,
 	rehearseError,
+	rehearseExported,
 	rehearseFullScreen,
 	rehearseInfo,
 	rehearsePagesDeleted,
@@ -65,7 +66,9 @@ export function debugMenu(): AppMenu {
 				item('error-button', 'Error with a button', () => rehearseError(true)),
 				item('pdfa-removed', 'PDF/A claim removed', rehearsePdfaRemoved),
 				item('full-screen', 'Full screen started', rehearseFullScreen),
-				item('pages-deleted', 'Pages deleted', rehearsePagesDeleted)
+				item('pages-deleted', 'Pages deleted', rehearsePagesDeleted),
+				item('exported', 'Pages exported as images', () => rehearseExported(false)),
+				item('exported-tiff', 'Pages exported as one TIFF file', () => rehearseExported(true))
 			]),
 			submenu(
 				'File changed on disk',

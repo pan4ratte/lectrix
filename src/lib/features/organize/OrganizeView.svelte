@@ -14,6 +14,7 @@
 
 	import PageGrid from '#lib/components/PageGrid.svelte';
 	import type { GridPicture } from '#lib/components/pagegrid.ts';
+	import { openExport } from '#lib/features/export/actions.ts';
 	import { showLabels } from '#lib/features/labels/actions.ts';
 	import CopyProgress from '#lib/features/merge/CopyProgress.svelte';
 	import { pageUrl } from '#lib/ipc/index.ts';
@@ -164,6 +165,9 @@
 			<ContextMenu.Separator class="menu-separator" />
 			<ContextMenu.Item class="menu-item" disabled={!picked.length} onSelect={() => organize.extract(organize.selectedSet)}>
 				{many ? `Extract ${picked.length.toLocaleString()} pages into a new document` : 'Extract page into a new document'}
+			</ContextMenu.Item>
+			<ContextMenu.Item class="menu-item" disabled={!picked.length} onSelect={() => openExport(tab, { selected: picked })}>
+				{many ? `Export ${picked.length.toLocaleString()} pages as images…` : 'Export page as image…'}
 			</ContextMenu.Item>
 			<ContextMenu.Item
 				class="menu-item"

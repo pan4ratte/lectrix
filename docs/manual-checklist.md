@@ -397,6 +397,29 @@ roman front matter and a landscape table, or `pdf-cli merge mixed.pdf a.pdf --pa
 - [ ] On Linux or macOS: the printers are listed and a page prints through CUPS, on both
       sides where the printer can.
 
+## Export as images
+
+With a document of a few pages with annotations and page labels (a book with roman front
+matter):
+
+- [ ] **File > Export > Pages as images…**: the preview shows the page as the viewer does;
+      **Actual pixels** at 72 and at 300 dpi shows the difference. JPEG at quality 20 shows
+      soft edges in the preview.
+- [ ] Export all pages as PNG at 300 dpi, named by page label: the files are in the folder
+      chosen, named after the name given ("book-iv.png"), and **Open file location** shows
+      them. They open in Windows Photos (or Preview, or an image viewer on Linux), a
+      browser and GIMP, at the size the dpi says when printed.
+- [ ] The same as JPEG and as TIFF (LZW and ZIP): each opens in a browser (JPEG) or an
+      image viewer, and in GIMP.
+- [ ] TIFF, black and white, all pages in one file: Windows Photos or a fax viewer shows
+      every page, black on white.
+- [ ] Export the same pages again: Lectrix asks about the files there; **Keep them** writes
+      nothing, **Replace** writes them anew.
+- [ ] A page's right-click menu, and Organize pages with pages selected: the dialog starts
+      with that page, or those pages.
+- [ ] Compare a page exported at 300 dpi with Acrobat's **Export a PDF > Image** at 300
+      dpi: same size in pixels, the same look.
+
 ## Full screen
 
 - [ ] With a document open, press F11: the title bar, the view bar and the side panes slide

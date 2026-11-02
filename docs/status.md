@@ -48,6 +48,7 @@ In full, with measurements: [known-gaps.md](status/known-gaps.md).
 - **Document properties:** one language for title and description, one creator item; "Fast web view" after an incremental save.
 - **Compress:** scans gain little (JBIG2 and MRC come with OCR); some images are not downsampled or are left as they are; one threshold for black and white; not yet compared with Acrobat and FineReader by a person.
 - **Compare:** scans compare only as pictures (until OCR); moved text shows as deleted and inserted; two-column pages scroll together less closely; formatting changes are not found; not yet checked by a person in other readers or against FineReader.
+- **Export as images:** a page stops at 150 million pixels and a TIFF file at 4 GB; up to 1 GB of memory while exporting; not yet opened in other apps by a person.
 - **Print:** on Windows each sheet is an image (large spool jobs); no pages per sheet, booklets, posters or tray by page size; the preview's greys are the webview's; not yet on a paper printer; landscape duplex edges to be settled.
 
 ## Split view

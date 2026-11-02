@@ -67,6 +67,7 @@ lectrix/
 │  │  │  ├─ compress/        # Compress: images, fonts, removals, duplicates (ADR 0027)
 │  │  │  ├─ compare/         # Compare: words, the diff, pages as images, the annotated copy, the report (ADR 0031)
 │  │  │  ├─ print/           # printing: pages on sheets, bands for printers, the PDF for CUPS (ADR 0028)
+│  │  │  ├─ export/          # pages exported as images: drawing, the encoders, file names, the job (ADR 0034)
 │  │  │  ├─ save.rs          # incremental / full / atomic replace
 │  │  │  ├─ ops.rs           # operation enum, undo/redo
 │  │  │  ├─ fonts/           # installed-font index (ADR 0005)

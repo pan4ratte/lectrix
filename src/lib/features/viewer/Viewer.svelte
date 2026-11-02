@@ -54,6 +54,7 @@
 	} from '#lib/features/annotations/geometry.ts';
 	import { marksText } from '#lib/features/annotations/listing.ts';
 	import SelectionBar from '#lib/features/annotations/SelectionBar.svelte';
+	import { openExport } from '#lib/features/export/actions.ts';
 	import { MAX_STRING_PX, Stabilizer, constrainEnd, shapeStrokes, type ShapeKind } from '#lib/features/annotations/pen.ts';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
 	import { DEFAULT_QUICK_TOOLS, capabilities, isMarkupTool, showsComment, type Tool } from '#lib/features/annotations/tools.ts';
@@ -2046,6 +2047,7 @@
 
 	function onContextMenu(event: MouseEvent) {
 		const contextPage = pageUnder(event.clientX, event.clientY);
+		menuPage = contextPage;
 		menuPoint = scroller
 			? { x: event.clientX, y: event.clientY, left: scroller.scrollLeft, top: scroller.scrollTop }
 			: null;
@@ -2065,6 +2067,8 @@
 
 	/** Whether the page's context menu is open. */
 	let menuOpen = $state(false);
+	/** The page the context menu was opened on. */
+	let menuPage = $state(0);
 	/** Where the context menu was opened (client coordinates) and the scroll position then:
 	 * the menu stays by that point of the page as the page scrolls. */
 	let menuPoint: { x: number; y: number; left: number; top: number } | null = null;
@@ -2385,6 +2389,10 @@
 				<ContextMenu.Item class="menu-item" disabled={!copiesSelection(tab)} onSelect={() => void copyInContext(tab)}>
 					Copy selection
 					<span class="menu-shortcut">{app.shortcut('copy')}</span>
+				</ContextMenu.Item>
+				<ContextMenu.Separator class="menu-separator" />
+				<ContextMenu.Item class="menu-item" onSelect={() => openExport(tab, { page: menuPage })} data-export-page>
+					Export page as image…
 				</ContextMenu.Item>
 			</ContextMenu.Content>
 		</ContextMenu.Portal>

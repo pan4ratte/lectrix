@@ -88,7 +88,7 @@ Scans, summarizes the problems, and on confirmation fixes them in one undoable o
 
 ### 5.4 Saving rules that protect interoperability
 
-Incremental by default. A file repaired on open gets a full save, and the user is told why, once. Signed files: warn before the first edit, always save incrementally. Encrypted files keep their encryption and their permission flags are respected, except through Unlock and Protect. PDF/A files open for reading only until Enable editing, and a save whose changes may break the claim removes it. All of it in full: [docs/interop-profile.md](docs/interop-profile.md), "Saving".
+Incremental by default. A file repaired on open gets a full save, and the user is told why, once. Signed files: warn before the first edit, always save incrementally. Encrypted files keep their encryption and their permission flags are respected, except through Unlock and Protect, and in exporting pages as images (ADR 0034). PDF/A files open for reading only until Enable editing, and a save whose changes may break the claim removes it. All of it in full: [docs/interop-profile.md](docs/interop-profile.md), "Saving".
 
 ## 6. Feature specifications
 
@@ -99,7 +99,7 @@ What each feature does is specified in `docs/spec/`, one file per feature, under
 - **6.5 Annotations** ([annotations.md](docs/spec/annotations.md)): the tools, colors, the bar, the inspector, the annotation list. Every change is one undo step.
 - **6.6 Settings, About and installers** ([settings.md](docs/spec/settings.md)): a new setting is a field in Rust's `Settings` plus a row in `src/lib/features/settings/schema.ts`; a new command with a shortcut is an entry in `SHORTCUT_GROUPS` (`src/lib/shortcuts.ts`); only what differs from the defaults is stored.
 - **6.7 Organize pages** ([organize.md](docs/spec/organize.md)): each change is one undo step (ADR 0018), and what is kept by page follows its page (`DocumentChange.pageMap`).
-- **6.8 Unlock** ([unlock.md](docs/spec/unlock.md)) · **6.9 Protect** ([protect.md](docs/spec/protect.md)) · **6.10 Document properties** ([properties.md](docs/spec/properties.md)) · **6.11 Compress** ([compress.md](docs/spec/compress.md)) · **6.12 Print** ([print.md](docs/spec/print.md)) · **6.13 Compare** ([compare.md](docs/spec/compare.md); the documents compared are only read).
+- **6.8 Unlock** ([unlock.md](docs/spec/unlock.md)) · **6.9 Protect** ([protect.md](docs/spec/protect.md)) · **6.10 Document properties** ([properties.md](docs/spec/properties.md)) · **6.11 Compress** ([compress.md](docs/spec/compress.md)) · **6.12 Print** ([print.md](docs/spec/print.md)) · **6.13 Compare** ([compare.md](docs/spec/compare.md); the documents compared are only read) · **6.14 Export as images** ([export-images.md](docs/spec/export-images.md); the document is only read).
 
 ## 7. Document model, undo/redo and saving
 

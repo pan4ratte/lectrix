@@ -128,6 +128,12 @@ export function appMenus(platform: Platform = PLATFORM): AppMenu[] {
 					command('saveAsOptimized', 'Save as (optimized)…', hasDoc),
 					separator,
 					command('print', 'Print…', hasDoc),
+					{
+						kind: 'submenu',
+						label: 'Export',
+						enabled: hasDoc,
+						items: [command('exportImages', 'Pages as images…', hasDoc)]
+					},
 					separator,
 					command('reload', 'Reload from disk', hasDoc && !tab?.untitled)
 				]
@@ -146,6 +152,12 @@ export function appMenus(platform: Platform = PLATFORM): AppMenu[] {
 					command('saveAsOptimized', 'Save as (optimized)…', hasDoc),
 					separator,
 					command('print', 'Print…', hasDoc),
+					{
+						kind: 'submenu',
+						label: 'Export',
+						enabled: hasDoc,
+						items: [command('exportImages', 'Pages as images…', hasDoc)]
+					},
 					separator,
 					command('reload', 'Reload from disk', hasDoc && !tab?.untitled),
 					command('closeTab', 'Close', hasDoc || app.combineActive || app.compareActive),

@@ -10,9 +10,9 @@ use std::time::{SystemTime, UNIX_EPOCH};
 use serde::{Deserialize, Serialize};
 
 use crate::ipc::{
-    AnnotationSort, Appearance, CompareSettings, CompressSettings, PageAdjustments, PaneLayout,
-    PrintPreferences, QuickTool, ScrollMode, StartLayout, ToolbarDock, ToolbarPosition,
-    ToolbarStyle, ToolbarVisibility, ViewState,
+    AnnotationSort, Appearance, CompareSettings, CompressSettings, ExportPreferences,
+    PageAdjustments, PaneLayout, PrintPreferences, QuickTool, ScrollMode, StartLayout, ToolbarDock,
+    ToolbarPosition, ToolbarStyle, ToolbarVisibility, ViewState,
 };
 use crate::placement::WindowPlacement;
 
@@ -74,6 +74,10 @@ struct Data {
     /// are.
     #[serde(default, deserialize_with = "or_none")]
     print: Option<PrintPreferences>,
+    /// The Export as images dialog's choices used last (section 6.14), read as the Compress
+    /// settings are.
+    #[serde(default, deserialize_with = "or_none")]
+    export: Option<ExportPreferences>,
 }
 
 /// `T` if it can be read, `None` otherwise.
@@ -482,6 +486,17 @@ impl Store {
     pub fn set_print_preferences(&mut self, preferences: PrintPreferences) {
         if self.data.print.as_ref() != Some(&preferences) {
             self.data.print = Some(preferences);
+            self.persist();
+        }
+    }
+
+    pub fn export_preferences(&self) -> Option<ExportPreferences> {
+        self.data.export.clone()
+    }
+
+    pub fn set_export_preferences(&mut self, preferences: ExportPreferences) {
+        if self.data.export.as_ref() != Some(&preferences) {
+            self.data.export = Some(preferences);
             self.persist();
         }
     }

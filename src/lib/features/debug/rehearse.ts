@@ -6,6 +6,7 @@ import { getVersion } from '@tauri-apps/api/app';
 
 import { showUpdated } from '#lib/features/changelog/announce.ts';
 import { changelogMarkdown, hasChanges, parseChangelog } from '#lib/features/changelog/changelog.ts';
+import { doneMessage, SHOW_IN_FOLDER } from '#lib/features/export/export.ts';
 import { hintFullScreen } from '#lib/features/fullscreen/actions.ts';
 import { notifyDeleted } from '#lib/features/organize/notify.ts';
 import { recoveryQuestion } from '#lib/features/recovery/recovery.ts';
@@ -117,6 +118,20 @@ function rehearseInfoAbout(what: string) {
 /** The banner of a document another program changed or removed (needs one open). */
 export function rehearseBanner(kind: BannerKind) {
 	if (app.active) app.active.banner = kind;
+}
+
+/** The notification once pages are exported as images (section 6.14): as files, or as one
+ * TIFF file. Its button only says what it would show. */
+export function rehearseExported(oneFile: boolean) {
+	const name = app.active?.name ?? 'report.pdf';
+	const done = oneFile
+		? { pages: 12, files: 1, folder: 'Pictures', first: 'report.tif', token: 0 }
+		: { pages: 12, files: 12, folder: 'Pictures', first: 'report-01.png', token: 0 };
+	app.notify({
+		kind: 'info',
+		message: doneMessage(name, done, oneFile ? 'tiff' : 'png'),
+		action: { label: SHOW_IN_FOLDER, run: () => rehearseInfoAbout(`the system would show ${done.first} in its folder.`) }
+	});
 }
 
 /** The notification after a save that took the PDF/A claim out of a file. */

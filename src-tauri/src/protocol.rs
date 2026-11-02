@@ -317,6 +317,9 @@ fn serve(state: &AppState, request: &Request<Vec<u8>>) -> Result<Response<Body>,
     if uri.path().starts_with("/compress/") {
         return serve_compressed(state, parse_compressed(uri.path(), uri.query())?);
     }
+    if let Some(token) = uri.path().strip_prefix("/export/") {
+        return serve_export_preview(state, token);
+    }
     let req = parse(uri.path(), uri.query())?;
     let session = state
         .documents
@@ -653,6 +656,18 @@ fn serve_compressed(state: &AppState, req: CompressedRequest) -> Result<Response
         .map_err(|_| (StatusCode::INTERNAL_SERVER_ERROR, "encode failed"))?;
     let timing = format!("render={:.2}", t0.elapsed().as_secs_f64() * 1000.0);
     respond("image/png", image.width, image.height, 0, &timing, png)
+}
+
+/// A page as it will be exported as an image (section 6.14), made by `export_preview`.
+fn serve_export_preview(state: &AppState, token: &str) -> Result<Response<Body>, Failure> {
+    let token: u32 = token
+        .parse()
+        .map_err(|_| (StatusCode::BAD_REQUEST, "bad export preview"))?;
+    let (image, media) = state
+        .export
+        .preview_image(token)
+        .ok_or((StatusCode::NOT_FOUND, "no such export preview"))?;
+    respond(media, 0, 0, 0, "", image.as_ref().clone())
 }
 
 /// A file that needs a password or cannot be read has no preview; the start screen shows

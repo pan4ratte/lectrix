@@ -9,6 +9,7 @@ mod commands;
 mod compare;
 mod compress;
 mod documents;
+mod export;
 mod ipc;
 mod menu;
 mod placement;
@@ -92,6 +93,9 @@ pub struct AppState {
     compare: compare::Compare,
     /// Printers' sheets, and jobs printing (section 6.12).
     print: print::Print,
+    /// Pages exported as images: previews, where exports go, exports running (section
+    /// 6.14).
+    export: export::Export,
 }
 
 impl AppState {
@@ -410,6 +414,7 @@ pub fn run() {
                 compress: compress::Compress::new(compress_folder),
                 compare: compare::Compare::default(),
                 print: print::Print::default(),
+                export: export::Export::default(),
             });
             app.manage(menu::Menus::default());
             app.manage(audience::Audiences::default());
@@ -540,6 +545,13 @@ pub fn run() {
             commands::print_layout,
             commands::print_run,
             commands::print_stop,
+            commands::export_start,
+            commands::export_preview,
+            commands::export_pick,
+            commands::export_run,
+            commands::export_stop,
+            commands::export_forget,
+            commands::export_show_in_folder,
             commands::protect_pick,
             commands::protect_password,
             commands::protect_save,

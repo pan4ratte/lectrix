@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-export-show-in-folder"
+description = "Enables the export_show_in_folder command without any pre-configured scope."
+commands.allow = ["export_show_in_folder"]
+
+[[permission]]
+identifier = "deny-export-show-in-folder"
+description = "Denies the export_show_in_folder command without any pre-configured scope."
+commands.deny = ["export_show_in_folder"]

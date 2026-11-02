@@ -480,6 +480,25 @@ impl Session {
         })
     }
 
+    /// The display list of `page` as it shows (section 6.14, pages exported as images):
+    /// content, annotations (unless `annotations` is false) and form fields, every
+    /// annotation whatever the annotation list filters out. Not kept on the actor.
+    pub fn export_list(&self, page: usize, annotations: bool) -> Result<Arc<DisplayList>> {
+        let part = if annotations {
+            Part::Whole
+        } else {
+            Part::Content
+        };
+        self.call(|reply| Command::DisplayList {
+            page,
+            hidden: Vec::new(),
+            part,
+            cache: false,
+            reply,
+        })
+        .map(|(list, _)| list)
+    }
+
     /// The page sizes and the print permission (section 6.12).
     pub fn print_facts(&self) -> Result<PrintFacts> {
         self.call(|reply| Command::PrintFacts { reply })

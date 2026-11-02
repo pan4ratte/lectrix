@@ -2553,6 +2553,22 @@ impl From<pdf_core::Error> for AppError {
                 Some("Ask its author for a copy that can be printed."),
             )
             .with_code(ErrorCode::NotPermitted),
+            E::PageTooLarge {
+                page,
+                width,
+                height,
+                format,
+            } => AppError::new(
+                format!(
+                    "Page {} would be {width} × {height} pixels, too large for {format}.",
+                    page + 1
+                ),
+                Some("Choose a lower resolution, or another format."),
+            ),
+            E::Encode { format, .. } => AppError::new(
+                format!("Lectrix couldn’t write the page as {format}."),
+                Some("Try another format. If it keeps happening, the app log has details."),
+            ),
             E::DamagedPageTree => AppError::new(
                 "This document’s page structure is damaged, so its pages can’t be moved or deleted here.",
                 Some(
@@ -3506,6 +3522,185 @@ pub struct CompareOutcome {
 pub enum CompareSide {
     Old,
     New,
+}
+
+// ----- Pages exported as images (section 6.14, ADR 0034) -----
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum ExportFormat {
+    Png,
+    Jpeg,
+    Tiff,
+}
+
+impl From<ExportFormat> for pdf_core::export::Format {
+    fn from(f: ExportFormat) -> Self {
+        use pdf_core::export::Format;
+        match f {
+            ExportFormat::Png => Format::Png,
+            ExportFormat::Jpeg => Format::Jpeg,
+            ExportFormat::Tiff => Format::Tiff,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum ImageColour {
+    Colour,
+    Grey,
+    BlackAndWhite,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum TiffCompression {
+    Lzw,
+    Deflate,
+}
+
+/// What each page's file is named by, when there are several.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum FileNaming {
+    Numbers,
+    Labels,
+}
+
+/// What the Export as images dialog asks for.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ExportSettings {
+    /// The pages, in order (0-based).
+    pub pages: Vec<u32>,
+    pub format: ExportFormat,
+    pub dpi: u16,
+    pub colour: ImageColour,
+    /// 1 to 100, for JPEG.
+    pub quality: u8,
+    pub tiff: TiffCompression,
+    /// Every page in one TIFF file.
+    pub one_file: bool,
+    pub naming: FileNaming,
+    pub annotations: bool,
+}
+
+impl ExportSettings {
+    pub fn options(&self) -> pdf_core::export::Options {
+        pdf_core::export::Options {
+            format: self.format.into(),
+            dpi: self.dpi,
+            colour: match self.colour {
+                ImageColour::Colour => pdf_core::export::Colour::Colour,
+                ImageColour::Grey => pdf_core::export::Colour::Grey,
+                ImageColour::BlackAndWhite => pdf_core::export::Colour::BlackAndWhite,
+            },
+            quality: self.quality,
+            tiff: match self.tiff {
+                TiffCompression::Lzw => pdf_core::export::TiffCompression::Lzw,
+                TiffCompression::Deflate => pdf_core::export::TiffCompression::Deflate,
+            },
+            annotations: self.annotations,
+        }
+    }
+
+    /// Every page in one file: one TIFF of many pages.
+    pub fn one_tiff(&self) -> bool {
+        self.one_file && self.format == ExportFormat::Tiff && self.pages.len() > 1
+    }
+
+    /// What the dialog keeps for next time: not the pages.
+    pub fn preferences(&self) -> ExportPreferences {
+        ExportPreferences {
+            format: self.format,
+            dpi: self.dpi,
+            colour: self.colour,
+            quality: self.quality,
+            tiff: self.tiff,
+            one_file: self.one_file,
+            naming: self.naming,
+            annotations: self.annotations,
+        }
+    }
+}
+
+/// The Export as images dialog's choices used last.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ExportPreferences {
+    pub format: ExportFormat,
+    pub dpi: u16,
+    pub colour: ImageColour,
+    pub quality: u8,
+    pub tiff: TiffCompression,
+    pub one_file: bool,
+    pub naming: FileNaming,
+    pub annotations: bool,
+}
+
+/// A page as it will be exported, for the dialog's preview.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ExportPreview {
+    /// Names the image the page protocol serves (`/export/{token}`).
+    pub token: u32,
+    /// Its size in pixels.
+    pub width: u32,
+    pub height: u32,
+    /// The page's file, in bytes; estimated for a page previewed at a lower resolution.
+    #[ts(type = "number")]
+    pub bytes: u64,
+    /// The resolution the preview is drawn at: the one asked for, or lower for a page
+    /// too large to preview at it.
+    pub dpi: u16,
+}
+
+/// Where the Save dialog said an export goes.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ExportTarget {
+    /// The folder's name, as the dialog says it.
+    pub folder: String,
+    /// The files written: the first and the last, and how many.
+    pub first: String,
+    pub last: String,
+    pub files: u32,
+    /// Those already there, which the export would replace: up to three of their names,
+    /// and how many.
+    pub existing: Vec<String>,
+    pub existing_count: u32,
+}
+
+/// Pages written so far.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ExportProgress {
+    pub done: u32,
+    pub total: u32,
+}
+
+/// An export done.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ExportDone {
+    pub pages: u32,
+    pub files: u32,
+    /// The folder's name, and the first file's.
+    pub folder: String,
+    pub first: String,
+    /// Names the first file for `export_show_in_folder`.
+    pub token: u32,
 }
 
 #[cfg(test)]

@@ -117,6 +117,37 @@ enum Command {
         #[arg(long)]
         password: Option<String>,
     },
+    /// Export pages as images (section 6.14): one file a page, named after `out`
+    /// (`out-001.png`…; one page is `out` itself), or with `--one-file` a multi-page TIFF.
+    ExportImages {
+        input: PathBuf,
+        out: PathBuf,
+        /// Physical page numbers, "1-3,7"; all pages by default.
+        #[arg(long)]
+        pages: Option<String>,
+        #[arg(long, value_enum, default_value_t = ImageFormatArg::Png)]
+        format: ImageFormatArg,
+        #[arg(long, default_value_t = 150)]
+        dpi: u16,
+        #[arg(long, value_enum, default_value_t = ImageColourArg::Colour)]
+        colour: ImageColourArg,
+        /// 1 to 100, for JPEG.
+        #[arg(long, default_value_t = 85)]
+        quality: u8,
+        /// TIFF compression for colour and grey pages.
+        #[arg(long, value_enum, default_value_t = TiffCompressionArg::Lzw)]
+        tiff_compression: TiffCompressionArg,
+        /// Every page in one TIFF file.
+        #[arg(long)]
+        one_file: bool,
+        /// Name the files by page label instead of page number.
+        #[arg(long)]
+        by_label: bool,
+        #[arg(long)]
+        no_annotations: bool,
+        #[arg(long)]
+        password: Option<String>,
+    },
     /// Remove a file's password and restrictions (the start screen's Unlock), writing it
     /// whole without encryption. Any password that opens it will do.
     Unlock {
@@ -612,6 +643,26 @@ enum ColorModeArg {
 }
 
 #[derive(Clone, Copy, ValueEnum)]
+enum ImageFormatArg {
+    Png,
+    Jpeg,
+    Tiff,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum ImageColourArg {
+    Colour,
+    Grey,
+    Mono,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
+enum TiffCompressionArg {
+    Lzw,
+    Deflate,
+}
+
+#[derive(Clone, Copy, ValueEnum)]
 enum SizingArg {
     Fit,
     Actual,
@@ -761,6 +812,75 @@ struct CliJob {
 }
 
 /// `pdf-cli print`: the job File > Print makes, on `printer`.
+fn export_images(
+    input: &Path,
+    out: &Path,
+    pages: Option<&str>,
+    options: pdf_core::export::Options,
+    one_file: bool,
+    by_label: bool,
+    password: Option<&str>,
+) -> Result<()> {
+    use pdf_core::export::names::{self, Naming};
+    use pdf_core::export::{Format, Job, Output, run};
+    let (session, info) = Session::open(input, password)?;
+    let count = info.pages.len();
+    let mut pages = match pages {
+        None => (0..count).collect(),
+        Some(spec) => parse_page_list(spec, count)?,
+    };
+    let format = options.format;
+    let out = names::with_extension(out, format.extension(), format.extensions());
+    let output = if one_file {
+        if format != Format::Tiff {
+            return Err(Error::InvalidArgument(
+                "only TIFF puts every page in one file".into(),
+            ));
+        }
+        Output::OneTiff(out.clone())
+    } else {
+        // A page once: each has one file.
+        let mut seen = std::collections::HashSet::new();
+        pages.retain(|p| seen.insert(*p));
+        let labels = info.labels.as_ref().map(|l| l.labels.clone());
+        Output::Files(names::file_names(
+            &out,
+            &pages,
+            count,
+            if by_label {
+                Naming::Labels
+            } else {
+                Naming::Numbers
+            },
+            labels.as_deref(),
+        ))
+    };
+    let job = Job {
+        pages,
+        options,
+        output: output.clone(),
+    };
+    let started = std::time::Instant::now();
+    run(
+        &session,
+        &job,
+        &std::sync::atomic::AtomicBool::new(false),
+        &mut |done, total| eprint!("\rexported {done} of {total}"),
+    )?;
+    eprintln!();
+    let size = |p: &Path| std::fs::metadata(p).map(|m| m.len()).unwrap_or(0);
+    let (files, bytes) = match &output {
+        Output::OneTiff(p) => (1, size(p)),
+        Output::Files(paths) => (paths.len(), paths.iter().map(|p| size(p)).sum()),
+    };
+    println!(
+        "wrote {} page(s) in {files} file(s), {bytes} bytes, in {:.2} s",
+        job.pages.len(),
+        started.elapsed().as_secs_f64()
+    );
+    Ok(())
+}
+
 fn print_file(
     input: &Path,
     printer: &str,
@@ -1015,6 +1135,50 @@ fn run(command: Command) -> Result<()> {
                 },
             };
             print_file(&input, &printer, output, &job, password.as_deref())?;
+        }
+        Command::ExportImages {
+            input,
+            out,
+            pages,
+            format,
+            dpi,
+            colour,
+            quality,
+            tiff_compression,
+            one_file,
+            by_label,
+            no_annotations,
+            password,
+        } => {
+            use pdf_core::export::{Colour, Format, Options, TiffCompression};
+            let options = Options {
+                format: match format {
+                    ImageFormatArg::Png => Format::Png,
+                    ImageFormatArg::Jpeg => Format::Jpeg,
+                    ImageFormatArg::Tiff => Format::Tiff,
+                },
+                dpi,
+                colour: match colour {
+                    ImageColourArg::Colour => Colour::Colour,
+                    ImageColourArg::Grey => Colour::Grey,
+                    ImageColourArg::Mono => Colour::BlackAndWhite,
+                },
+                quality,
+                tiff: match tiff_compression {
+                    TiffCompressionArg::Lzw => TiffCompression::Lzw,
+                    TiffCompressionArg::Deflate => TiffCompression::Deflate,
+                },
+                annotations: !no_annotations,
+            };
+            export_images(
+                &input,
+                &out,
+                pages.as_deref(),
+                options,
+                one_file,
+                by_label,
+                password.as_deref(),
+            )?;
         }
         Command::Unlock {
             input,

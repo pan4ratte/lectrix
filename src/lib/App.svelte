@@ -41,6 +41,7 @@
 	import ProtectDialog from '#lib/features/protect/ProtectDialog.svelte';
 	import CompressDialog from '#lib/features/compress/CompressDialog.svelte';
 	import PrintDialog from '#lib/features/print/PrintDialog.svelte';
+	import ExportDialog from '#lib/features/export/ExportDialog.svelte';
 	import InsertPagesDialog from '#lib/features/merge/InsertPagesDialog.svelte';
 	import SettingsDialog from '#lib/features/settings/SettingsDialog.svelte';
 	import { update } from '#lib/features/update/update.svelte.ts';
@@ -559,6 +560,7 @@
 <ProtectDialog />
 <CompressDialog />
 <PrintDialog />
+<ExportDialog />
 <SettingsDialog />
 <AboutDialog />
 <WhatsNewDialog />

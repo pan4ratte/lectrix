@@ -303,6 +303,18 @@ Part of the status: [docs/status.md](../status.md) is the index a session reads,
     name the sheet's edges instead, as IPP's do (CUPS gets them unswapped). To be settled
     on a duplex printer: print two landscape pages with "flip on the long edge" and check
     the back is upright when the sheet is turned over its long edge.
+- **Export as images** (section 6.14, ADR 0034):
+  - A page is drawn and written whole, so it has at most 150 million pixels (an A4 page
+    at 1,200 dpi has 140). Drawing in bands, as printing does, would lift that for PNG
+    and TIFF.
+  - Exporting takes up to about 1 GB while it runs (the pages drawn at once), more for a
+    single page larger than that budget.
+  - A file of many pages as TIFF stops at 4 GB (classic TIFF; BigTIFF is not written).
+  - WebP and JPEG XL were built and dropped (ADR 0034); WebP could come back through
+    libwebp if people ask for it.
+  - Not yet checked by a person: the files in other apps (Photoshop, GIMP, a browser,
+    Windows Photos, a fax or archive viewer for Group 4 TIFF), and against Acrobat's
+    export (`docs/manual-checklist.md`, "Export as images").
 
 ## Compare
 

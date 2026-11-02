@@ -387,7 +387,7 @@ typedef struct
  * resolution of an RGB image both ways (4:2:0); otherwise 4:4:4. CMYK is written as it
  * is, with the Adobe marker libjpeg writes for it, as PDF files hold it.
  */
-int lectrix_encode_jpeg(const unsigned char *samples, int w, int h, int n, ptrdiff_t stride, int quality, int subsample, unsigned char **out, size_t *out_len, lectrix_error *err)
+int lectrix_encode_jpeg(const unsigned char *samples, int w, int h, int n, ptrdiff_t stride, int quality, int subsample, int dpi, unsigned char **out, size_t *out_len, lectrix_error *err)
 {
 	struct jpeg_compress_struct cinfo;
 	lectrix_jpeg_error jerr;
@@ -428,6 +428,15 @@ int lectrix_encode_jpeg(const unsigned char *samples, int w, int h, int n, ptrdi
 	cinfo.scan_info = NULL;
 	cinfo.optimize_coding = TRUE;
 	jpeg_set_quality(&cinfo, quality < 1 ? 1 : quality > 100 ? 100 : quality, TRUE);
+	/* The resolution in the JFIF header (pixels per inch), so the image prints at its
+	 * size; none (the default aspect ratio only) for dpi 0. */
+	if (dpi > 0 && dpi <= 65535)
+	{
+		cinfo.write_JFIF_header = TRUE;
+		cinfo.density_unit = 1;
+		cinfo.X_density = (UINT16)dpi;
+		cinfo.Y_density = (UINT16)dpi;
+	}
 	if (n == 3)
 	{
 		cinfo.comp_info[0].h_samp_factor = subsample ? 2 : 1;

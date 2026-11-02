@@ -55,6 +55,22 @@ pub enum Error {
     /// The document's permissions do not allow printing it.
     #[error("the document does not allow printing")]
     PrintNotAllowed,
+    /// A page exported as an image would have more pixels than its format, or Lectrix,
+    /// takes (section 6.14).
+    #[error("page {page} would be {width} x {height} pixels, too large for {format}")]
+    PageTooLarge {
+        /// 0-based.
+        page: usize,
+        width: u32,
+        height: u32,
+        format: &'static str,
+    },
+    /// An image encoder failed. `detail` is for the log.
+    #[error("the page couldn't be written as {format}: {detail}")]
+    Encode {
+        format: &'static str,
+        detail: String,
+    },
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 }

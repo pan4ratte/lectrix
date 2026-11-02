@@ -22,7 +22,8 @@ use crate::combine::{self, Progress};
 use crate::ipc::{
     AppError, CompareOutcome, CompareProgress, CompareSaved, CompareSettings, CompareSide,
     CompressOutcome, CompressProgress, CompressSaved, CompressSettings, CompressStep,
-    DocumentChange, DocumentInfo, DocumentSaved, ImageFormat, LabelMode, LinkPlace, MenuEntry,
+    DocumentChange, DocumentInfo, DocumentSaved, ExportDone, ExportPreferences, ExportPreview,
+    ExportProgress, ExportSettings, ExportTarget, ImageFormat, LabelMode, LinkPlace, MenuEntry,
     MergeOutcome, MergePlan, MergeProgress, MergeRequest, MergeStage, MoveTarget, OpenResult,
     OperationInput, PageHits, PagePresentation, PageText, PaneLayout, PrintDone, PrintLayout,
     PrintProgress, PrintSettings, PrintStart, PrinterDetails, ProtectSaved, ProtectStep,
@@ -1053,6 +1054,137 @@ pub fn print_run(
 #[tauri::command]
 pub fn print_stop(state: State<'_, AppState>, id: u32) {
     state.print.stop(id);
+}
+
+/// Export as images (section 6.14, ADR 0034): the dialog's choices used last.
+#[tauri::command]
+pub fn export_start(state: State<'_, AppState>) -> Option<ExportPreferences> {
+    state.store.lock().ok().and_then(|s| s.export_preferences())
+}
+
+/// Page `page` of document `id` as `settings` export it, for the dialog's preview, served
+/// at `/export/{token}`. A preview asked for later stops this one (the `cancelled` code).
+#[tauri::command(async)]
+pub fn export_preview(
+    state: State<'_, AppState>,
+    id: u32,
+    page: u32,
+    settings: ExportSettings,
+) -> Result<ExportPreview, AppError> {
+    let session = state.documents.session(id)?;
+    state.export.preview(id, &session, page as usize, &settings)
+}
+
+/// Shows the Save dialog for document `id`'s export as `settings` ask, in the document's
+/// folder, and plans the export to where it says: the files it writes, and those already
+/// there. `None` when the dialog was given up.
+#[tauri::command(async)]
+pub fn export_pick(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    id: u32,
+    settings: ExportSettings,
+) -> Result<Option<ExportTarget>, AppError> {
+    use pdf_core::export::names::{self, Naming};
+    let session = state.documents.session(id)?;
+    let info = session.info()?;
+    let labels = info.labels.map(|l| l.labels);
+    let count = info.pages.len();
+    let (name, folder) = state.documents.save_suggestion(id)?;
+    let stem = name
+        .as_deref()
+        .map(Path::new)
+        .and_then(|n| n.file_stem())
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "Document".into());
+    let format: pdf_core::export::Format = settings.format.into();
+    let pages: Vec<usize> = settings.pages.iter().map(|&p| p as usize).collect();
+    let naming = match settings.naming {
+        crate::ipc::FileNaming::Numbers => Naming::Numbers,
+        crate::ipc::FileNaming::Labels => Naming::Labels,
+    };
+    let suggested = names::suggested(
+        &stem,
+        &pages,
+        count,
+        naming,
+        labels.as_deref(),
+        format.extension(),
+    );
+    let title = if pages.len() == 1 {
+        "Export the page as an image"
+    } else if settings.one_tiff() {
+        "Export the pages as one TIFF file"
+    } else {
+        "Export the pages as images"
+    };
+    let picked = match scripted_answer() {
+        Some(answer) => answer.and_then(|paths| paths.into_iter().next()),
+        None => {
+            let mut dialog = window
+                .app_handle()
+                .dialog()
+                .file()
+                .set_parent(&window)
+                .set_title(title)
+                .add_filter(format.name(), format.extensions())
+                .set_file_name(suggested);
+            if let Some(dir) = folder.as_deref() {
+                dialog = dialog.set_directory(dir);
+            }
+            dialog.blocking_save_file().map(picked_path).transpose()?
+        }
+    };
+    let Some(picked) = picked else {
+        state.export.unplan(id);
+        return Ok(None);
+    };
+    state
+        .export
+        .plan(id, settings, &picked, count, labels.as_deref())
+        .map(Some)
+}
+
+/// Exports document `id` as `export_pick` planned, without the pages whose files are there
+/// already if `skip_existing`, reporting progress on `on_progress`, and remembers the
+/// dialog's choices. Stopped with `export_stop`, it fails with the `cancelled` code.
+#[tauri::command(async)]
+pub fn export_run(
+    state: State<'_, AppState>,
+    id: u32,
+    skip_existing: bool,
+    on_progress: Channel<ExportProgress>,
+) -> Result<ExportDone, AppError> {
+    let session = state.documents.session(id)?;
+    if let (Ok(mut store), Some(settings)) = (state.store.lock(), state.export.planned_settings(id))
+    {
+        store.set_export_preferences(settings.preferences());
+    }
+    state.export.run(id, &session, skip_existing, move |p| {
+        // The webview may have gone away; exporting finishes regardless.
+        let _ = on_progress.send(p);
+    })
+}
+
+#[tauri::command]
+pub fn export_stop(state: State<'_, AppState>, id: u32) {
+    state.export.stop(id);
+}
+
+/// Forgets document `id`'s planned export: the dialog closed without exporting.
+#[tauri::command]
+pub fn export_forget(state: State<'_, AppState>, id: u32) {
+    state.export.forget(id);
+}
+
+/// Shows the first file of the export `token` names in its folder.
+#[tauri::command(async)]
+pub fn export_show_in_folder(state: State<'_, AppState>, token: u32) -> Result<(), AppError> {
+    let path = state
+        .export
+        .exported(token)
+        .ok_or_else(|| AppError::new("Lectrix no longer knows where those images went.", None))?;
+    show_in_folder(state.platform, &path)
 }
 
 /// Sets the protection document `id` is saved with next (section 6.9): `null` for its

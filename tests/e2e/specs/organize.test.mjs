@@ -127,11 +127,11 @@ test('pages are moved, turned and deleted in the grid, and the document follows'
 		const k = await keys(browser);
 		assert.match(await (await browser.$('[data-organize-count]')).getText(), /^6 pages$/);
 
-		// The bar: Insert, Extract and Labels say what they are, and Done comes last.
+		// The bar: Insert, Extract, Export and Labels say what they are, and Done comes last.
 		const named = await browser.execute(() =>
 			[...document.querySelectorAll('[data-organize-bar] button')].map((b) => b.textContent.trim())
 		);
-		assert.deepEqual(named.filter(Boolean), ['Insert', 'Extract', 'Labels', 'Done']);
+		assert.deepEqual(named.filter(Boolean), ['Insert', 'Extract', 'Export', 'Labels', 'Done']);
 		assert.equal(named.at(-1), 'Done', 'Done is not at the end of the bar');
 		// The pages start at the top left corner (the grid's 16 px padding), and what is left
 		// over is at the right: less than another column would take (a cell and its 8 px gap).
@@ -381,6 +381,7 @@ test('pages come from files where the menu says, and go into a new document', as
 				'Rotate counter-clockwise',
 				'Delete page…',
 				'Extract page into a new document',
+				'Export page as image…',
 				'Insert pages from file before…',
 				'Insert pages from file after…',
 				'Page labels…',
