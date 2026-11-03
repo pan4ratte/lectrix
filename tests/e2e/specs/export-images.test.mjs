@@ -4,6 +4,7 @@
 // with a button that shows the files in their folder (LECTRIX_FOLDER_LOG). Files already
 // there are asked about. A page's right-click menu and Organize pages open the dialog for
 // that page and for the pages selected. Copy page as image puts a page on the clipboard.
+// The Snapshot tool frames an area, which its bar copies or saves through the dialog.
 
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
@@ -219,6 +220,96 @@ test('Copy page as image puts the page right-clicked on the clipboard, at 150 dp
 		const item = await browser.$('//*[@role="menuitem"][contains(., "Copy page as image")]');
 		assert.notEqual(await item.getAttribute('aria-disabled'), 'true', 'Edit > Copy page as image is disabled');
 		await keys(browser, ['Escape']);
+	} finally {
+		await stop();
+	}
+});
+
+/** Viewport pixels of a point of page `index`, in page points (a Letter page). */
+async function pagePoint(browser, index, x, y) {
+	const r = await browser.execute(
+		(i) => document.querySelector(`.page[data-page="${i}"]`).getBoundingClientRect().toJSON(),
+		index
+	);
+	const k = r.width / 612;
+	return { x: Math.round(r.left + x * k), y: Math.round(r.top + y * k) };
+}
+
+async function drag(browser, from, to, steps = 8) {
+	let action = browser.action('pointer').move({ ...from, origin: 'viewport' }).down();
+	for (let i = 1; i <= steps; i++) {
+		action = action.move({
+			x: Math.round(from.x + ((to.x - from.x) * i) / steps),
+			y: Math.round(from.y + ((to.y - from.y) * i) / steps),
+			origin: 'viewport'
+		});
+	}
+	await action.up().perform();
+}
+
+/** Whether `got` ("450x150") is within a few pixels of `width` x `height`. */
+function near(got, width, height) {
+	const [w, h] = got.split('x').map(Number);
+	return Math.abs(w - width) <= 4 && Math.abs(h - height) <= 4;
+}
+
+test('The Snapshot tool frames an area, copies it to the clipboard, and saves it as an image', async () => {
+	const doc = sample('snapshot.pdf', 2);
+	const dir = folder('export-snapshot');
+	const { browser, stop } = await launch([doc], { dialogs: [join(dir, 'area.png')] });
+	try {
+		await waitForDocument(browser);
+		await atRest(browser, '.page[data-page="0"]');
+		await (await browser.$('[role=toolbar][aria-label="Annotation tools"] button[aria-label="Snapshot"]')).click();
+
+		// 216 x 72 points from (72, 72): at 150 dpi, 450 x 150 pixels.
+		await drag(browser, await pagePoint(browser, 0, 72, 72), await pagePoint(browser, 0, 288, 144));
+		await (await browser.$('[data-snapshot-area]')).waitForExist({ timeoutMsg: 'no area was framed' });
+		const copy = await browser.$('[data-snapshot-copy]');
+		await copy.waitForDisplayed({ timeoutMsg: 'the area has no bar' });
+		await browser.saveScreenshot(join(OUT, 'snapshot-area.png'));
+		await copy.click();
+		await browser.waitUntil(async () => (await notices(browser)).includes('Copied the area as an image.'), {
+			timeout: 30_000,
+			timeoutMsg: `nothing said the area was copied: ${await notices(browser)}`
+		});
+		const copied = clipboardImage();
+		assert.ok(near(copied.size, 450, 150), `the clipboard has ${copied.size}`);
+		assert.ok(copied.png, 'no PNG on the clipboard');
+
+		// Its lower handle makes it twice as tall; then Save as image… saves it as it is.
+		await drag(browser, await pagePoint(browser, 0, 180, 144), await pagePoint(browser, 0, 180, 216));
+		await (await browser.$('[data-snapshot-save]')).click();
+		await browser.waitUntil(async () => (await step(browser)) === 'settings', { timeoutMsg: 'Save as image… opened no dialog' });
+		const dialog = await browser.$('[data-export-dialog]');
+		assert.match(await dialog.getText(), /Save an area of snapshot\.pdf as an image/);
+		assert.match(await dialog.getText(), /The area framed on page 1/);
+		await choose(browser, 'Format', 'PNG');
+		await choose(browser, 'Resolution', '150 dpi');
+		await browser.waitUntil(async () => Math.abs((await previewReady(browser)) - 450) <= 4, {
+			timeout: 30_000,
+			timeoutMsg: 'the preview does not show the area'
+		});
+		await (await browser.$('[data-export-run]')).click();
+		await browser.waitUntil(async () => (await notices(browser)).includes('Saved the area as area.png in export-snapshot.'), {
+			timeout: 60_000,
+			timeoutMsg: `nothing said the area was saved: ${await notices(browser)}`
+		});
+		const png = readFileSync(join(dir, 'area.png'));
+		const size = `${png.readUInt32BE(16)}x${png.readUInt32BE(20)}`;
+		assert.ok(near(size, 450, 300), `the file is ${size}`);
+
+		// Esc lets the area go, and then the tool.
+		await keys(browser, ['Escape']);
+		await (await browser.$('[data-snapshot-area]')).waitForExist({ reverse: true, timeoutMsg: 'Esc left the area' });
+		await keys(browser, ['Escape']);
+		await browser.waitUntil(
+			async () =>
+				(await (await browser.$('[role=toolbar][aria-label="Annotation tools"] button[aria-label="Select"]')).getAttribute(
+					'aria-pressed'
+				)) === 'true',
+			{ timeoutMsg: 'a second Esc did not pick the Select tool' }
+		);
 	} finally {
 		await stop();
 	}

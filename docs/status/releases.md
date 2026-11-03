@@ -71,7 +71,11 @@ Part of the status: [docs/status.md](../status.md) is the index a session reads,
   once in ten passes. Known and left: `visual-adjustments.test.mjs`'s full-screen test
   fails about half its runs on the author's screen in `test:ci` mode ("Esc left full
   screen": the title bar is back after Esc closes the adjustments panel; 2026-10-18,
-  with and without that day's change to how pages are shown).
+  with and without that day's change to how pages are shown). `motion.test.mjs`'s
+  notification test fails now and then with "stale element reference" on a Debug menu
+  item that re-renders as it is clicked (2026-11-03: 1 run in 4 on the last commit, more
+  often with the Snapshot tool's build; a pause before the click moves the failure to
+  the progress bar test, which picks from the same menu).
 
 ## What v1 contains
 

@@ -39,7 +39,7 @@ In full, with measurements: [known-gaps.md](status/known-gaps.md).
 - **Repair and PDFgear:** a report that PDFgear lost annotations after repair, not re-tried since the fix.
 - **Marks Lectrix 1.0 made on right-to-left text** are a character short at each end.
 - **Text marked across both directions:** selecting it not yet checked by a person.
-- **Accessibility:** making, moving and resizing annotations and starting a selection need a pointer; page text is not exposed to screen readers; no high-contrast handling.
+- **Accessibility:** making, moving and resizing annotations, starting a selection and framing a snapshot need a pointer; page text is not exposed to screen readers; no high-contrast handling.
 - **Not covered by automated tests:** drag-and-drop from Explorer, touch and stylus, touchpad pinch, a tab dragged between windows.
 - **Touchscreen pinch** does not zoom.
 - **Test corpus:** `tests/corpus/` is empty; the local corpus lacks CJK text, signed files, UserUnit pages and some annotation types.

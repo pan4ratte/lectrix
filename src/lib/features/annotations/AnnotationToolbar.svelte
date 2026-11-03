@@ -13,6 +13,7 @@
 	// Full screen (section 6.1) it always floats, with the page and zoom controls before the
 	// tools and a button that leaves full screen after them; Alt held shows it too.
 	import {
+		Camera,
 		Highlighter,
 		Minimize,
 		PenLine,
@@ -45,7 +46,7 @@
 	import ShapeChoice from './ShapeChoice.svelte';
 	import StrokeSettings from './StrokeSettings.svelte';
 	import ToolOptions from './ToolOptions.svelte';
-	import { FONT_SIZES, TOOLS, ptOptions, type Tool } from './tools.ts';
+	import { editsDocument, FONT_SIZES, TOOLS, ptOptions, type Tool } from './tools.ts';
 
 	/** `dock`: where it is docked (in the bar at the top of the document, or a bar at a side
 	 * of the pages), rather than floating over the pages. */
@@ -53,6 +54,7 @@
 
 	const ICONS: Record<Tool, Component<{ size?: number; 'aria-hidden'?: boolean | 'true' }>> = {
 		select: TextCursor,
+		snapshot: Camera,
 		highlight: Highlighter,
 		underline: Underline,
 		strikeOut: Strikethrough,
@@ -64,7 +66,7 @@
 	};
 
 	const active = $derived(tools.tool);
-	const drawTool = $derived(active === 'select' ? null : active);
+	const drawTool = $derived(editsDocument(active) ? active : null);
 	const style = $derived(drawTool ? tools.style(drawTool) : null);
 	const locked = $derived(!tab.flags.canAnnotate);
 
@@ -83,7 +85,7 @@
 	const reveal = () => ({ axis: stacked ? ('y' as const) : ('x' as const), duration: motionMs(GLIDE_MS) });
 
 	function pick(tool: Tool) {
-		if (tool !== 'select' && refuseIfLocked(tab)) return;
+		if (editsDocument(tool) && refuseIfLocked(tab)) return;
 		tools.tool = tool;
 		tab.viewer?.focus();
 	}
@@ -252,7 +254,7 @@
 					aria-pressed={active === t.id}
 					aria-label={t.label}
 					data-tip={tip}
-					aria-disabled={t.id !== 'select' && locked}
+					aria-disabled={editsDocument(t.id) && locked}
 					onclick={() => pick(t.id)}
 				>
 					<Icon size={18} aria-hidden="true" />

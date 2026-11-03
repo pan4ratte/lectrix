@@ -797,6 +797,9 @@ export class DocTab {
 	}
 	/** Something being drawn or dragged on a page. */
 	draft = $state<AnnotationDraft | null>(null);
+	/** The area the Snapshot tool framed (section 6.14), to copy or save as an image: a page and
+	 * a box in its points, as annotations' boxes are. */
+	snapshot = $state<{ page: number; box: Box } | null>(null);
 	/** The selected annotation's data, while exactly one is selected. */
 	selectedAnnotationInfo = $derived.by(() => {
 		const sel = this.selectedAnnotation;
@@ -953,6 +956,7 @@ export class DocTab {
 	/** The document was read anew (`DocModel.update`): what this view keeps by page. */
 	readAgain() {
 		this.draft = null;
+		this.snapshot = null;
 		this.selection = null;
 		this.caret = null;
 		this.currentPage = Math.min(this.currentPage, Math.max(0, this.pages.length - 1));

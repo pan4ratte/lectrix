@@ -1111,7 +1111,9 @@ pub fn export_pick(
         labels.as_deref(),
         format.extension(),
     );
-    let title = if pages.len() == 1 {
+    let title = if settings.area.is_some() {
+        "Save the area as an image"
+    } else if pages.len() == 1 {
         "Export the page as an image"
     } else if settings.one_tiff() {
         "Export the pages as one TIFF file"
@@ -1166,15 +1168,17 @@ pub fn export_run(
     })
 }
 
-/// Puts page `page` of document `id` on the clipboard as an image (section 6.14): drawn as
-/// it shows, annotations and all, at the resolution Settings gives (lower for a large
-/// page). Like exporting, it doesn't check the document's copy permission (ADR 0034).
+/// Puts page `page` of document `id`, or its `area` (the area tool's), on the clipboard as
+/// an image (section 6.14): drawn as it shows, annotations and all, at the resolution
+/// Settings gives (lower for a large page). Like exporting, it doesn't check the
+/// document's copy permission (ADR 0034).
 #[tauri::command(async)]
 pub fn copy_page_image(
     app: AppHandle,
     state: State<'_, AppState>,
     id: u32,
     page: u32,
+    area: Option<crate::ipc::ExportArea>,
 ) -> Result<CopiedPage, AppError> {
     use tauri_plugin_clipboard_manager::ClipboardExt;
     let session = state.documents.session(id)?;
@@ -1186,19 +1190,25 @@ pub fn copy_page_image(
         .copy_image_dpi;
     let page = page as usize;
     let list = session.export_list(page, true)?;
-    let copied = pdf_core::export::copy::copy_image(&list, page, dpi).map_err(|e| match e {
-        pdf_core::Error::PageTooLarge { .. } => AppError::new(
-            "This page is too large to copy as an image.",
-            Some("Export it with File > Export > Pages as images instead."),
-        ),
-        e => e.into(),
-    })?;
+    let what = if area.is_some() { "area" } else { "page" };
+    let copied = pdf_core::export::copy::copy_image(&list, page, dpi, area.map(Into::into))
+        .map_err(|e| match e {
+            pdf_core::Error::PageTooLarge { .. } if area.is_some() => AppError::new(
+                "This area is too large to copy as an image.",
+                Some("Save it as an image instead, or select a smaller area."),
+            ),
+            pdf_core::Error::PageTooLarge { .. } => AppError::new(
+                "This page is too large to copy as an image.",
+                Some("Export it with File > Export > Pages as images instead."),
+            ),
+            e => e.into(),
+        })?;
     drop(list);
     let image = tauri::image::Image::new_owned(copied.rgba, copied.width, copied.height);
     app.clipboard().write_image(&image).map_err(|e| {
-        crate::applog::warn(format!("copy page image: {e}"));
+        crate::applog::warn(format!("copy {what} image: {e}"));
         AppError::new(
-            "The page couldn’t be copied to the clipboard.",
+            format!("The {what} couldn’t be copied to the clipboard."),
             Some("Try again. If another app is using the clipboard, close it first."),
         )
     })?;

@@ -103,6 +103,8 @@ export type { ProtectStep } from './generated/ProtectStep';
 import type { ProtectStep } from './generated/ProtectStep';
 export type { Restrictions } from './generated/Restrictions';
 export type { CopiedPage } from './generated/CopiedPage';
+export type { ExportArea } from './generated/ExportArea';
+import type { ExportArea } from './generated/ExportArea';
 import type { CopiedPage } from './generated/CopiedPage';
 export type { ExportDone } from './generated/ExportDone';
 import type { ExportDone } from './generated/ExportDone';
@@ -365,7 +367,9 @@ export const exportForget = (id: number) => invoke<void>('export_forget', { id }
 export const exportShowInFolder = (token: number) => invoke<void>('export_show_in_folder', { token });
 /** Puts a page on the clipboard as an image, at the resolution Settings gives (lower for a
  * large page). */
-export const copyPageImage = (id: number, page: number) => invoke<CopiedPage>('copy_page_image', { id, page });
+/** Puts a page, or an `area` of it (the Snapshot tool's), on the clipboard as an image. */
+export const copyPageImage = (id: number, page: number, area: ExportArea | null = null) =>
+	invoke<CopiedPage>('copy_page_image', { id, page, area });
 /** URL of the image `exportPreview` made. */
 export function exportPreviewUrl(token: number): string {
 	const base = isWindows() ? 'http://lectrix.localhost' : 'lectrix://localhost';

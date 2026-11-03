@@ -119,7 +119,8 @@ impl Export {
         let (width, height) = options.pixel_size(page, size.width, size.height)?;
         let full = u64::from(width) * u64::from(height);
         let mut drawn = options;
-        drawn.dpi = preview_dpi(options.dpi, size.width, size.height);
+        let (shown_w, shown_h) = options.extent(size.width, size.height);
+        drawn.dpi = preview_dpi(options.dpi, shown_w, shown_h);
         let list = session.export_list(page, options.annotations)?;
         let raster = export::render(&list, page, &drawn)?;
         drop(list);
@@ -172,7 +173,11 @@ impl Export {
         let format: export::Format = settings.format.into();
         let picked = names::with_extension(picked, format.extension(), format.extensions());
         let mut pages: Vec<usize> = settings.pages.iter().map(|&p| p as usize).collect();
-        if pages.is_empty() || pages.iter().any(|&p| p >= page_count) {
+        // An area is of one page.
+        if pages.is_empty()
+            || pages.iter().any(|&p| p >= page_count)
+            || (settings.area.is_some() && pages.len() > 1)
+        {
             return Err(AppError::new(
                 "Those pages aren't in this document.",
                 Some("Check the pages to export."),

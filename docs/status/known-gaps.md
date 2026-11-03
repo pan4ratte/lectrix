@@ -234,7 +234,8 @@ Part of the status: [docs/status.md](../status.md) is the index a session reads,
   not been checked by a person.
 - **Accessibility.** Creating, moving and resizing annotations needs a pointer, and so
   does starting a text selection, which brings up the quick tools (once text is selected,
-  Shift and the arrow keys extend and reduce it). So do moving and resizing an
+  Shift and the arrow keys extend and reduce it). So do framing an area with the Snapshot
+  tool (section 6.14), and moving and resizing an
   annotation's comment panel (its place beside the annotation needs neither). A reply's own menu (Edit reply,
   Delete reply) opens only with a right-click; Reply itself is in the row's menu, which
   the keyboard reaches. Editing, deleting and repairing

@@ -429,6 +429,14 @@ matter):
       selected (disabled with two selected).
 - [ ] On Linux, X11 and Wayland: the page pastes into GIMP and LibreOffice, also after
       Lectrix is closed if a clipboard manager runs.
+- [ ] **Snapshot** tool: drag over a chart or a paragraph, adjust the area with its
+      handles and move it; **Copy as image** and Ctrl+C paste just that area into Word,
+      Paint and a chat app, sharp, annotations on it. On a page turned with View > Rotate,
+      the pasted image is turned as the page shows.
+- [ ] **Save as image…** from its bar and from the right-click menu: the dialog says
+      "Save an area of …", previews the area, and the file saved is the area alone.
+- [ ] Snapshot works in a document that forbids changes or is open for reading only; Esc
+      lets the area go, a second Esc picks Select; another tool lets the area go.
 
 ## Full screen
 

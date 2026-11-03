@@ -1,9 +1,9 @@
-//! A page copied to the clipboard as an image (section 6.14): drawn as it is exported, in
-//! colour, on white, as the RGBA pixels a clipboard takes.
+//! A page, or an area of it, copied to the clipboard as an image (section 6.14): drawn as it
+//! is exported, in colour, on white, as the RGBA pixels a clipboard takes.
 
 use mupdf::DisplayList;
 
-use super::{Colour, DPI_RANGE, Format, Options, TiffCompression, render};
+use super::{Area, Colour, DPI_RANGE, Format, Options, TiffCompression, render};
 use crate::error::{Error, Result};
 
 /// The most pixels a page is copied with: A4 and Letter pages fit at 600 dpi (35 and 34
@@ -31,18 +31,21 @@ pub fn fit_dpi(dpi: u16, width: f32, height: f32, max_pixels: u64) -> u16 {
     dpi.min(most)
 }
 
-/// Draws `list`, page `page`'s, at `dpi` (less if the page would have more than
+/// Draws `list`, page `page`'s, or its `area`, at `dpi` (less if it would have more than
 /// [`MAX_PIXELS`] pixels), as it shows on screen, for the clipboard.
-pub fn copy_image(list: &DisplayList, page: usize, dpi: u16) -> Result<Copied> {
+pub fn copy_image(list: &DisplayList, page: usize, dpi: u16, area: Option<Area>) -> Result<Copied> {
     let bounds = list.bounds();
-    let options = Options {
+    let mut options = Options {
         format: Format::Png,
-        dpi: fit_dpi(dpi, bounds.width(), bounds.height(), MAX_PIXELS),
+        dpi,
         colour: Colour::Colour,
         quality: 100,
         tiff: TiffCompression::Lzw,
         annotations: true,
+        area,
     };
+    let (width, height) = options.extent(bounds.width(), bounds.height());
+    options.dpi = fit_dpi(dpi, width, height, MAX_PIXELS);
     let (w, h) = options.pixel_size(page, bounds.width(), bounds.height())?;
     // A page so large it doesn't fit even at the lowest resolution.
     if u64::from(w) * u64::from(h) > MAX_PIXELS {
@@ -77,7 +80,7 @@ mod tests {
         let doc = sample_document(&SampleSpec::default()).unwrap();
         let list = crate::render::display_list(&doc, 0).unwrap();
         let b = list.bounds();
-        let copied = copy_image(&list, 0, 150).unwrap();
+        let copied = copy_image(&list, 0, 150, None).unwrap();
         assert_eq!(copied.dpi, 150);
         let k = 150.0 / 72.0;
         assert!((copied.width as f32 - b.width() * k).abs() <= 1.0);
@@ -90,6 +93,24 @@ mod tests {
         // Drawn on white, with text on it.
         assert_eq!(&copied.rgba[..4], &[255, 255, 255, 255]);
         assert!(copied.rgba.as_chunks::<4>().0.iter().any(|p| p[0] < 128));
+    }
+
+    #[test]
+    fn an_area_is_copied_alone() {
+        let doc = sample_document(&SampleSpec::default()).unwrap();
+        let list = crate::render::display_list(&doc, 0).unwrap();
+        let area = Area {
+            x0: 72.0,
+            y0: 72.0,
+            x1: 216.0,
+            y1: 108.0,
+            turn: 90,
+        };
+        let copied = copy_image(&list, 0, 144, Some(area)).unwrap();
+        // 144 by 36 points at 2 pixels a point, turned.
+        assert_eq!((copied.width, copied.height), (72, 288));
+        assert_eq!(copied.dpi, 144);
+        assert_eq!(copied.rgba.len(), 72 * 288 * 4);
     }
 
     #[test]

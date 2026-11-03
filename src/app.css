@@ -491,6 +491,13 @@ input[type='color'],
 	stroke: var(--lectrix-accent);
 	stroke-width: 1px;
 }
+/* The Snapshot tool's area (section 6.14): dashed, so it reads as a frame, not an annotation. */
+.snapshot-area {
+	fill: none;
+	stroke: var(--lectrix-accent);
+	stroke-width: 1.5px;
+	stroke-dasharray: 5 3;
+}
 /* A tool button that opens the tool's options once the tool is picked (ToolOptions): a
    small mark in its lower right corner says so. */
 .tool-button-more::after {

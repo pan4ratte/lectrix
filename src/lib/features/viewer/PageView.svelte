@@ -294,6 +294,8 @@
 		tab.selectedGroup.filter((a) => a.page === index && !moving.some((m) => m.id === a.id))
 	);
 	const textDraft = $derived(draft?.kind === 'text' ? draft : null);
+	/** The area the Snapshot tool framed on this page. */
+	const snapshot = $derived(tab.snapshot?.page === index ? tab.snapshot.box : null);
 	/** Ids of this page's masks for selection outlines, unique in the window. */
 	const uid = $props.id();
 	const areaColor = $derived(isMarkupTool(tools.tool) ? tools.style(tools.tool).color : null);
@@ -476,7 +478,7 @@
 			</div>
 		{/if}
 
-		{#if diffMarks.length || selection.length || hits.length || showSelected || grouped.length || moving.length || linkTint || cursor || (draft && draft.kind !== 'text')}
+		{#if diffMarks.length || selection.length || hits.length || showSelected || grouped.length || moving.length || linkTint || cursor || snapshot || (draft && draft.kind !== 'text')}
 			<svg
 				class="pointer-events-none absolute inset-0"
 				style:filter={tab.overlayColour}
@@ -578,6 +580,29 @@
 						vector-effect="non-scaling-stroke"
 					/>
 				{/each}
+				{#if snapshot}
+					<!-- The Snapshot tool's area (section 6.14), with handles to resize it. -->
+					<rect
+						x={snapshot[0]}
+						y={snapshot[1]}
+						width={snapshot[2] - snapshot[0]}
+						height={snapshot[3] - snapshot[1]}
+						class="snapshot-area"
+						data-snapshot-area
+						vector-effect="non-scaling-stroke"
+					/>
+					{#each HANDLES as h (h)}
+						{@const [hx, hy] = handlePoint(snapshot, h)}
+						<rect
+							x={hx - hs / 2}
+							y={hy - hs / 2}
+							width={hs}
+							height={hs}
+							class="annotation-handle"
+							vector-effect="non-scaling-stroke"
+						/>
+					{/each}
+				{/if}
 				{#if draft?.kind === 'marquee'}
 					{@const b = draft.box}
 					<rect

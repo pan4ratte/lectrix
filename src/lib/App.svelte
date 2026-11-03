@@ -165,6 +165,7 @@
 				tab.selection = null;
 				tab.caret = null;
 			} else if (tab.selectedAnnotations.length) tab.selectedAnnotation = null;
+			else if (tab.snapshot) tab.snapshot = null;
 			else if (tools.tool !== 'select') tools.tool = 'select';
 			else if (tab.search.open) {
 				tab.search.open = false;

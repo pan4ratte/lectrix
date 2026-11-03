@@ -42,6 +42,7 @@
 		boxQuad,
 		clampBox,
 		handleAt,
+		inBox,
 		moveBox,
 		normalizeBox,
 		resizeBox,
@@ -54,10 +55,18 @@
 	} from '#lib/features/annotations/geometry.ts';
 	import { marksText } from '#lib/features/annotations/listing.ts';
 	import SelectionBar from '#lib/features/annotations/SelectionBar.svelte';
-	import { copyPage, openExport } from '#lib/features/export/actions.ts';
+	import { copyArea, copyPage, openExport, saveArea } from '#lib/features/export/actions.ts';
+	import SnapshotBar from '#lib/features/export/SnapshotBar.svelte';
 	import { MAX_STRING_PX, Stabilizer, constrainEnd, shapeStrokes, type ShapeKind } from '#lib/features/annotations/pen.ts';
 	import { tools } from '#lib/features/annotations/state.svelte.ts';
-	import { DEFAULT_QUICK_TOOLS, capabilities, isMarkupTool, showsComment, type Tool } from '#lib/features/annotations/tools.ts';
+	import {
+		DEFAULT_QUICK_TOOLS,
+		capabilities,
+		editsDocument,
+		isMarkupTool,
+		showsComment,
+		type Tool
+	} from '#lib/features/annotations/tools.ts';
 	import { scrolled } from '#lib/features/split/sync.ts';
 	import { pageUrl, type Annotation, type PageLink } from '#lib/ipc/index.ts';
 	import { PLATFORM } from '#lib/platform.ts';
@@ -975,7 +984,19 @@
 		// The Shapes tool drawing a shape from `start` to `end` (Shift held constrains it).
 		| { kind: 'shape'; page: number; shape: ShapeKind; start: [number, number]; end: [number, number] }
 		| { kind: 'area'; page: number; start: [number, number] }
-		| { kind: 'textbox'; page: number; start: [number, number] };
+		| { kind: 'textbox'; page: number; start: [number, number] }
+		// The Snapshot tool (section 6.14) framing an area from `start` (`box` null), or moving
+		// the area framed (`box`, where it was), or resizing it by `handle`. Esc puts back
+		// `before`, the area there was.
+		| {
+				kind: 'snapshot';
+				page: number;
+				start: [number, number];
+				box: Box | null;
+				handle: Handle | null;
+				before: { page: number; box: Box } | null;
+				moved: boolean;
+		  };
 
 	let gesture: Gesture | null = null;
 	/** A drag is under way: the floating bars wait until it ends. */
@@ -1229,6 +1250,7 @@
 			tab.selection = null;
 			tab.caret = null;
 			tab.selectedAnnotation = null;
+			tab.snapshot = null;
 			return;
 		}
 		const page = pageUnder(event.clientX, event.clientY);
@@ -1236,7 +1258,11 @@
 		// A difference's mark pressed selects it; the text under it selects as anywhere else.
 		if (clicks === 1) tab.comparing?.press(page, x, y);
 		const tool = toolNow();
-		if (tool !== 'select' && refuseIfLocked(tab)) return;
+		if (editsDocument(tool) && refuseIfLocked(tab)) return;
+		if (tool === 'snapshot') {
+			beginSnapshot(event, page, x, y);
+			return;
+		}
 
 		// Alt with a markup tool draws an area highlight, and the pen and the Shapes tool draw,
 		// over annotations too.
@@ -1323,9 +1349,40 @@
 		}
 	}
 
-	/** The tools that draw wherever they are pressed, on annotations too, and select none. */
+	/** The tools that draw wherever they are pressed, on annotations too, and select none
+	 * (Snapshot frames an area there). */
 	function drawsOver(tool: Tool): boolean {
-		return tool === 'ink' || tool === 'shape';
+		return tool === 'ink' || tool === 'shape' || tool === 'snapshot';
+	}
+
+	/** The Snapshot tool pressed at (x, y) on `page` (section 6.14): a handle of the area
+	 * framed resizes it and the area itself moves; anywhere else a new area is framed, and a
+	 * click there leaves none. */
+	function beginSnapshot(event: PointerEvent, page: number, x: number, y: number) {
+		tab.selection = null;
+		tab.caret = null;
+		tab.selectedAnnotation = null;
+		const shot = tab.snapshot;
+		const before = shot ? { page: shot.page, box: [...shot.box] as Box } : null;
+		if (shot && shot.page === page) {
+			const handle = handleAt(shot.box, x, y, px(6));
+			if (handle || inBox(shot.box, x, y)) {
+				begin(event, { kind: 'snapshot', page, start: [x, y], box: [...shot.box], handle, before, moved: false });
+				return;
+			}
+		}
+		begin(event, { kind: 'snapshot', page, start: [x, y], box: null, handle: null, before, moved: false });
+	}
+
+	/** The area the Snapshot gesture `g` frames with the pointer at (x, y), kept on its page. */
+	function snapshotBox(g: Extract<Gesture, { kind: 'snapshot' }>, x: number, y: number): Box {
+		const s = tab.pages[g.page]!;
+		const dx = x - g.start[0];
+		const dy = y - g.start[1];
+		if (!g.box) return normalizeBox([g.start[0], g.start[1], x, y]);
+		if (!g.handle) return clampBox(moveBox(g.box, dx, dy), s.width, s.height);
+		const [x0, y0, x1, y1] = resizeBox(g.box, g.handle, dx, dy, px(8));
+		return [Math.max(0, x0), Math.max(0, y0), Math.min(s.width, x1), Math.min(s.height, y1)];
 	}
 
 	/** Shift was held at the pointer's last move: a shape being drawn is constrained. */
@@ -1377,6 +1434,12 @@
 			return;
 		}
 		const [x, y] = pointOn(g.page, clientX, clientY);
+		if (g.kind === 'snapshot') {
+			if (!g.moved && Math.hypot(x - g.start[0], y - g.start[1]) < px(3)) return;
+			g.moved = true;
+			tab.snapshot = { page: g.page, box: snapshotBox(g, x, y) };
+			return;
+		}
 		if (g.kind === 'moves') {
 			const dx = x - g.start[0];
 			const dy = y - g.start[1];
@@ -1456,6 +1519,22 @@
 		return overEdge.vertical !== turned ? 'ns' : 'ew';
 	});
 
+	/** The cursor over the Snapshot tool's area: it moves, and its handles resize it. */
+	let overSnapshot = $state<'move' | 'ns' | 'ew' | 'nwse' | 'nesw' | null>(null);
+
+	/** The cursor at (x, y) on `page` for the area the Snapshot tool framed, or none: the
+	 * arrows as a handle is on screen, on a page turned there too. */
+	function snapshotCursor(page: number, x: number, y: number): typeof overSnapshot {
+		const shot = tab.snapshot;
+		if (!shot || shot.page !== page) return null;
+		const h = handleAt(shot.box, x, y, px(6));
+		if (!h) return inBox(shot.box, x, y) ? 'move' : null;
+		const turned = rotationOf(page) % 180 === 90;
+		if (h === 'n' || h === 's') return turned ? 'ew' : 'ns';
+		if (h === 'e' || h === 'w') return turned ? 'ns' : 'ew';
+		return (h === 'nw' || h === 'se') !== turned ? 'nwse' : 'nesw';
+	}
+
 	function onPointerMove(event: PointerEvent) {
 		lastPointer = { x: event.clientX, y: event.clientY };
 		shiftHeld = event.shiftKey;
@@ -1472,11 +1551,13 @@
 				overText = false;
 				overAnnotation = null;
 				overEdge = null;
+				overSnapshot = null;
 				leavePage();
 				return;
 			}
 			const page = pageUnder(lastPointer.x, lastPointer.y);
 			const [x, y] = toPage(page, lastPointer.x, lastPointer.y);
+			overSnapshot = toolNow() === 'snapshot' ? snapshotCursor(page, x, y) : null;
 			overEdge = selectionEdgeAt(page, x, y);
 			overAnnotation = null;
 			const hit = annotationAt(targets(page), x, y, px(4));
@@ -1629,6 +1710,13 @@
 				tab.draft = null;
 				break;
 			}
+			case 'snapshot': {
+				// A click away from the area framed leaves none; one too small to see is none.
+				const shot = tab.snapshot;
+				if (!g.moved && !g.box) tab.snapshot = null;
+				else if (shot && (shot.box[2] - shot.box[0] < px(4) || shot.box[3] - shot.box[1] < px(4))) tab.snapshot = null;
+				break;
+			}
 			case 'move': {
 				const draft = tab.draft;
 				if (g.moved && draft?.kind === 'move') {
@@ -1777,6 +1865,19 @@
 		if (!a || dragging || menuOpen || tab.draft?.kind === 'text' || commentOpen || inList || !isShown(layout, a.page))
 			return null;
 		return { annotation: a, area: contentArea(a.page, a.bounds) };
+	});
+
+	/** The area the Snapshot tool framed, for its bar, while nothing is being dragged and the
+	 * context menu is closed. */
+	const snapshotBar = $derived.by(() => {
+		const shot = tab.snapshot;
+		if (!shot || dragging || menuOpen || !isShown(layout, shot.page)) return null;
+		return contentArea(shot.page, shot.box);
+	});
+
+	// The area goes with the tool, as a selection goes with its view.
+	$effect(() => {
+		if (toolNow() !== 'snapshot') untrack(() => (tab.snapshot = null));
 	});
 
 	/** The annotations selected together, for their bar, above them all (those on pages
@@ -2003,13 +2104,17 @@
 	function onKeyDown(event: KeyboardEvent) {
 		// Keys in the comment panel are its own: Delete there doesn't delete the annotation.
 		if ((event.target as HTMLElement).closest('[data-annotation-panel]')) return;
-		if (event.key === 'Escape' && (gesture?.kind === 'marquee' || gesture?.kind === 'ink' || gesture?.kind === 'shape')) {
+		if (
+			event.key === 'Escape' &&
+			(gesture?.kind === 'marquee' || gesture?.kind === 'ink' || gesture?.kind === 'shape' || gesture?.kind === 'snapshot')
+		) {
 			// Esc while an area is dragged puts the selection back as it was, and does nothing
 			// else (the rest of the drag selects nothing); while the pen draws, it drops the
-			// stroke or the shape.
+			// stroke or the shape; while the Snapshot tool frames, the area there was comes back.
 			event.preventDefault();
 			event.stopPropagation();
 			if (gesture.kind === 'marquee') tab.selectAnnotations(gesture.before);
+			if (gesture.kind === 'snapshot') tab.snapshot = gesture.before;
 			tab.draft = null;
 			gesture = null;
 			dragging = false;
@@ -2271,11 +2376,15 @@
 					style:overflow-x={fitsWidth ? 'hidden' : null}
 					style:overflow-y={fitsHeight ? 'hidden' : null}
 					class:cursor-text={overText && !overAnnotation && !overLink && !edgeCursor && (toolNow() === 'select' || isMarkupTool(toolNow()))}
-					class:cursor-crosshair={!overAnnotation && (drawsOver(toolNow()) || toolNow() === 'note' || toolNow() === 'freeText')}
-					class:cursor-move={overAnnotation === 'move' && !edgeCursor}
+					class:cursor-crosshair={!overAnnotation &&
+						!overSnapshot &&
+						(drawsOver(toolNow()) || toolNow() === 'note' || toolNow() === 'freeText')}
+					class:cursor-move={(overAnnotation === 'move' && !edgeCursor) || overSnapshot === 'move'}
 					class:cursor-pointer={(overAnnotation === 'select' || overLink) && !edgeCursor}
-					class:cursor-ew-resize={edgeCursor === 'ew'}
-					class:cursor-ns-resize={edgeCursor === 'ns'}
+					class:cursor-ew-resize={edgeCursor === 'ew' || overSnapshot === 'ew'}
+					class:cursor-ns-resize={edgeCursor === 'ns' || overSnapshot === 'ns'}
+					class:cursor-nwse-resize={overSnapshot === 'nwse'}
+					class:cursor-nesw-resize={overSnapshot === 'nesw'}
 					tabindex="0"
 					role="document"
 					aria-label="{tab.name}, {tab.pageCount} pages"
@@ -2344,6 +2453,9 @@
 						{#if groupBar}
 							<GroupBar {tab} group={groupBar.group} anchor={groupBar.area} {view} contentWidth={contentW} />
 						{/if}
+						{#if snapshotBar}
+							<SnapshotBar {tab} anchor={snapshotBar} {view} contentWidth={contentW} />
+						{/if}
 						{#if panelAnchor}
 							<AnnotationInspector {tab} anchor={panelAnchor} {view} contentWidth={contentW} />
 						{/if}
@@ -2386,10 +2498,18 @@
 						<span class="menu-shortcut">Del</span>
 					</ContextMenu.Item>
 				{/if}
-				<ContextMenu.Item class="menu-item" disabled={!copiesSelection(tab)} onSelect={() => void copyInContext(tab)}>
-					Copy selection
-					<span class="menu-shortcut">{app.shortcut('copy')}</span>
-				</ContextMenu.Item>
+				{#if tab.snapshot}
+					<ContextMenu.Item class="menu-item" onSelect={() => void copyArea(tab)} data-copy-area>
+						Copy area as image
+						<span class="menu-shortcut">{app.shortcut('copy')}</span>
+					</ContextMenu.Item>
+					<ContextMenu.Item class="menu-item" onSelect={() => saveArea(tab)} data-save-area>Save area as image…</ContextMenu.Item>
+				{:else}
+					<ContextMenu.Item class="menu-item" disabled={!copiesSelection(tab)} onSelect={() => void copyInContext(tab)}>
+						Copy selection
+						<span class="menu-shortcut">{app.shortcut('copy')}</span>
+					</ContextMenu.Item>
+				{/if}
 				<ContextMenu.Separator class="menu-separator" />
 				<ContextMenu.Item class="menu-item" onSelect={() => void copyPage(tab, menuPage)} data-copy-page>
 					Copy page as image{#if app.shortcut('copyPageImage')}<span class="menu-shortcut">{app.shortcut('copyPageImage')}</span>{/if}

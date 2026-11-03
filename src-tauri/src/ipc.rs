@@ -3575,8 +3575,35 @@ pub enum FileNaming {
     Labels,
 }
 
+/// An area of a page framed with the area tool (section 6.14): a rectangle in the page's
+/// points as the page is, unturned (`AnnotationBox` space), and the quarter turn the viewer
+/// shows the page with, which the image takes too.
+#[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ExportArea {
+    pub x0: f32,
+    pub y0: f32,
+    pub x1: f32,
+    pub y1: f32,
+    /// 0, 90, 180 or 270 degrees, clockwise.
+    pub turn: u16,
+}
+
+impl From<ExportArea> for pdf_core::export::Area {
+    fn from(a: ExportArea) -> Self {
+        pdf_core::export::Area {
+            x0: a.x0,
+            y0: a.y0,
+            x1: a.x1,
+            y1: a.y1,
+            turn: a.turn,
+        }
+    }
+}
+
 /// What the Export as images dialog asks for.
-#[derive(Debug, Clone, PartialEq, Eq, Deserialize, TS)]
+#[derive(Debug, Clone, PartialEq, Deserialize, TS)]
 #[serde(rename_all = "camelCase")]
 #[ts(export)]
 pub struct ExportSettings {
@@ -3592,6 +3619,8 @@ pub struct ExportSettings {
     pub one_file: bool,
     pub naming: FileNaming,
     pub annotations: bool,
+    /// Only this area of the page (one page), from the Snapshot tool.
+    pub area: Option<ExportArea>,
 }
 
 impl ExportSettings {
@@ -3610,6 +3639,7 @@ impl ExportSettings {
                 TiffCompression::Deflate => pdf_core::export::TiffCompression::Deflate,
             },
             annotations: self.annotations,
+            area: self.area.map(Into::into),
         }
     }
 

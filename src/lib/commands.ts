@@ -3,7 +3,7 @@
 import { copyInContext, refuseIfLocked, repair } from '#lib/features/annotations/actions.ts';
 import type { ShapeKind } from '#lib/features/annotations/pen.ts';
 import { tools } from '#lib/features/annotations/state.svelte.ts';
-import type { Tool } from '#lib/features/annotations/tools.ts';
+import { editsDocument, type Tool } from '#lib/features/annotations/tools.ts';
 import { addBookmark } from '#lib/features/bookmarks/actions.ts';
 import { openWhatsNew } from '#lib/features/changelog/announce.ts';
 import { toggleFullScreen } from '#lib/features/fullscreen/actions.ts';
@@ -13,7 +13,7 @@ import { toggleTheme } from '#lib/features/settings/apply.ts';
 import { insertFromFile, toggleOrganize } from '#lib/features/organize/actions.ts';
 import { openProperties } from '#lib/features/properties/actions.ts';
 import { openPrint } from '#lib/features/print/actions.ts';
-import { copyPage, openExport } from '#lib/features/export/actions.ts';
+import { copyArea, copyPage, openExport } from '#lib/features/export/actions.ts';
 import { compressDocument, compressFile } from '#lib/features/compress/actions.ts';
 import { protectDocument, protectFile } from '#lib/features/protect/actions.ts';
 import { unlockDocument, unlockFile } from '#lib/features/unprotect/actions.ts';
@@ -99,7 +99,7 @@ function useTool(tool: Tool) {
 	return withTab((t) => {
 		// The grid of pages being organized has no annotation tools.
 		if (t.organize) return;
-		if (tool !== 'select' && refuseIfLocked(t)) return;
+		if (editsDocument(tool) && refuseIfLocked(t)) return;
 		tools.tool = tool;
 	});
 }
@@ -192,7 +192,8 @@ export const commands = {
 		if (app.combineActive) app.combine?.redo();
 		else if (app.active) void app.redo(app.active);
 	},
-	copy: withTab((t) => copyInContext(t)),
+	/** With an area framed by the Snapshot tool, copies it as an image (section 6.14). */
+	copy: withTab((t) => (t.snapshot ? copyArea(t) : copyInContext(t))),
 	/** The current page (in Organize pages, the one selected) on the clipboard as an image
 	 * (section 6.14). */
 	copyPageImage: withTab((t) => copyPage(t)),
@@ -264,6 +265,7 @@ export const commands = {
 	repairAnnotations: withTab((t) => repair(t)),
 	documentProperties: withTab((t) => openProperties(t)),
 	toolSelect: useTool('select'),
+	toolSnapshot: useTool('snapshot'),
 	toolHighlight: useTool('highlight'),
 	toolUnderline: useTool('underline'),
 	toolStrikeOut: useTool('strikeOut'),

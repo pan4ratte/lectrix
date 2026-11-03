@@ -6,7 +6,7 @@ import { getVersion } from '@tauri-apps/api/app';
 
 import { showUpdated } from '#lib/features/changelog/announce.ts';
 import { changelogMarkdown, hasChanges, parseChangelog } from '#lib/features/changelog/changelog.ts';
-import { copiedMessage, doneMessage, SHOW_IN_FOLDER } from '#lib/features/export/export.ts';
+import { areaCopiedMessage, areaSavedMessage, copiedMessage, doneMessage, SHOW_IN_FOLDER } from '#lib/features/export/export.ts';
 import { hintFullScreen } from '#lib/features/fullscreen/actions.ts';
 import { notifyDeleted } from '#lib/features/organize/notify.ts';
 import { recoveryQuestion } from '#lib/features/recovery/recovery.ts';
@@ -192,4 +192,19 @@ export function clearRehearsals() {
 		tab.fileFlags = { ...tab.fileFlags, pdfa: rehearsedPdfa.get(tab.id) ?? null };
 	}
 	rehearsedPdfa.clear();
+}
+
+/** The notifications of the Snapshot tool (section 6.14): its area copied (at a lower
+ * resolution, `large`), or saved, with Open file location, which does nothing here but say so. */
+export function rehearseArea(what: 'copied' | 'copiedLarge' | 'saved') {
+	if (what !== 'saved') {
+		app.notify({ kind: 'info', message: what === 'copiedLarge' ? areaCopiedMessage(212, 300) : areaCopiedMessage(150, 150) });
+		return;
+	}
+	const done = { pages: 1, files: 1, folder: 'Pictures', first: 'report-iv.png', token: 0 };
+	app.notify({
+		kind: 'info',
+		message: areaSavedMessage(done),
+		action: { label: SHOW_IN_FOLDER, run: () => rehearseInfoAbout(`the system would show ${done.first} in its folder.`) }
+	});
 }

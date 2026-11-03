@@ -22,6 +22,7 @@ fn options(format: Format) -> Options {
         quality: 85,
         tiff: TiffCompression::Lzw,
         annotations: true,
+        area: None,
     }
 }
 

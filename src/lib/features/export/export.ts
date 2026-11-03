@@ -7,6 +7,7 @@ import { fileSize } from '#lib/format.ts';
 import { parsePrintRange } from '#lib/features/print/print.ts';
 import { pageName } from '#lib/features/viewer/pagebox.ts';
 import type {
+	ExportArea,
 	ExportDone,
 	ExportFormat,
 	ExportPreferences,
@@ -182,10 +183,16 @@ export function tooLarge(
 }
 
 /** What the dialog says of a page too large. */
-export function tooLargeText(found: TooLarge, format: ExportFormat, labels: readonly string[] | null): string {
+export function tooLargeText(
+	found: TooLarge,
+	format: ExportFormat,
+	labels: readonly string[] | null,
+	area = false
+): string {
 	const px = `${found.width.toLocaleString()} × ${found.height.toLocaleString()} pixels`;
 	const at = found.maxDpi ? ` Choose ${found.maxDpi} dpi or less.` : ' Choose another format.';
-	return `Page ${pageName(found.page, labels)} would be ${px}, too large for ${formatName(format)}.${at}`;
+	const what = area ? 'The area' : `Page ${pageName(found.page, labels)}`;
+	return `${what} would be ${px}, too large for ${formatName(format)}.${at}`;
 }
 
 /** "12 pages", "1 page". */
@@ -256,6 +263,26 @@ export function doneMessage(name: string, done: ExportDone, format: ExportFormat
 export function copiedMessage(name: string, dpi: number, asked: number): string {
 	if (dpi < asked) return `Copied page ${name} as an image, at ${dpi} dpi as the page is large.`;
 	return `Copied page ${name} as an image.`;
+}
+
+/** The notification once the Snapshot tool's area is on the clipboard, drawn at `dpi` where
+ * Settings asks for `asked` (less for a large area). */
+export function areaCopiedMessage(dpi: number, asked: number): string {
+	if (dpi < asked) return `Copied the area as an image, at ${dpi} dpi as the area is large.`;
+	return 'Copied the area as an image.';
+}
+
+/** The notification once the Snapshot tool's area is saved (one file, which the Save dialog
+ * asked about replacing). */
+export function areaSavedMessage(done: ExportDone): string {
+	return `Saved the area as ${done.first} in ${done.folder}.`;
+}
+
+/** The size in points of an `area` as its image shows it (turned). */
+export function areaSize(area: ExportArea): { width: number; height: number } {
+	const w = area.x1 - area.x0;
+	const h = area.y1 - area.y0;
+	return area.turn % 180 === 90 ? { width: h, height: w } : { width: w, height: h };
 }
 
 /** The size of a page's file, as the preview says it; "about" when estimated. */

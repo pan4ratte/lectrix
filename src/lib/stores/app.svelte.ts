@@ -37,6 +37,7 @@ import {
 	type AppError,
 	type BookmarkMode,
 	type DocumentChange,
+	type ExportArea,
 	type DocumentInfo,
 	type InsertLabelMode,
 	type MergeReport,
@@ -137,6 +138,8 @@ export interface ExportRequest {
 	tabId: number;
 	page: number | null;
 	selected: number[] | null;
+	/** An area of `page` framed with the Snapshot tool, saved alone. */
+	area?: ExportArea | null;
 }
 
 /** The Protect dialog (section 6.9), for a file or for a document in a tab. */

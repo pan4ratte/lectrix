@@ -8,9 +8,26 @@ import type { Annotation, AnnotationKind, AnnotationProblem, QuickTool } from '#
 
 import type { ShapeKind } from './pen.ts';
 
-export type Tool = 'select' | 'highlight' | 'underline' | 'strikeOut' | 'squiggly' | 'note' | 'ink' | 'shape' | 'freeText';
+/** `snapshot` frames an area of a page to copy or save as an image (section 6.14). */
+export type Tool =
+	| 'select'
+	| 'snapshot'
+	| 'highlight'
+	| 'underline'
+	| 'strikeOut'
+	| 'squiggly'
+	| 'note'
+	| 'ink'
+	| 'shape'
+	| 'freeText';
 /** Tools that create something. */
-export type DrawTool = Exclude<Tool, 'select'>;
+export type DrawTool = Exclude<Tool, 'select' | 'snapshot'>;
+
+/** Whether `tool` changes the document: it then needs permission to annotate, and a
+ * document that can be changed. Select and Snapshot only read it. */
+export function editsDocument(tool: Tool): tool is DrawTool {
+	return tool !== 'select' && tool !== 'snapshot';
+}
 export type MarkupKind = 'highlight' | 'underline' | 'strikeOut' | 'squiggly';
 
 export const MARKUP_TOOLS: readonly MarkupKind[] = ['highlight', 'underline', 'strikeOut', 'squiggly'];
@@ -28,6 +45,7 @@ export interface ToolInfo {
 
 export const TOOLS: readonly ToolInfo[] = [
 	{ id: 'select', label: 'Select', key: 'Esc' },
+	{ id: 'snapshot', label: 'Snapshot' },
 	{ id: 'highlight', label: 'Highlight', key: 'H' },
 	{ id: 'underline', label: 'Underline', key: 'U' },
 	{ id: 'strikeOut', label: 'Strikeout' },

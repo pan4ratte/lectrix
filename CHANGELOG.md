@@ -35,6 +35,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 - If some of the files are already there, Lectrix asks whether to replace them or keep them.
 - Export a single page from its right-click menu, or the pages selected in **Organize pages** from its bar or right-click menu.
 - **Copy page as image**, in a page's right-click menu and in **Edit**, puts the page on the clipboard as a picture, annotations and all, to paste into a document, a slide, an image editor or a chat. **Settings > Viewing** sets its resolution, 150 dpi to start with.
+- A new **Snapshot** tool, after Select in the annotation toolbar, copies or saves part of a page: drag over the area, adjust it with its handles, then choose **Copy as image** (or press Ctrl+C) or **Save as image…** in the small bar above it. It works in documents you can't annotate too.
 
 ### Settings
 

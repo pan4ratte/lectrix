@@ -43,6 +43,8 @@
 		FORMATS,
 		SHOW_IN_FOLDER,
 		TIFF_COMPRESSIONS,
+		areaSavedMessage,
+		areaSize,
 		colours,
 		doneMessage,
 		exampleName,
@@ -70,6 +72,8 @@
 	const shown = $derived(last.current);
 	/** The pages selected where the dialog was opened (Organize pages). */
 	const selected = $derived(request?.selected ?? null);
+	/** The area the Snapshot tool framed, saved alone, of the page the dialog was opened for. */
+	const area = $derived(request?.area ?? null);
 
 	let step = $state<'settings' | 'confirm' | 'exporting'>('settings');
 	let problem = $state<AppError | null>(null);
@@ -112,7 +116,14 @@
 	const colourUsed = $derived<ImageColour>(colour === 'blackAndWhite' && !takesBlackAndWhite(format) ? 'grey' : colour);
 	const oneTiff = $derived(format === 'tiff' && oneFile && (pages?.length ?? 0) > 1);
 	const fileCount = $derived(oneTiff ? 1 : new Set(pages ?? []).size);
-	const large = $derived(shown && pages && dpi !== null ? tooLarge(format, dpi, pages, shown.pages) : null);
+	/** What is drawn of each page, points as the image shows it: the page, or the area. */
+	const sizes = $derived.by((): readonly { width: number; height: number }[] => {
+		if (!shown || !area) return shown?.pages ?? [];
+		const all: { width: number; height: number }[] = [...shown.pages];
+		all[current] = areaSize(area);
+		return all;
+	});
+	const large = $derived(shown && pages && dpi !== null ? tooLarge(format, dpi, pages, sizes) : null);
 	const settings = $derived<ExportSettings | null>(
 		pages && dpi !== null
 			? {
@@ -124,7 +135,8 @@
 					tiff,
 					oneFile: oneTiff,
 					naming,
-					annotations
+					annotations,
+					area
 				}
 			: null
 	);
@@ -241,6 +253,7 @@
 		if (!doc) return;
 		const name = doc.name;
 		const exported = format;
+		const ofArea = area !== null;
 		step = 'exporting';
 		progress = null;
 		try {
@@ -248,7 +261,7 @@
 			app.exportRequest = null;
 			app.notify({
 				kind: 'info',
-				message: doneMessage(name, done, exported),
+				message: ofArea ? areaSavedMessage(done) : doneMessage(name, done, exported),
 				action: done.files > 0 ? { label: SHOW_IN_FOLDER, run: () => void showFolder(done.token) } : undefined
 			});
 		} catch (e) {
@@ -278,7 +291,7 @@
 		{ value: 'custom', label: 'Custom' }
 	];
 	const pixels = $derived.by(() => {
-		const size = previewPage !== null ? shown?.pages[previewPage] : undefined;
+		const size = previewPage !== null ? sizes[previewPage] : undefined;
 		return size && dpi !== null ? pixelSize(size.width, size.height, dpi) : null;
 	});
 	const estimated = $derived(preview !== null && dpi !== null && preview.dpi < dpi);
@@ -321,9 +334,11 @@
 			interactOutsideBehavior="ignore"
 		>
 			{#if shown}
-				<Dialog.Title class="truncate text-base font-semibold">Export {shown.name} as images</Dialog.Title>
+				<Dialog.Title class="truncate text-base font-semibold">
+					{area ? `Save an area of ${shown.name} as an image` : `Export ${shown.name} as images`}
+				</Dialog.Title>
 				<Dialog.Description class="mt-1 text-sm text-fg-muted">
-					{pagesText(count)}{shown.state.dirty ? ', with its unsaved changes' : ''}
+					{area ? `Page ${pageName(current, labels)}` : pagesText(count)}{shown.state.dirty ? ', with its unsaved changes' : ''}
 				</Dialog.Description>
 
 				{#if step === 'exporting'}
@@ -356,41 +371,48 @@
 					<form class="mt-4 flex min-h-0 flex-col" onsubmit={pick}>
 						<div class="-mx-6 flex min-h-0 gap-6 overflow-y-auto overflow-x-hidden px-6">
 							<div class="flex w-[380px] shrink-0 flex-col gap-4" data-export-settings>
-								<fieldset class="flex flex-col gap-2">
-									<legend class="mb-1 font-medium">Pages</legend>
-									<label class="flex items-center gap-2">
-										<input type="radio" bind:group={choice} value="all" />
-										All {pagesText(count)}
-									</label>
-									<label class="flex items-center gap-2">
-										<input type="radio" bind:group={choice} value="current" />
-										{request?.page !== null && request?.page !== undefined ? 'This page' : 'The current page'} ({pageName(current, labels)})
-									</label>
-									{#if selected}
+								{#if area}
+									<div class="flex flex-col gap-1" data-export-area>
+										<p class="font-medium">Area</p>
+										<p class="text-sm">The area framed on page {pageName(current, labels)}, as it shows on screen.</p>
+									</div>
+								{:else}
+									<fieldset class="flex flex-col gap-2">
+										<legend class="mb-1 font-medium">Pages</legend>
 										<label class="flex items-center gap-2">
-											<input type="radio" bind:group={choice} value="selected" />
-											The {selected.length === 1 ? 'selected page' : `${selected.length.toLocaleString()} selected pages`}
+											<input type="radio" bind:group={choice} value="all" />
+											All {pagesText(count)}
 										</label>
-									{/if}
-									<label class="flex items-center gap-2">
-										<input type="radio" bind:group={choice} value="range" />
-										Pages
-										<input
-											class="field h-7 min-w-0 flex-1"
-											bind:value={rangeText}
-											onfocus={() => (choice = 'range')}
-											placeholder={labels ? 'i-iv, 1-5, 8' : '1-5, 8, 11-13'}
-											aria-label="Pages to export"
-											aria-invalid={choice === 'range' && rangeText.trim() !== '' && pages === null}
-											data-export-range
-										/>
-									</label>
-									{#if choice === 'range' && rangeText.trim() !== '' && pages === null}
-										<p class="ml-6 text-sm text-danger" role="alert">
-											Type pages as {labels ? 'they are numbered, as i-iv, 1-5, 8' : '1-5, 8, 11-13'}, up to {count}.
-										</p>
-									{/if}
-								</fieldset>
+										<label class="flex items-center gap-2">
+											<input type="radio" bind:group={choice} value="current" />
+											{request?.page !== null && request?.page !== undefined ? 'This page' : 'The current page'} ({pageName(current, labels)})
+										</label>
+										{#if selected}
+											<label class="flex items-center gap-2">
+												<input type="radio" bind:group={choice} value="selected" />
+												The {selected.length === 1 ? 'selected page' : `${selected.length.toLocaleString()} selected pages`}
+											</label>
+										{/if}
+										<label class="flex items-center gap-2">
+											<input type="radio" bind:group={choice} value="range" />
+											Pages
+											<input
+												class="field h-7 min-w-0 flex-1"
+												bind:value={rangeText}
+												onfocus={() => (choice = 'range')}
+												placeholder={labels ? 'i-iv, 1-5, 8' : '1-5, 8, 11-13'}
+												aria-label="Pages to export"
+												aria-invalid={choice === 'range' && rangeText.trim() !== '' && pages === null}
+												data-export-range
+											/>
+										</label>
+										{#if choice === 'range' && rangeText.trim() !== '' && pages === null}
+											<p class="ml-6 text-sm text-danger" role="alert">
+												Type pages as {labels ? 'they are numbered, as i-iv, 1-5, 8' : '1-5, 8, 11-13'}, up to {count}.
+											</p>
+										{/if}
+									</fieldset>
+								{/if}
 
 								<fieldset class="flex flex-col gap-2">
 									<legend class="mb-1 font-medium">Image</legend>
@@ -434,7 +456,7 @@
 									{/if}
 									{#if large}
 										<p class="ml-[96px] text-sm text-danger" role="alert" data-export-too-large>
-											{tooLargeText(large, format, labels)}
+											{tooLargeText(large, format, labels, area !== null)}
 										</p>
 									{/if}
 									<div class="flex items-center gap-2">
@@ -536,7 +558,9 @@
 									{#if previewUrl && box}
 										<img
 											src={previewUrl}
-											alt="Page {previewPage !== null ? pageName(previewPage, labels) : ''} as it will be exported"
+											alt={area
+												? 'The area as it will be saved'
+												: `Page ${previewPage !== null ? pageName(previewPage, labels) : ''} as it will be exported`}
 											class="max-w-none shrink-0 bg-white shadow-[0_1px_4px_var(--color-page-shadow)]"
 											class:m-3={previewScale === 'actual'}
 											style:width="{box.width}px"
@@ -561,34 +585,36 @@
 									{/if}
 								</div>
 								<div class="flex items-center gap-2">
-									<button
-										type="button"
-										class="icon-button"
-										data-tip="Previous page"
-										aria-label="Previous page"
-										disabled={previewAt <= 0 || !pages}
-										onclick={() => (previewAt = Math.max(0, previewAt - 1))}
-									>
-										<ChevronLeft size={16} aria-hidden="true" />
-									</button>
-									<span class="text-sm tabular-nums" data-export-preview-page>
-										{pagesTotal > 0 ? `${(Math.min(previewAt, pagesTotal - 1) + 1).toLocaleString()} of ${pagesTotal.toLocaleString()}` : '–'}
-									</span>
-									<button
-										type="button"
-										class="icon-button"
-										data-tip="Next page"
-										aria-label="Next page"
-										disabled={previewAt >= pagesTotal - 1 || !pages}
-										onclick={() => (previewAt = Math.min(pagesTotal - 1, previewAt + 1))}
-									>
-										<ChevronRight size={16} aria-hidden="true" />
-									</button>
-									<span class="ml-2">
+									{#if !area}
+										<button
+											type="button"
+											class="icon-button"
+											data-tip="Previous page"
+											aria-label="Previous page"
+											disabled={previewAt <= 0 || !pages}
+											onclick={() => (previewAt = Math.max(0, previewAt - 1))}
+										>
+											<ChevronLeft size={16} aria-hidden="true" />
+										</button>
+										<span class="text-sm tabular-nums" data-export-preview-page>
+											{pagesTotal > 0 ? `${(Math.min(previewAt, pagesTotal - 1) + 1).toLocaleString()} of ${pagesTotal.toLocaleString()}` : '–'}
+										</span>
+										<button
+											type="button"
+											class="icon-button"
+											data-tip="Next page"
+											aria-label="Next page"
+											disabled={previewAt >= pagesTotal - 1 || !pages}
+											onclick={() => (previewAt = Math.min(pagesTotal - 1, previewAt + 1))}
+										>
+											<ChevronRight size={16} aria-hidden="true" />
+										</button>
+									{/if}
+									<span class={area ? undefined : 'ml-2'}>
 										<Segmented
 											value={previewScale}
 											options={[
-												{ value: 'fit', label: 'Whole page' },
+												{ value: 'fit', label: area ? 'Whole area' : 'Whole page' },
 												{ value: 'actual', label: 'Actual pixels' }
 											]}
 											onchange={(v) => (previewScale = v as 'fit' | 'actual')}
@@ -603,13 +629,13 @@
 									{/if}
 								</p>
 								{#if estimated && preview}
-									<p class="text-xs text-fg-muted">Previewed at {preview.dpi} dpi, as this page is large.</p>
+									<p class="text-xs text-fg-muted">Previewed at {preview.dpi} dpi, as this {area ? 'area' : 'page'} is large.</p>
 								{/if}
 							</div>
 						</div>
 						<div class="mt-5 flex justify-end gap-2">
 							<button type="button" class="button" onclick={close}>Cancel</button>
-							<button type="submit" class="button button-primary" disabled={!canExport} data-export-run>Export…</button>
+							<button type="submit" class="button button-primary" disabled={!canExport} data-export-run>{area ? 'Save…' : 'Export…'}</button>
 						</div>
 					</form>
 				{/if}

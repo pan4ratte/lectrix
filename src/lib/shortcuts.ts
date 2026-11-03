@@ -118,6 +118,7 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 		title: 'Annotation tools',
 		commands: [
 			{ command: 'toolSelect', label: 'Select tool', keys: [] },
+			{ command: 'toolSnapshot', label: 'Snapshot tool', keys: [] },
 			{ command: 'toolHighlight', label: 'Highlight tool', keys: ['H'] },
 			{ command: 'toolUnderline', label: 'Underline tool', keys: ['U'] },
 			{ command: 'toolStrikeOut', label: 'Strikeout tool', keys: [] },

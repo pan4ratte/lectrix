@@ -5,7 +5,7 @@ Part of the Lectrix specification. [AGENTS.md](../../AGENTS.md) holds the rules 
 A document's pages saved as images: each page drawn as it shows, at a resolution, in colour, greys or black and white, as PNG, JPEG or TIFF, a file a page or (TIFF) one file of them all (ADR 0034). Pages are drawn by MuPDF as the viewer draws them; the document is only read.
 
 - **Where it is:** **File > Export > Pages as images…** (after Print…; a command without a default shortcut, section 6.6), for the document shown, in the viewer or while its pages are organized; there it starts with the selected pages. A page's right-click menu in the viewer has **Export page as image…**, which starts with that page; Organize pages has **Export** on its bar, after Extract, and **Export page as image…** ("Export 3 pages as images…") in its menu, both for the selected pages (section 6.7). Not on the start screen or in the Combine view.
-- **Copy page as image** (below, "Copying a page") puts one page on the clipboard instead.
+- **Copy page as image** (below, "Copying a page") puts one page on the clipboard instead; the **Snapshot** tool copies or saves part of a page (below).
 - What is exported is the document as it is open, its unsaved changes included. A document whose security settings forbid copying its content can be exported all the same (the user's decision, ADR 0034); one that forbids printing too.
 
 ## The dialog
@@ -52,6 +52,16 @@ A page of more than 16 million pixels at the resolution chosen is previewed at t
 - Done, a notification says so: "Copied page iv as an image." (by its label), or "Copied page 3 as an image, at 212 dpi as the page is large." A page too large even at 10 dpi: "This page is too large to copy as an image.", with "Export it with File > Export > Pages as images instead." The clipboard taken by another app: "The page couldn't be copied to the clipboard.", with "Try again. If another app is using the clipboard, close it first."
 - On Windows the clipboard gets the page as a PNG and as a bitmap (`CF_DIBV5`), so it pastes into Word, PowerPoint, Paint, browsers and chat apps; on Linux as `image/png`, on X11 and Wayland; on macOS as an image. A document that forbids copying its content can be copied all the same, as it can be exported (ADR 0034).
 
+## The Snapshot tool
+
+**Snapshot**, in the annotation toolbar after Select (a camera; a command without a default shortcut, section 6.6, "Snapshot tool"), frames part of a page to copy or save as an image. It changes nothing in the document, so it works in documents that can't be annotated or changed, and it is not in the Compare view's panes.
+
+- **Framing:** a drag on a page draws the area, kept on that page, dashed in the accent colour, with eight handles. A handle resizes it, a drag inside it moves it (kept on the page), a drag elsewhere frames a new one, and a click elsewhere, or away from the pages, leaves none. It draws over annotations, which it doesn't select. Esc during a drag puts back the area there was; Esc after lets the area go, and a second Esc picks the Select tool (section 8). Picking another tool lets it go too. The cursor is a cross, a four-way arrow inside the area and a resize arrow over a handle, as the handle is on screen.
+- **Its bar**, above the area once the drag ends (`SnapshotBar.svelte`): **Copy as image** (Ctrl+C, which copies the area while there is one) and **Save as image…**. The page's right-click menu has **Copy area as image** and **Save area as image…** in place of Copy selection.
+- **Copying** draws the area as Copy page as image draws a page (above): at Settings > Viewing > Copy page as image's resolution, at most 36 million pixels, a larger area at the highest resolution under that. "Copied the area as an image." ("…, at 212 dpi as the area is large."). Too large even at 10 dpi: "This area is too large to copy as an image.", with "Save it as an image instead, or select a smaller area."
+- **Saving** opens the Export as images dialog for the area: "Save an area of report.pdf as an image", "Page iv" under it; in place of the pages, "Area" and "The area framed on page iv, as it shows on screen."; the preview without ‹ and ›, its first choice **Whole area**; a size too large says "The area would be …"; and **Save…** in place of Export…. The Save dialog is "Save the area as an image", with the name one page gets ("report-iv.png"). Done: "Saved the area as report-iv.png in Pictures.", with Open file location.
+- The image is the area as it shows: a page turned on screen (section 6.1) gives an image turned so, and annotations and form fields are on it (Save as image… can leave annotations out); visual adjustments are not applied.
+
 ## The files (ADR 0034)
 
 - **PNG:** colour (RGB), grey or one bit a pixel; the resolution (`pHYs`) and sRGB in the file; compressed well (the `png` crate's High).
@@ -65,3 +75,4 @@ A page of more than 16 million pixels at the resolution chosen is previewed at t
 - WebP and JPEG XL were built and dropped (the user's decision, 2026-11-02): JPEG XL's encoder made the app 2 MB larger, WebP has little demand in a PDF app, and both encoders were AGPL-3.0-only (ADR 0034).
 - The defaults: PNG, 150 dpi, colour, quality 85, annotations on, files named by number.
 - Copy page as image: through Tauri's clipboard plugin, its resolution a setting, 150 dpi to start with (the user's decisions, 2026-11-02). The page's menus, Edit and Organize pages' menu have it; Organize pages' bar doesn't, as it is full already.
+- The Snapshot tool: a tool beside Select, an area with handles, and a small bar with Copy and Save as image…, rather than Acrobat's copying as soon as the area is drawn (the user's decisions, 2026-11-02). Its name and icon, no default shortcut, copying at the Copy page as image resolution, and an image turned as the page shows were chosen without the user (2026-11-03).

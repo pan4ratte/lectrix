@@ -145,6 +145,10 @@ enum Command {
         by_label: bool,
         #[arg(long)]
         no_annotations: bool,
+        /// Only an area of the page: "x0,y0,x1,y1" in points from its top-left corner as it
+        /// shows, with ",90" (180, 270) to turn it clockwise as the viewer shows it.
+        #[arg(long)]
+        area: Option<String>,
         #[arg(long)]
         password: Option<String>,
     },
@@ -732,6 +736,29 @@ impl From<BookmarksArg> for BookmarkMode {
     }
 }
 
+/// `--area x0,y0,x1,y1[,turn]`.
+fn parse_area(s: &str) -> Result<pdf_core::export::Area> {
+    let bad = || Error::InvalidArgument(format!("{s:?} is not an area: x0,y0,x1,y1[,turn]"));
+    let v: Vec<f32> = s
+        .split(',')
+        .map(|n| n.trim().parse::<f32>().map_err(|_| bad()))
+        .collect::<Result<_>>()?;
+    let (x0, y0, x1, y1, turn) = match *v.as_slice() {
+        [a, b, c, d] => (a, b, c, d, 0.0),
+        [a, b, c, d, t] => (a, b, c, d, t),
+        _ => return Err(bad()),
+    };
+    let area = pdf_core::export::Area {
+        x0,
+        y0,
+        x1,
+        y1,
+        turn: turn as u16,
+    };
+    area.check()?;
+    Ok(area)
+}
+
 fn parse_removals(s: &str) -> Result<pdf_core::compress::Removals> {
     let mut removals = pdf_core::compress::Removals::default();
     for item in s.split(',').map(str::trim).filter(|i| !i.is_empty()) {
@@ -1148,6 +1175,7 @@ fn run(command: Command) -> Result<()> {
             one_file,
             by_label,
             no_annotations,
+            area,
             password,
         } => {
             use pdf_core::export::{Colour, Format, Options, TiffCompression};
@@ -1169,6 +1197,7 @@ fn run(command: Command) -> Result<()> {
                     TiffCompressionArg::Deflate => TiffCompression::Deflate,
                 },
                 annotations: !no_annotations,
+                area: area.as_deref().map(parse_area).transpose()?,
             };
             export_images(
                 &input,
