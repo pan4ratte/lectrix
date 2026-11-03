@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-images-forget"
+description = "Enables the images_forget command without any pre-configured scope."
+commands.allow = ["images_forget"]
+
+[[permission]]
+identifier = "deny-images-forget"
+description = "Denies the images_forget command without any pre-configured scope."
+commands.deny = ["images_forget"]

@@ -152,6 +152,24 @@ enum Command {
         #[arg(long)]
         password: Option<String>,
     },
+    /// Export the images in a document (section 6.14, ADR 0035): each once, JPEG and JPEG
+    /// 2000 as the file keeps them, the rest as PNG, named after `out` (`out-001-1.jpg`…;
+    /// one image is `out` itself, with its own extension).
+    ExportEmbedded {
+        input: PathBuf,
+        out: PathBuf,
+        /// Physical page numbers, "1-3,7"; all pages by default.
+        #[arg(long)]
+        pages: Option<String>,
+        /// Leave out images narrower or lower than this many pixels.
+        #[arg(long)]
+        min_side: Option<u32>,
+        /// Name the files by page label instead of page number.
+        #[arg(long)]
+        by_label: bool,
+        #[arg(long)]
+        password: Option<String>,
+    },
     /// Remove a file's password and restrictions (the start screen's Unlock), writing it
     /// whole without encryption. Any password that opens it will do.
     Unlock {
@@ -908,6 +926,104 @@ fn export_images(
     Ok(())
 }
 
+/// `pdf-cli export-embedded`: the images in the document, as File > Export > Images in
+/// the document exports them.
+fn export_embedded(
+    input: &Path,
+    out: &Path,
+    pages: Option<&str>,
+    min_side: Option<u32>,
+    by_label: bool,
+    password: Option<&str>,
+) -> Result<()> {
+    use pdf_core::export::embedded::{self, ImageFile, ImageKind};
+    use pdf_core::export::names::{self, ImageName, Naming};
+    let (session, info) = Session::open(input, password)?;
+    let count = info.pages.len();
+    let pages = match pages {
+        None => (0..count).collect(),
+        Some(spec) => parse_page_list(spec, count)?,
+    };
+    let started = Instant::now();
+    let found = session.page_images(pages)?;
+    let plan = embedded::plan(&found, min_side);
+    let scanned = started.elapsed();
+    let mut kinds: BTreeMap<&str, usize> = BTreeMap::new();
+    for image in &plan.images {
+        *kinds
+            .entry(match image.kind {
+                ImageKind::Jpeg => "JPEG",
+                ImageKind::Jpeg2000 { .. } => "JPEG 2000",
+                ImageKind::Png => "PNG",
+            })
+            .or_default() += 1;
+    }
+    println!(
+        "found {} image(s) ({}), {} repeat(s) and {} small image(s) left out, in {:.2} s",
+        plan.images.len(),
+        kinds
+            .iter()
+            .map(|(k, n)| format!("{n} {k}"))
+            .collect::<Vec<_>>()
+            .join(", "),
+        plan.repeats,
+        plan.small,
+        scanned.as_secs_f64()
+    );
+    if plan.images.is_empty() {
+        return Ok(());
+    }
+    let named: Vec<ImageName> = plan
+        .images
+        .iter()
+        .map(|i| ImageName {
+            page: i.page,
+            index: i.index,
+            extension: i.kind.extension(),
+        })
+        .collect();
+    let labels = info.labels.as_ref().map(|l| l.labels.clone());
+    let paths = names::image_file_names(
+        out,
+        &named,
+        count,
+        if by_label {
+            Naming::Labels
+        } else {
+            Naming::Numbers
+        },
+        labels.as_deref(),
+    );
+    let files: Vec<ImageFile> = plan
+        .images
+        .iter()
+        .zip(paths)
+        .map(|(i, path)| ImageFile {
+            num: i.num,
+            kind: i.kind,
+            path,
+        })
+        .collect();
+    let started = Instant::now();
+    let written = session.write_images(
+        files.clone(),
+        std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        |done, total| eprint!("\rexported {done} of {total}"),
+    )?;
+    eprintln!();
+    let bytes: u64 = files
+        .iter()
+        .map(|f| std::fs::metadata(&f.path).map(|m| m.len()).unwrap_or(0))
+        .sum();
+    println!(
+        "wrote {} file(s), {bytes} bytes, {} unreadable, in {:.2} s",
+        written.files,
+        written.unreadable,
+        started.elapsed().as_secs_f64()
+    );
+    Ok(())
+}
+
 fn print_file(
     input: &Path,
     printer: &str,
@@ -1209,6 +1325,21 @@ fn run(command: Command) -> Result<()> {
                 password.as_deref(),
             )?;
         }
+        Command::ExportEmbedded {
+            input,
+            out,
+            pages,
+            min_side,
+            by_label,
+            password,
+        } => export_embedded(
+            &input,
+            &out,
+            pages.as_deref(),
+            min_side,
+            by_label,
+            password.as_deref(),
+        )?,
         Command::Unlock {
             input,
             out,

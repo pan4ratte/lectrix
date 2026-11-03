@@ -56,12 +56,6 @@ fn lock<T>(m: &Mutex<T>) -> Result<std::sync::MutexGuard<'_, T>, AppError> {
     m.lock().map_err(|_| AppError::bad_state())
 }
 
-fn name_of(path: &Path) -> String {
-    path.file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_default()
-}
-
 fn naming(n: FileNaming) -> Naming {
     match n {
         FileNaming::Numbers => Naming::Numbers,
@@ -201,33 +195,7 @@ impl Export {
             Output::OneTiff(path) => vec![path],
             Output::Files(paths) => paths.iter().collect(),
         };
-        // The Save dialog asked about the file it named; Lectrix asks about the others.
-        let existing: Vec<String> = if files.len() > 1 {
-            files
-                .iter()
-                .filter(|p| p.exists())
-                .map(|p| name_of(p))
-                .collect()
-        } else {
-            Vec::new()
-        };
-        let target = ExportTarget {
-            folder: picked
-                .parent()
-                .map(name_of)
-                .filter(|n| !n.is_empty())
-                .unwrap_or_else(|| {
-                    picked
-                        .parent()
-                        .map(|p| p.display().to_string())
-                        .unwrap_or_default()
-                }),
-            first: files.first().map(|p| name_of(p)).unwrap_or_default(),
-            last: files.last().map(|p| name_of(p)).unwrap_or_default(),
-            files: u32::try_from(files.len()).unwrap_or(u32::MAX),
-            existing_count: u32::try_from(existing.len()).unwrap_or(u32::MAX),
-            existing: existing.into_iter().take(3).collect(),
-        };
+        let target = target_of(&picked, &files);
         lock(&self.planned)?.insert(
             doc,
             Planned {
@@ -350,10 +318,7 @@ impl Export {
                         .unwrap_or_default(),
                     started.elapsed().as_secs_f64()
                 ));
-                let token = self.token();
-                if let Ok(mut done) = self.done.lock() {
-                    done.insert(token, first.clone());
-                }
+                let token = self.remember(first.clone());
                 Ok(ExportDone {
                     pages: u32::try_from(count).unwrap_or(u32::MAX),
                     files: u32::try_from(files).unwrap_or(u32::MAX),
@@ -396,6 +361,55 @@ impl Export {
     pub fn exported(&self, token: u32) -> Option<PathBuf> {
         self.done.lock().ok()?.get(&token).cloned()
     }
+
+    /// Keeps `first`, the first file of an export done, for Show in folder; the token
+    /// that names it.
+    pub fn remember(&self, first: PathBuf) -> u32 {
+        let token = self.token();
+        if let Ok(mut done) = self.done.lock() {
+            done.insert(token, first);
+        }
+        token
+    }
+}
+
+/// What the dialog is told of where an export's `files` go, beside `picked` (what the Save
+/// dialog gave): the folder, the first and last file, and those already there. The Save
+/// dialog asked about the file it named; Lectrix asks about the others.
+pub fn target_of(picked: &Path, files: &[&PathBuf]) -> ExportTarget {
+    let existing: Vec<String> = if files.len() > 1 {
+        files
+            .iter()
+            .filter(|p| p.exists())
+            .map(|p| name_of(p))
+            .collect()
+    } else {
+        Vec::new()
+    };
+    ExportTarget {
+        folder: picked
+            .parent()
+            .map(name_of)
+            .filter(|n| !n.is_empty())
+            .unwrap_or_else(|| {
+                picked
+                    .parent()
+                    .map(|p| p.display().to_string())
+                    .unwrap_or_default()
+            }),
+        first: files.first().map(|p| name_of(p)).unwrap_or_default(),
+        last: files.last().map(|p| name_of(p)).unwrap_or_default(),
+        files: u32::try_from(files.len()).unwrap_or(u32::MAX),
+        existing_count: u32::try_from(existing.len()).unwrap_or(u32::MAX),
+        existing: existing.into_iter().take(3).collect(),
+    }
+}
+
+/// The last part of `path`: a file's or folder's name.
+pub fn name_of(path: &Path) -> String {
+    path.file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default()
 }
 
 /// The resolution a page `width` x `height` points is previewed at: `dpi`, or lower to

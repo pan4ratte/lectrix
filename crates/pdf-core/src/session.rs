@@ -33,6 +33,7 @@ use std::collections::{HashMap, HashSet, VecDeque};
 use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::sync::Arc;
+use std::sync::atomic::AtomicBool;
 use std::sync::mpsc::{self, Receiver, Sender, SyncSender};
 use std::thread;
 use std::time::{Duration, Instant};
@@ -44,6 +45,7 @@ use crate::annot::read::{AnnotationInfo, read_all as read_annotations};
 use crate::annot::repair::{self, RepairChange, RepairScan};
 use crate::docinfo::{self, DocumentFlags, PageLayout, PdfA, read_flags, read_page_layout};
 use crate::error::{Error, Result};
+use crate::export::embedded::{self, ImageFile, PageImage, Written};
 use crate::ffi::{Journal, open_pdf_shared, save_snapshot};
 use crate::geometry::{PageGeometry, read_page_boxes};
 use crate::labels::{self, LabelRule};
@@ -327,6 +329,21 @@ enum Command {
     },
     PrintFacts {
         reply: Reply<PrintFacts>,
+    },
+    PageImages {
+        pages: Vec<usize>,
+        reply: Reply<Vec<PageImage>>,
+    },
+    ImageThumbnail {
+        num: i32,
+        side: u32,
+        reply: Reply<Vec<u8>>,
+    },
+    WriteImages {
+        files: Vec<ImageFile>,
+        stop: Arc<AtomicBool>,
+        progress: Box<dyn FnMut(usize, usize) + Send>,
+        reply: Reply<Written>,
     },
     Close,
 }
@@ -746,6 +763,35 @@ impl Session {
         })
     }
 
+    /// The images drawn on `pages` (0-based, in order), as the document is now (section
+    /// 6.14, [`embedded::page_images`]). Asked for a few pages at a time, so that a long
+    /// document keeps rendering meanwhile.
+    pub fn page_images(&self, pages: Vec<usize>) -> Result<Vec<PageImage>> {
+        self.call(|reply| Command::PageImages { pages, reply })
+    }
+
+    /// Image object `num` as a PNG at most `side` pixels a side ([`embedded::thumbnail`]).
+    pub fn image_thumbnail(&self, num: i32, side: u32) -> Result<Vec<u8>> {
+        self.call(|reply| Command::ImageThumbnail { num, side, reply })
+    }
+
+    /// Writes the images `files` name ([`embedded::write_images`]), telling `progress`
+    /// (done, total) as it goes; stopped once `stop` is set. The document renders nothing
+    /// new meanwhile.
+    pub fn write_images(
+        &self,
+        files: Vec<ImageFile>,
+        stop: Arc<AtomicBool>,
+        progress: impl FnMut(usize, usize) + Send + 'static,
+    ) -> Result<Written> {
+        self.call(|reply| Command::WriteImages {
+            files,
+            stop,
+            progress: Box::new(progress),
+            reply,
+        })
+    }
+
     /// Discards the in-memory document and opens the file again (after it changed on
     /// disk).
     pub fn reload(&self) -> Result<DocumentInfo> {
@@ -945,6 +991,30 @@ fn actor(origin: Origin, rx: Receiver<Command>, ready: SyncSender<Result<Documen
                 reply,
             } => {
                 let _ = reply.send(actor.extract(&pages, &target, &mut *step));
+            }
+            Command::PageImages { pages, reply } => {
+                let count = actor.pages.len();
+                let result = match pages.iter().find(|&&p| p >= count) {
+                    Some(&p) => Err(Error::PageOutOfRange(p)),
+                    None => embedded::page_images(&actor.doc, &pages),
+                };
+                let _ = reply.send(result);
+            }
+            Command::ImageThumbnail { num, side, reply } => {
+                let _ = reply.send(embedded::thumbnail(&actor.doc, num, side));
+            }
+            Command::WriteImages {
+                files,
+                stop,
+                mut progress,
+                reply,
+            } => {
+                let _ = reply.send(embedded::write_images(
+                    &actor.doc,
+                    &files,
+                    &stop,
+                    &mut *progress,
+                ));
             }
             Command::Reload { password, reply } => {
                 let start = Instant::now();

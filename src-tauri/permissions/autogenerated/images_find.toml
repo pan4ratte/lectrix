@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-images-find"
+description = "Enables the images_find command without any pre-configured scope."
+commands.allow = ["images_find"]
+
+[[permission]]
+identifier = "deny-images-find"
+description = "Denies the images_find command without any pre-configured scope."
+commands.deny = ["images_find"]

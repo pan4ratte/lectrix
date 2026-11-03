@@ -9,6 +9,7 @@
 //! same way, alone.
 
 pub mod copy;
+pub mod embedded;
 pub mod encode;
 pub mod names;
 mod run;

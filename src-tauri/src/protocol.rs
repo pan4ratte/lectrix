@@ -320,6 +320,9 @@ fn serve(state: &AppState, request: &Request<Vec<u8>>) -> Result<Response<Body>,
     if let Some(token) = uri.path().strip_prefix("/export/") {
         return serve_export_preview(state, token);
     }
+    if let Some(rest) = uri.path().strip_prefix("/embedded/") {
+        return serve_embedded_thumbnail(state, rest);
+    }
     let req = parse(uri.path(), uri.query())?;
     let session = state
         .documents
@@ -668,6 +671,30 @@ fn serve_export_preview(state: &AppState, token: &str) -> Result<Response<Body>,
         .preview_image(token)
         .ok_or((StatusCode::NOT_FOUND, "no such export preview"))?;
     respond(media, 0, 0, 0, "", image.as_ref().clone())
+}
+
+/// The side of an image's thumbnail in the Images in the document dialog, pixels: twice
+/// its tile, for screens at 200%.
+const EMBEDDED_THUMBNAIL: u32 = 192;
+
+/// An image of a document as a thumbnail (section 6.14), at `{doc}/{num}/{key}`: the key
+/// (what tells the image from others) only keeps a thumbnail from being taken for another.
+fn serve_embedded_thumbnail(state: &AppState, rest: &str) -> Result<Response<Body>, Failure> {
+    let bad = (StatusCode::BAD_REQUEST, "bad image thumbnail");
+    let mut parts = rest.split('/');
+    let doc: u32 = parts.next().and_then(|p| p.parse().ok()).ok_or(bad)?;
+    let num: i32 = parts.next().and_then(|p| p.parse().ok()).ok_or(bad)?;
+    let session = state
+        .documents
+        .session(doc)
+        .map_err(|_| (StatusCode::NOT_FOUND, "document not open"))?;
+    let png = session
+        .image_thumbnail(num, EMBEDDED_THUMBNAIL)
+        .map_err(|e| {
+            crate::applog::warn(format!("thumbnail of image {num}: {e:?}"));
+            (StatusCode::INTERNAL_SERVER_ERROR, "thumbnail failed")
+        })?;
+    respond("image/png", 0, 0, 0, "", png)
 }
 
 /// A file that needs a password or cannot be read has no preview; the start screen shows

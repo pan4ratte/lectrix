@@ -6,6 +6,7 @@
 mod annot;
 pub mod compress;
 mod crypt;
+pub mod images;
 mod journal;
 mod objects;
 mod snapshot;

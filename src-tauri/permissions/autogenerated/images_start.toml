@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-images-start"
+description = "Enables the images_start command without any pre-configured scope."
+commands.allow = ["images_start"]
+
+[[permission]]
+identifier = "deny-images-start"
+description = "Denies the images_start command without any pre-configured scope."
+commands.deny = ["images_start"]

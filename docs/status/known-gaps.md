@@ -319,6 +319,25 @@ Part of the status: [docs/status.md](../status.md) is the index a session reads,
   - Copy page as image stops at 36 million pixels (a larger page is copied at a lower
     resolution), as the clipboard takes the page uncompressed; untested on macOS and, by
     a person, in other apps and on Linux (X11, Wayland).
+- **Images in the document** (section 6.14, ADR 0035):
+  - Inline images (written into a page's contents, small by the spec's advice) and images
+    inside Type 3 glyphs are not exported: they are not objects of their own, and the
+    page walker Compress shares reports only those.
+  - MuPDF decodes images at 8 bits a channel, so a 16-bit image comes out as 8 bits; a
+    palette image comes out as RGB, not as a palette PNG (larger files).
+  - A layered (MRC) scan's text images, a coarse colour image under a sharp mask, are
+    written at the mask's size: 4,927 × 6,599 pixels each in `29-slow-first-page.pdf`
+    (local corpus), whose 1,652 images took 264 s and 590 MB (2026-11-03, release build,
+    other work running meanwhile). Written at the colour image's size they would take a
+    third of the time, but the text would blur.
+  - An image is exported as it is kept, not as it is drawn: one the page draws turned,
+    flipped or cropped is exported as stored.
+  - Two images are taken for one only when everything about them is equal: their data as
+    the file keeps it, their colour space, their masks. The same picture compressed
+    differently is exported twice.
+  - Not yet checked by a person in other apps (CMYK JPEGs and ICC profiles in Photoshop and
+    GIMP; JPEG 2000, which Windows Photos doesn't open), or against Acrobat's **Export
+    all images** (`docs/manual-checklist.md`, "Export as images").
 
 ## Compare
 

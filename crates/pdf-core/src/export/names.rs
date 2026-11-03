@@ -98,6 +98,105 @@ pub fn suggested(
     }
 }
 
+/// Extensions an image's file may be given, which a name given for images loses.
+const IMAGE_EXTENSIONS: &[&str] = &[
+    "png", "jpg", "jpeg", "jpe", "jp2", "j2k", "jpx", "tif", "tiff",
+];
+
+/// The name given for images without an image file's extension: "report" of "report.png",
+/// "report.v2" of "report.v2".
+fn image_stem(picked: &Path) -> String {
+    let name = picked
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let known = picked
+        .extension()
+        .map(|e| e.to_string_lossy().to_lowercase())
+        .is_some_and(|e| IMAGE_EXTENSIONS.contains(&e.as_str()));
+    match picked.file_stem() {
+        Some(stem) if known => stem.to_string_lossy().into_owned(),
+        _ => name,
+    }
+}
+
+/// An image to name: the page it is first drawn on (0-based), which of that page's images
+/// it is (from 1), and its file's extension.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ImageName<'a> {
+    pub page: usize,
+    pub index: usize,
+    pub extension: &'a str,
+}
+
+/// The files `images` (in order) are written to, given the name the Save dialog gave
+/// (`picked`), in a document of `page_count` pages with `labels`: one image to `picked`
+/// itself with its own extension ("cover.jpg"); several beside it, named after it with
+/// the page's number or label and the image's place on the page ("report-007-2.png"),
+/// that place padded to the most images a page has.
+pub fn image_file_names(
+    picked: &Path,
+    images: &[ImageName],
+    page_count: usize,
+    naming: Naming,
+    labels: Option<&[String]>,
+) -> Vec<PathBuf> {
+    let folder = picked.parent().unwrap_or(Path::new(""));
+    let stem = image_stem(picked);
+    if let [one] = images {
+        return vec![folder.join(format!("{stem}.{}", one.extension))];
+    }
+    // Each page's part of the names, a page labelled as another one before it with its
+    // number too (Windows and macOS don't tell "A" from "a").
+    let mut suffixes: std::collections::HashMap<usize, String> = std::collections::HashMap::new();
+    let mut taken: HashSet<String> = HashSet::new();
+    for image in images {
+        if suffixes.contains_key(&image.page) {
+            continue;
+        }
+        let mut suffix = page_suffix(image.page, page_count, naming, labels);
+        if !taken.insert(suffix.to_lowercase()) {
+            suffix = format!("{suffix} (p. {})", image.page + 1);
+            taken.insert(suffix.to_lowercase());
+        }
+        suffixes.insert(image.page, suffix);
+    }
+    let most = images.iter().map(|i| i.index).max().unwrap_or(1);
+    let digits = most.to_string().len();
+    images
+        .iter()
+        .map(|image| {
+            let page = &suffixes[&image.page];
+            let name = format!("{page}-{:0digits$}.{}", image.index, image.extension);
+            folder.join(if stem.is_empty() {
+                name
+            } else {
+                format!("{stem}-{name}")
+            })
+        })
+        .collect()
+}
+
+/// The name the Save dialog suggests for exporting `images` from a document named `stem`:
+/// "report.jpg" for several (the first one's extension), "report-007-1.jpg" for one.
+pub fn suggested_for_images(
+    stem: &str,
+    images: &[ImageName],
+    page_count: usize,
+    naming: Naming,
+    labels: Option<&[String]>,
+) -> String {
+    let extension = images.first().map_or("png", |i| i.extension);
+    match images {
+        [one] => format!(
+            "{stem}-{}-{}.{extension}",
+            page_suffix(one.page, page_count, naming, labels),
+            one.index
+        ),
+        _ => format!("{stem}.{extension}"),
+    }
+}
+
 /// `label` as it can be part of a file name on every system: characters Windows doesn't
 /// allow, and control characters, as `_`; no dots or spaces at its end.
 pub fn safe(label: &str) -> String {
@@ -232,6 +331,85 @@ mod tests {
         assert_eq!(
             suggested("report", &[1], 3, Naming::Labels, Some(&labels), "tif"),
             "report-ii.tif"
+        );
+    }
+
+    #[test]
+    fn images_are_named_after_their_page_and_place_on_it() {
+        let image = |page, index, extension| ImageName {
+            page,
+            index,
+            extension,
+        };
+        let picked = Path::new("C:/out/report.png");
+        let images = [image(0, 1, "jpg"), image(0, 2, "png"), image(6, 1, "jp2")];
+        let files = image_file_names(picked, &images, 120, Naming::Numbers, None);
+        assert_eq!(
+            names(&files),
+            ["report-001-1.jpg", "report-001-2.png", "report-007-1.jp2"]
+        );
+        assert!(
+            files
+                .iter()
+                .all(|f| f.parent() == Some(Path::new("C:/out")))
+        );
+        // A page of ten images or more: the places padded.
+        let many: Vec<ImageName> = (1..=10).map(|i| image(2, i, "png")).collect();
+        assert_eq!(
+            names(&image_file_names(picked, &many, 9, Naming::Numbers, None))[..2],
+            ["report-3-01.png", "report-3-02.png"]
+        );
+        // One image: the name given, with its own extension.
+        assert_eq!(
+            image_file_names(picked, &[image(4, 2, "jpg")], 120, Naming::Numbers, None),
+            vec![PathBuf::from("C:/out/report.jpg")]
+        );
+        assert_eq!(
+            names(&image_file_names(
+                Path::new("out/scan.v2"),
+                &[image(0, 1, "png")],
+                3,
+                Naming::Numbers,
+                None
+            )),
+            ["scan.v2.png"]
+        );
+        // By labels, a page labelled again with its number.
+        let labels: Vec<String> = vec!["i".into(), "1".into(), "1".into()];
+        let images = [
+            image(0, 1, "png"),
+            image(1, 1, "png"),
+            image(2, 1, "png"),
+            image(2, 2, "jpg"),
+        ];
+        assert_eq!(
+            names(&image_file_names(
+                Path::new("book.png"),
+                &images,
+                3,
+                Naming::Labels,
+                Some(&labels)
+            )),
+            [
+                "book-i-1.png",
+                "book-1-1.png",
+                "book-1 (p. 3)-1.png",
+                "book-1 (p. 3)-2.jpg"
+            ]
+        );
+        assert_eq!(
+            suggested_for_images("report", &images, 3, Naming::Numbers, None),
+            "report.png"
+        );
+        assert_eq!(
+            suggested_for_images(
+                "report",
+                &[image(1, 2, "jpg")],
+                3,
+                Naming::Labels,
+                Some(&labels)
+            ),
+            "report-1-2.jpg"
         );
     }
 

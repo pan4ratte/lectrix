@@ -254,7 +254,7 @@ pub const IMAGE_SAMPLE_CASES: &[(&str, &str)] = &[
 ];
 
 /// A deterministic photograph-like image: smooth colour gradients with fine noise.
-fn photo(width: usize, height: usize, seed: u32) -> Vec<u8> {
+pub(crate) fn photo(width: usize, height: usize, seed: u32) -> Vec<u8> {
     let mut state = seed.wrapping_mul(2_654_435_761).wrapping_add(1);
     let mut data = Vec::with_capacity(width * height * 3);
     for y in 0..height {
@@ -276,7 +276,12 @@ fn photo(width: usize, height: usize, seed: u32) -> Vec<u8> {
 
 /// Adds an image XObject: `dict` its entries besides the type; `samples` Flate-compressed
 /// (no predictors, as many generators write them) if `flate`, or already encoded.
-fn add_image(doc: &mut PdfDocument, dict: &str, samples: &[u8], flate: bool) -> Result<PdfObject> {
+pub(crate) fn add_image(
+    doc: &mut PdfDocument,
+    dict: &str,
+    samples: &[u8],
+    flate: bool,
+) -> Result<PdfObject> {
     let (data, filter) = if flate {
         (
             crate::ffi::compress::deflate(samples, 6)?,
@@ -313,12 +318,40 @@ fn add_form(
     )?)
 }
 
-fn rgb_dict(w: usize, h: usize) -> String {
+pub(crate) fn rgb_dict(w: usize, h: usize) -> String {
     format!("/Width {w} /Height {h} /ColorSpace /DeviceRGB /BitsPerComponent 8")
 }
 
-fn gray_dict(w: usize, h: usize) -> String {
+pub(crate) fn gray_dict(w: usize, h: usize) -> String {
     format!("/Width {w} /Height {h} /ColorSpace /DeviceGray /BitsPerComponent 8")
+}
+
+/// Adds a Letter page at the end of `doc` drawing `content` with `xobjects` (name,
+/// object) as its resources.
+#[cfg(test)]
+pub(crate) fn add_drawing_page(
+    doc: &mut PdfDocument,
+    content: &str,
+    xobjects: Vec<(&str, PdfObject)>,
+) -> Result<()> {
+    let stream = doc.add_stream(&Buffer::from_copied_bytes(content.as_bytes())?, None, false)?;
+    let mut names = doc.new_dict()?;
+    for (name, obj) in xobjects {
+        names.dict_put(name, obj)?;
+    }
+    let mut resources = doc.new_dict()?;
+    resources.dict_put("XObject", names)?;
+    let mut page = doc.new_dict()?;
+    page.dict_put("Type", PdfObject::new_name("Page")?)?;
+    page.dict_put(
+        "MediaBox",
+        objects::rect_array(doc, Rect::new(0.0, 0.0, 612.0, 792.0))?,
+    )?;
+    page.dict_put("Resources", resources)?;
+    page.dict_put("Contents", stream)?;
+    let page = doc.add_object(&page)?;
+    doc.insert_page(doc.page_count()?, &page)?;
+    Ok(())
 }
 
 /// A document of three pages whose images cover what Compress handles (see

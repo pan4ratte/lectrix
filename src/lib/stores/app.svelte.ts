@@ -142,6 +142,13 @@ export interface ExportRequest {
 	area?: ExportArea | null;
 }
 
+/** The Images in the document dialog (section 6.14), for a document's pages selected in
+ * Organize pages, or all of them. */
+export interface ImagesRequest {
+	tabId: number;
+	selected: number[] | null;
+}
+
 /** The Protect dialog (section 6.9), for a file or for a document in a tab. */
 export interface ProtectRequest {
 	name: string;
@@ -316,7 +323,8 @@ class AppStore {
 			this.compressRequest !== null ||
 			this.propertiesRequest !== null ||
 			this.printRequest !== null ||
-			this.exportRequest !== null
+			this.exportRequest !== null ||
+			this.imagesRequest !== null
 		);
 	}
 	toasts = $state<Toast[]>([]);
@@ -336,6 +344,8 @@ class AppStore {
 	printRequest = $state<PrintRequest | null>(null);
 	/** The Export as images dialog is open (section 6.14). */
 	exportRequest = $state<ExportRequest | null>(null);
+	/** The Images in the document dialog is open (section 6.14). */
+	imagesRequest = $state<ImagesRequest | null>(null);
 	/** The Combine view, while it is open (shown as a tab of its own). */
 	combine = $state<CombineState | null>(null);
 	/** The Combine view is the tab on screen. */

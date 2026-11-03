@@ -419,6 +419,15 @@ matter):
       with that page, or those pages.
 - [ ] Compare a page exported at 300 dpi with Acrobat's **Export a PDF > Image** at 300
       dpi: same size in pixels, the same look.
+- [ ] **File > Export > Images in the document…** on a magazine or brochure with photos,
+      logos with transparency and a CMYK picture (from InDesign or Acrobat): the dialog's
+      thumbnails show each picture once; exported, the JPEGs open in Windows Photos, a
+      browser and GIMP with the colours the document shows (CMYK ones too, in Photoshop or
+      GIMP), and the PNGs keep their transparency (a logo on a checkerboard in GIMP).
+- [ ] The same on a scanned book (FineReader's or the Internet Archive's): the page images
+      come out at their size, the text layers sharp; **Leave out images smaller than**
+      drops icons and rules. Compare with Acrobat's **Export a PDF > Image > Export all
+      images**: the same pictures, as many.
 - [ ] **Copy page as image** from a page's right-click menu, then paste: into Word or
       LibreOffice Writer, Paint (or GIMP), a browser's chat app and a Telegram message.
       The page shows, its annotations on it, sharp at 150 dpi; the notification names the

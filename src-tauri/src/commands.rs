@@ -23,14 +23,14 @@ use crate::ipc::{
     AppError, CompareOutcome, CompareProgress, CompareSaved, CompareSettings, CompareSide,
     CompressOutcome, CompressProgress, CompressSaved, CompressSettings, CompressStep, CopiedPage,
     DocumentChange, DocumentInfo, DocumentSaved, ExportDone, ExportPreferences, ExportPreview,
-    ExportProgress, ExportSettings, ExportTarget, ImageFormat, LabelMode, LinkPlace, MenuEntry,
-    MergeOutcome, MergePlan, MergeProgress, MergeRequest, MergeStage, MoveTarget, OpenResult,
-    OperationInput, PageHits, PagePresentation, PageText, PaneLayout, PrintDone, PrintLayout,
-    PrintProgress, PrintSettings, PrintStart, PrinterDetails, ProtectSaved, ProtectStep,
-    ProtectionChangeInput, ProtectionInfo, ProtectionInput, RecentFile, RecoveredDocument,
-    Reopened, SaveResult, SearchChunk, SearchWord, Settings, SettingsInput, StartupInfo,
-    TabHandoff, UnprotectSaved, UnprotectStep, UnsavedSource, ViewState, WebPage, WindowChrome,
-    WindowDocument, WindowEntry,
+    ExportProgress, ExportSettings, ExportTarget, ImageFormat, ImagesDone, ImagesFound,
+    ImagesPreferences, ImagesSettings, LabelMode, LinkPlace, MenuEntry, MergeOutcome, MergePlan,
+    MergeProgress, MergeRequest, MergeStage, MoveTarget, OpenResult, OperationInput, PageHits,
+    PagePresentation, PageText, PaneLayout, PrintDone, PrintLayout, PrintProgress, PrintSettings,
+    PrintStart, PrinterDetails, ProtectSaved, ProtectStep, ProtectionChangeInput, ProtectionInfo,
+    ProtectionInput, RecentFile, RecoveredDocument, Reopened, SaveResult, SearchChunk, SearchWord,
+    Settings, SettingsInput, StartupInfo, TabHandoff, UnprotectSaved, UnprotectStep, UnsavedSource,
+    ViewState, WebPage, WindowChrome, WindowDocument, WindowEntry,
 };
 use crate::platform::Platform;
 use crate::store::StoredSettings;
@@ -1238,6 +1238,126 @@ pub fn export_show_in_folder(state: State<'_, AppState>, token: u32) -> Result<(
         .exported(token)
         .ok_or_else(|| AppError::new("Lectrix no longer knows where those images went.", None))?;
     show_in_folder(state.platform, &path)
+}
+
+/// Images in the document (section 6.14, ADR 0035): the dialog's choices used last.
+#[tauri::command]
+pub fn images_start(state: State<'_, AppState>) -> Option<ImagesPreferences> {
+    state.store.lock().ok().and_then(|s| s.images_preferences())
+}
+
+/// The images on `settings`' pages of document `id`, each once, as they are exported,
+/// telling `on_progress` how many pages were read. A search asked for later stops this one
+/// (the `cancelled` code). Like exporting pages, it doesn't check the document's copy
+/// permission (ADR 0035).
+#[tauri::command(async)]
+pub fn images_find(
+    state: State<'_, AppState>,
+    id: u32,
+    settings: ImagesSettings,
+    on_progress: Channel<ExportProgress>,
+) -> Result<ImagesFound, AppError> {
+    let session = state.documents.session(id)?;
+    state.images.find(id, &session, &settings, move |p| {
+        // The webview may have gone away.
+        let _ = on_progress.send(p);
+    })
+}
+
+/// Shows the Save dialog for document `id`'s images as `settings` ask, in the document's
+/// folder, and plans the export to where it says: the files it writes, and those already
+/// there. `None` when the dialog was given up.
+#[tauri::command(async)]
+pub fn images_pick(
+    window: WebviewWindow,
+    state: State<'_, AppState>,
+    id: u32,
+    settings: ImagesSettings,
+) -> Result<Option<ExportTarget>, AppError> {
+    let session = state.documents.session(id)?;
+    let info = session.info()?;
+    let labels = info.labels.map(|l| l.labels);
+    let count = info.pages.len();
+    let (name, folder) = state.documents.save_suggestion(id)?;
+    let stem = name
+        .as_deref()
+        .map(Path::new)
+        .and_then(|n| n.file_stem())
+        .map(|s| s.to_string_lossy().into_owned())
+        .unwrap_or_else(|| "Document".into());
+    let (plan, suggested) =
+        state
+            .images
+            .suggestion(id, &session, &settings, &stem, count, labels.as_deref())?;
+    let title = if plan.images.len() == 1 {
+        "Export the image"
+    } else {
+        "Export the images"
+    };
+    let picked = match scripted_answer() {
+        Some(answer) => answer.and_then(|paths| paths.into_iter().next()),
+        None => {
+            let mut dialog = window
+                .app_handle()
+                .dialog()
+                .file()
+                .set_parent(&window)
+                .set_title(title)
+                .add_filter("Images", &["png", "jpg", "jp2", "j2k"])
+                .set_file_name(suggested);
+            if let Some(dir) = folder.as_deref() {
+                dialog = dialog.set_directory(dir);
+            }
+            dialog.blocking_save_file().map(picked_path).transpose()?
+        }
+    };
+    let Some(picked) = picked else {
+        state.images.unplan(id);
+        return Ok(None);
+    };
+    state
+        .images
+        .plan(id, settings, &plan, &picked, count, labels.as_deref())
+        .map(Some)
+}
+
+/// Exports document `id`'s images as `images_pick` planned, without those whose files are
+/// there already if `skip_existing`, reporting progress on `on_progress`, and remembers the
+/// dialog's choices. Stopped with `images_stop`, it fails with the `cancelled` code.
+#[tauri::command(async)]
+pub fn images_run(
+    state: State<'_, AppState>,
+    id: u32,
+    skip_existing: bool,
+    on_progress: Channel<ExportProgress>,
+) -> Result<ImagesDone, AppError> {
+    let session = state.documents.session(id)?;
+    if let (Ok(mut store), Some(settings)) = (state.store.lock(), state.images.planned_settings(id))
+    {
+        store.set_images_preferences(settings.preferences());
+    }
+    let export = &state.export;
+    state.images.run(
+        id,
+        &session,
+        skip_existing,
+        move |p| {
+            // The webview may have gone away; exporting finishes regardless.
+            let _ = on_progress.send(p);
+        },
+        |first| export.remember(first),
+    )
+}
+
+#[tauri::command]
+pub fn images_stop(state: State<'_, AppState>, id: u32) {
+    state.images.stop(id);
+}
+
+/// Forgets what was found and planned for document `id`'s images: the dialog closed.
+#[tauri::command]
+pub fn images_forget(state: State<'_, AppState>, id: u32) {
+    state.images.forget(id);
 }
 
 /// Sets the protection document `id` is saved with next (section 6.9): `null` for its

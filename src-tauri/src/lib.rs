@@ -10,6 +10,7 @@ mod compare;
 mod compress;
 mod documents;
 mod export;
+mod images;
 mod ipc;
 mod menu;
 mod placement;
@@ -96,6 +97,9 @@ pub struct AppState {
     /// Pages exported as images: previews, where exports go, exports running (section
     /// 6.14).
     export: export::Export,
+    /// The images in documents exported: those found, where they go, exports running
+    /// (section 6.14).
+    images: images::Images,
 }
 
 impl AppState {
@@ -418,6 +422,7 @@ pub fn run() {
                 compare: compare::Compare::default(),
                 print: print::Print::default(),
                 export: export::Export::default(),
+                images: images::Images::default(),
             });
             app.manage(menu::Menus::default());
             app.manage(audience::Audiences::default());
@@ -555,6 +560,12 @@ pub fn run() {
             commands::export_stop,
             commands::export_forget,
             commands::export_show_in_folder,
+            commands::images_start,
+            commands::images_find,
+            commands::images_pick,
+            commands::images_run,
+            commands::images_stop,
+            commands::images_forget,
             commands::copy_page_image,
             commands::protect_pick,
             commands::protect_password,

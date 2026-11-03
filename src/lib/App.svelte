@@ -42,6 +42,7 @@
 	import CompressDialog from '#lib/features/compress/CompressDialog.svelte';
 	import PrintDialog from '#lib/features/print/PrintDialog.svelte';
 	import ExportDialog from '#lib/features/export/ExportDialog.svelte';
+	import ImagesDialog from '#lib/features/export/ImagesDialog.svelte';
 	import InsertPagesDialog from '#lib/features/merge/InsertPagesDialog.svelte';
 	import SettingsDialog from '#lib/features/settings/SettingsDialog.svelte';
 	import { update } from '#lib/features/update/update.svelte.ts';
@@ -562,6 +563,7 @@
 <CompressDialog />
 <PrintDialog />
 <ExportDialog />
+<ImagesDialog />
 <SettingsDialog />
 <AboutDialog />
 <WhatsNewDialog />

@@ -134,7 +134,10 @@ export function appMenus(platform: Platform = PLATFORM): AppMenu[] {
 						kind: 'submenu',
 						label: 'Export',
 						enabled: hasDoc,
-						items: [command('exportImages', 'Pages as images…', hasDoc)]
+						items: [
+							command('exportImages', 'Pages as images…', hasDoc),
+							command('exportEmbeddedImages', 'Images in the document…', hasDoc)
+						]
 					},
 					separator,
 					command('reload', 'Reload from disk', hasDoc && !tab?.untitled)
@@ -158,7 +161,10 @@ export function appMenus(platform: Platform = PLATFORM): AppMenu[] {
 						kind: 'submenu',
 						label: 'Export',
 						enabled: hasDoc,
-						items: [command('exportImages', 'Pages as images…', hasDoc)]
+						items: [
+							command('exportImages', 'Pages as images…', hasDoc),
+							command('exportEmbeddedImages', 'Images in the document…', hasDoc)
+						]
 					},
 					separator,
 					command('reload', 'Reload from disk', hasDoc && !tab?.untitled),

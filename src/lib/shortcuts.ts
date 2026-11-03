@@ -44,6 +44,7 @@ export const SHORTCUT_GROUPS: readonly ShortcutGroup[] = [
 			{ command: 'saveAsOptimized', label: 'Save as (optimized)', keys: [], inInputs: true },
 			{ command: 'print', label: 'Print', keys: ['Ctrl+P'], inInputs: true },
 			{ command: 'exportImages', label: 'Export pages as images', keys: [], inInputs: true },
+			{ command: 'exportEmbeddedImages', label: 'Export the images in the document', keys: [], inInputs: true },
 			{ command: 'reload', label: 'Reload from disk', keys: [], inInputs: true },
 			{ command: 'closeTab', label: 'Close tab', keys: ['Ctrl+W', 'Ctrl+F4'], mac: ['Ctrl+W'], inInputs: true },
 			{ command: 'moveTabToNewWindow', label: 'Move tab to new window', keys: [], inInputs: true },

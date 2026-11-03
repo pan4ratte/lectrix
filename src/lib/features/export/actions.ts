@@ -1,7 +1,8 @@
 // Pages exported as images (section 6.14): File > Export > Pages as images…, a page's
 // right-click menu in the viewer, and Organize pages' bar and menu open the Export as
 // images dialog for the document shown. Copy page as image puts one page on the clipboard.
-// The Snapshot tool's area is copied or saved alone, the same way.
+// The Snapshot tool's area is copied or saved alone, the same way. File > Export > Images in
+// the document… opens the dialog that exports the images in it (ADR 0035).
 
 import { pageName } from '#lib/features/viewer/pagebox.ts';
 import { copyPageImage, toAppError, type ExportArea } from '#lib/ipc/index.ts';
@@ -19,6 +20,15 @@ export function openExport(tab: DocTab, from: { page?: number; selected?: readon
 		tabId: tab.id,
 		page: from.page ?? null,
 		selected
+	};
+}
+
+/** Opens the Images in the document dialog for `tab`: for `selected` (the pages selected in
+ * Organize pages), or all its pages. */
+export function openImages(tab: DocTab, selected?: readonly number[]) {
+	app.imagesRequest = {
+		tabId: tab.id,
+		selected: selected && selected.length > 0 ? [...selected].sort((a, b) => a - b) : null
 	};
 }
 

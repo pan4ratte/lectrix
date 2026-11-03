@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-images-stop"
+description = "Enables the images_stop command without any pre-configured scope."
+commands.allow = ["images_stop"]
+
+[[permission]]
+identifier = "deny-images-stop"
+description = "Denies the images_stop command without any pre-configured scope."
+commands.deny = ["images_stop"]

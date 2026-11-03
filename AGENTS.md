@@ -88,7 +88,7 @@ Scans, summarizes the problems, and on confirmation fixes them in one undoable o
 
 ### 5.4 Saving rules that protect interoperability
 
-Incremental by default. A file repaired on open gets a full save, and the user is told why, once. Signed files: warn before the first edit, always save incrementally. Encrypted files keep their encryption and their permission flags are respected, except through Unlock and Protect, and in exporting pages as images (ADR 0034). PDF/A files open for reading only until Enable editing, and a save whose changes may break the claim removes it. All of it in full: [docs/interop-profile.md](docs/interop-profile.md), "Saving".
+Incremental by default. A file repaired on open gets a full save, and the user is told why, once. Signed files: warn before the first edit, always save incrementally. Encrypted files keep their encryption and their permission flags are respected, except through Unlock and Protect, and in exporting pages and the images in them (ADR 0034, 0035). PDF/A files open for reading only until Enable editing, and a save whose changes may break the claim removes it. All of it in full: [docs/interop-profile.md](docs/interop-profile.md), "Saving".
 
 ## 6. Feature specifications
 

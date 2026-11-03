@@ -36,6 +36,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 - Export a single page from its right-click menu, or the pages selected in **Organize pages** from its bar or right-click menu.
 - **Copy page as image**, in a page's right-click menu and in **Edit**, puts the page on the clipboard as a picture, annotations and all, to paste into a document, a slide, an image editor or a chat. **Settings > Viewing** sets its resolution, 150 dpi to start with.
 - A new **Snapshot** tool, after Select in the annotation toolbar, copies or saves part of a page: drag over the area, adjust it with its handles, then choose **Copy as image** (or press Ctrl+C) or **Save as image…** in the small bar above it. It works in documents you can't annotate too.
+- **File > Export > Images in the document…** saves the pictures in the document, or on the pages you choose, as files of their own, each once however often it appears. JPEG and JPEG 2000 pictures are saved exactly as the document keeps them, without losing any quality; the others as PNG, with their transparency. The dialog shows the pictures that will be saved, and can leave out small ones such as icons and bullets.
 
 ### Settings
 

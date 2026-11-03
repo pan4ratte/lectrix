@@ -11,8 +11,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::ipc::{
     AnnotationSort, Appearance, CompareSettings, CompressSettings, ExportPreferences,
-    PageAdjustments, PaneLayout, PrintPreferences, QuickTool, ScrollMode, StartLayout, ToolbarDock,
-    ToolbarPosition, ToolbarStyle, ToolbarVisibility, ViewState,
+    ImagesPreferences, PageAdjustments, PaneLayout, PrintPreferences, QuickTool, ScrollMode,
+    StartLayout, ToolbarDock, ToolbarPosition, ToolbarStyle, ToolbarVisibility, ViewState,
 };
 use crate::placement::WindowPlacement;
 
@@ -78,6 +78,10 @@ struct Data {
     /// settings are.
     #[serde(default, deserialize_with = "or_none")]
     export: Option<ExportPreferences>,
+    /// The Images in the document dialog's choices used last (section 6.14), read as the
+    /// Compress settings are.
+    #[serde(default, deserialize_with = "or_none")]
+    images: Option<ImagesPreferences>,
 }
 
 /// `T` if it can be read, `None` otherwise.
@@ -509,6 +513,17 @@ impl Store {
     pub fn set_export_preferences(&mut self, preferences: ExportPreferences) {
         if self.data.export.as_ref() != Some(&preferences) {
             self.data.export = Some(preferences);
+            self.persist();
+        }
+    }
+
+    pub fn images_preferences(&self) -> Option<ImagesPreferences> {
+        self.data.images.clone()
+    }
+
+    pub fn set_images_preferences(&mut self, preferences: ImagesPreferences) {
+        if self.data.images.as_ref() != Some(&preferences) {
+            self.data.images = Some(preferences);
             self.persist();
         }
     }

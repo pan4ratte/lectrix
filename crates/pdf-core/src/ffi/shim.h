@@ -1,5 +1,5 @@
 /*
- * Shared by the Lectrix FFI shim's C files (shim.c, compress.c).
+ * Shared by the Lectrix FFI shim's C files (shim.c, compress.c, images.c).
  */
 #ifndef LECTRIX_SHIM_H
 #define LECTRIX_SHIM_H

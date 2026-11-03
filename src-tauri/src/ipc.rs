@@ -3749,6 +3749,119 @@ pub struct ExportDone {
     pub token: u32,
 }
 
+/// What an exported image's file is (section 6.14, ADR 0035).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum EmbeddedKind {
+    /// The image's own JPEG, copied.
+    Jpeg,
+    /// The image's own JPEG 2000, copied.
+    Jpeg2000,
+    /// The image decoded and written as PNG.
+    Png,
+}
+
+impl From<pdf_core::export::embedded::ImageKind> for EmbeddedKind {
+    fn from(k: pdf_core::export::embedded::ImageKind) -> Self {
+        use pdf_core::export::embedded::ImageKind;
+        match k {
+            ImageKind::Jpeg => EmbeddedKind::Jpeg,
+            ImageKind::Jpeg2000 { .. } => EmbeddedKind::Jpeg2000,
+            ImageKind::Png => EmbeddedKind::Png,
+        }
+    }
+}
+
+/// An image the Images in the document dialog exports.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct FoundImage {
+    /// The page it is first drawn on (0-based), and which of that page's images it is
+    /// (from 1).
+    pub page: u32,
+    pub index: u32,
+    /// Its object number, and what tells it from other images: they name its thumbnail
+    /// (`/embedded/{doc}/{num}/{key}`).
+    pub num: i32,
+    pub key: String,
+    /// Its size in pixels, as written.
+    pub width: u32,
+    pub height: u32,
+    pub kind: EmbeddedKind,
+    /// Its file's size: exact for a copy, estimated for PNG.
+    #[ts(type = "number")]
+    pub bytes: u64,
+}
+
+/// The images on the pages chosen, as the dialog exports them.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ImagesFound {
+    pub images: Vec<FoundImage>,
+    /// Times an image is drawn again, or an image alike: each is exported once.
+    pub repeats: u32,
+    /// Images smaller than the size asked for, left out (each counted once).
+    pub small: u32,
+}
+
+/// What the Images in the document dialog asks for.
+#[derive(Debug, Clone, PartialEq, Eq, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ImagesSettings {
+    /// The pages, in order (0-based).
+    pub pages: Vec<u32>,
+    /// Leave out images narrower or lower than `min_side` pixels.
+    pub skip_small: bool,
+    pub min_side: u32,
+    pub naming: FileNaming,
+}
+
+impl ImagesSettings {
+    /// The smallest side an image exported has, if small ones are left out.
+    pub fn min_side(&self) -> Option<u32> {
+        self.skip_small.then_some(self.min_side)
+    }
+
+    /// What the dialog keeps for next time: not the pages.
+    pub fn preferences(&self) -> ImagesPreferences {
+        ImagesPreferences {
+            skip_small: self.skip_small,
+            min_side: self.min_side,
+            naming: self.naming,
+        }
+    }
+}
+
+/// The Images in the document dialog's choices used last.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ImagesPreferences {
+    pub skip_small: bool,
+    pub min_side: u32,
+    pub naming: FileNaming,
+}
+
+/// Images exported.
+#[derive(Debug, Clone, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct ImagesDone {
+    /// Files written.
+    pub files: u32,
+    /// Images that couldn't be read, left out.
+    pub unreadable: u32,
+    /// The folder's name, and the first file's.
+    pub folder: String,
+    pub first: String,
+    /// Names the first file for `export_show_in_folder`.
+    pub token: u32,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

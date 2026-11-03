@@ -83,7 +83,7 @@ fn workers(options: &Options, largest_pixels: u64, pages: usize) -> usize {
 }
 
 /// The temporary file beside `path` it is written to first.
-fn temporary(path: &Path) -> PathBuf {
+pub(super) fn temporary(path: &Path) -> PathBuf {
     let mut name = path.file_name().unwrap_or_default().to_owned();
     name.push(".lectrix-part");
     path.with_file_name(name)

@@ -122,6 +122,16 @@ import type { ExportTarget } from './generated/ExportTarget';
 export type { FileNaming } from './generated/FileNaming';
 export type { ImageColour } from './generated/ImageColour';
 export type { TiffCompression } from './generated/TiffCompression';
+export type { EmbeddedKind } from './generated/EmbeddedKind';
+export type { FoundImage } from './generated/FoundImage';
+export type { ImagesDone } from './generated/ImagesDone';
+import type { ImagesDone } from './generated/ImagesDone';
+export type { ImagesFound } from './generated/ImagesFound';
+import type { ImagesFound } from './generated/ImagesFound';
+export type { ImagesPreferences } from './generated/ImagesPreferences';
+import type { ImagesPreferences } from './generated/ImagesPreferences';
+export type { ImagesSettings } from './generated/ImagesSettings';
+import type { ImagesSettings } from './generated/ImagesSettings';
 export type { PrintDone } from './generated/PrintDone';
 import type { PrintDone } from './generated/PrintDone';
 export type { PrintDuplex } from './generated/PrintDuplex';
@@ -374,6 +384,35 @@ export const copyPageImage = (id: number, page: number, area: ExportArea | null 
 export function exportPreviewUrl(token: number): string {
 	const base = isWindows() ? 'http://lectrix.localhost' : 'lectrix://localhost';
 	return `${base}/export/${token}`;
+}
+// The images in a document exported (section 6.14, ADR 0035): the choices used last, the
+// images on the pages chosen, where the Save dialog says the files go, and the export.
+export const imagesStart = () => invoke<ImagesPreferences | null>('images_start');
+/** The images on `settings`' pages, as they are exported, with the pages read so far; a
+ * search asked for later stops this one (the `cancelled` code). */
+export function imagesFind(id: number, settings: ImagesSettings, onProgress: (p: ExportProgress) => void) {
+	const channel = new Channel<ExportProgress>();
+	channel.onmessage = onProgress;
+	return invoke<ImagesFound>('images_find', { id, settings, onProgress: channel });
+}
+/** Shows the Save dialog and plans the export: the files it writes and those already there,
+ * or null when the dialog was given up. */
+export const imagesPick = (id: number, settings: ImagesSettings) =>
+	invoke<ExportTarget | null>('images_pick', { id, settings });
+/** Exports as `imagesPick` planned, with progress; `imagesStop` stops it (the `cancelled`
+ * code). Its first file is shown with `exportShowInFolder`. */
+export function imagesRun(id: number, skipExisting: boolean, onProgress: (p: ExportProgress) => void) {
+	const channel = new Channel<ExportProgress>();
+	channel.onmessage = onProgress;
+	return invoke<ImagesDone>('images_run', { id, skipExisting, onProgress: channel });
+}
+export const imagesStop = (id: number) => invoke<void>('images_stop', { id });
+/** Forgets what was found and planned: the dialog closed. */
+export const imagesForget = (id: number) => invoke<void>('images_forget', { id });
+/** URL of a thumbnail of image `num` (its `key` from `imagesFind`) of document `id`. */
+export function embeddedThumbnailUrl(id: number, num: number, key: string): string {
+	const base = isWindows() ? 'http://lectrix.localhost' : 'lectrix://localhost';
+	return `${base}/embedded/${id}/${num}/${key}`;
 }
 // Protect (section 6.9, ADR 0026): a file given a password, restrictions or both, as a tool
 // on a file or as a change of a document's protection that its next save writes.

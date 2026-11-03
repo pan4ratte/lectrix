@@ -10,7 +10,7 @@ use mupdf_sys::{fz_context, fz_pixmap, pdf_document};
 use super::{LectrixError, check};
 use crate::error::{Error, Result};
 
-type Found = extern "C" fn(opaque: *mut c_void, num: c_int, dpi: f32);
+type Found = extern "C" fn(opaque: *mut c_void, num: c_int, dpi: f32, role: c_int);
 
 unsafe extern "C" {
     fn lectrix_walk_page_images(
@@ -97,11 +97,27 @@ unsafe extern "C" {
     ) -> c_int;
 }
 
-extern "C" fn found_trampoline(opaque: *mut c_void, num: c_int, dpi: f32) {
-    // SAFETY: `opaque` is the `&mut dyn FnMut` that `walk_page_images` passed, alive for
-    // the whole call that reports through it.
-    let found = unsafe { &mut *(opaque as *mut &mut dyn FnMut(i32, f32)) };
-    found(num, dpi);
+extern "C" fn found_trampoline(opaque: *mut c_void, num: c_int, dpi: f32, role: c_int) {
+    // SAFETY: `opaque` is the `&mut dyn FnMut` that `walk_page_images_with_roles` passed,
+    // alive for the whole call that reports through it.
+    let found = unsafe { &mut *(opaque as *mut &mut dyn FnMut(i32, f32, ImageRole)) };
+    let role = match role {
+        1 => ImageRole::SoftMask,
+        2 => ImageRole::StencilMask,
+        _ => ImageRole::Drawn,
+    };
+    found(num, dpi, role);
+}
+
+/// What an image found on a page is there for.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ImageRole {
+    /// An image drawn.
+    Drawn,
+    /// The soft mask (`/SMask`) of the image reported just before.
+    SoftMask,
+    /// The stencil mask (`/Mask`, an image) of the image reported just before.
+    StencilMask,
 }
 
 /// Calls `found` with (object number, pixels per inch) for each image drawn on page
@@ -112,6 +128,16 @@ pub fn walk_page_images(
     doc: &PdfDocument,
     page: i32,
     found: &mut dyn FnMut(i32, f32),
+) -> Result<()> {
+    walk_page_images_with_roles(doc, page, &mut |num, dpi, _| found(num, dpi))
+}
+
+/// [`walk_page_images`], saying what each image is there for: in the order they are
+/// drawn, each image followed by its masks.
+pub fn walk_page_images_with_roles(
+    doc: &PdfDocument,
+    page: i32,
+    found: &mut dyn FnMut(i32, f32, ImageRole),
 ) -> Result<()> {
     let ctx = Context::get().as_raw_ptr();
     let mut err = LectrixError::new();
@@ -125,7 +151,7 @@ pub fn walk_page_images(
             doc.as_raw_pdf_ptr(),
             page,
             found_trampoline,
-            &mut found as *mut &mut dyn FnMut(i32, f32) as *mut c_void,
+            &mut found as *mut &mut dyn FnMut(i32, f32, ImageRole) as *mut c_void,
             &mut err,
         )
     };
@@ -158,7 +184,7 @@ pub struct Decoded {
 }
 
 impl Decoded {
-    fn wrap(ptr: *mut fz_pixmap) -> Result<Decoded> {
+    pub(crate) fn wrap(ptr: *mut fz_pixmap) -> Result<Decoded> {
         let ctx = Context::get().as_raw_ptr();
         let (mut w, mut h, mut n, mut alpha) = (0, 0, 0, 0);
         let mut stride = 0isize;

@@ -31,7 +31,8 @@
  * are not reported. Nothing in the document is changed.
  */
 
-typedef void (*lectrix_image_found)(void *opaque, int num, float dpi);
+/* `role`: 0 for an image drawn, 1 for an image's soft mask, 2 for its stencil mask. */
+typedef void (*lectrix_image_found)(void *opaque, int num, float dpi, int role);
 
 typedef struct
 {
@@ -98,7 +99,7 @@ static float walk_dpi(fz_matrix ctm, int width, int height)
 	return dpix < dpiy ? dpix : dpiy;
 }
 
-static void walk_report_one(fz_context *ctx, lectrix_image_walk *w, pdf_obj *obj)
+static void walk_report_one(fz_context *ctx, lectrix_image_walk *w, pdf_obj *obj, int role)
 {
 	int width, height;
 	float dpi;
@@ -110,7 +111,7 @@ static void walk_report_one(fz_context *ctx, lectrix_image_walk *w, pdf_obj *obj
 		return;
 	dpi = walk_dpi(w->ctm, width, height);
 	if (dpi > 0)
-		w->found(w->opaque, pdf_to_num(ctx, obj), dpi);
+		w->found(w->opaque, pdf_to_num(ctx, obj), dpi, role);
 }
 
 static void walk_Do_image(fz_context *ctx, pdf_processor *proc, const char *name, fz_image *image)
@@ -119,9 +120,9 @@ static void walk_Do_image(fz_context *ctx, pdf_processor *proc, const char *name
 	pdf_obj *obj = pdf_lookup_resource(ctx, proc->rstack, PDF_NAME(XObject), name);
 	if (!obj)
 		return;
-	walk_report_one(ctx, w, obj);
-	walk_report_one(ctx, w, pdf_dict_get(ctx, obj, PDF_NAME(SMask)));
-	walk_report_one(ctx, w, pdf_dict_get(ctx, obj, PDF_NAME(Mask)));
+	walk_report_one(ctx, w, obj, 0);
+	walk_report_one(ctx, w, pdf_dict_get(ctx, obj, PDF_NAME(SMask)), 1);
+	walk_report_one(ctx, w, pdf_dict_get(ctx, obj, PDF_NAME(Mask)), 2);
 }
 
 /* Reads `stm` (with `res`, or the current resources if it has none) drawn with `matrix`
@@ -192,7 +193,8 @@ static void walk_SC_pattern(fz_context *ctx, pdf_processor *proc, const char *na
 
 /*
  * Calls `found` for each image drawn on page `page_index`: by its contents, its annotations'
- * appearances and its widgets'. An image drawn several times is reported each time.
+ * appearances and its widgets', in the order they are drawn, each followed by its masks.
+ * An image drawn several times is reported each time.
  */
 int lectrix_walk_page_images(fz_context *ctx, pdf_document *doc, int page_index, lectrix_image_found found, void *opaque, lectrix_error *err)
 {
