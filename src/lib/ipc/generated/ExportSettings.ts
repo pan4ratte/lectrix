@@ -22,6 +22,6 @@ quality: number, tiff: TiffCompression,
  */
 oneFile: boolean, naming: FileNaming, annotations: boolean, 
 /**
- * Only this area of the page (one page), from the area tool.
+ * Only this area of the page (one page), from the Snapshot tool.
  */
 area: ExportArea | null, };

@@ -223,7 +223,9 @@ test('the counter takes a match number, and can follow the view', async () => {
 		// Static (the default): scrolled away, the counter stays, and next goes on from it.
 		const follow = await browser.$('[data-search-follow]');
 		assert.equal(await follow.getAttribute('aria-pressed'), 'false');
-		/** Scrolls the view so that its top is `share` of the way down page `index`'s box. */
+		/** Scrolls the view so that its top is `share` of the way down page `index`'s box, and
+		 * returns once the view has taken the scroll: its scroll event comes with the next
+		 * frame, and until then the counter still counts what going to the page showed. */
 		const scrollTo = async (index, share) => {
 			// Go to page: its page is mounted at the top of the view.
 			await (await browser.$('[data-page-box]')).click();
@@ -236,6 +238,7 @@ test('the counter takes a match number, and can follow the view', async () => {
 					const scroller = document.querySelector('.viewer-scroll');
 					const r = document.querySelector(`.page[data-page="${i}"]`).getBoundingClientRect();
 					scroller.scrollTop += r.top - scroller.getBoundingClientRect().top + r.height * s;
+					return new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(() => done(null))));
 				},
 				index,
 				share
