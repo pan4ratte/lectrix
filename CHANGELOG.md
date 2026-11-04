@@ -6,7 +6,7 @@ shows this file, and each GitHub release is written from it. How to write it (th
 the wording, translations): docs/releasing.md, "The changelog".
 -->
 
-## Unreleased
+## 1.5.0
 
 ### Viewer and tabs
 
