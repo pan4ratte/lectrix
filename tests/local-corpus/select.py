@@ -48,6 +48,8 @@ CATEGORIES = [
     ("scanned", lambda r: r["sample_text_chars"] < 20, lambda r: r["bytes"], 1),
     ("scanned-large", lambda r: r["sample_text_chars"] < 20, lambda r: -r["pages"], 1),
     ("scanned-annotated", lambda r: r["sample_text_chars"] < 20 and annotations(r, "Ink"), lambda r: r["bytes"], 1),
+    # Scans whose pages share one JBIG2 symbol dictionary, drawn on several threads at once.
+    ("jbig2-shared-globals", lambda r: r.get("jbig2_globals_pages", 0) >= 2, lambda r: r["bytes"], 1),
     ("most-pages", lambda r: True, lambda r: -r["pages"], 1),
     ("most-bookmarks", lambda r: True, lambda r: -r["outline_items"], 1),
     ("large-rotated-cropped", lambda r: r["pages"] >= 1000 and rotated(r) and r["offset_crop_pages"], lambda r: r["bytes"], 1),

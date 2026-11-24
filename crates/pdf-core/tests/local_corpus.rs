@@ -8,8 +8,9 @@
 //! copy must keep everything the user did not touch: page count, labels (their number tree
 //! is not even written again), bookmarks and every annotation made by other apps (section
 //! 5.1 rule 10). Labels are also checked against MuPDF's own reading of them. Two more
-//! tests combine each file with another, and move and delete its pages. The corpus files
-//! themselves are only read.
+//! tests combine each file with another, and move and delete its pages, and one draws
+//! each file's first pages on several threads at once. The corpus files themselves are
+//! only read.
 
 mod common;
 
@@ -402,6 +403,67 @@ fn local_corpus_files_combine_with_everything_they_hold() {
         let file = corpus_dir().join("files").join(name);
         match combine_file(&file, &out) {
             Ok(notes) => eprintln!("ok   {name}: {}", notes.join("; ")),
+            Err(e) => {
+                eprintln!("FAIL {name}: {e}");
+                failures.push(format!("{name}: {e}"));
+            }
+        }
+    }
+    assert!(
+        failures.is_empty(),
+        "{} file(s) failed:\n{}",
+        failures.len(),
+        failures.join("\n")
+    );
+}
+
+/// The first pages of `file` drawn by four threads at once, each going through all of them,
+/// as the viewer's page images are: the same images are decoded on several threads at the
+/// same time. A decoder that shares state between threads corrupts the heap here, and the
+/// test process dies (as it did on scans whose pages share JBIG2 globals).
+fn render_in_parallel(file: &Path) -> Result<String, String> {
+    let (session, info) = Session::open(file, None).map_err(|e| format!("open: {e}"))?;
+    let pages = info.pages.len().min(24);
+    let result = std::thread::scope(|s| {
+        let workers: Vec<_> = (0..4)
+            .map(|t| {
+                let session = &session;
+                s.spawn(move || -> Result<(), String> {
+                    for i in 0..pages * 2 {
+                        let page = (t * 5 + i) % pages;
+                        let scale = [1.0, 1.5][i % 2];
+                        session
+                            .render_png(page, scale)
+                            .map_err(|e| format!("render page {}: {e}", page + 1))?;
+                    }
+                    Ok(())
+                })
+            })
+            .collect();
+        workers
+            .into_iter()
+            .map(|w| w.join().unwrap_or_else(|_| Err("a thread panicked".into())))
+            .collect::<Result<Vec<()>, String>>()
+    });
+    session.close();
+    result.map(|_| format!("{pages} pages on 4 threads"))
+}
+
+#[test]
+#[ignore = "real-world local corpus, minutes long: run with --ignored"]
+fn local_corpus_pages_render_on_several_threads_at_once() {
+    let manifest_path = corpus_dir().join("manifest.json");
+    let Ok(manifest) = fs::read_to_string(&manifest_path) else {
+        eprintln!("no local corpus at {}; skipped", manifest_path.display());
+        return;
+    };
+    let manifest: Vec<Value> = serde_json::from_str(&manifest).unwrap();
+    let mut failures = Vec::new();
+    for entry in &manifest {
+        let name = entry["file"].as_str().unwrap();
+        let file = corpus_dir().join("files").join(name);
+        match render_in_parallel(&file) {
+            Ok(note) => eprintln!("ok   {name}: {note}"),
             Err(e) => {
                 eprintln!("FAIL {name}: {e}");
                 failures.push(format!("{name}: {e}"));

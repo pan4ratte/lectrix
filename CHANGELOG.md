@@ -19,6 +19,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 - A new button in the search bar has the counter follow the view: as you scroll, it counts the matches on screen, and next and previous go on from there instead of from the match you last went to.
 - Esc closes the visual adjustments panel even when pressed the moment it opens; it could stay open.
 - With many tabs open, the tabs no longer run under the window buttons: the row scrolls sideways with the mouse wheel, fades out at the end where tabs are hidden, and glides to keep the tab you are on in view. Drag a tab to either end to scroll the row while moving it.
+- Scanned books whose pages share one dictionary of letter shapes (JBIG2 scans, such as those made by PDFBeads) no longer crash Lectrix while pages are drawn, for example after a search goes to its first match, or on reopening the book there.
 
 ### Annotations
 

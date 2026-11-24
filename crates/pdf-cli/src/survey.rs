@@ -41,6 +41,9 @@ pub struct Survey {
     pub sample_text_chars: usize,
     pub sample_cjk_chars: usize,
     pub sample_rtl_chars: usize,
+    /// Pages with a JBIG2 image that names a `/JBIG2Globals` stream (scans that share one
+    /// symbol dictionary between pages, decoded on several threads at once).
+    pub jbig2_globals_pages: usize,
     pub producer: Option<String>,
     pub creator: Option<String>,
     pub open_ms: f64,
@@ -88,6 +91,9 @@ fn fill(path: &Path, s: &mut Survey) -> Result<()> {
             s.user_unit_pages += 1;
         }
         count_annotations(&page, s)?;
+        if has_jbig2_globals(&page)? {
+            s.jbig2_globals_pages += 1;
+        }
     }
 
     s.label_rules = labels::read_rules(&doc)?.len();
@@ -161,6 +167,35 @@ fn count_annotations(page: &PdfObject, s: &mut Survey) -> Result<()> {
         *s.annotations.entry(subtype).or_default() += 1;
     }
     Ok(())
+}
+
+/// Whether one of the images the page draws directly is JBIG2 with a `/JBIG2Globals`.
+fn has_jbig2_globals(page: &PdfObject) -> Result<bool> {
+    let Some(xobjects) = page
+        .get_dict("Resources")?
+        .and_then(|r| r.get_dict("XObject").ok().flatten())
+    else {
+        return Ok(false);
+    };
+    if !xobjects.is_dict()? {
+        return Ok(false);
+    }
+    for i in 0..i32::try_from(xobjects.dict_len()?).unwrap_or(0) {
+        let Some(image) = xobjects.get_dict_val(i)? else {
+            continue;
+        };
+        if !image.is_dict()? {
+            continue;
+        }
+        let globals = image
+            .get_dict("DecodeParms")?
+            .filter(|p| p.is_dict().unwrap_or(false))
+            .and_then(|p| p.get_dict("JBIG2Globals").ok().flatten());
+        if globals.is_some() {
+            return Ok(true);
+        }
+    }
+    Ok(false)
 }
 
 fn count_items(items: &[outline::ReadOutlineItem]) -> usize {

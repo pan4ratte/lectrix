@@ -1,0 +1,51 @@
+--- a/source/fitz/filter-jbig2.c
++++ b/source/fitz/filter-jbig2.c
+@@ -44,6 +44,7 @@ typedef struct
+ 	Jbig2Ctx *ctx;
+ 	fz_jbig2_allocators alloc;
+ 	fz_jbig2_globals *gctx;
++	Jbig2GlobalCtx *own_gctx; /* Folio: this decode's own copy of the globals */
+ 	Jbig2Image *page;
+ 	int idx;
+ 	unsigned char buffer[4096];
+@@ -69,6 +70,8 @@ close_jbig2d(fz_context *ctx, void *state_)
+ 		jbig2_release_page(state->ctx, state->page);
+ 	fz_drop_jbig2_globals(ctx, state->gctx);
+ 	jbig2_ctx_free(state->ctx);
++	if (state->own_gctx)
++		jbig2_global_ctx_free(state->own_gctx);
+ 	fz_drop_stream(ctx, state->chain);
+ 	fz_free(ctx, state);
+ }
+@@ -232,9 +235,30 @@ fz_open_jbig2d(fz_context *ctx, fz_stream *chain, fz_jbig2_globals *globals, int
+ 	if (embedded)
+ 		options |= JBIG2_OPTIONS_EMBEDDED;
+ 
+-	state->ctx = jbig2_ctx_new((Jbig2Allocator *) &state->alloc, options, globals ? globals->gctx : NULL, error_callback, ctx);
++	/* Folio: decode against a copy of the globals of this decode's own, never the shared
++	 * one: jbig2dec's reference counts on its glyphs are not thread safe. */
++	if (globals && globals->data && globals->data->len > 0)
++	{
++		Jbig2Ctx *gjctx = jbig2_ctx_new((Jbig2Allocator *) &state->alloc, JBIG2_OPTIONS_EMBEDDED, NULL, error_callback, ctx);
++		if (gjctx && jbig2_data_in(gjctx, globals->data->data, globals->data->len) < 0)
++		{
++			jbig2_global_ctx_free(jbig2_make_global_ctx(gjctx));
++			gjctx = NULL;
++		}
++		if (!gjctx)
++		{
++			fz_drop_jbig2_globals(ctx, state->gctx);
++			fz_free(ctx, state);
++			fz_throw(ctx, FZ_ERROR_LIBRARY, "cannot decode jbig2 globals");
++		}
++		state->own_gctx = jbig2_make_global_ctx(gjctx);
++	}
++
++	state->ctx = jbig2_ctx_new((Jbig2Allocator *) &state->alloc, options, state->own_gctx, error_callback, ctx);
+ 	if (state->ctx == NULL)
+ 	{
++		if (state->own_gctx)
++			jbig2_global_ctx_free(state->own_gctx);
+ 		fz_drop_jbig2_globals(ctx, state->gctx);
+ 		fz_free(ctx, state);
+ 		fz_throw(ctx, FZ_ERROR_LIBRARY, "cannot allocate jbig2 context");
