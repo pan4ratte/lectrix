@@ -1,7 +1,8 @@
 ; Lectrix's NSIS installer template: Tauri's own template from @tauri-apps/cli 2.12.1
 ; (crates/tauri-bundler/src/bundle/windows/nsis/installer.nsi at tag tauri-cli-v2.12.1),
 ; plus a page that asks whether Lectrix should open PDF files (ADR 0007), and a quiet
-; takeover of an install made by the MSI that Lectrix had up to 1.1.0 (ADR 0020). Every
+; takeover of an install made by the MSI that Lectrix had up to 1.1.0 (ADR 0020), and an
+; uninstaller that tries again to delete lectrix.exe while it is briefly locked. Every
 ; change is marked "Lectrix:". When the Tauri CLI is upgraded, take its new template and
 ; apply the marked changes again.
 ;
@@ -921,8 +922,19 @@ Section Uninstall
   !insertmacro CheckIfAppIsRunning "$INSTDIR\${MAINBINARYNAME}.exe" "${PRODUCTNAME}"
 
   ; Delete the app directory and its content from disk
-  ; Copy main executable
-  Delete "$INSTDIR\${MAINBINARYNAME}.exe"
+  ; Lectrix: delete the main executable, trying again for up to 5 s. Right after an update,
+  ; a virus scanner can still have it open, and Delete would leave it behind unannounced.
+  StrCpy $R0 0
+  lectrix_delete_main_binary:
+    ClearErrors
+    Delete "$INSTDIR\${MAINBINARYNAME}.exe"
+    ${If} ${Errors}
+    ${AndIf} ${FileExists} "$INSTDIR\${MAINBINARYNAME}.exe"
+    ${AndIf} $R0 < 20
+      IntOp $R0 $R0 + 1
+      Sleep 250
+      Goto lectrix_delete_main_binary
+    ${EndIf}
 
   ; Delete resources
   {{#each resources}}

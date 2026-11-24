@@ -44,6 +44,10 @@ the wording, translations): docs/releasing.md, "The changelog".
 - **Settings > Viewing > Search** has the search bar's counter follow the view, as its new button does.
 - **Settings > Shortcuts** can give each shape of the Shapes tool a shortcut.
 
+### Installation and updates
+
+- Uninstalling Lectrix right after an update removes it completely: a virus scanner still checking the updated program could leave it behind in its folder.
+
 ## 1.4.0
 
 ### Start screen
