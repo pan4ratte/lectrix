@@ -191,8 +191,25 @@ async function killDriver(driver, exited) {
  * WebView2 instead of the app. `dialogs` answers the app's file dialogs in order
  * (LECTRIX_DIALOG): each answer is a path, a list of paths, or null for Cancel. `env` adds
  * environment variables.
+ *
+ * About one start in six hundred on CI, msedgedriver loses the webview while it attaches,
+ * a second into the session ("session not created from disconnected: unable to connect
+ * to renderer", seen twice in a soak run of 1,190 starts): the webview's first navigation
+ * races the attach. Lectrix is then started once more, and the line it prints says so.
+ * Every other failure to start fails the test.
  */
-export async function launch(files = [], { dialogs, env = {} } = {}) {
+export async function launch(files = [], options = {}) {
+	try {
+		return await launchOnce(files, options);
+	} catch (e) {
+		const message = String(e?.message ?? e);
+		if (!/session not created[\s\S]*unable to connect to renderer/i.test(message)) throw e;
+		console.error(`the driver lost the webview while the session started (${message.split('\n')[0]}); starting again`);
+		return launchOnce(files, options);
+	}
+}
+
+async function launchOnce(files, { dialogs, env = {} }) {
 	for (const [what, path] of [
 		['the release app', app],
 		['msedgedriver', edgeDriver]
