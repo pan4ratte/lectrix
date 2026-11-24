@@ -1,7 +1,7 @@
 <script lang="ts">
 	// The comment of the annotation under the pointer (section 6.5): its text only, no
-	// author or date, with its line breaks. It follows the pointer, below it with its tail
-	// pointing at it, and stays wholly inside the visible part of the page area. It never
+	// author or date, with its line breaks. It follows the pointer, below it and centred on
+	// it, with its tail pointing at it, and stays wholly inside the visible part of the page area. It never
 	// takes the pointer.
 	import Tip from '#lib/components/Tip.svelte';
 

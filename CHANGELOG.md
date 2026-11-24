@@ -26,6 +26,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 - The stroke width is a slider, from 0.5 to 12 pt. For the pen and the Shapes tool, click the tool's button once it is picked; a selected drawing has it too.
 - A new **Smoothing** slider, under the pen's stroke width, steadies pen strokes: the pen trails the pointer a little and ignores small wobbles, which helps when writing with a mouse.
 - Press Esc while drawing to drop the stroke or shape.
+- The comment that shows when you rest the pointer on an annotation is centred under the pointer, its tail in the middle.
 
 ### Exporting images
 

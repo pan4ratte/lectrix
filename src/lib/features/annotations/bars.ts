@@ -264,15 +264,15 @@ export const DEFAULT_TIP_DELAY_MS = 300;
 export const MAX_TIP_DELAY_MS = 2000;
 
 /** Where a comment's tooltip sits from the pointer: the point of its tail below the
- * cursor's arrow (`y`), and its left edge `x` before the pointer, so the tail is clear of
- * the corner. */
-export const TIP_OFFSET = { x: 16, y: 20 };
+ * cursor's arrow. */
+export const TIP_OFFSET = { y: 20 };
 
 /**
  * Where a comment's tooltip of size `w` × `h` goes for the pointer at `pointer` (content
- * pixels): below it, its tail pointing up at the pointer; shifted left near the right
- * edge, and above the pointer when there is no room below. It always stays wholly inside
- * the visible part of the content (`view`, cut at `contentWidth`).
+ * pixels): below it and centred on it, its tail pointing up at the pointer; shifted along
+ * near the left or right edge, and above the pointer when there is no room below. It
+ * always stays wholly inside the visible part of the content (`view`, cut at
+ * `contentWidth`).
  */
 export function placeTip(
 	pointer: { x: number; y: number },
@@ -284,7 +284,7 @@ export function placeTip(
 	const x1 = Math.min(view.x1, contentWidth) - BAR_GAP;
 	const y0 = view.y0 + BAR_GAP;
 	const y1 = view.y1 - BAR_GAP;
-	const left = pointer.x - TIP_OFFSET.x;
+	const left = Math.round(pointer.x - size.w / 2);
 	let top = pointer.y + TIP_OFFSET.y + TIP_TAIL.length;
 	if (top + size.h > y1) top = pointer.y - BAR_GAP - size.h;
 	return {
