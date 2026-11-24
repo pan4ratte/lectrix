@@ -28,6 +28,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 - A new **Smoothing** slider, under the pen's stroke width, steadies pen strokes: the pen trails the pointer a little and ignores small wobbles, which helps when writing with a mouse.
 - Press Esc while drawing to drop the stroke or shape.
 - The comment that shows when you rest the pointer on an annotation is centred under the pointer, its tail in the middle.
+- An annotation's comment panel and the bars over selected text and beside annotations fade in and out with a slight zoom from what they belong to, instead of appearing and vanishing at once.
 
 ### Exporting images
 

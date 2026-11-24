@@ -27,6 +27,7 @@
 	import { LockOpen, TriangleAlert, Wrench } from '@lucide/svelte';
 	import { untrack } from 'svelte';
 
+	import { popIn, popOut } from '#lib/components/pop.ts';
 	import { unlockDocument } from '#lib/features/unprotect/actions.ts';
 	import { stopUnlessShortcut } from '#lib/shortcuts.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
@@ -97,6 +98,8 @@
 	);
 	const tailSides = $derived(tail ? tailPath(tail) : '');
 	const tailArea = $derived(tail ? tailFill(tail) : '');
+	/** It comes and goes with a slight zoom from the annotation's middle (section 8.3). */
+	const origin = $derived(`${(anchor.x0 + anchor.x1) / 2 - at.left}px ${(anchor.y0 + anchor.y1) / 2 - at.top}px`);
 
 	function putAt(left: number, top: number) {
 		if (key) positions.set(key, { dx: left - anchor.x0, dy: top - anchor.y0 });
@@ -245,6 +248,9 @@
 		style:top="{at.top}px"
 		style:width="{(exact ?? limit)?.w ?? DEFAULT_WIDTH}px"
 		style:height={exact ? `${exact.h}px` : null}
+		style:transform-origin={origin}
+		in:popIn|global
+		out:popOut|global
 		data-annotation-panel
 		bind:offsetWidth={w}
 		bind:offsetHeight={h}

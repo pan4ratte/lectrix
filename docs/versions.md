@@ -117,7 +117,7 @@ macOS and Linux CI jobs (build only): `macos-latest` with Xcode's libclang, and
 | --- | --- | --- |
 | webdriverio (standalone, with Node's built-in test runner) | 9.32.0 | MIT |
 | tauri-driver | 2.1.0 (`cargo install tauri-driver --locked`) | Apache-2.0 / MIT |
-| msedgedriver | matches the installed WebView2 runtime (154.0.4258.53 here); fetched by `tests/e2e/fetch-edgedriver.ps1` | Microsoft |
+| msedgedriver | matches the installed WebView2 runtime (158.0.4370.33 here); fetched by `tests/e2e/fetch-edgedriver.ps1` | Microsoft |
 
 `npm audit` in `tests/e2e` reports advisories in `basic-ftp` (through webdriverio's
 proxy-agent chain, used only to download browsers through a proxy). The suite talks to a
