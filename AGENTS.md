@@ -140,6 +140,7 @@ Follow these rules in every session; when a rule and a convenience conflict, the
 - When a change is done and CI is green, report to the user: what was built, the tests, any measurements that changed, behavior choices made without explicit guidance, and decisions needed. Then stop for review.
 - Add every change users will notice to `CHANGELOG.md`, under `## Unreleased`, in the commit that makes it, worded as `docs/releasing.md` says.
 - Keep the docs current: `docs/status.md` and `docs/status/` (add gaps you find, remove gaps you close: a line in the index, the detail in its file), `docs/versions.md`, `docs/interop-profile.md`, `docs/manual-checklist.md`, and, when the product's behavior changes, the spec in `docs/spec/` that describes it (this document only for what it covers: scope, constraints, architecture, the interop contract, saving, testing and these rules). Keep this document short: a feature's details go in its spec, not here.
+- When a change alters how a feature looks, make its README screenshots again in the same commit (`node tests/readme/screenshots.mjs <shot>`; the script names the feature each shot shows).
 - Make small commits using Conventional Commits (`feat:`, `fix:`, `test:`…). Every commit builds and passes tests.
 - When you deviate from this document or a spec, write an ADR in `docs/decisions/` first, explaining what, why, and the alternatives considered.
 

@@ -25,6 +25,12 @@ The in-app updater only installs files signed with Lectrix's updater key.
 
 ## Each release
 
+The README's screenshots are made again with each change to the feature they show (AGENTS.md
+section 10). Before a release, check that they still look like the app; if not, make them
+again from a release build: `node tests/readme/screenshots.mjs` writes `docs/images/` (it
+needs what the end-to-end tests need, and Python with PyMuPDF and Pillow; one shot again:
+name it, such as `compare`).
+
 1. In `CHANGELOG.md`, rename `## Unreleased` to `## <version>` (below).
 2. Bump `"version"` in `package.json` (and `package-lock.json`, for example with
    `npm version 1.0.0-beta.2 --no-git-tag-version`) and push to `main`. Pre-releases

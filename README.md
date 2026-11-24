@@ -5,11 +5,15 @@
 </div>
 <br>
 <div align="center">
-<a href="https://github.com/pan4ratte/lectrix/releases/latest"><img alt="Download for Windows, macOS and Linux" src="https://shieldcn.dev/badge/download%20for-Windows%2C%20macOS%2C%20Linux.svg?size=lg&amp;logo=ri%3ATbDownload&amp;color=2F5DAA"></a>
-<a href="https://pay.cloudtips.ru/p/c0e8eac4"><img alt="Support development" src="https://shieldcn.dev/badge/Поддержать%20разработку-(RU%20карты).svg?size=lg&amp;logo=ri%3AFaHeart&amp;color=2F5DAA"></a>
+<a href="https://github.com/pan4ratte/lectrix/releases/latest"><img alt="Download for Windows, macOS and Linux" src="docs/images/button-download.svg"></a>
+<a href="https://pay.cloudtips.ru/p/c0e8eac4"><img alt="Support development" src="docs/images/button-support.svg"></a>
 </div>
+<br>
 
-<!-- Screenshot of the app goes here: one image, in a light and a dark version. -->
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/hero-dark.webp">
+  <img alt="Lectrix with the opening page of a chapter of an astronomy textbook: the book’s bookmarks on the left, highlights and a drawing on the page, and the list of annotations on the right" src="docs/images/hero-light.webp">
+</picture>
 
 
 ## Why Lectrix
@@ -25,27 +29,86 @@
 
 ### Read comfortably
 
-Open documents in tabs, and drag a tab away from the others to give it a window of its own. Pages scroll continuously or turn one at a time, alone or two side by side, and **View > Full screen** leaves them alone on the screen. **Visual adjustments** dims the pages or inverts their colours for reading at night, without touching the file.
+Open documents in tabs, and drag a tab away from the others to give it a window of its own. Pages scroll continuously or turn one at a time, alone or two side by side, and **View > Full screen** leaves them alone on the screen. Search suggests the document's words as you type and marks every match beside the scrollbar. **Visual adjustments** changes the brightness, contrast and sepia tone of the pages, or inverts their colours for reading at night, without touching the file.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/fullscreen-dark.webp">
+  <img alt="Full screen: two pages of a chapter side by side filling the screen, with the page, zoom and annotation tools floating over them at the bottom" src="docs/images/fullscreen-light.webp">
+</picture>
+
+### Documents side by side
+
+Drag a tab to the edge of the pages to read up to four documents side by side in one tab, or show one document twice to read two parts of it at once. They can scroll and zoom together, keeping the same pages beside each other.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/side-by-side-dark.webp">
+  <img alt="Two chapters, on the Sun and on the Milky Way, side by side in one window" src="docs/images/side-by-side-light.webp">
+</picture>
+
+### Present from a PDF
+
+**View > Presentation** (F5) shows one page at a time, as large as the screen allows, with the transitions and timings a deck exported from PowerPoint or Beamer comes with. With a projector or a second screen, the audience sees the pages and you see the presenter view: the next page, the page's notes and a timer.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/presenter-dark.webp">
+  <img alt="The presenter view: the page on screen, the next page, the notes from the page’s annotations and a timer" src="docs/images/presenter-light.webp">
+</picture>
 
 ### Make all kinds of annotations
 
-Highlight, underline, strike out or squiggle text, leave a note, draw with the pen, or type in a text box. Select text and a small bar offers the tools you use most, with no need to pick one first. Every tool has 18 preset colours, a colour of your own and an opacity.
+Highlight, underline, strike out or squiggle text, leave a note, draw with the pen, add lines, arrows, rectangles and ellipses, or type in a text box. Select text and a small bar offers the tools you use most, with no need to pick one first. Every tool has 18 preset colours, a colour of your own and an opacity.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/annotations-dark.webp">
+  <img alt="A page with highlights, an underline, a text box and an arrow; the quick tools over selected text; and the list of the document’s annotations beside it" src="docs/images/annotations-light.webp">
+</picture>
 
 ### Keep track of every comment
 
-The annotation list shows every comment in a document. Search, sort and filter them by type, colour or author, and the pages show only what the list shows. Reply to a comment or edit it right in the list.
+The annotation list shows every comment in a document. Search, sort and filter them by type, colour or author, and the pages show only what the list shows. Reply to a comment or edit it right in the list, or select several and change or delete them together.
 
 ### Organise a document with bookmarks
 
-Press **Ctrl+B** to add a bookmark where you are; selected text becomes its title. Rename bookmarks, drag them into order, nest them, and point one at another place.
+Press **Ctrl+B** to add a bookmark where you are; selected text becomes its title. Rename bookmarks, drag them into order, nest them, give them colours, and point one at another place.
 
 ### Number pages as the book does
 
 Give the front matter roman numerals, start the body at 1, add a prefix to the appendices. The page box then understands the book's own numbers: type `iv` to go to page iv.
 
+### Organise pages
+
+**Document > Organize pages** shows the pages as a grid. Drag them into another order, rotate or delete them, extract them into a new document, or drop in pages from other files. Links, bookmarks and page labels stay with the pages they belong to, and every change can be undone.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/organize-dark.webp">
+  <img alt="Organize pages: the pages of a chapter as a grid, two of them selected, and a bar over the page under the pointer" src="docs/images/organize-light.webp">
+</picture>
+
 ### Combine files
 
-Add several PDFs, see all their pages together in one grid, then reorder, rotate or remove pages before combining them into a new file. Bookmarks and page numbering come along, and **Insert pages from file** brings another file's pages into the document you have open.
+Add several PDFs, see all their pages together in one grid, then reorder, rotate or remove pages before combining them into a new file. Bookmarks and page numbering come along.
+
+### Compare two versions
+
+**Compare** finds what changed between two versions of a document, word by word, and marks it on both, side by side: inserted, deleted and changed text each in its own colour. Pages without text, such as scans, are compared as pictures. Save either document with the differences marked, or a report listing them.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/compare-dark.webp">
+  <img alt="Compare: two versions of a section side by side with their differences marked, and the list of differences grouped into body text and headers and footers" src="docs/images/compare-light.webp">
+</picture>
+
+### Compress, protect and unlock
+
+**Compress** makes a file smaller, without losing a pixel or by recompressing its pictures, and shows a page before and after before anything is saved. **Protect** gives a file a password, limits on printing, changing and copying, or both, with AES-256 encryption. **Unlock** removes them.
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/compress-dark.webp">
+  <img alt="Compress: a file 83% smaller, with a page as it was and as it will be side by side" src="docs/images/compress-light.webp">
+</picture>
+
+### Print and export
+
+Print with or without annotations, choosing pages by their number or their label, with a preview of every sheet. Save pages as PNG, JPEG or TIFF images, copy a page or any part of it to paste elsewhere, or save the pictures inside a document as files, JPEG pictures without losing any quality.
 
 ### Annotations that work everywhere
 
@@ -80,7 +143,6 @@ What you write in Lectrix opens as you made it in Acrobat, in Edge, Chrome and F
 | Digital signatures | Planned | ✅ | ✅ | ✅ | ✅ | ✅ | ❌ |
 | Edit the text on a page | Planned | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
 | Redaction | Planned | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Convert to Word and Excel | ❌ | ✅ | ✅ | ✅ | ✅ | ❌ | ❌ |
 
 1. On a yearly plan. Acrobat Reader is free: it reads, annotates, fills forms and signs.
 2. Standard edition for Windows. The Corporate edition, which adds Compare, is $165 a year. The macOS version is $69 a year and has fewer PDF tools.
@@ -164,3 +226,5 @@ Lectrix is free software under the [GNU AGPL v3](LICENSE) or any later version. 
 * Colours adapted from [Neo](https://github.com/x0aa7i/obsidian-neo), a theme for Obsidian — MIT
 
 The full list is in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+
+The screenshots show pages of [*Astronomy*](https://openstax.org/details/books/astronomy) by Andrew Fraknoi, David Morrison and Sidney C. Wolff (OpenStax, 2016), under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/). For the screenshots, its bookmarks were tidied, page labels and annotations were added, and a few words were changed in the second version that Compare shows.
