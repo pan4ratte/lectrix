@@ -106,4 +106,4 @@ lectrix/
    └─ status/                # measurements, known gaps, platform gaps, releases, planned tools
 ```
 
-The `pdf-cli` tool exposes every `pdf-core` operation from the command line (for example `pdf-cli labels set in.pdf out.pdf --rule 0:roman-lower --rule 12:decimal`). Tests and the interop harness use it, and it makes engine bugs reproducible without the UI.
+The `pdf-cli` tool exposes every `pdf-core` operation from the command line (for example `pdf-cli labels set in.pdf out.pdf --rule 1:roman-lower --rule 13:decimal`). Tests and the interop harness use it, and it makes engine bugs reproducible without the UI.

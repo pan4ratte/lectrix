@@ -42,7 +42,7 @@ To build the installers for your system, run `npm run bundle`.
 Engine bugs are easiest to pin down without the interface. `pdf-cli` runs every operation of the engine from the command line:
 
 ```
-cargo run -p pdf-cli -- labels set in.pdf out.pdf --rule 0:roman-lower --rule 12:decimal
+cargo run -p pdf-cli -- labels set in.pdf out.pdf --rule 1:roman-lower --rule 13:decimal
 ```
 
 ## Tests

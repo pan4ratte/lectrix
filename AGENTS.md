@@ -57,7 +57,7 @@ All PDF reading and writing happens in Rust through MuPDF; the Svelte frontend n
 A Cargo workspace plus a SvelteKit app at the root; keep this structure unless an ADR justifies a change. The full tree is in [docs/architecture.md](docs/architecture.md).
 
 - `crates/pdf-core/`: all PDF logic, no Tauri dependency (`ops.rs` the operations, `session.rs` the document actor, `annot/` the write profile, `ffi/` wrappers over `mupdf-sys`, `testgen.rs` generated samples).
-- `crates/pdf-cli/`: a headless CLI exposing every `pdf-core` operation (for example `pdf-cli labels set in.pdf out.pdf --rule 0:roman-lower --rule 12:decimal`); tests and the interop harness use it.
+- `crates/pdf-cli/`: a headless CLI exposing every `pdf-core` operation (for example `pdf-cli labels set in.pdf out.pdf --rule 1:roman-lower --rule 13:decimal`); tests and the interop harness use it.
 - `src-tauri/`: the Tauri app crate. `src/`: the frontend, with feature code in `src/lib/features/<feature>/` and IPC types and wrappers in `src/lib/ipc/`.
 - `third_party/`: the vendored mupdf crate and MuPDF headers. `tests/`: corpus, interop harness, e2e, perf, soak. `docs/`: ADRs, specs, status, versions, the interop profile, the release checklist.
 
