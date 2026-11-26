@@ -270,6 +270,12 @@ Needs an installed earlier release and a newer one published (ADR 0011,
       counts the matches on screen, and next and previous go on from there. Scroll to a
       place with no match on screen: previous goes to the one just above. Turn it off:
       scrolling leaves the counter alone again.
+- [ ] In a book in Polish, German, French or Vietnamese, search for a word typed without
+      its accents ("lodz", "strasse", "ecole"): the matches are highlighted over the whole
+      word, accents included, and the suggestions show the document's own spelling, the
+      typed part marked. In a Russian book, "еж" finds "ёж", but "мои" does not find "мой".
+      In a pointed Hebrew text or a vowelled Arabic one, a word typed without its points
+      is found; in a typeset English book, "don't" finds "don’t".
 
 ## Recent files
 

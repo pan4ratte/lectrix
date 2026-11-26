@@ -76,31 +76,7 @@ pub struct TextRange {
 /// Ranges outside the page's text are an error.
 pub fn range_quads(list: &DisplayList, ranges: &[TextRange]) -> Result<Vec<MarkupQuad>> {
     let page = list.to_text_page(flags())?;
-    let point = |p: mupdf::Point| Point::new(f64::from(p.x), f64::from(p.y));
-    let mut lines: Vec<Vec<MarkupQuad>> = Vec::new();
-    for block in page.blocks() {
-        if block.r#type() != TextBlockType::Text {
-            continue;
-        }
-        for line in block.lines() {
-            let quads: Vec<MarkupQuad> = line
-                .chars()
-                .filter(shown)
-                .map(|ch| {
-                    let q = ch.quad();
-                    MarkupQuad {
-                        ul: point(q.ul),
-                        ur: point(q.ur),
-                        ll: point(q.ll),
-                        lr: point(q.lr),
-                    }
-                })
-                .collect();
-            if !quads.is_empty() {
-                lines.push(quads);
-            }
-        }
-    }
+    let (_, lines) = collect_with_quads(&page);
     let mut out = Vec::with_capacity(ranges.len());
     for r in ranges {
         let chars = lines
@@ -235,7 +211,14 @@ fn run_quads(chars: &[MarkupQuad], start: usize, end: usize) -> Vec<MarkupQuad> 
 }
 
 fn collect(page: &TextPage) -> PageText {
+    collect_with_quads(page).0
+}
+
+/// The page's text, as [`page_text`] has it, and each of its lines' character quads.
+fn collect_with_quads(page: &TextPage) -> (PageText, Vec<Vec<MarkupQuad>>) {
+    let point = |p: mupdf::Point| Point::new(f64::from(p.x), f64::from(p.y));
     let mut lines = Vec::new();
+    let mut line_quads = Vec::new();
     for (block_index, block) in page.blocks().enumerate() {
         if block.r#type() != TextBlockType::Text {
             continue;
@@ -244,16 +227,25 @@ fn collect(page: &TextPage) -> PageText {
         for line in block.lines() {
             let mut text = String::new();
             let mut boxes = Vec::new();
+            let mut quads = Vec::new();
             for ch in line.chars().filter(shown) {
                 // Characters MuPDF could not map to Unicode come through as U+FFFD; keep
                 // them so boxes and characters stay aligned.
                 let c = ch.char().unwrap_or('\u{FFFD}');
                 text.push(c);
-                boxes.push(round_box(quad_bounds(&ch.quad())));
+                let q = ch.quad();
+                boxes.push(round_box(quad_bounds(&q)));
+                quads.push(MarkupQuad {
+                    ul: point(q.ul),
+                    ur: point(q.ur),
+                    ll: point(q.ll),
+                    lr: point(q.lr),
+                });
             }
             if boxes.is_empty() {
                 continue;
             }
+            line_quads.push(quads);
             let b = line.bounds();
             lines.push(TextLine {
                 text,
@@ -269,7 +261,7 @@ fn collect(page: &TextPage) -> PageText {
             });
         }
     }
-    PageText { lines }
+    (PageText { lines }, line_quads)
 }
 
 /// Whether a character is part of the text: all are but those MuPDF could not map to
@@ -311,7 +303,7 @@ pub struct FoundWord {
     pub count: u32,
 }
 
-/// Finds every occurrence of `needle` on a page (case-insensitive, as MuPDF's search is).
+/// Finds every occurrence of `needle` on a page, as [`crate::fold`] compares text.
 pub fn search_page(list: &DisplayList, needle: &str) -> Result<Vec<SearchHit>> {
     Ok(search_page_words(list, needle)?.0)
 }
@@ -326,71 +318,168 @@ pub fn search_page_words(
         return Ok((Vec::new(), Vec::new()));
     }
     let page = list.to_text_page(flags())?;
-    let words = words_containing(&collect(&page), needle);
-    let mut hits: Vec<SearchHit> = Vec::new();
-    page.search_cb(needle, &mut hits, |hits, quads| {
-        hits.push(SearchHit {
-            quads: quads
-                .iter()
-                .map(|q| {
-                    let r = |v: f32| (v * 100.0).round() / 100.0;
-                    [
-                        r(q.ul.x),
-                        r(q.ul.y),
-                        r(q.ur.x),
-                        r(q.ur.y),
-                        r(q.ll.x),
-                        r(q.ll.y),
-                        r(q.lr.x),
-                        r(q.lr.y),
-                    ]
-                })
-                .collect(),
-        });
-        if hits.len() >= MAX_HITS_PER_PAGE {
-            mupdf::text_page::SearchHitResponse::AbortSearch
-        } else {
-            mupdf::text_page::SearchHitResponse::ContinueSearch
+    let (text, quads) = collect_with_quads(&page);
+    Ok((
+        search_text(&text, &quads, needle),
+        words_containing(&text, needle),
+    ))
+}
+
+/// Text folded for search (see [`crate::fold::push`]), each of its characters with the
+/// characters of the page's text it stands for (`None` for the space between two lines).
+#[derive(Default)]
+struct Folded {
+    chars: Vec<char>,
+    from: Vec<Option<Source>>,
+}
+
+/// Characters `start..end` of line `line` of a [`PageText`].
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+struct Source {
+    line: usize,
+    start: usize,
+    end: usize,
+}
+
+impl Folded {
+    /// Adds line `line`, whose characters are `chars`. Returns whether it ends with a soft
+    /// hyphen, which joins it to the next line.
+    fn push_line(&mut self, line: usize, chars: &[char]) -> bool {
+        for (i, &c) in chars.iter().enumerate() {
+            if c == '\u{AD}' && i + 1 == chars.len() {
+                return true;
+            }
+            let before = self.chars.len();
+            crate::fold::push(&mut self.chars, c);
+            let source = Source {
+                line,
+                start: i,
+                end: i + 1,
+            };
+            if self.chars.len() > before {
+                self.from.resize(self.chars.len(), Some(source));
+            } else if let Some(Some(last)) = self.from.last_mut()
+                && last.line == line
+            {
+                // An accent, a second space: with the character before it.
+                last.end = i + 1;
+            }
         }
-    })?;
-    Ok((hits, words))
+        false
+    }
+
+    /// One space between two lines, unless one ends the text so far.
+    fn push_break(&mut self) {
+        if self.chars.last().is_some_and(|c| *c != ' ') {
+            self.chars.push(' ');
+            self.from.push(None);
+        }
+    }
+
+    /// Where `needle` is, one occurrence after another, as positions in `chars`.
+    fn find<'a>(&'a self, needle: &'a [char]) -> impl Iterator<Item = usize> + 'a {
+        let mut at = 0;
+        std::iter::from_fn(move || {
+            if needle.is_empty() {
+                return None;
+            }
+            while at + needle.len() <= self.chars.len() {
+                let here = at;
+                if self.chars[here..here + needle.len()] == *needle {
+                    at += needle.len();
+                    return Some(here);
+                }
+                at += 1;
+            }
+            None
+        })
+    }
+}
+
+/// The occurrences of `needle` in the page's text, `quads` being each line's character
+/// quads. The text is read as MuPDF's search reads it: line after line, with a space
+/// between them, except after a line that ends with a hyphen, or with a soft hyphen, which
+/// goes, so a word broken there is found whole. An occurrence that runs onto the next line
+/// has a quad on each.
+fn search_text(text: &PageText, quads: &[Vec<MarkupQuad>], needle: &str) -> Vec<SearchHit> {
+    let wanted = crate::fold::fold(needle);
+    let mut page = Folded::default();
+    for (i, line) in text.lines.iter().enumerate() {
+        let chars: Vec<char> = line.text.chars().collect();
+        let joined = page.push_line(i, &chars);
+        let hyphen = matches!(chars.last(), Some('-' | '\u{2010}' | '\u{2011}'));
+        if !joined && !hyphen {
+            page.push_break();
+        }
+    }
+    let mut hits = Vec::new();
+    for at in page.find(&wanted) {
+        // The characters of each line it covers, in reading order.
+        let mut ranges: Vec<Source> = Vec::new();
+        for source in page.from[at..at + wanted.len()].iter().flatten() {
+            match ranges.last_mut() {
+                Some(r) if r.line == source.line => r.end = r.end.max(source.end),
+                _ => ranges.push(*source),
+            }
+        }
+        let quads: Vec<[f32; 8]> = ranges
+            .iter()
+            .flat_map(|r| run_quads(&quads[r.line], r.start, r.end))
+            .filter(MarkupQuad::is_valid)
+            .map(|q| {
+                let r = |v: f64| ((v * 100.0).round() / 100.0) as f32;
+                [
+                    r(q.ul.x),
+                    r(q.ul.y),
+                    r(q.ur.x),
+                    r(q.ur.y),
+                    r(q.ll.x),
+                    r(q.ll.y),
+                    r(q.lr.x),
+                    r(q.lr.y),
+                ]
+            })
+            .collect();
+        if quads.is_empty() {
+            continue;
+        }
+        hits.push(SearchHit { quads });
+        if hits.len() >= MAX_HITS_PER_PAGE {
+            break;
+        }
+    }
+    hits
 }
 
 /// The words of `text` that contain `needle`, with how many times each is there: every
-/// occurrence of the needle within a line (case-insensitive, any run of spaces in the
-/// needle matching one space, as MuPDF's search reads it), taken out to the word
-/// boundaries on both sides. An occurrence that runs from one line onto the next is not
-/// counted. Each word of the text counts once, however often the needle is in it.
+/// occurrence of the needle within a line (as [`crate::fold`] compares text, so any run
+/// of spaces in the needle matches one space), taken out to the word boundaries on both
+/// sides. An occurrence that runs from one line onto the next is not counted. Each word
+/// of the text counts once, however often the needle is in it.
 pub fn words_containing(text: &PageText, needle: &str) -> Vec<FoundWord> {
-    let mut wanted: Vec<char> = Vec::new();
-    for c in needle.trim().chars().map(fold) {
-        if !(c == ' ' && wanted.last() == Some(&' ')) {
-            wanted.push(c);
-        }
-    }
+    let wanted = crate::fold::fold(needle);
     let mut counts: Vec<FoundWord> = Vec::new();
     if wanted.is_empty() {
         return counts;
     }
     for line in &text.lines {
         let chars: Vec<char> = line.text.chars().collect();
-        let folded: Vec<char> = chars.iter().copied().map(fold).collect();
+        let mut folded = Folded::default();
+        folded.push_line(0, &chars);
         let mut last_start = None;
-        let mut at = 0;
-        while at + wanted.len() <= folded.len() {
-            if folded[at..at + wanted.len()] != wanted[..] {
-                at += 1;
+        for at in folded.find(&wanted) {
+            let (Some(first), Some(last)) = (folded.from[at], folded.from[at + wanted.len() - 1])
+            else {
                 continue;
-            }
-            let mut start = at;
+            };
+            let mut start = first.start;
             while start > 0 && in_word(&chars, start - 1) {
                 start -= 1;
             }
-            let mut end = at + wanted.len();
+            let mut end = last.end;
             while end < chars.len() && in_word(&chars, end) {
                 end += 1;
             }
-            at += wanted.len();
             if last_start == Some(start) {
                 continue;
             }
@@ -406,15 +495,6 @@ pub fn words_containing(text: &PageText, needle: &str) -> Vec<FoundWord> {
         }
     }
     counts
-}
-
-/// A character as a search compares it: lower case, and any space as one space.
-fn fold(c: char) -> char {
-    if c.is_whitespace() {
-        ' '
-    } else {
-        c.to_lowercase().next().unwrap_or(c)
-    }
 }
 
 /// Whether `chars[i]` is part of a word: a letter, a digit or a mark (an accent, the
@@ -628,6 +708,76 @@ mod tests {
         assert!(words_containing(&text, "zebra").is_empty());
     }
 
+    /// Each line's characters as 5 pt wide boxes side by side, the lines 20 pt apart.
+    fn char_quads(text: &PageText) -> Vec<Vec<MarkupQuad>> {
+        text.lines
+            .iter()
+            .enumerate()
+            .map(|(l, line)| {
+                let top = l as f64 * 20.0;
+                (0..line.text.chars().count())
+                    .map(|i| {
+                        let x = i as f64 * 5.0;
+                        MarkupQuad {
+                            ul: Point::new(x, top + 10.0),
+                            ur: Point::new(x + 5.0, top + 10.0),
+                            ll: Point::new(x, top + 20.0),
+                            lr: Point::new(x + 5.0, top + 20.0),
+                        }
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    /// Each hit's quads, as (line, first character, end character) of the boxes above.
+    fn found_at(text: &PageText, needle: &str) -> Vec<Vec<(usize, usize, usize)>> {
+        search_text(text, &char_quads(text), needle)
+            .iter()
+            .map(|hit| {
+                hit.quads
+                    .iter()
+                    .map(|q| {
+                        let line = (q[1] / 20.0) as usize;
+                        (line, (q[0] / 5.0) as usize, (q[2] / 5.0) as usize)
+                    })
+                    .collect()
+            })
+            .collect()
+    }
+
+    #[test]
+    fn search_ignores_accents_and_reads_letters_as_typed() {
+        let text = lines(&[
+            "Łódź and Straße, the Gross-",
+            "glockner and the in\u{AD}",
+            "ternational Мой ёж. Don’t.",
+        ]);
+        assert_eq!(found_at(&text, "don't"), [[(2, 20, 25)]]);
+        assert_eq!(found_at(&text, "LODZ"), [[(0, 0, 4)]]);
+        assert_eq!(found_at(&text, "strasse"), [[(0, 9, 15)]]);
+        // Part of ß finds the whole letter; "Gross" has the other.
+        assert_eq!(found_at(&text, "ss"), [[(0, 13, 14)], [(0, 24, 26)]]);
+        // A line ending in a hyphen runs on without a space; a soft hyphen goes.
+        assert_eq!(
+            found_at(&text, "gross-glockner"),
+            [[(0, 21, 27), (1, 0, 8)]]
+        );
+        assert_eq!(
+            found_at(&text, "international"),
+            [[(1, 17, 19), (2, 0, 11)]]
+        );
+        assert_eq!(
+            found_at(&text, "the international"),
+            [[(1, 13, 19), (2, 0, 11)]]
+        );
+        assert_eq!(found_at(&text, "ЕЖ"), [[(2, 16, 18)]]);
+        assert!(found_at(&text, "мои").is_empty());
+        assert_eq!(words_containing(&text, "lodz"), found(&[("Łódź", 1)]));
+        assert_eq!(words_containing(&text, "sse"), found(&[("Straße", 1)]));
+        assert_eq!(words_containing(&text, "еж"), found(&[("ёж", 1)]));
+    }
+
     #[test]
     fn text_in_a_font_without_tounicode_is_read_from_its_cmap() {
         use crate::testgen::unmapped_font_document;
@@ -680,6 +830,8 @@ mod tests {
             found(&[("שָׁלוֹם", 1), ("עוֹלָם", 1)])
         );
         assert_eq!(words_containing(&text, "خوا"), found(&[("می‌خواهم", 1)]));
+        // Typed without its points, a word is found with them.
+        assert_eq!(words_containing(&text, "שלום"), found(&[("שָׁלוֹם", 1)]));
         assert_eq!(words_containing(&text, "caf"), found(&[("cafe\u{301}", 1)]));
     }
 

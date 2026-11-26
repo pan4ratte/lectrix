@@ -7,6 +7,7 @@ pub mod docinfo;
 pub mod error;
 pub mod export;
 pub mod ffi;
+pub mod fold;
 pub mod fonts;
 pub mod geometry;
 pub mod labels;

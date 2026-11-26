@@ -11,6 +11,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 ### Viewer and tabs
 
 - The search bar's counter shows the match number in full; it was cut off.
+- Search ignores accents, so you can type a word without them: **lodz** finds **Łódź**, **ecole** finds **école**. Letters such as ø, ł, đ, ð, ħ and ı are found by o, l, d, d, h and i, and ß, æ, œ and þ by ss, ae, oe and th, which helps with German, French, Polish, the Scandinavian languages, Croatian, Serbian, Vietnamese, Icelandic, Maltese and Turkish: **strasse** finds **Straße**. In Russian, е finds ё, while й stays a letter of its own. Arabic and Hebrew are found without their vowel points, and a straight apostrophe or quote finds a curly one: **don't** finds **don’t**. The suggestions under the search field work the same way.
 
 ### Exporting images
 

@@ -19,6 +19,7 @@ following third-party components. Every one has an AGPL-compatible license.
 | semver | MIT OR Apache-2.0 | comparing versions, to tell the first start after an update |
 | ts-rs | MIT | generated TypeScript IPC types (build/test time) |
 | uuid | MIT OR Apache-2.0 | annotation `/NM` identifiers |
+| unicode-normalization | (MIT OR Apache-2.0) AND Unicode-3.0 | search without accents (`pdf-core` `fold` module) |
 | png | MIT OR Apache-2.0 | page image encoding, and pages exported as PNG (section 6.14) |
 | tiff, and through it weezl and flate2 | MIT; MIT OR Apache-2.0 | pages exported as TIFF (section 6.14, ADR 0034) |
 | clap | MIT OR Apache-2.0 | `pdf-cli` argument parsing |
