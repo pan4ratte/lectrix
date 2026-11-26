@@ -18,6 +18,10 @@ the wording, translations): docs/releasing.md, "The changelog".
 - Exporting a single page can name its file by the page's number or its label, as exporting several pages does.
 - In the export preview, the previous page button goes back at once after you change the pages to export; it could take many clicks to move.
 
+### General
+
+- In **Document > Properties…**, the title, author, subject and keywords fields grow to show long text in full, wrapped over several lines.
+
 ## 1.5.0
 
 ### Viewer and tabs

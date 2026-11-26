@@ -43,6 +43,13 @@
 		{ id: 'security', label: 'Security', icon: Lock },
 		{ id: 'fonts', label: 'Fonts', icon: Type }
 	];
+	/** The description's fields: one line of text each, wrapped to as many lines as it takes. */
+	const DESCRIPTION_FIELDS: readonly { key: keyof DocumentDescription; label: string }[] = [
+		{ key: 'title', label: 'Title' },
+		{ key: 'author', label: 'Author' },
+		{ key: 'subject', label: 'Subject' },
+		{ key: 'keywords', label: 'Keywords' }
+	];
 	/** Pages whose fonts are asked for at a time. */
 	const FONT_PAGES = 25;
 
@@ -130,7 +137,40 @@
 		close();
 	}
 
-	const page = $derived(tab ? tab.pages[Math.min(tab.currentPage, tab.pageCount - 1)] : undefined);
+	/** A field's text stays one line, as the document keeps it: line breaks pasted in become
+	 * spaces (the caret kept where it was). */
+	function oneLine(el: HTMLTextAreaElement, key: keyof DocumentDescription) {
+		if (!/[\r\n]/.test(el.value)) return;
+		const caret = el.selectionStart;
+		el.value = el.value.replace(/\r\n|\r|\n/g, (m) => ' '.repeat(m.length));
+		el.setSelectionRange(caret, caret);
+		draft[key] = el.value;
+	}
+
+	/** A field as tall as its wrapped text (up to its max-height, then it scrolls): again
+	 * when the text changes and when its width does, as when its tab is first shown. Not
+	 * `field-sizing: content`, which not every webview has. */
+	function fitField(value: () => string) {
+		return (el: HTMLTextAreaElement) => {
+			const fit = () => {
+				if (el.clientWidth === 0) return;
+				el.style.height = 'auto';
+				el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`;
+			};
+			value();
+			fit();
+			let width = el.clientWidth;
+			const observer = new ResizeObserver(() => {
+				if (el.clientWidth === width) return;
+				width = el.clientWidth;
+				fit();
+			});
+			observer.observe(el);
+			return () => observer.disconnect();
+		};
+	}
+
+	const page = $derived(tab ?tab.pages[Math.min(tab.currentPage, tab.pageCount - 1)] : undefined);
 	const locale = typeof navigator === 'undefined' ? 'en-US' : navigator.language;
 	const date = (ms: number | null) =>
 		ms === null ? '—' : new Date(ms).toLocaleString(undefined, { dateStyle: 'long', timeStyle: 'short' });
@@ -181,14 +221,23 @@
 								<section class="settings-section mt-5" aria-label="Description">
 									<h3 class="settings-section-title">Description</h3>
 									<div class="properties-grid mt-2">
-										<label for="properties-title">Title</label>
-										<input id="properties-title" class="field h-7" bind:value={draft.title} readonly={!editable} />
-										<label for="properties-author">Author</label>
-										<input id="properties-author" class="field h-7" bind:value={draft.author} readonly={!editable} />
-										<label for="properties-subject">Subject</label>
-										<input id="properties-subject" class="field h-7" bind:value={draft.subject} readonly={!editable} />
-										<label for="properties-keywords">Keywords</label>
-										<input id="properties-keywords" class="field h-7" bind:value={draft.keywords} readonly={!editable} />
+										{#each DESCRIPTION_FIELDS as f (f.key)}
+											<label for="properties-{f.key}">{f.label}</label>
+											<textarea
+												id="properties-{f.key}"
+												class="field properties-field"
+												rows="1"
+												bind:value={draft[f.key]}
+												readonly={!editable}
+												oninput={(e) => oneLine(e.currentTarget, f.key)}
+												onkeydown={(e) => {
+													if (e.key !== 'Enter') return;
+													e.preventDefault();
+													e.currentTarget.form?.requestSubmit();
+												}}
+												{@attach fitField(() => draft[f.key])}
+											></textarea>
+										{/each}
 									</div>
 									{#if tab.readOnly}
 										<p class="setting-note mt-2">

@@ -329,6 +329,9 @@ Make a plain file with `pdf-cli gen plain.pdf`, and a protected one with
       and so does File Explorer's Details pane for the file (which reads the XMP).
 - [ ] The same on a PDF/A file opened ready to edit: Acrobat still says it claims PDF/A,
       and its Preflight finds the title and author in agreement with the XMP.
+- [ ] A book with a long title or many keywords: the field is as tall as its text, which
+      wraps; typing or deleting a line's worth grows or shrinks it, and Enter still
+      confirms.
 
 ## Compress
 

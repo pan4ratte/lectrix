@@ -2688,6 +2688,22 @@ button.shortcut-key:hover,
 	min-width: 0;
 	overflow-wrap: anywhere;
 }
+/* A description field's label beside its first line, when the field grows taller. */
+.properties-grid label {
+	align-self: start;
+	line-height: 28px;
+}
+/* The description's fields: one line high as the other fields (28 px), growing with text
+   that wraps (PropertiesDialog.svelte sets the height), to eight lines, then scrolling. */
+.properties-field {
+	display: block;
+	min-height: 28px;
+	max-height: 154px;
+	padding: 4px 8px;
+	line-height: 18px;
+	overflow-wrap: anywhere;
+	resize: none;
+}
 .properties-fonts {
 	width: 100%;
 	border-collapse: collapse;
