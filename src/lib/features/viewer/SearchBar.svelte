@@ -112,7 +112,9 @@
 	let counterDraft = $state('');
 	let counterInvalid = $state(false);
 	const counterText = $derived(search.current >= 0 ? String(search.current + 1) : '');
-	/** Wide enough for the largest number, so the bar does not shift as it changes. */
+	/** Wide enough for the largest number, so the bar does not shift as it changes: the
+	 *  digits, the padding (set on the box, as `.field`'s own outweighs a utility class), the
+	 *  border and a little room. */
 	const counterWidth = $derived(`calc(${String(search.hits.length).length}ch + 14px)`);
 	const follows = $derived(app.settings?.searchFollowsView === true);
 
@@ -190,9 +192,10 @@
 			{#if search.hits.length > 0}
 				<input
 					bind:this={counter}
-					class="field h-7 px-0.5 text-center tabular-nums"
+					class="field h-7 text-center tabular-nums"
 					class:field-invalid={counterInvalid}
 					style:width={counterWidth}
+					style:padding="0 4px"
 					value={counterEditing ? counterDraft : counterText}
 					placeholder="–"
 					inputmode="numeric"

@@ -8,6 +8,10 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ## Unreleased
 
+### Viewer and tabs
+
+- The search bar's counter shows the match number in full; it was cut off.
+
 ### Exporting images
 
 - Export a page, or copy it as an image, from its thumbnail's right-click menu in the **Pages** panel.
