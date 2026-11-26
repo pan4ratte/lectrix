@@ -189,13 +189,25 @@
 		if (mine === opening) ready = true;
 	}
 
-	// The preview starts on the page the dialog was opened for, where it is exported.
+	// The preview starts on the page the dialog was opened for, where it is exported. When
+	// the pages change, it stays on the page it shows if that is still exported, else on the
+	// nearest place in the new pages: never past their end, where ‹ would seem to do nothing.
 	let placedFor = 0;
+	let placedPages: readonly number[] | null = null;
 	$effect(() => {
 		const found = pages;
-		if (!found || placedFor === opening || !ready) return;
-		placedFor = opening;
-		previewAt = Math.max(0, found.indexOf(untrack(() => current)));
+		if (!found || !ready) return;
+		untrack(() => {
+			if (placedFor !== opening) {
+				placedFor = opening;
+				previewAt = Math.max(0, found.indexOf(current));
+			} else if (placedPages) {
+				const was = placedPages[Math.min(previewAt, placedPages.length - 1)];
+				const kept = was === undefined ? -1 : found.indexOf(was);
+				previewAt = kept >= 0 ? kept : Math.min(previewAt, found.length - 1);
+			}
+			placedPages = found;
+		});
 	});
 
 	const previewPage = $derived(pages ? (pages[Math.min(previewAt, pages.length - 1)] ?? null) : null);
@@ -515,9 +527,9 @@
 									</label>
 								</fieldset>
 
-								{#if fileCount > 1}
+								{#if fileCount > 1 || (fileCount === 1 && !oneTiff && labels)}
 									<fieldset class="flex flex-col gap-2">
-										<legend class="mb-1 font-medium">Files</legend>
+										<legend class="mb-1 font-medium">{fileCount > 1 ? 'Files' : 'File'}</legend>
 										{#if labels}
 											<div class="flex items-center gap-2">
 												<span id="export-naming" class="w-[88px] shrink-0 text-sm">Name by</span>
@@ -533,7 +545,11 @@
 											</div>
 										{/if}
 										<p class="text-sm text-fg-muted" data-export-naming-example>
-											A file a page, named after the name you give: {example}, and so on.
+											{#if fileCount > 1}
+												A file a page, named after the name you give: {example}, and so on.
+											{:else}
+												Named {example} to start with.
+											{/if}
 										</p>
 									</fieldset>
 								{/if}

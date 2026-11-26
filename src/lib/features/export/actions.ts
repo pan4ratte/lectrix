@@ -1,5 +1,6 @@
 // Pages exported as images (section 6.14): File > Export > Pages as images…, a page's
-// right-click menu in the viewer, and Organize pages' bar and menu open the Export as
+// right-click menu in the viewer and a thumbnail's in the Pages panel, and Organize pages'
+// bar and menu open the Export as
 // images dialog for the document shown. Copy page as image puts one page on the clipboard.
 // The Snapshot tool's area is copied or saved alone, the same way. File > Export > Images in
 // the document… opens the dialog that exports the images in it (ADR 0035).

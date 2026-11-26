@@ -6,6 +6,14 @@ shows this file, and each GitHub release is written from it. How to write it (th
 the wording, translations): docs/releasing.md, "The changelog".
 -->
 
+## Unreleased
+
+### Exporting images
+
+- Export a page, or copy it as an image, from its thumbnail's right-click menu in the **Pages** panel.
+- Exporting a single page can name its file by the page's number or its label, as exporting several pages does.
+- In the export preview, the previous page button goes back at once after you change the pages to export; it could take many clicks to move.
+
 ## 1.5.0
 
 ### Viewer and tabs

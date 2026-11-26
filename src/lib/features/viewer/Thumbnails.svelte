@@ -15,6 +15,7 @@
 	import { chain } from '#lib/components/chain.ts';
 	import { motionMs } from '#lib/components/panes.ts';
 
+	import { copyPage, openExport } from '#lib/features/export/actions.ts';
 	import { insertFromFile } from '#lib/features/organize/actions.ts';
 	import { pageUrl } from '#lib/ipc/index.ts';
 	import { app } from '#lib/stores/app.svelte.ts';
@@ -475,6 +476,13 @@
 					onSelect={() => void insertFromFile(tab, contextPage + 1)}
 				>
 					Insert pages from file after this page…
+				</ContextMenu.Item>
+				<ContextMenu.Separator class="menu-separator" />
+				<ContextMenu.Item class="menu-item" onSelect={() => void copyPage(tab, contextPage)} data-thumb-copy-page>
+					Copy page as image{#if app.shortcut('copyPageImage')}<span class="menu-shortcut">{app.shortcut('copyPageImage')}</span>{/if}
+				</ContextMenu.Item>
+				<ContextMenu.Item class="menu-item" onSelect={() => openExport(tab, { page: contextPage })} data-thumb-export-page>
+					Export page as image…
 				</ContextMenu.Item>
 			</ContextMenu.Content>
 		</ContextMenu.Portal>

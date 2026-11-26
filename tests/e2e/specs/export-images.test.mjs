@@ -2,8 +2,8 @@
 // the dialog, with a preview of a page as it will be written; Export… asks where (the Save
 // dialog, answered by LECTRIX_DIALOG), writes a file a page, and a notification says so,
 // with a button that shows the files in their folder (LECTRIX_FOLDER_LOG). Files already
-// there are asked about. A page's right-click menu and Organize pages open the dialog for
-// that page and for the pages selected. Copy page as image puts a page on the clipboard.
+// there are asked about. A page's right-click menu, a thumbnail's, and Organize pages open
+// the dialog for that page and for the pages selected. Copy page as image puts a page on the clipboard.
 // The Snapshot tool frames an area, which its bar copies or saves through the dialog.
 
 import assert from 'node:assert/strict';
@@ -14,7 +14,7 @@ import { test } from 'node:test';
 
 import { tabWalk, unnamedControls } from '../lib/a11y.mjs';
 import { OUT, atRest, keys, launch, organizePages, waitForDocument } from '../lib/app.mjs';
-import { sample } from '../lib/pdfcli.mjs';
+import { cli, sample } from '../lib/pdfcli.mjs';
 
 const step = (browser) => browser.execute(() => document.querySelector('[data-export-dialog]')?.getAttribute('data-step') ?? null);
 const notices = (browser) =>
@@ -152,6 +152,54 @@ test('File > Export > Pages as images… previews a page, writes a file a page, 
 			timeoutMsg: `nothing said the page was exported: ${await notices(browser)}`
 		});
 		assert.ok(existsSync(join(dir, 'one.png')));
+	} finally {
+		await stop();
+	}
+});
+
+test('A thumbnail’s menu exports its page, named by number or label; ‹ goes back after the pages change', async () => {
+	const plain = sample('export-thumb-plain.pdf', 5);
+	const doc = plain.replace('-plain.pdf', '.pdf');
+	rmSync(doc, { force: true });
+	cli('labels', 'set', plain, doc, '--rule', '1:roman-lower');
+	const { browser, stop } = await launch([doc]);
+	try {
+		await waitForDocument(browser);
+		await (await browser.$('button[role="tab"][aria-label="Pages"]')).click();
+		await atRest(browser, '[data-thumb="2"]');
+		await (await browser.$('[data-thumb="2"]')).click({ button: 'right' });
+		await (await browser.$('//*[@role="menuitem"][contains(., "Export page as image")]')).click();
+		await browser.waitUntil(async () => (await step(browser)) === 'settings', { timeoutMsg: 'the thumbnail menu did not open the dialog' });
+		const dialog = await browser.$('[data-export-dialog]');
+		assert.match(await dialog.getText(), /This page \(iii\)/);
+
+		// One page is named by its number or its label too.
+		const example = () => browser.$('[data-export-naming-example]').then((e) => e.getText());
+		await (await browser.$('//*[@data-export-dialog]//button[normalize-space()="Page labels"]')).click();
+		await browser.waitUntil(async () => /export-thumb-iii\.png/.test(await example()), {
+			timeoutMsg: `the page is not named by its label: ${await example()}`
+		});
+		await (await browser.$('//*[@data-export-dialog]//button[normalize-space()="Page numbers"]')).click();
+		await browser.waitUntil(async () => /export-thumb-3\.png/.test(await example()), {
+			timeoutMsg: `the page is not named by its number: ${await example()}`
+		});
+
+		// The preview stays on the page shown when all pages are chosen, and stays within the
+		// pages when they change: ‹ and › then move at once (it stayed on page iii, past the
+		// two pages, where ‹ seemed to do nothing).
+		const at = () => browser.$('[data-export-preview-page]').then((e) => e.getText());
+		await (await browser.$('[data-export-dialog] input[value="all"]')).click();
+		await browser.waitUntil(async () => (await at()) === '3 of 5', { timeoutMsg: `the preview left page iii: ${await at()}` });
+		await (await browser.$('[data-export-range]')).setValue('i-ii');
+		await browser.waitUntil(async () => / of 2$/.test(await at()), { timeoutMsg: `the preview did not follow the pages: ${await at()}` });
+		if ((await at()) === '1 of 2') {
+			await (await browser.$('[data-export-dialog] button[aria-label="Next page"]')).click();
+			await browser.waitUntil(async () => (await at()) === '2 of 2', { timeoutMsg: `› did not go on: ${await at()}` });
+		}
+		await (await browser.$('[data-export-dialog] button[aria-label="Previous page"]')).click();
+		await browser.waitUntil(async () => (await at()) === '1 of 2', { timeoutMsg: `‹ did not go back: ${await at()}` });
+		await keys(browser, ['Escape']);
+		await browser.waitUntil(async () => (await step(browser)) === null, { timeoutMsg: 'Esc did not close the dialog' });
 	} finally {
 		await stop();
 	}
