@@ -29,7 +29,7 @@
 
 ### Read comfortably
 
-Open documents in tabs, and drag a tab away from the others to give it a window of its own. Pages scroll continuously or turn one at a time, alone or two side by side, and **View > Full screen** leaves them alone on the screen. Search suggests the document's words as you type and marks every match beside the scrollbar. **Visual adjustments** changes the brightness, contrast and sepia tone of the pages, or inverts their colours for reading at night, without touching the file.
+Open documents in tabs, and drag a tab away from the others to give it a window of its own. Pages scroll continuously or turn one at a time, alone or two side by side, and **View > Full screen** leaves them alone on the screen. Search suggests the document's words as you type and marks every match beside the scrollbar. Right-click a word or a passage to translate it with Google Translate or DeepL, or to look it up on Google, DuckDuckGo, Wikipedia, Google Scholar, Semantic Scholar or JSTOR. **Visual adjustments** changes the brightness, contrast and sepia tone of the pages, or inverts their colours for reading at night, without touching the file.
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="docs/images/fullscreen-dark.webp">

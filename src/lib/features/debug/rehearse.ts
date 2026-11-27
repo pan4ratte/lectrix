@@ -4,6 +4,7 @@
 // Unreleased, so the next release's notes can be read as users will read them.
 import { getVersion } from '@tauri-apps/api/app';
 
+import { notifyLookupShortened } from '#lib/features/annotations/actions.ts';
 import { showUpdated } from '#lib/features/changelog/announce.ts';
 import { changelogMarkdown, hasChanges, parseChangelog } from '#lib/features/changelog/changelog.ts';
 import { areaCopiedMessage, areaSavedMessage, copiedMessage, doneMessage, SHOW_IN_FOLDER } from '#lib/features/export/export.ts';
@@ -138,6 +139,12 @@ export function rehearseExported(oneFile: boolean) {
  * Settings gives, or lower for a large page. */
 export function rehearseCopied(large: boolean) {
 	app.notify({ kind: 'info', message: large ? copiedMessage('3', 212, 300) : copiedMessage('iv', 150, 150) });
+}
+
+/** The notice after a lookup of selected text sent only its start. Its button changes no
+ * setting here. */
+export function rehearseLookupShortened() {
+	notifyLookupShortened(() => rehearseInfoAbout('the notice would not show again.'));
 }
 
 /** The notification after a save that took the PDF/A claim out of a file. */

@@ -24,13 +24,14 @@ use crate::ipc::{
     CompressOutcome, CompressProgress, CompressSaved, CompressSettings, CompressStep, CopiedPage,
     DocumentChange, DocumentInfo, DocumentSaved, ExportDone, ExportPreferences, ExportPreview,
     ExportProgress, ExportSettings, ExportTarget, ImageFormat, ImagesDone, ImagesFound,
-    ImagesPreferences, ImagesSettings, LabelMode, LinkPlace, MenuEntry, MergeOutcome, MergePlan,
-    MergeProgress, MergeRequest, MergeStage, MoveTarget, OpenResult, OperationInput, PageHits,
-    PagePresentation, PageText, PaneLayout, PrintDone, PrintLayout, PrintProgress, PrintSettings,
-    PrintStart, PrinterDetails, ProtectSaved, ProtectStep, ProtectionChangeInput, ProtectionInfo,
-    ProtectionInput, RecentFile, RecoveredDocument, Reopened, SaveResult, SearchChunk, SearchWord,
-    Settings, SettingsInput, StartupInfo, TabHandoff, UnprotectSaved, UnprotectStep, UnsavedSource,
-    ViewState, WebPage, WindowChrome, WindowDocument, WindowEntry,
+    ImagesPreferences, ImagesSettings, LabelMode, LinkPlace, LookedUp, MenuEntry, MergeOutcome,
+    MergePlan, MergeProgress, MergeRequest, MergeStage, MoveTarget, OpenResult, OperationInput,
+    PageHits, PagePresentation, PageText, PaneLayout, PrintDone, PrintLayout, PrintProgress,
+    PrintSettings, PrintStart, PrinterDetails, ProtectSaved, ProtectStep, ProtectionChangeInput,
+    ProtectionInfo, ProtectionInput, RecentFile, RecoveredDocument, Reopened, SaveResult,
+    SearchChunk, SearchWord, Settings, SettingsInput, StartupInfo, TabHandoff, UnprotectSaved,
+    UnprotectStep, UnsavedSource, ViewState, WebLookup, WebPage, WindowChrome, WindowDocument,
+    WindowEntry,
 };
 use crate::platform::Platform;
 use crate::store::StoredSettings;
@@ -1779,6 +1780,9 @@ fn settings_of(stored: &StoredSettings, platform: &dyn Platform) -> Settings {
         start_layout: stored.start_layout,
         quick_bar: stored.quick_bar,
         quick_tools: stored.quick_tools.clone(),
+        web_lookups: stored.web_lookups.clone(),
+        lookup_language: stored.lookup_language.clone(),
+        lookup_shortened_notice: stored.lookup_shortened_notice,
         check_for_updates: stored.check_for_updates,
         smooth_zoom: stored.smooth_zoom,
         smooth_annotation_scroll: stored.smooth_annotation_scroll,
@@ -1848,6 +1852,15 @@ pub fn set_settings(
             .filter(|&(i, t)| !settings.quick_tools[..i].contains(t))
             .map(|(_, &t)| t)
             .collect(),
+        web_lookups: settings
+            .web_lookups
+            .iter()
+            .enumerate()
+            .filter(|&(i, w)| !settings.web_lookups[..i].contains(w))
+            .map(|(_, &w)| w)
+            .collect(),
+        lookup_language: crate::lookup::language_setting(&settings.lookup_language),
+        lookup_shortened_notice: settings.lookup_shortened_notice,
         check_for_updates: settings.check_for_updates,
         smooth_zoom: settings.smooth_zoom,
         smooth_annotation_scroll: settings.smooth_annotation_scroll,
@@ -2463,6 +2476,38 @@ pub fn open_link(
     })?;
     crate::applog::info(format!("document {id}: opened the link {url}"));
     Ok(())
+}
+
+/// The longest address a lookup opens: as SumatraPDF, well under the 32,767 characters of
+/// the command line the shell hands the browser, and within what browsers take.
+const MAX_LOOKUP_ADDRESS: usize = 8192;
+
+/// Looks text up on a website in the default browser (section 6.1, ADR 0037): the
+/// selected text, which the right-click menu offers to translate or search for. The
+/// address is built in Rust (`lookup.rs`), so only the text and the language, which is
+/// checked to be one, come from the webview. `language` is the one translations go into
+/// and the Wikipedia searched (the system's).
+#[tauri::command(async)]
+pub fn look_up(service: WebLookup, text: String, language: String) -> Result<LookedUp, AppError> {
+    let Some(lookup) = crate::lookup::lookup_url(service, &text, &language, MAX_LOOKUP_ADDRESS)
+    else {
+        return Err(AppError::new(
+            "There is no text to look up.",
+            Some("Select some text, and try again."),
+        ));
+    };
+    open_in_browser(&lookup.url).map_err(|e| {
+        crate::applog::warn(format!("could not open a {service:?} lookup: {e}"));
+        AppError::new(
+            "The browser couldn’t be opened.",
+            Some("Copy the text and look it up in your browser."),
+        )
+    })?;
+    // The text is the user's reading: the log names only the website.
+    crate::applog::info(format!("looked text up: {service:?}"));
+    Ok(LookedUp {
+        shortened: lookup.shortened,
+    })
 }
 
 /// About: opens the source code's page or the author's profile in the default browser.

@@ -15,6 +15,7 @@ import {
 	rehearseExported,
 	rehearseFullScreen,
 	rehearseInfo,
+	rehearseLookupShortened,
 	rehearsePagesDeleted,
 	rehearsePdfa,
 	rehearsePdfaRemoved,
@@ -75,7 +76,8 @@ export function debugMenu(): AppMenu {
 				item('copied-large', 'Large page copied as an image', () => rehearseCopied(true)),
 				item('area-copied', 'Snapshot copied', () => rehearseArea('copied')),
 				item('area-copied-large', 'Large snapshot copied', () => rehearseArea('copiedLarge')),
-				item('area-saved', 'Snapshot saved', () => rehearseArea('saved'))
+				item('area-saved', 'Snapshot saved', () => rehearseArea('saved')),
+				item('lookup-shortened', 'Text too long to look up whole', rehearseLookupShortened)
 			]),
 			submenu(
 				'File changed on disk',

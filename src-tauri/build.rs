@@ -101,6 +101,7 @@ const COMMANDS: &[&str] = &[
     "window_chrome",
     "set_menu",
     "open_link",
+    "look_up",
     "move_document",
     "list_windows",
     "close_other_windows",

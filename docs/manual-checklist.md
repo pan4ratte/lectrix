@@ -86,6 +86,17 @@ save a copy, and check the copy in Acrobat.
 - [ ] Rest the pointer on a web link in a document: the tooltip shows its address. Click
       it: it opens in the default browser, and Lectrix names the address it opened. The
       same for a bookmark that is a web link.
+- [ ] Select a sentence in English, and another in a script with accents (French, Russian),
+      and right-click: Translate with DeepL, Search Google and Search Google Scholar show,
+      each with the external link icon. In Settings > Viewing, switch on the other five
+      and pick each of the eight: each opens its website in the default browser with the
+      text in it. Google Translate and DeepL detect the text's language and translate it
+      into the system's; Wikipedia searches the system language's Wikipedia. A text with a
+      slash ("and/or") reaches DeepL whole. Set Translate into to German: both translate
+      into German, and Wikipedia is the German one.
+- [ ] Select two pages of text and pick Translate with Google: it opens with the start of
+      the text, and a notice says only the start was looked up. Don't show again: the
+      next long lookup shows no notice, and the switch in Settings is off.
 - [ ] Open a PDF/A file (Word: Save As > PDF > Options > "PDF/A compliant"; LibreOffice:
       Export as PDF > Archive). Lectrix shows the bar "This file claims compliance with the
       PDF/A standard…" with the same level Acrobat names in its Standards panel, and the

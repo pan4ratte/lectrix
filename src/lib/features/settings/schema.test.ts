@@ -17,6 +17,9 @@ const STORED: Settings = {
 	startLayout: 'adaptive',
 	quickBar: true,
 	quickTools: ['highlight', 'copy'],
+	webLookups: ['google', 'jstor'],
+	lookupLanguage: 'system',
+	lookupShortenedNotice: true,
 	checkForUpdates: true,
 	smoothZoom: true,
 	smoothAnnotationScroll: true,
@@ -159,6 +162,28 @@ describe('settings schema', () => {
 		bar.write(draft, false);
 		expect(row('quickTools-copy').disabled?.(draft)).toBe(true);
 		expect(toInput(draft)).toMatchObject({ quickBar: false, quickTools: ['highlight', 'copy'] });
+	});
+
+	it('switches each web lookup on and off by itself, in the menu’s order, and picks their language', () => {
+		const draft = toDraft(STORED);
+		const lookup = (id: string) => {
+			const r = row(`webLookups-${id}`);
+			if (r.kind !== 'switch') throw new Error(`${id} is not a switch`);
+			return r;
+		};
+		expect(lookup('jstor').read(draft)).toBe(true);
+		expect(lookup('deepl').read(draft)).toBe(false);
+		lookup('jstor').write(draft, false);
+		lookup('wikipedia').write(draft, true);
+		lookup('deepl').write(draft, true);
+		expect(toInput(draft).webLookups).toEqual(['deepl', 'google', 'wikipedia']);
+		// The language: the system's, or one of the list.
+		const language = row('lookupLanguage');
+		if (language.kind !== 'choice') throw new Error('lookupLanguage is not a dropdown');
+		expect(language.options[0]?.value).toBe('system');
+		language.write(draft, 'zh-TW');
+		language.write(draft, 'klingon');
+		expect(toInput(draft).lookupLanguage).toBe('zh-TW');
 	});
 
 	it('offers to restore the defaults and to check for updates with buttons, not values', () => {

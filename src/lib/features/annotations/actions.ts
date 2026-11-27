@@ -2,21 +2,27 @@
 // change is one operation in Rust, so it is one undo step.
 
 import {
+	lookUp,
 	repairAnnotations as repairCommand,
 	scanAnnotationsForRepair,
+	setSettings,
 	toAppError,
 	type Annotation,
 	type AnnotationBody,
 	type AnnotationEditInput,
 	type AnnotationUpdateInput,
-	type NewAnnotationInput
+	type NewAnnotationInput,
+	type WebLookup
 } from '#lib/ipc/index.ts';
+import { applySettings } from '#lib/features/settings/apply.ts';
+import { toDraft, toInput } from '#lib/features/settings/schema.ts';
 import { refuseRestricted } from '#lib/features/unprotect/actions.ts';
 import { commandFor } from '#lib/shortcuts.ts';
 import { app } from '#lib/stores/app.svelte.ts';
 import type { AnnotationRef, DocTab } from '#lib/stores/doc.svelte.ts';
 
-import { copySelection, copyText } from '#lib/features/viewer/actions.ts';
+import { copySelection, copyText, selectedText } from '#lib/features/viewer/actions.ts';
+import { lookupLanguage } from '#lib/features/viewer/lookups.ts';
 import { ordered } from '#lib/features/viewer/selection.ts';
 
 import { commentKeeper } from './commentField.ts';
@@ -273,6 +279,56 @@ export async function copyInContext(tab: DocTab): Promise<boolean> {
 	if (tab.selection) return copySelection(tab);
 	const a = tab.selectedAnnotationInfo;
 	return a ? copyMarkedText(tab, a) : false;
+}
+
+/** Looks up on `site`, in the browser, what Copy selection copies (see `copiesSelection`):
+ * the right-click menu's web lookups (section 6.1, ADR 0037). Taking the text out of the
+ * document, it needs the copy permission, as copying does. */
+export async function lookUpInContext(tab: DocTab, site: WebLookup) {
+	const a = tab.selection ? null : tab.selectedAnnotationInfo;
+	if (!tab.selection && !(a && marksText(a))) return;
+	if (!tab.flags.canCopy) {
+		refuseRestricted(tab, 'This document’s security settings don’t allow copying text, so it can’t be looked up.');
+		return;
+	}
+	let text = '';
+	if (a) {
+		const page = await tab.loadText(a.page);
+		text = page ? markedText(page.lines, a.quads) : '';
+	} else {
+		text = await selectedText(tab);
+	}
+	try {
+		const { shortened } = await lookUp(site, text, lookupLanguage(app.settings?.lookupLanguage));
+		if (shortened && app.settings?.lookupShortenedNotice !== false) notifyLookupShortened(() => void setLookupShortenedNotice(false));
+	} catch (e) {
+		app.showError(toAppError(e));
+	}
+}
+
+/** The notice that a lookup sent only the start of the text; its button calls `never`. */
+export function notifyLookupShortened(never: () => void) {
+	app.notify(
+		{
+			kind: 'info',
+			message: 'Only the start of the text was looked up: it is longer than a website takes at a time.',
+			action: { label: 'Don’t show again', run: never }
+		},
+		12000
+	);
+}
+
+/** Whether a notice says a lookup sent only the start of the text (Settings, and the
+ * notice's Don't show again). */
+export async function setLookupShortenedNotice(on: boolean) {
+	const s = app.settings;
+	if (!s || s.lookupShortenedNotice === on) return;
+	app.settings = { ...s, lookupShortenedNotice: on };
+	try {
+		applySettings(await setSettings(toInput({ ...toDraft(s), lookupShortenedNotice: on })));
+	} catch (e) {
+		app.showError(toAppError(e));
+	}
 }
 
 /** Copies an annotation's comment (its note text) to the clipboard. */

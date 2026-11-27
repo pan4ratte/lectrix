@@ -14,6 +14,7 @@ import { APP_NAME } from '#lib/config.ts';
 import { MAX_TIP_DELAY_MS } from '#lib/features/annotations/bars.ts';
 import { DPI_PRESETS } from '#lib/features/export/export.ts';
 import { QUICK_TOOLS } from '#lib/features/annotations/tools.ts';
+import { LOOKUP_LANGUAGES, LOOKUP_SITES, SYSTEM_LANGUAGE, systemLanguageName, type LookupSite } from '#lib/features/viewer/lookups.ts';
 import { ADJUST_MAX, ADJUST_MIN, ADJUST_STEP, SEPIA_MAX, isAdjusted } from '#lib/features/viewer/adjustments.ts';
 import type {
 	Appearance,
@@ -203,6 +204,23 @@ function quickTool(tool: QuickTool, label: string, icon: Icon): SettingRow {
 	};
 }
 
+/** A switch per website the right-click menu of selected text looks the text up on. */
+function lookupSite(site: LookupSite): SettingRow {
+	return {
+		kind: 'switch',
+		id: `webLookups-${site.id}`,
+		key: 'webLookups',
+		label: site.label,
+		read: (d) => d.webLookups.includes(site.id),
+		write: (d, on) => {
+			const chosen = new Set(d.webLookups);
+			if (on) chosen.add(site.id);
+			else chosen.delete(site.id);
+			d.webLookups = LOOKUP_SITES.map((s) => s.id).filter((id) => chosen.has(id));
+		}
+	};
+}
+
 const docked = (d: Draft) => d.toolbarStyle === 'panel';
 
 /** What the rows that follow the system say of it, on each. */
@@ -340,6 +358,30 @@ export const SETTING_GROUPS: readonly SettingGroup[] = [
 					toggle('selectionHandles', 'Show handles on selected text', {
 						description:
 							'Handles to drag at the start and end of a selection. Without them, the ends can still be dragged.'
+					})
+				]
+			},
+			{
+				title: 'Look up selected text',
+				description:
+					'Websites in the right-click menu of selected text. Each opens in your browser, which sends it the text to translate or search for.',
+				rows: [
+					{
+						kind: 'choice',
+						id: 'lookupLanguage',
+						key: 'lookupLanguage',
+						label: 'Translate into',
+						description: () =>
+							`The language Google Translate and DeepL translate into, and the Wikipedia searched. System language is ${systemLanguageName()}.`,
+						options: [{ value: SYSTEM_LANGUAGE, label: 'System language' }, ...LOOKUP_LANGUAGES],
+						read: (d) => d.lookupLanguage,
+						write: (d, value) => {
+							if (value === SYSTEM_LANGUAGE || LOOKUP_LANGUAGES.some((l) => l.value === value)) d.lookupLanguage = value;
+						}
+					},
+					...LOOKUP_SITES.map(lookupSite),
+					toggle('lookupShortenedNotice', 'Say when text is too long to look up whole', {
+						description: 'A website takes only so much text: a notice says when only its start was sent.'
 					})
 				]
 			},
@@ -646,6 +688,9 @@ export function toInput(d: Draft): SettingsInput {
 		startLayout: d.startLayout,
 		quickBar: d.quickBar,
 		quickTools: [...d.quickTools],
+		webLookups: [...d.webLookups],
+		lookupLanguage: d.lookupLanguage,
+		lookupShortenedNotice: d.lookupShortenedNotice,
 		checkForUpdates: d.checkForUpdates,
 		smoothZoom: d.smoothZoom,
 		smoothAnnotationScroll: d.smoothAnnotationScroll,
@@ -679,6 +724,7 @@ export function toDraft(s: Settings): Draft {
 	return {
 		...s,
 		quickTools: [...s.quickTools],
+		webLookups: [...s.webLookups],
 		presetColors: { ...s.presetColors },
 		pageAdjustments: { ...s.pageAdjustments },
 		annotationSort: { ...s.annotationSort },

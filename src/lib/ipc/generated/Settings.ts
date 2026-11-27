@@ -9,6 +9,7 @@ import type { ToolbarDock } from "./ToolbarDock";
 import type { ToolbarPosition } from "./ToolbarPosition";
 import type { ToolbarStyle } from "./ToolbarStyle";
 import type { ToolbarVisibility } from "./ToolbarVisibility";
+import type { WebLookup } from "./WebLookup";
 
 /**
  * The Settings dialog's values.
@@ -38,6 +39,19 @@ quickBar: boolean,
  * The buttons of that bar, kept while it is switched off; empty: no bar.
  */
 quickTools: Array<QuickTool>, 
+/**
+ * The websites the right-click menu of selected text offers (section 6.1).
+ */
+webLookups: Array<WebLookup>, 
+/**
+ * The language those translate into and the Wikipedia searched: a language tag
+ * ("ru", "zh-TW"), or "system" for the system's.
+ */
+lookupLanguage: string, 
+/**
+ * Whether a notification says when only the start of a text could be looked up.
+ */
+lookupShortenedNotice: boolean, 
 /**
  * Whether Lectrix looks for a new release once a day (ADR 0011).
  */

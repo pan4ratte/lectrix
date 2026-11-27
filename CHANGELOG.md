@@ -10,6 +10,7 @@ the wording, translations): docs/releasing.md, "The changelog".
 
 ### Viewer and tabs
 
+- Right-click selected text to translate it with Google Translate or DeepL, or to search for it on Google, DuckDuckGo, Wikipedia, Google Scholar, Semantic Scholar or JSTOR. Each opens the website in your browser, as the icon beside it shows. Translate with DeepL, Search Google and Search Google Scholar are there to begin with; switch each website on or off in **Settings > Viewing > Look up selected text**, where you can also pick the language translations go into and Wikipedia is searched in (your system's, until you choose another). A website takes only so much text at a time: for a long passage, a notice says that only its start was sent.
 - The search bar's counter shows the match number in full; it was cut off.
 - Search ignores accents, so you can type a word without them: **lodz** finds **Łódź**, **ecole** finds **école**. Letters such as ø, ł, đ, ð, ħ and ı are found by o, l, d, d, h and i, and ß, æ, œ and þ by ss, ae, oe and th, which helps with German, French, Polish, the Scandinavian languages, Croatian, Serbian, Vietnamese, Icelandic, Maltese and Turkish: **strasse** finds **Straße**. In Russian, е finds ё, while й stays a letter of its own. Arabic and Hebrew are found without their vowel points, and a straight apostrophe or quote finds a curly one: **don't** finds **don’t**. The suggestions under the search field work the same way.
 

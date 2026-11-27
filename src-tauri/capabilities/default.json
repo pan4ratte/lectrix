@@ -114,6 +114,7 @@
     "allow-window-chrome",
     "allow-set-menu",
     "allow-open-link",
+    "allow-look-up",
     "allow-move-document",
     "allow-list-windows",
     "allow-close-other-windows",

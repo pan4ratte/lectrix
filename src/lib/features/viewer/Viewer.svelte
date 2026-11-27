@@ -1,6 +1,7 @@
 <script lang="ts">
 	// The page canvas: a virtualized, continuously scrolling column of pages. Only pages
 	// within one screen of the viewport are mounted (section 3); the rest are space.
+	import { ExternalLink } from '@lucide/svelte';
 	import { ContextMenu } from 'bits-ui';
 	import { onMount, tick, untrack } from 'svelte';
 
@@ -12,6 +13,7 @@
 		copiesSelection,
 		copyComment,
 		copyInContext,
+		lookUpInContext,
 		create,
 		createMarkup,
 		hiddenByList,
@@ -76,6 +78,7 @@
 	import type { ViewPosition } from './history.ts';
 	import { selectedText } from './actions.ts';
 	import { follow, linkAt, linkPreview } from './links.ts';
+	import { DEFAULT_WEB_LOOKUPS, offeredSites } from './lookups.ts';
 	import {
 		CSS_PX_PER_PT,
 		computeLayout,
@@ -2509,6 +2512,23 @@
 						Copy selection
 						<span class="menu-shortcut">{app.shortcut('copy')}</span>
 					</ContextMenu.Item>
+					{#if copiesSelection(tab)}
+						<!-- Web lookups (ADR 0037): each opens a website in the browser, as the icon says. -->
+						{#each offeredSites(app.settings?.webLookups ?? DEFAULT_WEB_LOOKUPS) as { group, sites } (group)}
+							<ContextMenu.Separator class="menu-separator" />
+							{#each sites as site (site.id)}
+								<ContextMenu.Item
+									class="menu-item"
+									aria-label="{site.label}, opens in your browser"
+									onSelect={() => void lookUpInContext(tab, site.id)}
+									data-lookup={site.id}
+								>
+									{site.label}
+									<span class="menu-shortcut flex"><ExternalLink size={14} aria-hidden="true" /></span>
+								</ContextMenu.Item>
+							{/each}
+						{/each}
+					{/if}
 				{/if}
 				<ContextMenu.Separator class="menu-separator" />
 				<ContextMenu.Item class="menu-item" onSelect={() => void copyPage(tab, menuPage)} data-copy-page>

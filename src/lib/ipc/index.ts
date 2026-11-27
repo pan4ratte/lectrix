@@ -239,6 +239,10 @@ export type { SortOrder } from './generated/SortOrder';
 export type { Settings } from './generated/Settings';
 export type { SettingsInput } from './generated/SettingsInput';
 export type { QuickTool } from './generated/QuickTool';
+export type { WebLookup } from './generated/WebLookup';
+import type { WebLookup } from './generated/WebLookup';
+export type { LookedUp } from './generated/LookedUp';
+import type { LookedUp } from './generated/LookedUp';
 export type { ToolbarDock } from './generated/ToolbarDock';
 export type { ToolbarPosition } from './generated/ToolbarPosition';
 export type { ToolbarStyle } from './generated/ToolbarStyle';
@@ -549,6 +553,10 @@ export const setPaneLayout = (panes: PaneLayout) => invoke<void>('set_pane_layou
 /** Opens the web address of a link on a page of the document, or of a bookmark, in the
  * default browser. Rust opens only an address (http or https) the document carries there. */
 export const openLink = (id: number, from: LinkPlace, uri: string) => invoke<void>('open_link', { id, from, uri });
+/** Looks text up on a website in the default browser: Rust builds the address, with the
+ * text and `language` (a language tag, the one translations go into). */
+export const lookUp = (service: WebLookup, text: string, language: string) =>
+	invoke<LookedUp>('look_up', { service, text, language });
 export const logMetric = (name: string, ms: number) => invoke<void>('log_metric', { name, ms });
 export const logError = (message: string) => invoke<void>('log_error', { message });
 /** Opens Lectrix's source code page or its author's profile in the default browser. */

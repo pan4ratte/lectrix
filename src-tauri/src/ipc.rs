@@ -2233,6 +2233,40 @@ impl QuickTool {
     ];
 }
 
+/// A website the right-click menu of selected text looks the text up on (section 6.1,
+/// ADR 0037). Rust builds the address (`lookup.rs`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub enum WebLookup {
+    GoogleTranslate,
+    Deepl,
+    Google,
+    DuckDuckGo,
+    Wikipedia,
+    GoogleScholar,
+    SemanticScholar,
+    Jstor,
+}
+
+impl WebLookup {
+    /// What the menu offers until the user picks.
+    pub const DEFAULT: [WebLookup; 3] = [
+        WebLookup::Deepl,
+        WebLookup::Google,
+        WebLookup::GoogleScholar,
+    ];
+}
+
+/// Whether looking text up shortened it to fit a web address.
+#[derive(Debug, Clone, Copy, Serialize, TS)]
+#[serde(rename_all = "camelCase")]
+#[ts(export)]
+pub struct LookedUp {
+    /// Only the start of the text was sent.
+    pub shortened: bool,
+}
+
 /// The Settings dialog's values.
 #[derive(Debug, Clone, Serialize, TS)]
 #[serde(rename_all = "camelCase")]
@@ -2255,6 +2289,13 @@ pub struct Settings {
     pub quick_bar: bool,
     /// The buttons of that bar, kept while it is switched off; empty: no bar.
     pub quick_tools: Vec<QuickTool>,
+    /// The websites the right-click menu of selected text offers (section 6.1).
+    pub web_lookups: Vec<WebLookup>,
+    /// The language those translate into and the Wikipedia searched: a language tag
+    /// ("ru", "zh-TW"), or "system" for the system's.
+    pub lookup_language: String,
+    /// Whether a notification says when only the start of a text could be looked up.
+    pub lookup_shortened_notice: bool,
     /// Whether Lectrix looks for a new release once a day (ADR 0011).
     pub check_for_updates: bool,
     /// Whether zooming in or out a step glides instead of jumping (section 6.1).
@@ -2340,6 +2381,9 @@ pub struct SettingsInput {
     pub start_layout: StartLayout,
     pub quick_bar: bool,
     pub quick_tools: Vec<QuickTool>,
+    pub web_lookups: Vec<WebLookup>,
+    pub lookup_language: String,
+    pub lookup_shortened_notice: bool,
     pub check_for_updates: bool,
     pub smooth_zoom: bool,
     pub smooth_annotation_scroll: bool,

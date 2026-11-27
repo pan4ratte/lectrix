@@ -12,6 +12,7 @@ mod documents;
 mod export;
 mod images;
 mod ipc;
+mod lookup;
 mod menu;
 mod placement;
 mod platform;
@@ -614,6 +615,7 @@ pub fn run() {
             commands::window_chrome,
             commands::set_menu,
             commands::open_link,
+            commands::look_up,
             commands::move_document,
             commands::list_windows,
             commands::close_other_windows,

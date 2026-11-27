@@ -13,6 +13,7 @@ use crate::ipc::{
     AnnotationSort, Appearance, CompareSettings, CompressSettings, ExportPreferences,
     ImagesPreferences, PageAdjustments, PaneLayout, PrintPreferences, QuickTool, ScrollMode,
     StartLayout, ToolbarDock, ToolbarPosition, ToolbarStyle, ToolbarVisibility, ViewState,
+    WebLookup,
 };
 use crate::placement::WindowPlacement;
 
@@ -196,11 +197,17 @@ pub struct StoredSettings {
     /// Whether the bar of quick tools shows over selected text.
     #[serde(default = "yes")]
     pub quick_bar: bool,
-    #[serde(
-        default = "default_quick_tools",
-        deserialize_with = "known_quick_tools"
-    )]
+    #[serde(default = "default_quick_tools", deserialize_with = "known_values")]
     pub quick_tools: Vec<QuickTool>,
+    /// The websites the right-click menu of selected text offers.
+    #[serde(default = "default_web_lookups", deserialize_with = "known_values")]
+    pub web_lookups: Vec<WebLookup>,
+    /// The language lookups translate into: a language tag, or "system".
+    #[serde(default = "system_language")]
+    pub lookup_language: String,
+    /// Whether a notification says when only the start of a text was looked up.
+    #[serde(default = "yes")]
+    pub lookup_shortened_notice: bool,
     #[serde(default = "yes")]
     pub check_for_updates: bool,
     #[serde(default = "yes")]
@@ -323,6 +330,9 @@ impl Default for StoredSettings {
             start_layout: StartLayout::default(),
             quick_bar: true,
             quick_tools: default_quick_tools(),
+            web_lookups: default_web_lookups(),
+            lookup_language: system_language(),
+            lookup_shortened_notice: true,
             check_for_updates: true,
             smooth_zoom: true,
             smooth_annotation_scroll: true,
@@ -352,13 +362,26 @@ impl Default for StoredSettings {
     }
 }
 
+fn default_web_lookups() -> Vec<WebLookup> {
+    WebLookup::DEFAULT.to_vec()
+}
+
+/// `lookup_language` when lookups follow the system's language.
+pub const SYSTEM_LANGUAGE: &str = "system";
+
+fn system_language() -> String {
+    SYSTEM_LANGUAGE.to_string()
+}
+
 fn default_quick_tools() -> Vec<QuickTool> {
     QuickTool::DEFAULT.to_vec()
 }
 
-/// Skips tools this version does not know (written by a newer one), so they cannot make
-/// the whole state file unreadable.
-fn known_quick_tools<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Vec<QuickTool>, D::Error> {
+/// Skips values this version does not know (quick tools or websites written by a newer
+/// one), so they cannot make the whole state file unreadable.
+fn known_values<'de, D: serde::Deserializer<'de>, T: serde::de::DeserializeOwned>(
+    d: D,
+) -> Result<Vec<T>, D::Error> {
     let values = Vec::<serde_json::Value>::deserialize(d)?;
     Ok(values
         .into_iter()
@@ -918,6 +941,9 @@ mod tests {
             start_layout: StartLayout::OneColumn,
             quick_bar: false,
             quick_tools: vec![QuickTool::Squiggly, QuickTool::Bookmark],
+            web_lookups: vec![WebLookup::Wikipedia, WebLookup::Jstor],
+            lookup_language: "zh-TW".into(),
+            lookup_shortened_notice: false,
             check_for_updates: false,
             smooth_zoom: false,
             smooth_annotation_scroll: false,
@@ -1023,11 +1049,12 @@ mod tests {
         // Tools from a newer version are skipped, not fatal.
         fs::write(
             &file,
-            br#"{"recent":[{"path":"c:/a.pdf","opened_at":1}],"settings":{"quick_tools":["copy","sparkle"]}}"#,
+            br#"{"recent":[{"path":"c:/a.pdf","opened_at":1}],"settings":{"quick_tools":["copy","sparkle"],"web_lookups":["bing","google"]}}"#,
         )
         .unwrap();
         let newer = Store::load(Some(file.clone()));
         assert_eq!(newer.settings().quick_tools, vec![QuickTool::Copy]);
+        assert_eq!(newer.settings().web_lookups, vec![WebLookup::Google]);
         assert_eq!(newer.recent().len(), 1);
         // An empty list hid the bar before it had a switch: the bar is off, and switched
         // on again it has the default tools. Stored with the switch, an empty list stays.
